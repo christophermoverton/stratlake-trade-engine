@@ -59,9 +59,6 @@ def _validate_date_str(d: Optional[str], label: str) -> None:
     
 import glob
 
-
-import glob
-
 def _glob_has_files(glob_pattern: str) -> bool:
     """
     Return True if at least one parquet file matches the glob.

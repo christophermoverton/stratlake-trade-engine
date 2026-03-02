@@ -7,6 +7,7 @@ import duckdb
 import pandas as pd
 
 from src.data.catalog import CANONICAL_COLS, CuratedPaths, build_where_clause, create_curated_views
+from src.data.contract_validation import BarsContract
 
 @dataclass(frozen=True)
 class LoadConfig:
@@ -32,6 +33,8 @@ def load_bars_daily(
     con: Optional[duckdb.DuckDBPyConnection] = None,
     paths: Optional[CuratedPaths] = None,
     cfg: Optional[LoadConfig] = None,
+    validate_contract: bool = True,
+    strict: bool = True,
 ) -> pd.DataFrame:
     """
     Load curated daily bars for symbols + date range.
@@ -45,7 +48,12 @@ def load_bars_daily(
     sql = _select_canonical_sql(cfg.view_daily, where_sql)
     
     df = con.execute(sql, params).df()
-    return _postprocess(df)
+    df = _postprocess(df)
+
+    if validate_contract:
+        BarsContract().validate(df, strict=strict, normalize_ts_utc=True)
+
+    return df
 
 def load_bars_1m(
     symbols: Optional[Sequence[str]] = None,
@@ -55,6 +63,8 @@ def load_bars_1m(
     con: Optional[duckdb.DuckDBPyConnection] = None,
     paths: Optional[CuratedPaths] = None,
     cfg: Optional[LoadConfig] = None,
+    validate_contract: bool = True,
+    strict: bool = True,
 ) -> pd.DataFrame:
     """
     Load curated 1-minute bars for symbols + date range.
@@ -68,7 +78,12 @@ def load_bars_1m(
     sql = _select_canonical_sql(cfg.view_1m, where_sql)
 
     df = con.execute(sql, params).df()
-    return _postprocess(df)
+    df = _postprocess(df)
+
+    if validate_contract:
+        BarsContract().validate(df, strict=strict, normalize_ts_utc=True)
+
+    return df
 
 def _postprocess(df: pd.DataFrame) -> pd.DataFrame:
     """

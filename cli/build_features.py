@@ -77,14 +77,32 @@ def resolve_input_partitions(
     if not dataset_root.exists():
         return []
 
-    for parquet_file in dataset_root.glob("symbol=*/date=*/*.parquet"):
-        symbol_value = parquet_file.parent.parent.name.removeprefix("symbol=")
-        date_value = parquet_file.parent.name.removeprefix("date=")
+    start_year = start_date[:4]
+    end_year = end_date[:4]
+    for parquet_file in dataset_root.rglob("*.parquet"):
+        partition_names = [part.name for part in parquet_file.parents]
+        symbol_part = next((part for part in partition_names if part.startswith("symbol=")), None)
+        date_part = next((part for part in partition_names if part.startswith("date=")), None)
+        year_part = next((part for part in partition_names if part.startswith("year=")), None)
+        if symbol_part is None:
+            continue
+
+        symbol_value = symbol_part.removeprefix("symbol=")
         if selected_symbols and symbol_value.upper() not in selected_symbols:
             continue
-        if date_value < start_date or date_value >= end_date:
+
+        if date_part is not None:
+            date_value = date_part.removeprefix("date=")
+            if date_value < start_date or date_value >= end_date:
+                continue
+            partitions.add(str(parquet_file.parent.resolve()))
             continue
-        partitions.add(str(parquet_file.parent.resolve()))
+
+        if year_part is not None:
+            year_value = year_part.removeprefix("year=")
+            if year_value < start_year or year_value > end_year:
+                continue
+            partitions.add(str(parquet_file.parent.resolve()))
 
     return sorted(partitions)
 

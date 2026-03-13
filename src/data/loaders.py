@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
@@ -8,8 +9,19 @@ from typing import Optional, Sequence
 import duckdb
 import pandas as pd
 
-from src.data.catalog import CANONICAL_COLS, CuratedPaths, build_where_clause, create_curated_views
+from src.data.catalog import (
+    CANONICAL_COLS,
+    CuratedPaths,
+    build_where_clause,
+    count_parquet_partitions,
+    create_curated_views,
+    parquet_scan_sql,
+    quote_sql_path,
+)
 from src.data.contract_validation import BarsContract
+
+LOGGER = logging.getLogger(__name__)
+
 
 @dataclass(frozen=True)
 class LoadConfig:
@@ -36,6 +48,40 @@ def _select_canonical_sql(view_name: str, where_sql: str) -> str:
     cols = ", ".join(CANONICAL_COLS)
     return f"SELECT {cols} FROM {view_name} {where_sql} ORDER BY symbol, ts_utc"
 
+
+def debug_count_parquet(con: duckdb.DuckDBPyConnection, parquet_path: str) -> int:
+    return con.execute(
+        f"SELECT COUNT(*) FROM read_parquet('{quote_sql_path(parquet_path)}', hive_partitioning = true)"
+    ).fetchone()[0]
+
+
+def _log_loader_debug(
+    *,
+    con: duckdb.DuckDBPyConnection,
+    view_name: str,
+    parquet_path: str,
+    where_sql: str,
+    params: dict,
+) -> None:
+    partitions_discovered = count_parquet_partitions(parquet_path)
+    if partitions_discovered:
+        rows_before_filter = debug_count_parquet(con, parquet_path)
+    else:
+        rows_before_filter = 0
+    rows_after_filter = con.execute(
+        f"SELECT COUNT(*) FROM {view_name} {where_sql}",
+        params,
+    ).fetchone()[0]
+    LOGGER.debug(
+        "Parquet load debug view=%s parquet_scan_path=%s parquet_scan_sql=%s partitions_discovered=%s rows_before_filter=%s rows_after_filter=%s",
+        view_name,
+        parquet_path,
+        parquet_scan_sql(parquet_path),
+        partitions_discovered,
+        rows_before_filter,
+        rows_after_filter,
+    )
+
 def load_bars_daily(
     symbols: Optional[Sequence[str]] = None,
     *,
@@ -55,10 +101,18 @@ def load_bars_daily(
     con = _ensure_duckdb_con(con)
     paths = paths or _default_curated_paths()
     create_curated_views(con, paths, view_daily=cfg.view_daily, view_1m=cfg.view_1m)
-    
+
+    parquet_path = paths.dataset_glob("bars_daily")
     where_sql, params = build_where_clause(symbols=symbols, start_date=start_date, end_date=end_date)
     sql = _select_canonical_sql(cfg.view_daily, where_sql)
-    
+
+    _log_loader_debug(
+        con=con,
+        view_name=cfg.view_daily,
+        parquet_path=parquet_path,
+        where_sql=where_sql,
+        params=params,
+    )
     df = con.execute(sql, params).df()
     df = _postprocess(df)
 
@@ -87,9 +141,17 @@ def load_bars_1m(
     paths = paths or _default_curated_paths()
     create_curated_views(con, paths, view_daily=cfg.view_daily, view_1m=cfg.view_1m)
 
+    parquet_path = paths.dataset_glob("bars_1m")
     where_sql, params = build_where_clause(symbols=symbols, start_date=start_date, end_date=end_date)
     sql = _select_canonical_sql(cfg.view_1m, where_sql)
 
+    _log_loader_debug(
+        con=con,
+        view_name=cfg.view_1m,
+        parquet_path=parquet_path,
+        where_sql=where_sql,
+        params=params,
+    )
     df = con.execute(sql, params).df()
     df = _postprocess(df)
 

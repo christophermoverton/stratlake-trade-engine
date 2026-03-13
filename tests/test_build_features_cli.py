@@ -114,6 +114,17 @@ def test_resolve_input_partitions_filters_by_symbol_and_date(tmp_path: Path) -> 
     assert partitions == [str(partition_a.resolve())]
 
 
+def test_resolve_input_partitions_supports_daily_year_partitions(tmp_path: Path) -> None:
+    marketlake_root = tmp_path / "marketlake"
+    yearly_partition = marketlake_root / "bars_daily" / "symbol=AAPL" / "year=2025"
+    yearly_partition.mkdir(parents=True)
+    (yearly_partition / "part-0.parquet").write_text("stub", encoding="utf-8")
+
+    partitions = resolve_input_partitions("1D", ["AAPL"], "2025-11-01", "2025-12-01", marketlake_root)
+
+    assert partitions == [str(yearly_partition.resolve())]
+
+
 def test_run_cli_dispatches_minute_pipeline_and_logs_metadata(
     tmp_path: Path, monkeypatch, caplog
 ) -> None:

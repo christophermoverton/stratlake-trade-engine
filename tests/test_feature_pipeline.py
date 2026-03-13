@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import logging
+
 import pandas as pd
 
 from src.pipeline.feature_pipeline import (
@@ -164,3 +166,25 @@ def test_run_minute_feature_pipeline_writes_empty_features(monkeypatch) -> None:
     assert result.empty
     assert calls["frame"] is empty_features
     assert calls["timeframe"] == "1Min"
+
+
+def test_run_minute_feature_pipeline_warns_when_bars_empty(monkeypatch, caplog) -> None:
+    empty_bars = _minute_bars().iloc[0:0]
+    empty_features = _minute_features().iloc[0:0]
+
+    monkeypatch.setattr("src.pipeline.feature_pipeline.load_bars_1m", lambda symbols, **kwargs: empty_bars)
+    monkeypatch.setattr("src.pipeline.feature_pipeline.compute_minute_features_v1", lambda frame, *, cfg=None: empty_features)
+    monkeypatch.setattr("src.pipeline.feature_pipeline.write_features", lambda frame, timeframe: None)
+
+    caplog.set_level(logging.WARNING)
+    run_minute_feature_pipeline(
+        ["AAPL"],
+        start_date="2025-01-02",
+        end_date="2025-01-03",
+        paths=None,
+    )
+
+    assert "No bars loaded timeframe=1Min" in caplog.text
+    assert "start=2025-01-02" in caplog.text
+    assert "end=2025-01-03" in caplog.text
+    assert "parquet_scan_path=" in caplog.text

@@ -431,7 +431,13 @@ This runs:
 ### Daily CLI Usage
 
 ```powershell
-python -m cli.build_features --timeframe 1D --start 2025-11-01 --end 2025-12-01 --tickers configs/tickers_50.txt
+.\.venv\Scripts\python.exe -m cli.build_features --timeframe 1D --start 2025-11-03 --end 2025-11-04 --tickers .\configs\tickers_50.txt
+```
+
+For daily features that require lookback history, use a wider date range, for example:
+
+```powershell
+.\.venv\Scripts\python.exe -m cli.build_features --timeframe 1D --start 2025-09-01 --end 2025-11-04 --tickers .\configs\tickers_50.txt
 ```
 
 ---
@@ -521,7 +527,13 @@ No separate ingestion pipeline is introduced here. The CLI is a thin entrypoint 
 ## Command
 
 ```powershell
-python -m cli.build_features --timeframe 1Min --start 2025-11-01 --end 2025-12-01 --tickers configs/tickers_50.txt
+.\.venv\Scripts\python.exe -m cli.build_features --timeframe 1Min --start 2025-11-03 --end 2025-11-04 --tickers .\configs\tickers_50.txt
+```
+
+Example daily run:
+
+```powershell
+.\.venv\Scripts\python.exe -m cli.build_features --timeframe 1D --start 2025-11-03 --end 2025-11-04 --tickers .\configs\tickers_50.txt
 ```
 
 Arguments:
@@ -530,6 +542,10 @@ Arguments:
 * `--start` -> inclusive start date in `YYYY-MM-DD`
 * `--end` -> exclusive end date in `YYYY-MM-DD`
 * `--tickers` -> path to a text file with one ticker per line
+
+Date window note:
+
+* `--start 2025-11-03 --end 2025-11-04` targets the single trading date `2025-11-03`
 
 Ticker file rules:
 

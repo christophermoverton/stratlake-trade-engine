@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import glob
 from pathlib import Path
 from typing import Iterable, Optional, Sequence
 
@@ -24,26 +25,30 @@ class CuratedPaths:
     """
     Catalog of curated datset locations.
     Default layout (matches your ingestion conventions):
-      data/curated/bars_daily/symbol=XYZ/date=YYYY-MM-DD/*.parquet
+      data/curated/bars_daily/symbol=XYZ/year=YYYY/*.parquet
       data/curated/bars_1m/symbol=XYZ/date=YYYY-MM-DD/*.parquet
     """
     root: Path = Path("data/curated")
-    
+
     @property
     def bars_daily_glob(self) -> str:
-        return str(self.root / "bars_daily" / "symbol=*" / "date=*"/ "*.parquet")
-    
+        return (self.root / "bars_daily" / "**" / "*.parquet").as_posix()
+
     @property
     def bars_1m_glob(self) -> str:
-        return str(self.root / "bars_1m" / "symbol=*" / "date=*" / "*.parquet")
-    
-    def dataset_glob(self, dataset: str) -> str:
+        return (self.root / "bars_1m" / "**" / "*.parquet").as_posix()
+
+    def dataset_root(self, dataset: str) -> Path:
         if dataset == "bars_daily":
-            return self.bars_daily_glob
+            return self.root / "bars_daily"
         if dataset == "bars_1m":
-            return self.bars_1m_glob
+            return self.root / "bars_1m"
         raise ValueError(f"Unknown dataset: {dataset!r}.  Expected 'bars_daily' or 'bars_1m'.")
-    
+
+    def dataset_glob(self, dataset: str) -> str:
+        return (self.dataset_root(dataset) / "**" / "*.parquet").as_posix()
+
+
 def _normalize_symbols(symbols: Optional[Sequence[str]]) -> Optional[list[str]]:
     if symbols is None:
         return None
@@ -56,15 +61,27 @@ def _validate_date_str(d: Optional[str], label: str) -> None:
     #Basic guard; Loaders will ttreat this as 'YYY-MM-DD' for filtering
     if len(d) != 10 or d[4] != "-" or d[7] != "-":
         raise ValueError(f"{label} must be 'YYYY-MM-DD' (got {dir}).")
-    
-import glob
+
 
 def _glob_has_files(glob_pattern: str) -> bool:
     """
     Return True if at least one parquet file matches the glob.
     Works with absolute Windows paths.
     """
-    return len(glob.glob(glob_pattern)) > 0
+    return len(glob.glob(glob_pattern, recursive=True)) > 0
+
+
+def count_parquet_partitions(glob_pattern: str) -> int:
+    parquet_files = glob.glob(glob_pattern, recursive=True)
+    return len({str(Path(file_path).parent) for file_path in parquet_files})
+
+
+def quote_sql_path(path: str) -> str:
+    return path.replace("'", "''")
+
+
+def parquet_scan_sql(glob_pattern: str) -> str:
+    return f"read_parquet('{quote_sql_path(glob_pattern)}', hive_partitioning = true)"
 
 
 def _create_empty_view(
@@ -114,7 +131,7 @@ def create_curated_views(
         con.execute(
             f"""
             CREATE OR REPLACE VIEW {view_daily} AS
-            SELECT * FROM read_parquet('{daily_glob}')
+            SELECT * FROM {parquet_scan_sql(daily_glob)}
             """
         )
     else:
@@ -125,7 +142,7 @@ def create_curated_views(
         con.execute(
             f"""
             CREATE OR REPLACE VIEW {view_1m} AS
-            SELECT * FROM read_parquet('{one_min_glob}')
+            SELECT * FROM {parquet_scan_sql(one_min_glob)}
             """
         )
     else:

@@ -4,10 +4,9 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
-import pytest
 
 from src.data.catalog import CANONICAL_COLS, CuratedPaths
-from src.data.loaders import load_bars_daily, load_bars_1m
+from src.data.loaders import _ensure_duckdb_con, load_bars_daily, load_bars_1m
 
 
 def _write_parquet(file_path: Path, df: pd.DataFrame) -> None:
@@ -238,3 +237,54 @@ def test_load_bars_1m_filters_symbol_and_date(tmp_path: Path) -> None:
     assert df["date"].unique().tolist() == ["2025-11-15"]
     assert df["timeframe"].unique().tolist() == ["1Min"]
     assert len(df) == 2
+
+
+def test_loaders_default_to_marketlake_root_env(tmp_path: Path, monkeypatch) -> None:
+    curated_root = tmp_path / "marketlake_curated"
+    monkeypatch.setenv("MARKETLAKE_ROOT", str(curated_root))
+
+    data = pd.DataFrame(
+        [
+            _make_row(
+                symbol="AAPL",
+                ts_utc="2025-11-01T20:59:00Z",
+                o=100,
+                h=110,
+                l=95,
+                c=105,
+                v=1000,
+                source="alpaca_iex",
+                timeframe="1D",
+                date="2025-11-01",
+            )
+        ]
+    )
+    _write_parquet(
+        curated_root / "bars_daily" / "symbol=AAPL" / "date=2025-11-01" / "data.parquet",
+        data,
+    )
+
+    df = load_bars_daily(["AAPL"], start_date="2025-11-01", end_date="2025-11-02")
+
+    assert len(df) == 1
+    assert df["symbol"].tolist() == ["AAPL"]
+
+
+def test_ensure_duckdb_con_defaults_to_env_path(monkeypatch) -> None:
+    calls: list[str] = []
+
+    class StubConnection:
+        def close(self) -> None:
+            return None
+
+    def fake_connect(*, database: str):
+        calls.append(database)
+        return StubConnection()
+
+    monkeypatch.setenv("DUCKDB_PATH", "custom.duckdb")
+    monkeypatch.setattr("src.data.loaders.duckdb.connect", fake_connect)
+
+    con = _ensure_duckdb_con()
+
+    assert isinstance(con, StubConnection)
+    assert calls == ["custom.duckdb"]

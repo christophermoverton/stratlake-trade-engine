@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Optional, Sequence
 
 import duckdb
@@ -16,9 +18,18 @@ class LoadConfig:
     """
     view_daily: str = "bars_daily"
     view_1m : str = "bars_1m"
+
+
+def _default_curated_paths() -> CuratedPaths:
+    marketlake_root = os.getenv("MARKETLAKE_ROOT")
+    if marketlake_root:
+        return CuratedPaths(root=Path(marketlake_root))
+    return CuratedPaths()
     
 def _ensure_duckdb_con(con: Optional[duckdb.DuckDBPyConnection] = None) -> duckdb.DuckDBPyConnection:
-    return con if con is not None else duckdb.connect(database=":memory:")
+    if con is not None:
+        return con
+    return duckdb.connect(database=os.getenv("DUCKDB_PATH", ":memory:"))
 
 def _select_canonical_sql(view_name: str, where_sql: str) -> str:
     #Select explicit columns to guarantee scchema order and avoid surprises.
@@ -42,6 +53,7 @@ def load_bars_daily(
     """
     cfg = cfg or LoadConfig()
     con = _ensure_duckdb_con(con)
+    paths = paths or _default_curated_paths()
     create_curated_views(con, paths, view_daily=cfg.view_daily, view_1m=cfg.view_1m)
     
     where_sql, params = build_where_clause(symbols=symbols, start_date=start_date, end_date=end_date)
@@ -72,6 +84,7 @@ def load_bars_1m(
     """
     cfg = cfg or LoadConfig()
     con = _ensure_duckdb_con(con)
+    paths = paths or _default_curated_paths()
     create_curated_views(con, paths, view_daily=cfg.view_daily, view_1m=cfg.view_1m)
 
     where_sql, params = build_where_clause(symbols=symbols, start_date=start_date, end_date=end_date)

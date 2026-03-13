@@ -367,8 +367,8 @@ Fail-fast behavior prevents downstream analytics from running on structurally in
 
 The Trade Analysis Engine computes a deterministic, symbol-segmented daily feature set derived from curated daily OHLCV bars.
 
-Shared output expectations for feature datasets are defined in [docs/feature_dataset_contract.md](C:\Users\christophermoverton\stratlake-trade-engine\docs\feature_dataset_contract.md).
-The repository-level feature registry lives at [configs/features.yml](C:\Users\christophermoverton\stratlake-trade-engine\configs\features.yml) and documents the currently implemented engineered feature sets and source datasets.
+Shared output expectations for feature datasets are defined in [docs/feature_dataset_contract.md](docs/feature_dataset_contract.md).
+The repository-level feature registry lives at [configs/features.yml](configs/features.yml) and documents the currently implemented engineered feature sets and source datasets.
 
 This layer operates strictly downstream of:
 

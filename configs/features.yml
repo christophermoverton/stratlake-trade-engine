@@ -1,1 +1,30 @@
-{}
+# Feature registry for engineered datasets produced by the StratLake
+# feature pipeline.
+#
+# Purpose:
+# - documentation of available feature datasets
+# - discoverability of engineered feature columns and their source datasets
+# - reproducibility of feature datasets by recording the current grouped outputs
+
+features_daily_v1:
+  source_dataset: bars_daily
+  description: Daily feature set derived from curated daily OHLCV bars
+  features:
+    - feature_ret_1d
+    - feature_ret_5d
+    - feature_ret_20d
+    - feature_vol_20d
+    - feature_sma20
+    - feature_sma50
+    - feature_sma_20
+    - feature_close_to_sma20
+
+features_1m_v1:
+  source_dataset: bars_1m
+  description: Intraday 1-minute feature set derived from curated 1-minute bars
+  features:
+    - feature_ret_1m
+    - feature_ret_5m
+    - feature_vol_30m
+    - feature_rv_30m
+    - feature_vol_ratio

@@ -106,6 +106,8 @@ src/
   features/      # Feature engineering
   pipeline/      # Load -> compute -> write orchestration
 
+cli/             # Command-line entrypoints
+
 configs/
   paths.yml
   universe.yml
@@ -129,6 +131,7 @@ Current implementation includes:
 * Daily and 1-minute feature computation
 * Feature parquet writing
 * Pipeline orchestration entry points
+* CLI entrypoint for feature builds and run summaries
 
 ---
 
@@ -276,6 +279,7 @@ Tests validate:
 * Empty dataset handling
 * Environment-driven loader defaults
 * Pipeline orchestration and writer invocation
+* CLI dispatch, metadata emission, and summary artifact creation
 
 Run:
 
@@ -424,6 +428,12 @@ This runs:
 * `compute_daily_features_v1(...)`
 * `write_features(..., "1D")`
 
+### Daily CLI Usage
+
+```powershell
+python -m cli.build_features --timeframe 1D --start 2025-11-01 --end 2025-12-01 --tickers configs/tickers_50.txt
+```
+
 ---
 
 # 1-Minute Feature Set v1 (Issue #5)
@@ -490,3 +500,81 @@ This runs:
 * `write_features(..., "1Min")`
 
 ---
+
+# Feature Build CLI
+
+## Overview
+
+The repository now includes a CLI wrapper around the existing feature pipeline.
+
+Use it to:
+
+* Load curated daily or 1-minute bars from `MARKETLAKE_ROOT`
+* Run the existing feature pipeline
+* Preserve the current parquet feature writer behavior
+* Emit a run summary artifact for traceability
+
+No separate ingestion pipeline is introduced here. The CLI is a thin entrypoint over `src.pipeline.feature_pipeline`.
+
+---
+
+## Command
+
+```powershell
+python -m cli.build_features --timeframe 1Min --start 2025-11-01 --end 2025-12-01 --tickers configs/tickers_50.txt
+```
+
+Arguments:
+
+* `--timeframe` -> supported values: `1Min`, `1D`
+* `--start` -> inclusive start date in `YYYY-MM-DD`
+* `--end` -> exclusive end date in `YYYY-MM-DD`
+* `--tickers` -> path to a text file with one ticker per line
+
+Ticker file rules:
+
+* One ticker per line
+* Blank lines are ignored
+* Surrounding whitespace is trimmed
+
+---
+
+## Outputs
+
+Feature outputs are still written by the existing writer:
+
+* Daily features -> `data/curated/features_daily/...`
+* Minute features -> `data/curated/features_1m/...`
+
+Each CLI run also writes:
+
+```text
+artifacts/feature_runs/<run_id>/summary.json
+```
+
+The summary includes:
+
+* `run_id`
+* `timeframe`
+* `start`
+* `end`
+* `tickers_file`
+* `symbols_requested`
+* `symbols_processed`
+* `feature_row_count`
+* `marketlake_root`
+* `input_partitions_used`
+* `missingness_by_feature_column`
+
+---
+
+## Logging
+
+The CLI logs:
+
+* Resolved `MARKETLAKE_ROOT`
+* Resolved timeframe
+* Input partitions used
+* Run ID
+
+This makes each feature build easier to trace back to its input slice and artifact directory.

@@ -367,6 +367,8 @@ Fail-fast behavior prevents downstream analytics from running on structurally in
 
 The Trade Analysis Engine computes a deterministic, symbol-segmented daily feature set derived from curated daily OHLCV bars.
 
+Shared output expectations for feature datasets are defined in [docs/feature_dataset_contract.md](C:\Users\christophermoverton\stratlake-trade-engine\docs\feature_dataset_contract.md).
+
 This layer operates strictly downstream of:
 
 * Ingestion QA (data-quality enforcement)

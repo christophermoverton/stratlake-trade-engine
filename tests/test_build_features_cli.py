@@ -5,6 +5,7 @@ import logging
 from pathlib import Path
 
 import pandas as pd
+import yaml
 
 from cli.build_features import (
     build_summary,
@@ -42,6 +43,11 @@ def _features_df() -> pd.DataFrame:
             "feature_beta": [None, None],
         }
     )
+
+
+def _write_yaml(path: Path, data: dict) -> None:
+    with open(path, "w", encoding="utf-8") as handle:
+        yaml.safe_dump(data, handle)
 
 
 def test_parse_args_and_load_tickers(tmp_path: Path) -> None:
@@ -195,3 +201,38 @@ def test_run_cli_dispatches_daily_pipeline(tmp_path: Path, monkeypatch) -> None:
     }
     assert summary_path == settings.artifacts_root / "feature_runs" / "run-daily" / "summary.json"
     assert payload["timeframe"] == "1D"
+
+
+def test_run_cli_uses_env_when_paths_yaml_is_missing(tmp_path: Path, monkeypatch) -> None:
+    configs_dir = tmp_path / "configs"
+    configs_dir.mkdir()
+    _write_yaml(configs_dir / "universe.yml", {})
+    _write_yaml(configs_dir / "features.yml", {})
+
+    tickers_file = tmp_path / "tickers.txt"
+    tickers_file.write_text("AAPL\n", encoding="utf-8")
+
+    marketlake_root = tmp_path / "env-marketlake"
+    artifacts_root = tmp_path / "env-artifacts"
+    marketlake_root.mkdir()
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("MARKETLAKE_ROOT", str(marketlake_root))
+    monkeypatch.setenv("ARTIFACTS_ROOT", str(artifacts_root))
+    monkeypatch.setenv("FEATURES_ROOT", str(tmp_path / "env-features"))
+    monkeypatch.setenv("LOG_LEVEL", "INFO")
+    monkeypatch.setenv("DEFAULT_TIMEZONE", "UTC")
+
+    monkeypatch.setattr(
+        "cli.build_features.run_minute_feature_pipeline",
+        lambda *args, **kwargs: _features_df().iloc[0:1],
+    )
+    monkeypatch.setattr("cli.build_features.generate_run_id", lambda now=None: "run-env-fallback")
+
+    summary_path = run_cli(
+        ["--timeframe", "1Min", "--start", "2025-11-01", "--end", "2025-12-01", "--tickers", str(tickers_file)]
+    )
+
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    assert summary_path == artifacts_root / "feature_runs" / "run-env-fallback" / "summary.json"
+    assert payload["marketlake_root"] == str(marketlake_root)

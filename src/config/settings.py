@@ -40,7 +40,8 @@ class Settings:
 
         config_path = Path(config_dir)
 
-        paths_config = _load_yaml(config_path / "paths.yml")
+        paths_file = config_path / "paths.yml"
+        paths_config = _load_yaml(paths_file) if paths_file.exists() else {}
         universe_config = _load_yaml(config_path / "universe.yml")
         features_config = _load_yaml(config_path / "features.yml")
 

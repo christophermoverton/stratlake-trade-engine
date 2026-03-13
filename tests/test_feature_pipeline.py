@@ -84,9 +84,18 @@ def test_run_daily_feature_pipeline_orchestrates(monkeypatch) -> None:
     def fake_write(frame, timeframe):
         calls["write"] = {"frame": frame, "timeframe": timeframe}
 
+    def fake_qa(frame, *, timeframe, expected_symbols=None, qa_root=None):
+        calls["qa"] = {
+            "frame": frame,
+            "timeframe": timeframe,
+            "expected_symbols": expected_symbols,
+            "qa_root": qa_root,
+        }
+
     monkeypatch.setattr("src.pipeline.feature_pipeline.load_bars_daily", fake_load)
     monkeypatch.setattr("src.pipeline.feature_pipeline.compute_daily_features_v1", fake_compute)
     monkeypatch.setattr("src.pipeline.feature_pipeline.write_features", fake_write)
+    monkeypatch.setattr("src.pipeline.feature_pipeline.write_feature_qa_artifacts", fake_qa)
 
     result = run_daily_feature_pipeline(["AAPL"], start_date="2025-01-01", end_date="2025-01-03")
 
@@ -97,6 +106,9 @@ def test_run_daily_feature_pipeline_orchestrates(monkeypatch) -> None:
     assert calls["compute"]["frame"] is bars
     assert calls["write"]["frame"] is features
     assert calls["write"]["timeframe"] == "1D"
+    assert calls["qa"]["frame"] is features
+    assert calls["qa"]["timeframe"] == "1D"
+    assert calls["qa"]["expected_symbols"] == ["AAPL"]
 
 
 def test_run_minute_feature_pipeline_orchestrates(monkeypatch) -> None:
@@ -115,9 +127,18 @@ def test_run_minute_feature_pipeline_orchestrates(monkeypatch) -> None:
     def fake_write(frame, timeframe):
         calls["write"] = {"frame": frame, "timeframe": timeframe}
 
+    def fake_qa(frame, *, timeframe, expected_symbols=None, qa_root=None):
+        calls["qa"] = {
+            "frame": frame,
+            "timeframe": timeframe,
+            "expected_symbols": expected_symbols,
+            "qa_root": qa_root,
+        }
+
     monkeypatch.setattr("src.pipeline.feature_pipeline.load_bars_1m", fake_load)
     monkeypatch.setattr("src.pipeline.feature_pipeline.compute_minute_features_v1", fake_compute)
     monkeypatch.setattr("src.pipeline.feature_pipeline.write_features", fake_write)
+    monkeypatch.setattr("src.pipeline.feature_pipeline.write_feature_qa_artifacts", fake_qa)
 
     result = run_minute_feature_pipeline(["AAPL"], start_date="2025-01-02", end_date="2025-01-03")
 
@@ -128,6 +149,9 @@ def test_run_minute_feature_pipeline_orchestrates(monkeypatch) -> None:
     assert calls["compute"]["frame"] is bars
     assert calls["write"]["frame"] is features
     assert calls["write"]["timeframe"] == "1Min"
+    assert calls["qa"]["frame"] is features
+    assert calls["qa"]["timeframe"] == "1Min"
+    assert calls["qa"]["expected_symbols"] == ["AAPL"]
 
 
 def test_run_daily_feature_pipeline_writes_empty_features(monkeypatch) -> None:
@@ -141,12 +165,25 @@ def test_run_daily_feature_pipeline_writes_empty_features(monkeypatch) -> None:
         "src.pipeline.feature_pipeline.write_features",
         lambda frame, timeframe: calls.update({"frame": frame, "timeframe": timeframe}),
     )
+    monkeypatch.setattr(
+        "src.pipeline.feature_pipeline.write_feature_qa_artifacts",
+        lambda frame, *, timeframe, expected_symbols=None, qa_root=None: calls.update(
+            {
+                "qa_frame": frame,
+                "qa_timeframe": timeframe,
+                "qa_expected_symbols": expected_symbols,
+            }
+        ),
+    )
 
     result = run_daily_feature_pipeline(["AAPL"])
 
     assert result.empty
     assert calls["frame"] is empty_features
     assert calls["timeframe"] == "1D"
+    assert calls["qa_frame"] is empty_features
+    assert calls["qa_timeframe"] == "1D"
+    assert calls["qa_expected_symbols"] == ["AAPL"]
 
 
 def test_run_minute_feature_pipeline_writes_empty_features(monkeypatch) -> None:
@@ -160,12 +197,25 @@ def test_run_minute_feature_pipeline_writes_empty_features(monkeypatch) -> None:
         "src.pipeline.feature_pipeline.write_features",
         lambda frame, timeframe: calls.update({"frame": frame, "timeframe": timeframe}),
     )
+    monkeypatch.setattr(
+        "src.pipeline.feature_pipeline.write_feature_qa_artifacts",
+        lambda frame, *, timeframe, expected_symbols=None, qa_root=None: calls.update(
+            {
+                "qa_frame": frame,
+                "qa_timeframe": timeframe,
+                "qa_expected_symbols": expected_symbols,
+            }
+        ),
+    )
 
     result = run_minute_feature_pipeline(["AAPL"])
 
     assert result.empty
     assert calls["frame"] is empty_features
     assert calls["timeframe"] == "1Min"
+    assert calls["qa_frame"] is empty_features
+    assert calls["qa_timeframe"] == "1Min"
+    assert calls["qa_expected_symbols"] == ["AAPL"]
 
 
 def test_run_minute_feature_pipeline_warns_when_bars_empty(monkeypatch, caplog) -> None:
@@ -175,6 +225,10 @@ def test_run_minute_feature_pipeline_warns_when_bars_empty(monkeypatch, caplog) 
     monkeypatch.setattr("src.pipeline.feature_pipeline.load_bars_1m", lambda symbols, **kwargs: empty_bars)
     monkeypatch.setattr("src.pipeline.feature_pipeline.compute_minute_features_v1", lambda frame, *, cfg=None: empty_features)
     monkeypatch.setattr("src.pipeline.feature_pipeline.write_features", lambda frame, timeframe: None)
+    monkeypatch.setattr(
+        "src.pipeline.feature_pipeline.write_feature_qa_artifacts",
+        lambda frame, *, timeframe, expected_symbols=None, qa_root=None: None,
+    )
 
     caplog.set_level(logging.WARNING)
     run_minute_feature_pipeline(

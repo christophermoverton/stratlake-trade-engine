@@ -368,6 +368,7 @@ Fail-fast behavior prevents downstream analytics from running on structurally in
 The Trade Analysis Engine computes a deterministic, symbol-segmented daily feature set derived from curated daily OHLCV bars.
 
 Shared output expectations for feature datasets are defined in [docs/feature_dataset_contract.md](docs/feature_dataset_contract.md).
+Feature dataset QA metrics and artifact outputs are documented in [docs/dataset_qa_metrics.md](docs/dataset_qa_metrics.md).
 The repository-level feature registry lives at [configs/features.yml](configs/features.yml) and documents the currently implemented engineered feature sets and source datasets.
 
 This layer operates strictly downstream of:
@@ -570,6 +571,14 @@ Each CLI run also writes:
 ```text
 artifacts/feature_runs/<run_id>/summary.json
 ```
+
+Feature QA summaries are also written to:
+
+```text
+artifacts/qa/features/
+```
+
+See [docs/dataset_qa_metrics.md](docs/dataset_qa_metrics.md) for the QA export structure and included metrics.
 
 The summary includes:
 

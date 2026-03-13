@@ -143,6 +143,7 @@ def test_run_cli_dispatches_minute_pipeline_and_logs_metadata(
             "symbols": symbols,
             "start_date": start_date,
             "end_date": end_date,
+            "qa_artifacts_root": kwargs.get("qa_artifacts_root"),
         }
         return _features_df()
 
@@ -164,6 +165,7 @@ def test_run_cli_dispatches_minute_pipeline_and_logs_metadata(
         "symbols": ["AAPL", "MSFT"],
         "start_date": "2025-11-01",
         "end_date": "2025-12-01",
+        "qa_artifacts_root": settings.artifacts_root / "qa" / "features",
     }
     assert payload["run_id"] == "run-minute"
     assert payload["timeframe"] == "1Min"
@@ -189,6 +191,7 @@ def test_run_cli_dispatches_daily_pipeline(tmp_path: Path, monkeypatch) -> None:
             "symbols": symbols,
             "start_date": start_date,
             "end_date": end_date,
+            "qa_artifacts_root": kwargs.get("qa_artifacts_root"),
         }
         return _features_df().iloc[0:1].assign(timeframe="1D")
 
@@ -209,6 +212,7 @@ def test_run_cli_dispatches_daily_pipeline(tmp_path: Path, monkeypatch) -> None:
         "symbols": ["AAPL"],
         "start_date": "2025-11-01",
         "end_date": "2025-12-01",
+        "qa_artifacts_root": settings.artifacts_root / "qa" / "features",
     }
     assert summary_path == settings.artifacts_root / "feature_runs" / "run-daily" / "summary.json"
     assert payload["timeframe"] == "1D"

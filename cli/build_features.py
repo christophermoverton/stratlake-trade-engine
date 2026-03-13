@@ -177,6 +177,7 @@ def run_cli(argv: Sequence[str] | None = None) -> Path:
         tickers,
         start_date=args.start,
         end_date=args.end,
+        qa_artifacts_root=settings.artifacts_root / "qa" / "features",
     )
 
     summary = build_summary(

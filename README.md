@@ -369,6 +369,7 @@ The Trade Analysis Engine computes a deterministic, symbol-segmented daily featu
 
 Shared output expectations for feature datasets are defined in [docs/feature_dataset_contract.md](docs/feature_dataset_contract.md).
 Feature dataset QA metrics and artifact outputs are documented in [docs/dataset_qa_metrics.md](docs/dataset_qa_metrics.md).
+Feature dataset loader usage is documented in [docs/load_features.md](docs/load_features.md).
 The repository-level feature registry lives at [configs/features.yml](configs/features.yml) and documents the currently implemented engineered feature sets and source datasets.
 
 This layer operates strictly downstream of:
@@ -565,6 +566,8 @@ Feature outputs are still written by the existing writer:
 
 * Daily features -> `data/curated/features_daily/...`
 * Minute features -> `data/curated/features_1m/...`
+
+You can read engineered feature datasets back into analytics or research code with `load_features()`. See [docs/load_features.md](docs/load_features.md) for examples and path semantics.
 
 Each CLI run also writes:
 

@@ -135,6 +135,91 @@ Current implementation includes:
 
 ---
 
+## Feature Engineering Layer
+
+StratLake's feature engineering layer transforms curated market data into
+analytics-ready feature datasets for research and downstream modeling.
+
+Current feature datasets:
+
+* `features_daily`
+* `features_1m`
+
+These datasets follow the shared feature dataset contract documented in
+[docs/feature_dataset_contract.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/feature_dataset_contract.md).
+
+### Architecture Overview
+
+```text
+Alpaca market data
+        ↓
+curated bars datasets
+        ↓
+feature engineering pipeline
+        ↓
+daily and minute feature datasets
+        ↓
+analytics / research workflows
+```
+
+### Feature Groups
+
+The current engineered feature surface is organized around a few recurring
+feature groups:
+
+* momentum features: multi-horizon returns such as short, medium, and longer lookback returns
+* volatility features: rolling and realized volatility features derived from recent price behavior
+* trend features: moving averages and price-vs-trend deviation measures
+* liquidity/activity features: normalized volume and trading activity metrics
+
+The repository-level feature registry in
+[configs/features.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/features.yml)
+documents the currently implemented feature sets, their source datasets, and
+their engineered columns.
+
+### Feature Pipeline
+
+The feature pipeline runs strictly downstream of curated bars datasets. In
+practice, the flow is:
+
+* load validated curated `bars_daily` or `bars_1m` datasets
+* compute deterministic engineered features for each `(symbol, ts_utc, timeframe)` row
+* write partitioned Parquet feature outputs
+* emit QA summaries for observability and downstream checks
+
+This keeps feature engineering separate from ingestion while ensuring analytics
+consumers work from validated, reproducible inputs.
+
+### Dataset Layout
+
+Feature datasets are designed to be consumed from partitioned Parquet storage
+using a canonical layout:
+
+```text
+data/features/<dataset>/symbol=<SYMBOL>/date=<YYYY-MM-DD>/*.parquet
+```
+
+The feature loaders and DuckDB view helpers support this contract layout via
+`FEATURES_ROOT`. They also remain compatible with the repository's current
+feature output conventions so existing pipelines continue to work while exposing
+the same logical datasets.
+
+### Analytics Access
+
+Feature datasets can be accessed in two main ways:
+
+* `load_features()` utilities for pandas-based analytics and research workflows
+* DuckDB feature views for direct SQL access over partitioned Parquet datasets
+
+See the related documentation for details:
+
+* [docs/load_features.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/load_features.md) for loader usage and DuckDB feature views
+* [docs/dataset_qa_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/dataset_qa_metrics.md) for QA summary outputs and checks
+* [docs/feature_dataset_contract.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/feature_dataset_contract.md) for schema, naming, and behavioral guarantees
+* [configs/features.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/features.yml) for the feature registry and source dataset mapping
+
+---
+
 # Data Access Layer (Issue 2)
 
 The Trade Analysis Engine reads directly from the curated MarketLake parquet datasets without re-running ingestion.

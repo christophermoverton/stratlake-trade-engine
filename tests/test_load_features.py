@@ -5,7 +5,12 @@ from pathlib import Path
 import duckdb
 import pandas as pd
 
-from src.data.load_features import FEATURE_CORE_COLUMNS, FeaturePaths, load_features
+from src.data.load_features import (
+    FEATURE_CORE_COLUMNS,
+    FeaturePaths,
+    create_feature_views,
+    load_features,
+)
 
 
 def _write_parquet(file_path: Path, df: pd.DataFrame) -> None:
@@ -197,3 +202,68 @@ def test_load_features_supports_direct_root_and_year_partitions(tmp_path: Path) 
     assert len(df) == 1
     assert df["symbol"].tolist() == ["AAPL"]
     assert df["feature_alpha"].tolist() == [5.0]
+
+
+def test_create_feature_views_supports_sql_analytics_and_partition_discovery(tmp_path: Path) -> None:
+    paths = FeaturePaths(root=tmp_path / "data")
+    dataset_root = paths.dataset_root("features_1m")
+
+    # Omit symbol/date in parquet payload so Hive partition discovery has to recover them.
+    _write_parquet(
+        dataset_root / "symbol=AAPL" / "date=2025-11-15" / "part-0.parquet",
+        pd.DataFrame(
+            [
+                {
+                    "ts_utc": pd.Timestamp("2025-11-15T14:30:00Z"),
+                    "timeframe": "1Min",
+                    "feature_ret_1m": 0.10,
+                },
+                {
+                    "ts_utc": pd.Timestamp("2025-11-15T14:31:00Z"),
+                    "timeframe": "1Min",
+                    "feature_ret_1m": 0.30,
+                },
+            ]
+        ),
+    )
+    _write_parquet(
+        dataset_root / "symbol=MSFT" / "date=2025-11-15" / "part-0.parquet",
+        pd.DataFrame(
+            [
+                {
+                    "ts_utc": pd.Timestamp("2025-11-15T14:30:00Z"),
+                    "timeframe": "1Min",
+                    "feature_ret_1m": 0.20,
+                }
+            ]
+        ),
+    )
+
+    con = duckdb.connect(database=":memory:")
+    try:
+        create_feature_views(con, paths)
+
+        rows = con.execute(
+            """
+            SELECT symbol, CAST(date AS VARCHAR) AS date, feature_ret_1m
+            FROM features_1m
+            ORDER BY symbol, ts_utc
+            """
+        ).fetchall()
+        aggregates = con.execute(
+            """
+            SELECT symbol, AVG(feature_ret_1m) AS avg_feature_ret_1m
+            FROM features_1m
+            GROUP BY symbol
+            ORDER BY symbol
+            """
+        ).fetchall()
+
+        assert rows == [
+            ("AAPL", "2025-11-15", 0.10),
+            ("AAPL", "2025-11-15", 0.30),
+            ("MSFT", "2025-11-15", 0.20),
+        ]
+        assert aggregates == [("AAPL", 0.20), ("MSFT", 0.20)]
+    finally:
+        con.close()

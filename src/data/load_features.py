@@ -8,7 +8,7 @@ from typing import Optional, Sequence
 import duckdb
 import pandas as pd
 
-from src.data.catalog import build_where_clause, quote_sql_path
+from src.data.catalog import build_where_clause, parquet_scan_sql
 from src.data.loaders import _ensure_duckdb_con
 
 SUPPORTED_FEATURE_DATASETS = {"features_daily", "features_1m"}
@@ -39,6 +39,67 @@ class FeaturePaths:
         return (self.dataset_root(dataset) / "**" / "*.parquet").as_posix()
 
 
+@dataclass(frozen=True)
+class FeatureViewConfig:
+    view_daily: str = "features_daily"
+    view_1m: str = "features_1m"
+
+    def view_name(self, dataset: str) -> str:
+        if dataset == "features_daily":
+            return self.view_daily
+        if dataset == "features_1m":
+            return self.view_1m
+        expected = ", ".join(sorted(SUPPORTED_FEATURE_DATASETS))
+        raise ValueError(f"Unknown feature dataset: {dataset!r}. Expected one of: {expected}.")
+
+
+def _create_empty_feature_view(
+    con: duckdb.DuckDBPyConnection,
+    view_name: str,
+) -> None:
+    con.execute(
+        f"""
+        CREATE OR REPLACE VIEW {view_name} AS
+        SELECT
+            CAST(NULL AS VARCHAR) AS symbol,
+            CAST(NULL AS TIMESTAMP) AS ts_utc,
+            CAST(NULL AS VARCHAR) AS timeframe,
+            CAST(NULL AS VARCHAR) AS date
+        WHERE FALSE
+        """
+    )
+
+
+def create_feature_views(
+    con: duckdb.DuckDBPyConnection,
+    paths: Optional[FeaturePaths] = None,
+    *,
+    cfg: Optional[FeatureViewConfig] = None,
+) -> None:
+    """
+    Register DuckDB views over partitioned feature parquet datasets.
+
+    Views use recursive parquet scanning with Hive partition discovery so
+    analytics queries can hit engineered features directly with SQL.
+    """
+    resolved_paths = paths or FeaturePaths()
+    resolved_cfg = cfg or FeatureViewConfig()
+
+    for dataset in sorted(SUPPORTED_FEATURE_DATASETS):
+        parquet_files = sorted(resolved_paths.dataset_root(dataset).glob("**/*.parquet"))
+        view_name = resolved_cfg.view_name(dataset)
+
+        if parquet_files:
+            con.execute(
+                f"""
+                CREATE OR REPLACE VIEW {view_name} AS
+                SELECT * FROM {parquet_scan_sql(resolved_paths.dataset_glob(dataset))}
+                """
+            )
+        else:
+            _create_empty_feature_view(con, view_name)
+
+
 def load_features(
     dataset: str,
     start: str | None = None,
@@ -47,6 +108,7 @@ def load_features(
     *,
     con: Optional[duckdb.DuckDBPyConnection] = None,
     paths: Optional[FeaturePaths] = None,
+    cfg: Optional[FeatureViewConfig] = None,
 ) -> pd.DataFrame:
     """
     Load an engineered feature dataset from partitioned parquet storage.
@@ -59,20 +121,24 @@ def load_features(
     `end` is exclusive to match the existing data loader pattern.
     """
     resolved_paths = paths or FeaturePaths()
-    dataset_glob = resolved_paths.dataset_glob(dataset)
+    resolved_cfg = cfg or FeatureViewConfig()
     parquet_files = sorted(resolved_paths.dataset_root(dataset).glob("**/*.parquet"))
 
     if not parquet_files:
         return pd.DataFrame(columns=FEATURE_CORE_COLUMNS)
 
+    connection = _ensure_duckdb_con(con)
+    create_feature_views(connection, resolved_paths, cfg=resolved_cfg)
+
     where_sql, params = build_where_clause(symbols=symbols, start_date=start, end_date=end)
+    view_name = resolved_cfg.view_name(dataset)
     sql = f"""
         SELECT *
-        FROM read_parquet('{quote_sql_path(dataset_glob)}', hive_partitioning = true)
+        FROM {view_name}
         {where_sql}
         ORDER BY symbol, ts_utc
     """
-    df = _ensure_duckdb_con(con).execute(sql, params).df()
+    df = connection.execute(sql, params).df()
     return _postprocess(df)
 
 

@@ -2,6 +2,8 @@
 
 `src.data.load_features.load_features()` provides a reusable way to read engineered feature datasets from partitioned Parquet storage for analytics and research workflows.
 
+`src.data.load_features.create_feature_views()` also exposes the same datasets as DuckDB views for direct SQL analysis.
+
 ## Supported Datasets
 
 The loader supports:
@@ -54,6 +56,33 @@ The loader:
 * filters by `symbol` and `date` when requested
 * sorts results deterministically by `(symbol, ts_utc)`
 * returns an empty `DataFrame` when no matching files or rows exist
+
+When feature parquet files exist, DuckDB views are created for:
+
+* `features_daily`
+* `features_1m`
+
+These views scan the recursive parquet layout directly, so analytical SQL can run without going through the pandas loader first.
+
+## Example: Register DuckDB Views
+
+```python
+import duckdb
+
+from src.data.load_features import FeaturePaths, create_feature_views
+
+con = duckdb.connect(":memory:")
+create_feature_views(con, FeaturePaths(root="data"))
+
+result = con.execute(
+    """
+    SELECT symbol, AVG(feature_ret_1m)
+    FROM features_1m
+    GROUP BY symbol
+    ORDER BY symbol
+    """
+).fetchall()
+```
 
 ## Example: Load Daily Features
 

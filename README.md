@@ -569,6 +569,8 @@ Feature outputs are still written by the existing writer:
 
 You can read engineered feature datasets back into analytics or research code with `load_features()`. See [docs/load_features.md](docs/load_features.md) for examples and path semantics.
 
+Feature datasets can also be exposed as DuckDB views with `create_feature_views()` for direct SQL analytics over partitioned parquet, including `features_daily` and `features_1m`.
+
 Each CLI run also writes:
 
 ```text

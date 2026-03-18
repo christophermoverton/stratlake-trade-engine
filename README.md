@@ -8,18 +8,24 @@ It consumes validated, QA-enforced OHLCV data from an external marketlake.
 
 ---
 
-## Milestone 1 - Repository Foundation
+## Milestone Summary
 
-This milestone establishes:
+StratLake now spans three connected layers:
 
-- Clean repository structure
-- Deterministic configuration loading
-- Environment-based overrides
-- YAML configuration contracts
-- Isolated configuration testing
-- DuckDB-backed curated data access
-- Deterministic daily and minute feature engineering
-- Feature pipeline orchestration from curated bars to feature parquet
+* Milestone 1: repository foundation, configuration loading, and data access
+* Milestone 2: deterministic feature engineering and pipeline orchestration
+* Milestone 3: Strategy Research Layer for systematic experimentation and backtesting
+
+Milestone 3 extends StratLake from a feature engineering and analytics platform
+into a reproducible strategy research workflow. The repository now supports:
+
+* standardized strategy interfaces
+* YAML-backed strategy configuration registry
+* signal generation over engineered feature datasets
+* deterministic backtest execution with lagged signal application
+* performance metrics for experiment evaluation
+* file-based experiment artifact logging
+* a CLI strategy runner for end-to-end research execution
 
 ---
 
@@ -111,13 +117,16 @@ src/
 cli/             # Command-line entrypoints
 
 configs/
+  strategies.yml # Strategy registry for research experiments
   paths.yml
   universe.yml
   features.yml
 
 tests/           # Unit tests
 
-artifacts/       # Research outputs (not versioned)
+artifacts/
+  strategies/    # Strategy experiment outputs (not versioned)
+  feature_runs/  # Feature pipeline run summaries (not versioned)
 data/            # Locally generated data (not versioned)
 ```
 
@@ -141,20 +150,22 @@ Current implementation includes:
 
 ## Research Layer
 
-The research layer now includes the core building blocks needed to move from
-feature datasets to a deterministic strategy equity curve and standardized
-performance evaluation:
+The completed Strategy Research Layer provides the core building blocks needed
+to move from feature datasets to systematic signals, deterministic backtests,
+standardized metrics, and reproducible experiment artifacts:
 
 * `BaseStrategy` for standardized strategy interfaces
+* `configs/strategies.yml` for deterministic strategy configuration
 * `generate_signals()` for attaching validated `signal` outputs to a dataset
 * `run_backtest()` for converting lagged signals into realized strategy returns
 * performance metrics for evaluating the resulting `strategy_return` series
 * `save_experiment()` for persisting reproducible experiment artifacts to disk
 
-The current research modules are intentionally minimal. They operate on a
-single dataset, use the previous period's signal to avoid look-ahead bias,
-compound returns into an `equity_curve`, and compute deterministic summary
-statistics from the resulting strategy return series.
+The current research modules are intentionally minimal and reproducible. They
+operate on feature datasets already produced by the analytics layer, use the
+previous period's signal to avoid look-ahead bias, compound returns into an
+`equity_curve`, and compute deterministic summary statistics from the resulting
+strategy return series.
 
 The research layer also includes a CLI entrypoint that runs the full experiment
 flow from a strategy name in `configs/strategies.yml`, including dataset load,
@@ -164,24 +175,24 @@ and console summary output.
 ### Research Flow
 
 ```text
-feature dataset
-        ↓
+feature datasets -> signals -> backtest -> metrics -> artifacts
+```
+
+Pipeline mapping in code:
+
+```text
+load_features(...)
+        ->
 strategy.generate_signals(...)
-        ↓
+        ->
 signal_engine.generate_signals(...)
-        ↓
+        ->
 backtest_runner.run_backtest(...)
-        ↓
-strategy_return + equity_curve
-        ↓
-metrics.cumulative_return(...)
-metrics.volatility(...)
-metrics.sharpe_ratio(...)
-metrics.max_drawdown(...)
-metrics.win_rate(...)
-        ↓
+        ->
+metrics.{cumulative_return, volatility, sharpe_ratio, max_drawdown, win_rate}
+        ->
 experiment_tracker.save_experiment(...)
-        ↓
+        ->
 artifacts/strategies/<run_id>/
 ```
 
@@ -231,6 +242,12 @@ for the CLI command, arguments, strategy registry expectations, and example runs
 Run a configured strategy experiment from the command line:
 
 ```powershell
+python -m src.cli.run_strategy --strategy momentum_v1
+```
+
+Example with an explicit research window:
+
+```powershell
 .\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy momentum_v1 --start 2025-01-01 --end 2025-04-01
 ```
 
@@ -249,6 +266,12 @@ Console summary output includes:
 * experiment run identifier
 * cumulative return
 * Sharpe ratio
+
+Milestone 3 outcome:
+
+* StratLake can now load feature datasets, generate strategy signals, run a
+  deterministic backtest, compute research metrics, and persist reproducible
+  experiment artifacts from a single CLI command.
 
 ---
 

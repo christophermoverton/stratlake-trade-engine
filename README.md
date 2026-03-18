@@ -133,22 +133,25 @@ Current implementation includes:
 * Feature parquet writing
 * Pipeline orchestration entry points
 * CLI entrypoint for feature builds and run summaries
-* Research-layer signal generation and deterministic backtest execution
+* Research-layer signal generation, deterministic backtest execution, and performance metrics
 
 ---
 
 ## Research Layer
 
 The research layer now includes the core building blocks needed to move from
-feature datasets to a deterministic strategy equity curve:
+feature datasets to a deterministic strategy equity curve and standardized
+performance evaluation:
 
 * `BaseStrategy` for standardized strategy interfaces
 * `generate_signals()` for attaching validated `signal` outputs to a dataset
 * `run_backtest()` for converting lagged signals into realized strategy returns
+* performance metrics for evaluating the resulting `strategy_return` series
 
-The backtest runner is intentionally minimal. It operates on a single dataset,
-uses the previous period's signal to avoid look-ahead bias, and compounds
-returns into an `equity_curve`.
+The current research modules are intentionally minimal. They operate on a
+single dataset, use the previous period's signal to avoid look-ahead bias,
+compound returns into an `equity_curve`, and compute deterministic summary
+statistics from the resulting strategy return series.
 
 ### Research Flow
 
@@ -162,6 +165,12 @@ signal_engine.generate_signals(...)
 backtest_runner.run_backtest(...)
         ↓
 strategy_return + equity_curve
+        ↓
+metrics.cumulative_return(...)
+metrics.volatility(...)
+metrics.sharpe_ratio(...)
+metrics.max_drawdown(...)
+metrics.win_rate(...)
 ```
 
 ### Backtest Formula
@@ -175,14 +184,20 @@ equity_curve = (1.0 + strategy_return).cumprod()
 
 ```python
 from src.research.backtest_runner import run_backtest
+from src.research.metrics import cumulative_return, sharpe_ratio
 from src.research.signal_engine import generate_signals
 
 signals_df = generate_signals(features_df, strategy)
 backtest_df = run_backtest(signals_df)
+
+total_return = cumulative_return(backtest_df["strategy_return"])
+sharpe = sharpe_ratio(backtest_df["strategy_return"])
 ```
 
 See [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
 for the input contract, supported return columns, and expected outputs.
+See [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
+for the available metrics, formulas, and usage expectations.
 
 ---
 

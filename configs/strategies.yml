@@ -1,0 +1,18 @@
+# Strategy registry for research-layer strategy definitions.
+#
+# Purpose:
+# - document available strategy configurations
+# - keep strategy dataset requirements explicit and reproducible
+# - provide deterministic parameter sets for future loaders and runners
+
+momentum_v1:
+  dataset: features_daily
+  parameters:
+    lookback_short: 5
+    lookback_long: 20
+
+mean_reversion_v1:
+  dataset: features_daily
+  parameters:
+    zscore_window: 20
+    entry_threshold: -2

@@ -44,7 +44,7 @@ The ingestion repository owns:
 StratLake owns:
 - Feature engineering
 - Research experimentation
-- Backtesting logic (planned)
+- Backtesting logic
 - Reproducible research artifacts
 
 ---
@@ -105,6 +105,7 @@ src/
   data/          # Data access layer + feature writer
   features/      # Feature engineering
   pipeline/      # Load -> compute -> write orchestration
+  research/      # Strategy interfaces, signals, and backtest execution
 
 cli/             # Command-line entrypoints
 
@@ -132,6 +133,56 @@ Current implementation includes:
 * Feature parquet writing
 * Pipeline orchestration entry points
 * CLI entrypoint for feature builds and run summaries
+* Research-layer signal generation and deterministic backtest execution
+
+---
+
+## Research Layer
+
+The research layer now includes the core building blocks needed to move from
+feature datasets to a deterministic strategy equity curve:
+
+* `BaseStrategy` for standardized strategy interfaces
+* `generate_signals()` for attaching validated `signal` outputs to a dataset
+* `run_backtest()` for converting lagged signals into realized strategy returns
+
+The backtest runner is intentionally minimal. It operates on a single dataset,
+uses the previous period's signal to avoid look-ahead bias, and compounds
+returns into an `equity_curve`.
+
+### Research Flow
+
+```text
+feature dataset
+        ↓
+strategy.generate_signals(...)
+        ↓
+signal_engine.generate_signals(...)
+        ↓
+backtest_runner.run_backtest(...)
+        ↓
+strategy_return + equity_curve
+```
+
+### Backtest Formula
+
+```python
+strategy_return = signal.shift(1).fillna(0.0) * asset_return
+equity_curve = (1.0 + strategy_return).cumprod()
+```
+
+### Example Usage
+
+```python
+from src.research.backtest_runner import run_backtest
+from src.research.signal_engine import generate_signals
+
+signals_df = generate_signals(features_df, strategy)
+backtest_df = run_backtest(signals_df)
+```
+
+See [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
+for the input contract, supported return columns, and expected outputs.
 
 ---
 

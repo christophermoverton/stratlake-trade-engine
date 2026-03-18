@@ -147,6 +147,7 @@ performance evaluation:
 * `generate_signals()` for attaching validated `signal` outputs to a dataset
 * `run_backtest()` for converting lagged signals into realized strategy returns
 * performance metrics for evaluating the resulting `strategy_return` series
+* `save_experiment()` for persisting reproducible experiment artifacts to disk
 
 The current research modules are intentionally minimal. They operate on a
 single dataset, use the previous period's signal to avoid look-ahead bias,
@@ -171,6 +172,10 @@ metrics.volatility(...)
 metrics.sharpe_ratio(...)
 metrics.max_drawdown(...)
 metrics.win_rate(...)
+        ↓
+experiment_tracker.save_experiment(...)
+        ↓
+artifacts/strategies/<run_id>/
 ```
 
 ### Backtest Formula
@@ -184,6 +189,7 @@ equity_curve = (1.0 + strategy_return).cumprod()
 
 ```python
 from src.research.backtest_runner import run_backtest
+from src.research.experiment_tracker import save_experiment
 from src.research.metrics import cumulative_return, sharpe_ratio
 from src.research.signal_engine import generate_signals
 
@@ -192,12 +198,24 @@ backtest_df = run_backtest(signals_df)
 
 total_return = cumulative_return(backtest_df["strategy_return"])
 sharpe = sharpe_ratio(backtest_df["strategy_return"])
+
+artifact_dir = save_experiment(
+    strategy_name=strategy.name,
+    results_df=backtest_df,
+    metrics={
+        "cumulative_return": total_return,
+        "sharpe_ratio": sharpe,
+    },
+    config={"lookback": 20},
+)
 ```
 
 See [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
 for the input contract, supported return columns, and expected outputs.
 See [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
 for the available metrics, formulas, and usage expectations.
+See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
+for the artifact layout, saved files, and `save_experiment()` contract.
 
 ---
 

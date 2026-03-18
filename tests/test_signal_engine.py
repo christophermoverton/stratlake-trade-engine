@@ -1,0 +1,70 @@
+from __future__ import annotations
+
+import pandas as pd
+import pytest
+
+from src.research.signal_engine import generate_signals
+from src.research.strategy_base import BaseStrategy
+
+
+class DummyStrategy(BaseStrategy):
+    name = "dummy_strategy"
+    dataset = "features_daily"
+
+    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
+        return pd.Series([1, 0, -1], index=df.index, dtype="int64")
+
+
+class WrongTypeStrategy(BaseStrategy):
+    name = "wrong_type_strategy"
+    dataset = "features_daily"
+
+    def generate_signals(self, df: pd.DataFrame) -> list[int]:
+        return [1 for _ in range(len(df))]
+
+
+class MisalignedStrategy(BaseStrategy):
+    name = "misaligned_strategy"
+    dataset = "features_daily"
+
+    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
+        return pd.Series([1, 0, -1], index=pd.RangeIndex(start=0, stop=len(df)), dtype="int64")
+
+
+def _feature_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        {"feature_alpha": [0.1, -0.2, 0.3]},
+        index=pd.Index(["row_a", "row_b", "row_c"], name="row_id"),
+    )
+
+
+def test_generate_signals_adds_signal_column() -> None:
+    df = _feature_frame()
+
+    result = generate_signals(df, DummyStrategy())
+
+    assert "signal" in result.columns
+    assert result.index.equals(df.index)
+    assert result["signal"].tolist() == [1, 0, -1]
+
+
+def test_generate_signals_preserves_input_columns() -> None:
+    df = _feature_frame()
+
+    result = generate_signals(df, DummyStrategy())
+
+    assert result["feature_alpha"].tolist() == df["feature_alpha"].tolist()
+
+
+def test_generate_signals_requires_series_output() -> None:
+    df = _feature_frame()
+
+    with pytest.raises(TypeError, match="must return a pandas Series"):
+        generate_signals(df, WrongTypeStrategy())
+
+
+def test_generate_signals_requires_matching_index() -> None:
+    df = _feature_frame()
+
+    with pytest.raises(ValueError, match="aligned with the input DataFrame index"):
+        generate_signals(df, MisalignedStrategy())

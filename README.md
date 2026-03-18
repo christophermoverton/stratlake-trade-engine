@@ -105,6 +105,7 @@ src/
   data/          # Data access layer + feature writer
   features/      # Feature engineering
   pipeline/      # Load -> compute -> write orchestration
+  cli/           # Research CLI modules
   research/      # Strategy interfaces, signals, and backtest execution
 
 cli/             # Command-line entrypoints
@@ -134,6 +135,7 @@ Current implementation includes:
 * Pipeline orchestration entry points
 * CLI entrypoint for feature builds and run summaries
 * Research-layer signal generation, deterministic backtest execution, and performance metrics
+* CLI strategy runner for full experiment execution and artifact persistence
 
 ---
 
@@ -153,6 +155,11 @@ The current research modules are intentionally minimal. They operate on a
 single dataset, use the previous period's signal to avoid look-ahead bias,
 compound returns into an `equity_curve`, and compute deterministic summary
 statistics from the resulting strategy return series.
+
+The research layer also includes a CLI entrypoint that runs the full experiment
+flow from a strategy name in `configs/strategies.yml`, including dataset load,
+signal generation, backtest execution, metric calculation, artifact logging,
+and console summary output.
 
 ### Research Flow
 
@@ -216,6 +223,32 @@ See [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratla
 for the available metrics, formulas, and usage expectations.
 See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
 for the artifact layout, saved files, and `save_experiment()` contract.
+See [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
+for the CLI command, arguments, strategy registry expectations, and example runs.
+
+### Strategy CLI Usage
+
+Run a configured strategy experiment from the command line:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy momentum_v1 --start 2025-01-01 --end 2025-04-01
+```
+
+Required argument:
+
+* `--strategy` -> strategy name from `configs/strategies.yml`
+
+Optional arguments:
+
+* `--start` -> inclusive date filter in `YYYY-MM-DD`
+* `--end` -> exclusive date filter in `YYYY-MM-DD`
+
+Console summary output includes:
+
+* strategy name
+* experiment run identifier
+* cumulative return
+* Sharpe ratio
 
 ---
 

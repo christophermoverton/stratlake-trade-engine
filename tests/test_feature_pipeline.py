@@ -92,10 +92,14 @@ def test_run_daily_feature_pipeline_orchestrates(monkeypatch) -> None:
             "qa_root": qa_root,
         }
 
+    def fake_metadata():
+        calls["metadata"] = True
+
     monkeypatch.setattr("src.pipeline.feature_pipeline.load_bars_daily", fake_load)
     monkeypatch.setattr("src.pipeline.feature_pipeline.compute_daily_features_v1", fake_compute)
     monkeypatch.setattr("src.pipeline.feature_pipeline.write_features", fake_write)
     monkeypatch.setattr("src.pipeline.feature_pipeline.write_feature_qa_artifacts", fake_qa)
+    monkeypatch.setattr("src.pipeline.feature_pipeline.export_feature_metadata", fake_metadata)
 
     result = run_daily_feature_pipeline(["AAPL"], start_date="2025-01-01", end_date="2025-01-03")
 
@@ -109,6 +113,7 @@ def test_run_daily_feature_pipeline_orchestrates(monkeypatch) -> None:
     assert calls["qa"]["frame"] is features
     assert calls["qa"]["timeframe"] == "1D"
     assert calls["qa"]["expected_symbols"] == ["AAPL"]
+    assert calls["metadata"] is True
 
 
 def test_run_minute_feature_pipeline_orchestrates(monkeypatch) -> None:
@@ -135,10 +140,14 @@ def test_run_minute_feature_pipeline_orchestrates(monkeypatch) -> None:
             "qa_root": qa_root,
         }
 
+    def fake_metadata():
+        calls["metadata"] = True
+
     monkeypatch.setattr("src.pipeline.feature_pipeline.load_bars_1m", fake_load)
     monkeypatch.setattr("src.pipeline.feature_pipeline.compute_minute_features_v1", fake_compute)
     monkeypatch.setattr("src.pipeline.feature_pipeline.write_features", fake_write)
     monkeypatch.setattr("src.pipeline.feature_pipeline.write_feature_qa_artifacts", fake_qa)
+    monkeypatch.setattr("src.pipeline.feature_pipeline.export_feature_metadata", fake_metadata)
 
     result = run_minute_feature_pipeline(["AAPL"], start_date="2025-01-02", end_date="2025-01-03")
 
@@ -152,6 +161,7 @@ def test_run_minute_feature_pipeline_orchestrates(monkeypatch) -> None:
     assert calls["qa"]["frame"] is features
     assert calls["qa"]["timeframe"] == "1Min"
     assert calls["qa"]["expected_symbols"] == ["AAPL"]
+    assert calls["metadata"] is True
 
 
 def test_run_daily_feature_pipeline_writes_empty_features(monkeypatch) -> None:
@@ -175,6 +185,7 @@ def test_run_daily_feature_pipeline_writes_empty_features(monkeypatch) -> None:
             }
         ),
     )
+    monkeypatch.setattr("src.pipeline.feature_pipeline.export_feature_metadata", lambda: calls.update({"metadata": True}))
 
     result = run_daily_feature_pipeline(["AAPL"])
 
@@ -184,6 +195,7 @@ def test_run_daily_feature_pipeline_writes_empty_features(monkeypatch) -> None:
     assert calls["qa_frame"] is empty_features
     assert calls["qa_timeframe"] == "1D"
     assert calls["qa_expected_symbols"] == ["AAPL"]
+    assert calls["metadata"] is True
 
 
 def test_run_minute_feature_pipeline_writes_empty_features(monkeypatch) -> None:
@@ -207,6 +219,7 @@ def test_run_minute_feature_pipeline_writes_empty_features(monkeypatch) -> None:
             }
         ),
     )
+    monkeypatch.setattr("src.pipeline.feature_pipeline.export_feature_metadata", lambda: calls.update({"metadata": True}))
 
     result = run_minute_feature_pipeline(["AAPL"])
 
@@ -216,6 +229,7 @@ def test_run_minute_feature_pipeline_writes_empty_features(monkeypatch) -> None:
     assert calls["qa_frame"] is empty_features
     assert calls["qa_timeframe"] == "1Min"
     assert calls["qa_expected_symbols"] == ["AAPL"]
+    assert calls["metadata"] is True
 
 
 def test_run_minute_feature_pipeline_warns_when_bars_empty(monkeypatch, caplog) -> None:
@@ -229,6 +243,7 @@ def test_run_minute_feature_pipeline_warns_when_bars_empty(monkeypatch, caplog) 
         "src.pipeline.feature_pipeline.write_feature_qa_artifacts",
         lambda frame, *, timeframe, expected_symbols=None, qa_root=None: None,
     )
+    monkeypatch.setattr("src.pipeline.feature_pipeline.export_feature_metadata", lambda: None)
 
     caplog.set_level(logging.WARNING)
     run_minute_feature_pipeline(

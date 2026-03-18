@@ -215,6 +215,7 @@ See the related documentation for details:
 
 * [docs/load_features.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/load_features.md) for loader usage and DuckDB feature views
 * [docs/dataset_qa_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/dataset_qa_metrics.md) for QA summary outputs and checks
+* [docs/feature_metadata_export.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/feature_metadata_export.md) for the feature metadata JSON export, included fields, and generation behavior
 * [docs/feature_dataset_contract.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/feature_dataset_contract.md) for schema, naming, and behavioral guarantees
 * [configs/features.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/features.yml) for the feature registry and source dataset mapping
 
@@ -668,7 +669,14 @@ Feature QA summaries are also written to:
 artifacts/qa/features/
 ```
 
+Feature metadata is also written to:
+
+```text
+artifacts/features/feature_metadata.json
+```
+
 See [docs/dataset_qa_metrics.md](docs/dataset_qa_metrics.md) for the QA export structure and included metrics.
+See [docs/feature_metadata_export.md](docs/feature_metadata_export.md) for the feature metadata export structure and usage.
 
 The summary includes:
 

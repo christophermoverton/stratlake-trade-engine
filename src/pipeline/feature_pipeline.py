@@ -8,6 +8,7 @@ import duckdb
 import pandas as pd
 
 from src.data.catalog import CuratedPaths
+from src.data.feature_metadata import export_feature_metadata
 from src.data.feature_qa import write_feature_qa_artifacts
 from src.data.feature_writer import write_features
 from src.data.loaders import LoadConfig, _default_curated_paths, load_bars_1m, load_bars_daily
@@ -58,6 +59,7 @@ def run_daily_feature_pipeline(
         expected_symbols=symbols,
         qa_root=qa_artifacts_root,
     )
+    export_feature_metadata()
     return features
 
 
@@ -102,4 +104,5 @@ def run_minute_feature_pipeline(
         expected_symbols=symbols,
         qa_root=qa_artifacts_root,
     )
+    export_feature_metadata()
     return features

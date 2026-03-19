@@ -1,0 +1,8 @@
+evaluation:
+  mode: rolling
+  timeframe: 1d
+  start: "2022-01-01"
+  end: "2024-01-01"
+  train_window: 12M
+  test_window: 3M
+  step: 3M

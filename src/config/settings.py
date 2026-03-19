@@ -9,7 +9,7 @@ import yaml
 from dotenv import load_dotenv
 
 
-def _load_yaml(path: Path) -> Dict[str, Any]:
+def load_yaml_config(path: Path) -> Dict[str, Any]:
     if not path.exists():
         raise FileNotFoundError(f"Config file not found: {path}")
     with open(path, "r", encoding="utf-8") as f:
@@ -41,9 +41,9 @@ class Settings:
         config_path = Path(config_dir)
 
         paths_file = config_path / "paths.yml"
-        paths_config = _load_yaml(paths_file) if paths_file.exists() else {}
-        universe_config = _load_yaml(config_path / "universe.yml")
-        features_config = _load_yaml(config_path / "features.yml")
+        paths_config = load_yaml_config(paths_file) if paths_file.exists() else {}
+        universe_config = load_yaml_config(config_path / "universe.yml")
+        features_config = load_yaml_config(config_path / "features.yml")
 
         marketlake_root_raw = os.getenv("MARKETLAKE_ROOT") or paths_config.get("marketlake_root", "")
         if not marketlake_root_raw:

@@ -24,7 +24,7 @@ into a reproducible strategy research workflow. The repository now supports:
 * YAML-backed strategy configuration registry
 * signal generation over engineered feature datasets
 * deterministic backtest execution with lagged signal application
-* performance metrics for experiment evaluation
+* performance metrics for experiment evaluation, including risk-adjusted and trade-activity metrics
 * file-based experiment artifact logging
 * a CLI strategy runner for end-to-end research execution
 
@@ -162,7 +162,7 @@ standardized metrics, and reproducible experiment artifacts:
 * `configs/strategies.yml` for deterministic strategy configuration
 * `generate_signals()` for attaching validated `signal` outputs to a dataset
 * `run_backtest()` for converting lagged signals into realized strategy returns
-* performance metrics for evaluating the resulting `strategy_return` series
+* performance metrics for evaluating the resulting `strategy_return` series, trade outcomes, and market exposure
 * `save_experiment()` for persisting reproducible experiment artifacts to disk
 
 The current research modules are intentionally minimal and reproducible. They
@@ -250,7 +250,7 @@ signal_engine.generate_signals(...)
         ->
 backtest_runner.run_backtest(...)
         ->
-metrics.{cumulative_return, volatility, sharpe_ratio, max_drawdown, win_rate}
+metrics.{total_return, annualized_return, annualized_volatility, sharpe_ratio, max_drawdown, hit_rate, profit_factor, turnover, exposure_pct}
         ->
 experiment_tracker.save_experiment(...)
         ->
@@ -269,22 +269,18 @@ equity_curve = (1.0 + strategy_return).cumprod()
 ```python
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
-from src.research.metrics import cumulative_return, sharpe_ratio
+from src.research.metrics import compute_performance_metrics
 from src.research.signal_engine import generate_signals
 
 signals_df = generate_signals(features_df, strategy)
 backtest_df = run_backtest(signals_df)
 
-total_return = cumulative_return(backtest_df["strategy_return"])
-sharpe = sharpe_ratio(backtest_df["strategy_return"])
+metrics = compute_performance_metrics(backtest_df)
 
 artifact_dir = save_experiment(
     strategy_name=strategy.name,
     results_df=backtest_df,
-    metrics={
-        "cumulative_return": total_return,
-        "sharpe_ratio": sharpe,
-    },
+    metrics=metrics,
     config={"lookback": 20},
 )
 ```
@@ -332,6 +328,15 @@ Console summary output includes:
 * cumulative return
 * Sharpe ratio
 * split count when evaluation mode is enabled
+
+Metrics artifacts and walk-forward summaries also include:
+
+* `total_return` and legacy-compatible `cumulative_return`
+* `annualized_return`
+* `annualized_volatility`
+* `max_drawdown`
+* trade-level `hit_rate` and `profit_factor`
+* activity metrics `turnover` and `exposure_pct`
 
 Walk-forward example:
 

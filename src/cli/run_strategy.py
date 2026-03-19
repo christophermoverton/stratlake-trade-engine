@@ -26,7 +26,7 @@ class StrategyRunResult:
 
     strategy_name: str
     run_id: str
-    metrics: dict[str, float]
+    metrics: dict[str, float | None]
     experiment_dir: Path
     results_df: pd.DataFrame
 

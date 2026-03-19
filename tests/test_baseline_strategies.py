@@ -44,6 +44,23 @@ def _write_evaluation_config(path: Path, payload: dict[str, object]) -> None:
     path.write_text(yaml.safe_dump({"evaluation": payload}, sort_keys=False), encoding="utf-8")
 
 
+def _expected_metric_keys() -> set[str]:
+    return {
+        "cumulative_return",
+        "total_return",
+        "volatility",
+        "annualized_return",
+        "annualized_volatility",
+        "sharpe_ratio",
+        "max_drawdown",
+        "win_rate",
+        "hit_rate",
+        "profit_factor",
+        "turnover",
+        "exposure_pct",
+    }
+
+
 def test_buy_and_hold_enters_once_after_first_valid_bar() -> None:
     signals = BuyAndHoldStrategy().generate_signals(_daily_frame())
 
@@ -94,13 +111,7 @@ def test_metrics_compute_without_errors_for_all_baselines(strategy, dataset: pd.
 
     metrics = compute_metrics(results)
 
-    assert set(metrics) == {
-        "cumulative_return",
-        "sharpe_ratio",
-        "volatility",
-        "max_drawdown",
-        "win_rate",
-    }
+    assert set(metrics) == _expected_metric_keys()
 
 
 @pytest.mark.parametrize(
@@ -139,13 +150,7 @@ def test_baselines_run_successfully_through_walk_forward_execution(
 
     assert result.aggregate_summary["split_count"] == 4
     assert len(result.splits) == 4
-    assert set(result.metrics) == {
-        "cumulative_return",
-        "sharpe_ratio",
-        "volatility",
-        "max_drawdown",
-        "win_rate",
-    }
+    assert set(result.metrics) == _expected_metric_keys()
 
 
 def test_sma_crossover_returns_flat_when_dataset_is_shorter_than_slow_window() -> None:

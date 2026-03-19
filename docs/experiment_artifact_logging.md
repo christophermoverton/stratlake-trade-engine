@@ -127,7 +127,8 @@ Current columns:
 ### `metrics.json`
 
 Contains the summary performance metrics supplied to `save_experiment()`, such
-as cumulative return, Sharpe ratio, drawdown, or win rate.
+as total return, annualized return, Sharpe ratio, drawdown, hit rate, profit
+factor, turnover, or exposure.
 
 ### `config.json`
 
@@ -140,7 +141,7 @@ Present for walk-forward runs. Contains one row per executed split with:
 
 * split identifiers and train/test boundaries
 * split, train, and test row counts
-* the standard metric columns used elsewhere in the research layer
+* the same metric columns used elsewhere in the research layer
 
 ### `splits/<split_id>/...`
 
@@ -157,12 +158,9 @@ Present for walk-forward runs. Each split directory stores:
 
 ```python
 from src.research.experiment_tracker import save_experiment
-from src.research.metrics import cumulative_return, sharpe_ratio
+from src.research.metrics import compute_performance_metrics
 
-metrics = {
-    "cumulative_return": cumulative_return(backtest_df["strategy_return"]),
-    "sharpe_ratio": sharpe_ratio(backtest_df["strategy_return"]),
-}
+metrics = compute_performance_metrics(backtest_df)
 
 config = {
     "lookback": 20,
@@ -198,7 +196,7 @@ signal_engine.generate_signals(...)
         ->
 backtest_runner.run_backtest(...)
         ->
-metrics.{cumulative_return, volatility, sharpe_ratio, max_drawdown, win_rate}
+metrics.compute_performance_metrics(...)
         ->
 experiment_tracker.save_experiment(...)
         ->

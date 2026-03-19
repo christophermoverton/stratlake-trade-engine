@@ -10,13 +10,7 @@ from src.config.evaluation import EVALUATION_CONFIG, EvaluationConfig, load_eval
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_walk_forward_experiment
-from src.research.metrics import (
-    cumulative_return,
-    max_drawdown,
-    sharpe_ratio,
-    volatility,
-    win_rate,
-)
+from src.research.metrics import compute_performance_metrics
 from src.research.signal_engine import generate_signals
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 from src.research.strategy_base import BaseStrategy
@@ -39,7 +33,7 @@ class SplitExecutionResult:
     split_rows: int
     train_rows: int
     test_rows: int
-    metrics: dict[str, float]
+    metrics: dict[str, float | None]
     results_df: pd.DataFrame
 
     def to_record(self) -> dict[str, Any]:
@@ -66,22 +60,15 @@ class WalkForwardRunResult:
     strategy_name: str
     run_id: str
     experiment_dir: Path
-    metrics: dict[str, float]
+    metrics: dict[str, float | None]
     aggregate_summary: dict[str, Any]
     splits: list[SplitExecutionResult]
 
 
-def compute_metrics(results_df: pd.DataFrame) -> dict[str, float]:
+def compute_metrics(results_df: pd.DataFrame) -> dict[str, float | None]:
     """Compute the standard research metrics for a backtest results frame."""
 
-    strategy_return = results_df["strategy_return"]
-    return {
-        "cumulative_return": cumulative_return(strategy_return),
-        "sharpe_ratio": sharpe_ratio(strategy_return),
-        "volatility": volatility(strategy_return),
-        "max_drawdown": max_drawdown(strategy_return),
-        "win_rate": win_rate(strategy_return),
-    }
+    return compute_performance_metrics(results_df)
 
 
 def load_walk_forward_config(path: Path | None = None) -> EvaluationConfig:
@@ -265,8 +252,19 @@ def _attach_split_metadata(df: pd.DataFrame, split: EvaluationSplit) -> pd.DataF
     return result
 
 
-def _coerce_metric_map(summary: dict[str, Any]) -> dict[str, float]:
-    return {
-        key: float(summary[key])
-        for key in ("cumulative_return", "sharpe_ratio", "volatility", "max_drawdown", "win_rate")
-    }
+def _coerce_metric_map(summary: dict[str, Any]) -> dict[str, float | None]:
+    metric_keys = (
+        "cumulative_return",
+        "total_return",
+        "volatility",
+        "annualized_return",
+        "annualized_volatility",
+        "sharpe_ratio",
+        "max_drawdown",
+        "win_rate",
+        "hit_rate",
+        "profit_factor",
+        "turnover",
+        "exposure_pct",
+    )
+    return {key: (None if summary[key] is None else float(summary[key])) for key in metric_keys}

@@ -112,7 +112,7 @@ The aggregate walk-forward summary is deterministic.
 Current method:
 
 * concatenate split test-window result frames in split order
-* compute the standard strategy metrics on the concatenated test returns
+* compute the full strategy metric set on the concatenated test returns
 * include split count and row-count context in the summary payload
 
 The aggregate summary is written to `metrics.json` at the run root, while
@@ -144,6 +144,19 @@ artifacts/strategies/<run_id>/
 This keeps the artifact structure compatible with the existing experiment
 logging conventions while adding the split-aware outputs needed for later
 benchmarking work.
+
+Per-split and aggregate metric payloads use the same names as single-run
+experiments, including:
+
+* `total_return` and `cumulative_return`
+* `annualized_return`
+* `annualized_volatility`
+* `sharpe_ratio`
+* `max_drawdown`
+* `hit_rate`
+* `profit_factor`
+* `turnover`
+* `exposure_pct`
 
 ---
 

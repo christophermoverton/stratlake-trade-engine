@@ -108,11 +108,7 @@ signal_engine.generate_signals(...)
         ->
 backtest_runner.run_backtest(...)
         ->
-metrics.cumulative_return(...)
-metrics.sharpe_ratio(...)
-metrics.volatility(...)
-metrics.max_drawdown(...)
-metrics.win_rate(...)
+metrics.compute_performance_metrics(...)
         ->
 experiment_tracker.save_experiment(...)
 ```
@@ -235,6 +231,19 @@ Walk-forward runs keep the same run-directory pattern and add:
 
 Single-run artifacts are produced by `save_experiment()`. Walk-forward artifacts
 are produced by `save_walk_forward_experiment()`.
+
+Metric payloads include legacy-compatible fields plus expanded evaluation
+statistics:
+
+* `cumulative_return` and `total_return`
+* `annualized_return`
+* `annualized_volatility`
+* `sharpe_ratio`
+* `max_drawdown`
+* `win_rate` and trade-level `hit_rate`
+* `profit_factor`
+* `turnover`
+* `exposure_pct`
 
 ---
 

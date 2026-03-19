@@ -48,6 +48,23 @@ def _write_evaluation_config(path: Path, payload: dict[str, object]) -> None:
     path.write_text(yaml.safe_dump({"evaluation": payload}, sort_keys=False), encoding="utf-8")
 
 
+def _expected_metric_keys() -> set[str]:
+    return {
+        "cumulative_return",
+        "total_return",
+        "volatility",
+        "annualized_return",
+        "annualized_volatility",
+        "sharpe_ratio",
+        "max_drawdown",
+        "win_rate",
+        "hit_rate",
+        "profit_factor",
+        "turnover",
+        "exposure_pct",
+    }
+
+
 def test_execute_split_scores_only_test_window_and_preserves_metadata() -> None:
     dataset = _feature_frame()
     strategy = SignStrategy()
@@ -68,6 +85,7 @@ def test_execute_split_scores_only_test_window_and_preserves_metadata() -> None:
     assert result.results_df["date"].tolist() == ["2022-01-04", "2022-01-05"]
     assert result.results_df["split_id"].tolist() == ["fixed_0000", "fixed_0000"]
     assert result.results_df["train_start"].tolist() == ["2022-01-01", "2022-01-01"]
+    assert set(result.metrics) == _expected_metric_keys()
     assert result.metrics["cumulative_return"] == pytest.approx(-0.0298)
 
 
@@ -105,6 +123,7 @@ def test_build_aggregate_summary_uses_concatenated_split_test_returns() -> None:
     assert summary["mode"] == "rolling"
     assert summary["test_rows"] == 2
     assert summary["aggregation_method"] == "metrics computed on concatenated split test windows in split order"
+    assert _expected_metric_keys().issubset(summary)
     assert summary["cumulative_return"] == pytest.approx(-0.0397)
 
 
@@ -156,9 +175,12 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     ]
     assert metrics_by_split["train_rows"].tolist() == [2, 2, 2, 2]
     assert metrics_by_split["test_rows"].tolist() == [1, 1, 1, 1]
+    for metric_name in _expected_metric_keys():
+        assert metric_name in metrics_by_split.columns
 
     aggregate_metrics = json.loads((result.experiment_dir / "metrics.json").read_text(encoding="utf-8"))
     assert aggregate_metrics["split_count"] == 4
+    assert _expected_metric_keys().issubset(aggregate_metrics)
     assert aggregate_metrics["cumulative_return"] == pytest.approx(result.metrics["cumulative_return"])
 
 

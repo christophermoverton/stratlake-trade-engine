@@ -15,6 +15,7 @@ from src.cli.run_strategy import (
     parse_args,
     run_cli,
 )
+from src.research.strategies import build_strategy
 
 
 def _results_frame() -> pd.DataFrame:
@@ -182,3 +183,10 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
 def test_run_cli_rejects_date_filters_in_evaluation_mode() -> None:
     with pytest.raises(ValueError, match="cannot be combined with --evaluation"):
         run_cli(["--strategy", "momentum_v1", "--evaluation", "--start", "2025-01-01"])
+
+
+def test_build_strategy_supports_buy_and_hold_baseline() -> None:
+    strategy = build_strategy("buy_and_hold_v1", {"dataset": "features_1m", "parameters": {}})
+
+    assert strategy.name == "buy_and_hold_v1"
+    assert strategy.dataset == "features_1m"

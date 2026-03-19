@@ -16,3 +16,18 @@ mean_reversion_v1:
   parameters:
     zscore_window: 20
     entry_threshold: -2
+
+buy_and_hold_v1:
+  dataset: features_daily
+  parameters: {}
+
+sma_crossover_v1:
+  dataset: features_daily
+  parameters:
+    fast_window: 5
+    slow_window: 20
+
+seeded_random_v1:
+  dataset: features_daily
+  parameters:
+    seed: 7

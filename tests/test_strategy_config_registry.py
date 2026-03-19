@@ -29,6 +29,9 @@ def test_strategies_config_contains_example_strategy() -> None:
 
     assert strategies
     assert "momentum_v1" in strategies
+    assert "buy_and_hold_v1" in strategies
+    assert "sma_crossover_v1" in strategies
+    assert "seeded_random_v1" in strategies
 
 
 def test_each_strategy_entry_has_required_fields() -> None:

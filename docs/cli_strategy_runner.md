@@ -67,6 +67,13 @@ Each strategy entry must define:
 The CLI raises a `ValueError` if the requested strategy is not present in the
 registry or if no implementation is registered for that strategy name.
 
+Baseline benchmark entries use the same config shape and runner flow. Current
+baseline names include:
+
+* `buy_and_hold_v1`
+* `sma_crossover_v1`
+* `seeded_random_v1`
+
 ---
 
 ## Arguments
@@ -161,6 +168,18 @@ Run the mean-reversion example strategy:
 .\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy mean_reversion_v1 --start 2025-01-01 --end 2025-06-01
 ```
 
+Run the buy-and-hold baseline:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy buy_and_hold_v1
+```
+
+Run the seeded random baseline in walk-forward mode:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy seeded_random_v1 --evaluation
+```
+
 Run walk-forward evaluation using the default evaluation config:
 
 ```powershell
@@ -224,6 +243,7 @@ are produced by `save_walk_forward_experiment()`.
 See the adjacent research-layer docs for implementation details:
 
 * [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
+* [docs/baseline_strategies.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/baseline_strategies.md)
 * [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
 * [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
 * [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)

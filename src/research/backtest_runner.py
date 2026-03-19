@@ -4,7 +4,9 @@ import pandas as pd
 
 RETURN_COLUMN_CANDIDATES: tuple[str, ...] = (
     "ret_1",
+    "ret_1m",
     "ret_1d",
+    "feature_ret_1m",
     "feature_ret_1d",
     "asset_return",
     "return",

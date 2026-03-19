@@ -10,10 +10,10 @@ import yaml
 
 from src.config.evaluation import EVALUATION_CONFIG
 from src.data.load_features import load_features
-from src.research.backtest_runner import RETURN_COLUMN_CANDIDATES, run_backtest
+from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.signal_engine import generate_signals
-from src.research.strategy_base import BaseStrategy
+from src.research.strategies import build_strategy
 from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -29,53 +29,6 @@ class StrategyRunResult:
     metrics: dict[str, float]
     experiment_dir: Path
     results_df: pd.DataFrame
-
-
-class MomentumStrategy(BaseStrategy):
-    """Simple momentum strategy driven by rolling average returns."""
-
-    name = "momentum_v1"
-    dataset = "features_daily"
-
-    def __init__(self, *, lookback_short: int, lookback_long: int) -> None:
-        self.lookback_short = lookback_short
-        self.lookback_long = lookback_long
-
-    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
-        return_column = _resolve_return_column(df)
-        short_trend = df[return_column].rolling(window=self.lookback_short, min_periods=1).mean()
-        long_trend = df[return_column].rolling(window=self.lookback_long, min_periods=1).mean()
-        return ((short_trend > long_trend).astype("int64") - (short_trend < long_trend).astype("int64")).rename(
-            "signal"
-        )
-
-
-class MeanReversionStrategy(BaseStrategy):
-    """Simple mean-reversion strategy based on a rolling return z-score."""
-
-    name = "mean_reversion_v1"
-    dataset = "features_daily"
-
-    def __init__(self, *, zscore_window: int, entry_threshold: float) -> None:
-        self.zscore_window = zscore_window
-        self.entry_threshold = entry_threshold
-
-    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
-        return_column = _resolve_return_column(df)
-        rolling_mean = df[return_column].rolling(window=self.zscore_window, min_periods=1).mean()
-        rolling_std = (
-            df[return_column]
-            .rolling(window=self.zscore_window, min_periods=1)
-            .std()
-            .replace(0.0, pd.NA)
-        )
-        zscore = ((df[return_column] - rolling_mean) / rolling_std).fillna(0.0)
-        threshold = abs(float(self.entry_threshold))
-
-        signals = pd.Series(0, index=df.index, dtype="int64")
-        signals.loc[zscore <= -threshold] = 1
-        signals.loc[zscore >= threshold] = -1
-        return signals.rename("signal")
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -125,45 +78,6 @@ def get_strategy_config(
         raise ValueError(f"Strategy '{strategy_name}' configuration must be a dictionary.")
 
     return config
-
-
-def _resolve_return_column(df: pd.DataFrame) -> str:
-    """Return the first supported return column present in the feature dataset."""
-
-    for column in RETURN_COLUMN_CANDIDATES:
-        if column in df.columns:
-            return column
-
-    expected = ", ".join(RETURN_COLUMN_CANDIDATES)
-    raise ValueError(f"Feature dataset must include one of the supported return columns: {expected}.")
-
-
-def build_strategy(strategy_name: str, config: dict[str, Any]) -> BaseStrategy:
-    """Instantiate a concrete strategy implementation from registry config."""
-
-    parameters = config.get("parameters", {})
-    if not isinstance(parameters, dict):
-        raise ValueError(f"Strategy '{strategy_name}' parameters must be a dictionary.")
-
-    if strategy_name == "momentum_v1":
-        strategy = MomentumStrategy(
-            lookback_short=int(parameters["lookback_short"]),
-            lookback_long=int(parameters["lookback_long"]),
-        )
-    elif strategy_name == "mean_reversion_v1":
-        strategy = MeanReversionStrategy(
-            zscore_window=int(parameters["zscore_window"]),
-            entry_threshold=float(parameters["entry_threshold"]),
-        )
-    else:
-        raise ValueError(f"No strategy implementation is registered for '{strategy_name}'.")
-
-    dataset = config.get("dataset")
-    if not isinstance(dataset, str) or not dataset:
-        raise ValueError(f"Strategy '{strategy_name}' must define a non-empty dataset name.")
-
-    strategy.dataset = dataset
-    return strategy
 
 
 def run_strategy_experiment(

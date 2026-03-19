@@ -15,7 +15,7 @@ StratLake now spans three connected layers:
 * Milestone 1: repository foundation, configuration loading, and data access
 * Milestone 2: deterministic feature engineering and pipeline orchestration
 * Milestone 3: Strategy Research Layer for systematic experimentation and backtesting
-* Milestone 4: evaluation split configuration for walk-forward validation
+* Milestone 4: evaluation split configuration for walk-forward validation and baseline benchmarks
 
 Milestone 3 extends StratLake from a feature engineering and analytics platform
 into a reproducible strategy research workflow. The repository now supports:
@@ -148,6 +148,7 @@ Current implementation includes:
 * Research-layer signal generation, deterministic backtest execution, and performance metrics
 * CLI strategy runner for full experiment execution and artifact persistence
 * Deterministic evaluation split generation for future walk-forward validation
+* Baseline benchmark strategies for buy-and-hold, SMA crossover, and seeded random references
 
 ---
 
@@ -174,6 +175,13 @@ The research layer also includes a CLI entrypoint that runs the full experiment
 flow from a strategy name in `configs/strategies.yml`, including dataset load,
 signal generation, backtest execution, metric calculation, artifact logging,
 and console summary output.
+
+Milestone 4 now also includes deterministic baseline strategies that run
+through the same interface and execution path as research strategies:
+
+* `buy_and_hold_v1`
+* `sma_crossover_v1`
+* `seeded_random_v1`
 
 Milestone 4 begins with deterministic evaluation split generation via
 `configs/evaluation.yml` and `src/research/splits.py`. Split windows use
@@ -330,6 +338,16 @@ Walk-forward example:
 ```powershell
 .\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy momentum_v1 --evaluation
 ```
+
+Baseline examples:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy buy_and_hold_v1
+.\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy sma_crossover_v1 --evaluation
+```
+
+See [docs/baseline_strategies.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/baseline_strategies.md)
+for the benchmark intent, parameter definitions, and config examples.
 
 Milestone 3 outcome:
 

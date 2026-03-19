@@ -17,11 +17,13 @@ from src.research.splits import (
     load_and_generate_evaluation_splits,
 )
 from src.research.strategy_base import BaseStrategy
+from src.research.strategies import build_strategy
 
 __all__ = [
     "BaseStrategy",
     "EvaluationSplit",
     "EvaluationSplitConfigError",
+    "build_strategy",
     "cumulative_return",
     "generate_evaluation_splits",
     "generate_signals",

@@ -8,6 +8,7 @@ strategy run so results can be reproduced, inspected, and compared later.
 Current implementation:
 
 * creates a unique run directory under `artifacts/strategies/`
+* appends one registry row per completed run to `artifacts/strategies/registry.jsonl`
 * writes signal-engine outputs to parquet
 * writes backtest equity-curve outputs to parquet
 * writes metrics and strategy configuration to JSON
@@ -22,6 +23,7 @@ database tracking, dashboards, orchestration, or experiment metadata services.
 
 ```text
 src/research/experiment_tracker.py
+src/research/registry.py
 ```
 
 Primary entrypoint:
@@ -83,6 +85,40 @@ artifacts/strategies/<run_id>/
 The timestamp component is generated in UTC and keeps runs unique while
 remaining easy to sort chronologically.
 
+In addition to the per-run directory, completed runs append one JSON object line
+to:
+
+```text
+artifacts/strategies/registry.jsonl
+```
+
+The registry is append-only and intended for lightweight querying without
+scanning each artifact directory.
+
+---
+
+## Registry Schema
+
+Each registry entry is self-contained and records:
+
+* `run_id`
+* `timestamp` in ISO8601 UTC form
+* `strategy_name`
+* `dataset`
+* `strategy_params`
+* `evaluation_mode` (`single` or `walk_forward`)
+* `evaluation_config`
+* `evaluation_config_path`
+* `data_range` with `start` and `end`
+* `timeframe`
+* `metrics_summary`
+* `artifact_path`
+* `split_count`
+
+For walk-forward runs, `metrics_summary` contains only aggregate metrics. Raw
+per-split outputs remain in the run directory and are not embedded in the
+registry row.
+
 ---
 
 ## Input Contract
@@ -134,6 +170,11 @@ factor, turnover, or exposure.
 
 Contains the strategy configuration used for the experiment run, making the
 artifact directory self-describing and reproducible.
+
+### `registry.jsonl`
+
+Contains one JSON object per completed strategy run. Each line is appended only
+after the run artifacts are written successfully.
 
 ### `metrics_by_split.csv`
 
@@ -205,3 +246,23 @@ parquet + JSON experiment artifacts
 
 This gives the research layer a reproducible file-based record of each strategy
 run without introducing additional infrastructure.
+
+## Lightweight Querying
+
+`src/research/registry.py` includes small helpers for future comparison work:
+
+```python
+from pathlib import Path
+
+from src.research.registry import (
+    filter_by_metric_threshold,
+    filter_by_strategy_name,
+    load_registry,
+)
+
+entries = load_registry(Path("artifacts/strategies/registry.jsonl"))
+momentum_runs = filter_by_strategy_name(entries, "momentum_v1")
+strong_runs = filter_by_metric_threshold(entries, "sharpe_ratio", min_value=1.0)
+```
+
+These utilities intentionally stop short of leaderboard or ranking logic.

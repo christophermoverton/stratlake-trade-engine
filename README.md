@@ -26,6 +26,7 @@ into a reproducible strategy research workflow. The repository now supports:
 * deterministic backtest execution with lagged signal application
 * performance metrics for experiment evaluation, including risk-adjusted and trade-activity metrics
 * file-based experiment artifact logging
+* append-only experiment registry tracking under `artifacts/strategies/registry.jsonl`
 * a CLI strategy runner for end-to-end research execution
 
 ---
@@ -164,6 +165,7 @@ standardized metrics, and reproducible experiment artifacts:
 * `run_backtest()` for converting lagged signals into realized strategy returns
 * performance metrics for evaluating the resulting `strategy_return` series, trade outcomes, and market exposure
 * `save_experiment()` for persisting reproducible experiment artifacts to disk
+* `load_registry()` plus lightweight registry filters for querying prior runs
 
 The current research modules are intentionally minimal and reproducible. They
 operate on feature datasets already produced by the analytics layer, use the
@@ -255,6 +257,8 @@ metrics.{total_return, annualized_return, annualized_volatility, sharpe_ratio, m
 experiment_tracker.save_experiment(...)
         ->
 artifacts/strategies/<run_id>/
+        +
+artifacts/strategies/registry.jsonl
 ```
 
 ### Backtest Formula
@@ -290,7 +294,7 @@ for the input contract, supported return columns, and expected outputs.
 See [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
 for the available metrics, formulas, and usage expectations.
 See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
-for the artifact layout, saved files, and `save_experiment()` contract.
+for the artifact layout, registry schema, saved files, and `save_experiment()` contract.
 See [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
 for the CLI command, arguments, strategy registry expectations, and example runs.
 See [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)

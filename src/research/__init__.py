@@ -17,6 +17,11 @@ from src.research.metrics import (
     volatility,
     win_rate,
 )
+from src.research.registry import (
+    filter_by_metric_threshold,
+    filter_by_strategy_name,
+    load_registry,
+)
 from src.research.signal_engine import generate_signals
 from src.research.splits import (
     EvaluationSplit,
@@ -37,9 +42,12 @@ __all__ = [
     "compute_performance_metrics",
     "cumulative_return",
     "exposure_pct",
+    "filter_by_metric_threshold",
+    "filter_by_strategy_name",
     "generate_evaluation_splits",
     "generate_signals",
     "hit_rate",
+    "load_registry",
     "load_and_generate_evaluation_splits",
     "max_drawdown",
     "profit_factor",

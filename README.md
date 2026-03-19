@@ -289,6 +289,8 @@ See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlak
 for the artifact layout, saved files, and `save_experiment()` contract.
 See [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
 for the CLI command, arguments, strategy registry expectations, and example runs.
+See [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
+for walk-forward execution behavior, aggregate scoring, and split-level artifacts.
 
 ### Strategy CLI Usage
 
@@ -312,6 +314,8 @@ Optional arguments:
 
 * `--start` -> inclusive date filter in `YYYY-MM-DD`
 * `--end` -> exclusive date filter in `YYYY-MM-DD`
+* `--evaluation [PATH]` -> run walk-forward evaluation using
+  `configs/evaluation.yml` or a provided config path
 
 Console summary output includes:
 
@@ -319,6 +323,13 @@ Console summary output includes:
 * experiment run identifier
 * cumulative return
 * Sharpe ratio
+* split count when evaluation mode is enabled
+
+Walk-forward example:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy momentum_v1 --evaluation
+```
 
 Milestone 3 outcome:
 

@@ -8,18 +8,13 @@ from typing import Any, Sequence
 import pandas as pd
 import yaml
 
+from src.config.evaluation import EVALUATION_CONFIG
 from src.data.load_features import load_features
 from src.research.backtest_runner import RETURN_COLUMN_CANDIDATES, run_backtest
 from src.research.experiment_tracker import save_experiment
-from src.research.metrics import (
-    cumulative_return,
-    max_drawdown,
-    sharpe_ratio,
-    volatility,
-    win_rate,
-)
 from src.research.signal_engine import generate_signals
 from src.research.strategy_base import BaseStrategy
+from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STRATEGIES_CONFIG = REPO_ROOT / "configs" / "strategies.yml"
@@ -92,6 +87,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--strategy", required=True, help="Strategy name defined in configs/strategies.yml.")
     parser.add_argument("--start", dest="start", help="Inclusive experiment start date (YYYY-MM-DD).")
     parser.add_argument("--end", dest="end", help="Exclusive experiment end date (YYYY-MM-DD).")
+    parser.add_argument(
+        "--evaluation",
+        nargs="?",
+        const=str(EVALUATION_CONFIG),
+        help="Enable walk-forward evaluation using configs/evaluation.yml or a provided path.",
+    )
     return parser.parse_args(argv)
 
 
@@ -165,19 +166,6 @@ def build_strategy(strategy_name: str, config: dict[str, Any]) -> BaseStrategy:
     return strategy
 
 
-def compute_metrics(results_df: pd.DataFrame) -> dict[str, float]:
-    """Compute the standard strategy performance summary for an experiment run."""
-
-    strategy_return = results_df["strategy_return"]
-    return {
-        "cumulative_return": cumulative_return(strategy_return),
-        "sharpe_ratio": sharpe_ratio(strategy_return),
-        "volatility": volatility(strategy_return),
-        "max_drawdown": max_drawdown(strategy_return),
-        "win_rate": win_rate(strategy_return),
-    }
-
-
 def run_strategy_experiment(
     strategy_name: str,
     *,
@@ -211,20 +199,35 @@ def run_strategy_experiment(
     )
 
 
-def print_summary(result: StrategyRunResult) -> None:
+def print_summary(result: StrategyRunResult | WalkForwardRunResult) -> None:
     """Print a concise experiment summary for CLI users."""
 
     print(f"strategy: {result.strategy_name}")
     print(f"run_id: {result.run_id}")
+    if isinstance(result, WalkForwardRunResult):
+        print(f"split_count: {result.aggregate_summary['split_count']}")
     print(f"cumulative_return: {result.metrics['cumulative_return']:.6f}")
     print(f"sharpe_ratio: {result.metrics['sharpe_ratio']:.6f}")
 
 
-def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult:
+def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult:
     """Execute the strategy runner CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
-    result = run_strategy_experiment(args.strategy, start=args.start, end=args.end)
+    if args.evaluation:
+        if args.start or args.end:
+            raise ValueError("The --start and --end arguments cannot be combined with --evaluation.")
+
+        config = get_strategy_config(args.strategy)
+        strategy = build_strategy(args.strategy, config)
+        result = run_walk_forward_experiment(
+            args.strategy,
+            strategy,
+            evaluation_path=Path(args.evaluation),
+            strategy_config=config,
+        )
+    else:
+        result = run_strategy_experiment(args.strategy, start=args.start, end=args.end)
     print_summary(result)
     return result
 

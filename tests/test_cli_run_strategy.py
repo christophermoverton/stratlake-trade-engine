@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.cli.run_strategy import (
     StrategyRunResult,
+    WalkForwardRunResult,
     get_strategy_config,
     parse_args,
     run_cli,
@@ -32,6 +33,14 @@ def test_parse_args_accepts_strategy_and_date_filters() -> None:
     assert args.strategy == "momentum_v1"
     assert args.start == "2025-01-01"
     assert args.end == "2025-02-01"
+    assert args.evaluation is None
+
+
+def test_parse_args_accepts_evaluation_flag_without_path() -> None:
+    args = parse_args(["--strategy", "momentum_v1", "--evaluation"])
+
+    assert args.strategy == "momentum_v1"
+    assert args.evaluation.endswith("configs\\evaluation.yml")
 
 
 def test_get_strategy_config_raises_for_unknown_strategy() -> None:
@@ -116,3 +125,60 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
     assert "run_id: run-123" in stdout
     assert "cumulative_return: 0.020000" in stdout
     assert "sharpe_ratio: 1.250000" in stdout
+
+
+def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
+    strategy_config = {
+        "momentum_v1": {
+            "dataset": "features_daily",
+            "parameters": {"lookback_short": 5, "lookback_long": 20},
+        }
+    }
+    calls: dict[str, object] = {}
+    walk_forward_result = WalkForwardRunResult(
+        strategy_name="momentum_v1",
+        run_id="wf-123",
+        experiment_dir=Path("artifacts/strategies/wf-123"),
+        metrics={
+            "cumulative_return": 0.03,
+            "sharpe_ratio": 1.5,
+            "volatility": 0.1,
+            "max_drawdown": 0.02,
+            "win_rate": 0.5,
+        },
+        aggregate_summary={"split_count": 2, "cumulative_return": 0.03, "sharpe_ratio": 1.5},
+        splits=[],
+    )
+
+    monkeypatch.setattr("src.cli.run_strategy.load_strategies_config", lambda path=None: strategy_config)
+
+    def fake_run_walk_forward_experiment(strategy_name, strategy, evaluation_path, strategy_config):
+        calls["walk_forward"] = {
+            "strategy_name": strategy_name,
+            "strategy_name_attr": strategy.name,
+            "dataset": strategy.dataset,
+            "evaluation_path": evaluation_path,
+            "strategy_config": strategy_config,
+        }
+        return walk_forward_result
+
+    monkeypatch.setattr("src.cli.run_strategy.run_walk_forward_experiment", fake_run_walk_forward_experiment)
+
+    result = run_cli(["--strategy", "momentum_v1", "--evaluation", "configs/evaluation.yml"])
+
+    assert result is walk_forward_result
+    assert calls["walk_forward"]["strategy_name"] == "momentum_v1"
+    assert calls["walk_forward"]["strategy_name_attr"] == "momentum_v1"
+    assert calls["walk_forward"]["dataset"] == "features_daily"
+    assert calls["walk_forward"]["evaluation_path"] == Path("configs/evaluation.yml")
+    assert calls["walk_forward"]["strategy_config"] == strategy_config["momentum_v1"]
+
+    stdout = capsys.readouterr().out
+    assert "strategy: momentum_v1" in stdout
+    assert "run_id: wf-123" in stdout
+    assert "split_count: 2" in stdout
+
+
+def test_run_cli_rejects_date_filters_in_evaluation_mode() -> None:
+    with pytest.raises(ValueError, match="cannot be combined with --evaluation"):
+        run_cli(["--strategy", "momentum_v1", "--evaluation", "--start", "2025-01-01"])

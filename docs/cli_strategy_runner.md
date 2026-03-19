@@ -30,7 +30,7 @@ src/cli/run_strategy.py
 Primary entrypoint:
 
 ```python
-run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult
+run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult
 ```
 
 Module execution:
@@ -79,9 +79,12 @@ Optional arguments:
 
 * `--start` -> inclusive start date in `YYYY-MM-DD`
 * `--end` -> exclusive end date in `YYYY-MM-DD`
+* `--evaluation [PATH]` -> enable walk-forward evaluation using
+  `configs/evaluation.yml` or a provided evaluation config path
 
 Date filters are forwarded directly to `load_features()` and use the same
-window semantics as the existing data loaders.
+window semantics as the existing data loaders. `--start` and `--end` are for
+single-run mode and cannot be combined with `--evaluation`.
 
 ---
 
@@ -105,6 +108,27 @@ metrics.max_drawdown(...)
 metrics.win_rate(...)
         ->
 experiment_tracker.save_experiment(...)
+```
+
+When `--evaluation` is provided, the runner instead:
+
+```text
+configs/evaluation.yml
+        ->
+research.splits.generate_evaluation_splits(...)
+        ->
+load_features(dataset, min(train_start), max(test_end))
+        ->
+per split:
+  slice [train_start, test_end)
+        ->
+  signal_engine.generate_signals(...)
+        ->
+  backtest_runner.run_backtest(...)
+        ->
+  score metrics on [test_start, test_end)
+        ->
+experiment_tracker.save_walk_forward_experiment(...)
 ```
 
 The backtest continues to use lagged signal application:
@@ -137,6 +161,18 @@ Run the mean-reversion example strategy:
 .\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy mean_reversion_v1 --start 2025-01-01 --end 2025-06-01
 ```
 
+Run walk-forward evaluation using the default evaluation config:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy momentum_v1 --evaluation
+```
+
+Run walk-forward evaluation with an explicit config path:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy momentum_v1 --evaluation configs/evaluation.yml
+```
+
 ---
 
 ## Console Output
@@ -151,6 +187,7 @@ sharpe_ratio: 1.234567
 ```
 
 The `run_id` matches the directory name created under `artifacts/strategies/`.
+Walk-forward runs also print `split_count`.
 
 ---
 
@@ -169,7 +206,16 @@ Current artifact contents:
 * `metrics.json`
 * `config.json`
 
-These files are produced by `save_experiment()` and make the run reproducible.
+Walk-forward runs keep the same run-directory pattern and add:
+
+* `metrics_by_split.csv`
+* `splits/<split_id>/signals.parquet`
+* `splits/<split_id>/equity_curve.parquet`
+* `splits/<split_id>/metrics.json`
+* `splits/<split_id>/split.json`
+
+Single-run artifacts are produced by `save_experiment()`. Walk-forward artifacts
+are produced by `save_walk_forward_experiment()`.
 
 ---
 
@@ -180,4 +226,5 @@ See the adjacent research-layer docs for implementation details:
 * [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
 * [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
 * [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
+* [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
 * [configs/strategies.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/strategies.yml)

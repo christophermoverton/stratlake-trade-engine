@@ -11,6 +11,7 @@ Current implementation:
 * writes signal-engine outputs to parquet
 * writes backtest equity-curve outputs to parquet
 * writes metrics and strategy configuration to JSON
+* writes split-level walk-forward artifacts when evaluation mode is used
 
 This module is intentionally file-based and lightweight. It does not add
 database tracking, dashboards, orchestration, or experiment metadata services.
@@ -34,6 +35,17 @@ save_experiment(
 ) -> pathlib.Path
 ```
 
+Walk-forward entrypoint:
+
+```python
+save_walk_forward_experiment(
+    strategy_name: str,
+    split_results: list[dict],
+    aggregate_summary: dict,
+    config: dict,
+) -> pathlib.Path
+```
+
 ---
 
 ## Artifact Layout
@@ -53,6 +65,19 @@ artifacts/strategies/20260318T153045123456Z_mean_reversion/
   equity_curve.parquet
   metrics.json
   config.json
+```
+
+Walk-forward runs add split-aware outputs inside the same root:
+
+```text
+artifacts/strategies/<run_id>/
+  metrics.json
+  config.json
+  metrics_by_split.csv
+  splits/<split_id>/signals.parquet
+  splits/<split_id>/equity_curve.parquet
+  splits/<split_id>/metrics.json
+  splits/<split_id>/split.json
 ```
 
 The timestamp component is generated in UTC and keeps runs unique while
@@ -108,6 +133,23 @@ as cumulative return, Sharpe ratio, drawdown, or win rate.
 
 Contains the strategy configuration used for the experiment run, making the
 artifact directory self-describing and reproducible.
+
+### `metrics_by_split.csv`
+
+Present for walk-forward runs. Contains one row per executed split with:
+
+* split identifiers and train/test boundaries
+* split, train, and test row counts
+* the standard metric columns used elsewhere in the research layer
+
+### `splits/<split_id>/...`
+
+Present for walk-forward runs. Each split directory stores:
+
+* `signals.parquet` for test-window signal outputs with split metadata columns
+* `equity_curve.parquet` for test-window backtest outputs
+* `metrics.json` for split-level summary metrics
+* `split.json` for the split definition itself
 
 ---
 

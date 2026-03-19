@@ -28,6 +28,7 @@ into a reproducible strategy research workflow. The repository now supports:
 * file-based experiment artifact logging
 * append-only experiment registry tracking under `artifacts/strategies/registry.jsonl`
 * a CLI strategy runner for end-to-end research execution
+* a comparison CLI for multi-strategy leaderboards from fresh runs or registry-backed results
 
 ---
 
@@ -297,6 +298,8 @@ See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlak
 for the artifact layout, registry schema, saved files, and `save_experiment()` contract.
 See [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
 for the CLI command, arguments, strategy registry expectations, and example runs.
+See [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
+for multi-strategy comparison modes, leaderboard ordering, and output artifacts.
 See [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
 for walk-forward execution behavior, aggregate scoring, and split-level artifacts.
 
@@ -332,6 +335,36 @@ Console summary output includes:
 * cumulative return
 * Sharpe ratio
 * split count when evaluation mode is enabled
+
+Compare multiple strategies with a shared leaderboard:
+
+```powershell
+python -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1
+```
+
+Optional arguments:
+
+* `--evaluation [PATH]` -> compare walk-forward runs using the default or provided evaluation config
+* `--metric` -> ranking metric, defaults to `sharpe_ratio`
+* `--top_k` -> keep only the top `N` leaderboard rows
+* `--from_registry` -> use prior runs from `artifacts/strategies/registry.jsonl` instead of executing
+* `--output_path` -> override the default `artifacts/strategies/leaderboard.csv` location
+
+Registry mode selects the latest matching run per strategy after filtering by
+evaluation mode. If `--evaluation` is provided, it also filters by the stored
+evaluation config path. "Latest" is determined by descending `timestamp`, then
+descending `run_id`.
+
+Leaderboard ranking sorts by the selected metric in descending order, places
+missing metric values last, and breaks ties by `strategy_name` then `run_id`.
+
+Saved leaderboard artifacts:
+
+* `artifacts/strategies/leaderboard.csv`
+* `artifacts/strategies/leaderboard.json`
+
+See [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
+for the full comparison CLI reference, selection rules, and examples.
 
 Metrics artifacts and walk-forward summaries also include:
 

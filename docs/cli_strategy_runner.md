@@ -19,6 +19,11 @@ Current implementation:
 This command is intentionally scoped to a single research experiment. It does
 not schedule runs, perform live trading, or manage portfolio optimization.
 
+The repository also includes a comparison CLI for ranking multiple strategies
+against the same metric without changing the execution or registry layers.
+The dedicated comparison reference lives in
+[docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md).
+
 ---
 
 ## Location
@@ -37,6 +42,12 @@ Module execution:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy momentum_v1
+```
+
+Comparison module execution:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1
 ```
 
 ---
@@ -188,6 +199,43 @@ Run walk-forward evaluation with an explicit config path:
 .\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy momentum_v1 --evaluation configs/evaluation.yml
 ```
 
+Compare multiple fresh single-run executions:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1
+```
+
+Compare walk-forward runs and rank by total return:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,sma_crossover_v1 --evaluation --metric total_return
+```
+
+Reuse prior registry runs instead of executing:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1 --from_registry
+```
+
+In registry mode, the comparison CLI selects the latest matching run per
+strategy after filtering by evaluation mode. If `--evaluation [PATH]` is
+provided, it also filters by the stored `evaluation_config_path`. "Latest"
+means descending `timestamp`, then descending `run_id` as a deterministic
+tie-breaker.
+
+Leaderboard rows include:
+
+* `strategy_name`
+* `run_id`
+* `evaluation_mode`
+* `selected_metric_name`
+* `selected_metric_value`
+* core metrics such as `total_return`, `sharpe_ratio`, and `max_drawdown`
+
+Leaderboard outputs are written to `artifacts/strategies/leaderboard.csv` and
+`artifacts/strategies/leaderboard.json` unless `--output_path` overrides the
+CSV location or directory.
+
 ---
 
 ## Console Output
@@ -255,5 +303,6 @@ See the adjacent research-layer docs for implementation details:
 * [docs/baseline_strategies.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/baseline_strategies.md)
 * [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
 * [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
+* [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
 * [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
 * [configs/strategies.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/strategies.yml)

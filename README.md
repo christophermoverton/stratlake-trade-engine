@@ -15,7 +15,7 @@ StratLake now spans three connected layers:
 * Milestone 1: repository foundation, configuration loading, and data access
 * Milestone 2: deterministic feature engineering and pipeline orchestration
 * Milestone 3: Strategy Research Layer for systematic experimentation and backtesting
-* Milestone 4: evaluation split configuration for walk-forward validation and baseline benchmarks
+* Milestone 4: strategy evaluation, walk-forward validation, baselines, registry-backed comparison, and documentation
 
 Milestone 3 extends StratLake from a feature engineering and analytics platform
 into a reproducible strategy research workflow. The repository now supports:
@@ -149,8 +149,9 @@ Current implementation includes:
 * CLI entrypoint for feature builds and run summaries
 * Research-layer signal generation, deterministic backtest execution, and performance metrics
 * CLI strategy runner for full experiment execution and artifact persistence
-* Deterministic evaluation split generation for future walk-forward validation
+* Walk-forward evaluation across deterministic train/test splits
 * Baseline benchmark strategies for buy-and-hold, SMA crossover, and seeded random references
+* Strategy comparison and leaderboard generation from fresh runs or registry-backed selection
 
 ---
 
@@ -186,55 +187,40 @@ through the same interface and execution path as research strategies:
 * `sma_crossover_v1`
 * `seeded_random_v1`
 
-Milestone 4 begins with deterministic evaluation split generation via
+Milestone 4 includes deterministic evaluation split generation via
 `configs/evaluation.yml` and `src/research/splits.py`. Split windows use
 half-open date intervals: `start` is inclusive and `end` is exclusive.
 
-### Evaluation Split Configuration
+### Strategy Evaluation
 
-Milestone 4 adds a configuration-driven split framework that prepares
-time-based train/test windows for later walk-forward execution.
+Milestone 4 extends the research layer from single-run execution into a full
+evaluation and comparison workflow:
 
-Supported modes:
+* single-run execution with optional date filters
+* walk-forward execution from [configs/evaluation.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/evaluation.yml)
+* deterministic evaluation splits in `fixed`, `rolling`, and `expanding` modes
+* baseline benchmarks through the same runner and metric stack
+* file-based artifacts plus append-only registry tracking
+* multi-strategy comparison with leaderboard outputs
 
-* `fixed`
-* `rolling`
-* `expanding`
+The end-to-end flow is:
 
-Default config lives in
-[configs/evaluation.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/evaluation.yml).
-
-Typical rolling example:
-
-```yaml
-evaluation:
-  mode: rolling
-  timeframe: 1d
-  start: "2022-01-01"
-  end: "2024-01-01"
-  train_window: 12M
-  test_window: 3M
-  step: 3M
+```text
+feature datasets -> signals -> backtest -> metrics -> artifacts -> registry -> comparison
 ```
 
-Generated split metadata is simple and serializable:
+Start with the central workflow guide:
 
-* `split_id`
-* `mode`
-* `train_start`
-* `train_end`
-* `test_start`
-* `test_end`
+* [docs/strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md)
 
-Mode behavior:
+Focused references:
 
-* `fixed` generates one split from explicit train/test boundaries
-* `rolling` advances both train and test windows by `step`
-* `expanding` keeps the initial train start fixed while extending the train end
-
-See [docs/evaluation_split_configuration.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/evaluation_split_configuration.md)
-for config shape, supported duration units, boundary semantics, and validation
-rules.
+* [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
+* [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
+* [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
+* [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
+* [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
+* [docs/evaluation_split_configuration.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/evaluation_split_configuration.md)
 
 ### Research Flow
 
@@ -292,16 +278,14 @@ artifact_dir = save_experiment(
 
 See [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
 for the input contract, supported return columns, and expected outputs.
+See [docs/strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md)
+for the end-to-end evaluation and benchmarking workflow.
 See [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
-for the available metrics, formulas, and usage expectations.
+for the available metrics, formulas, and annualization behavior.
 See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
-for the artifact layout, registry schema, saved files, and `save_experiment()` contract.
-See [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
-for the CLI command, arguments, strategy registry expectations, and example runs.
+for the artifact layout, registry schema, and saved files.
 See [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
-for multi-strategy comparison modes, leaderboard ordering, and output artifacts.
-See [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
-for walk-forward execution behavior, aggregate scoring, and split-level artifacts.
+for comparison modes, leaderboard ordering, and output artifacts.
 
 ### Strategy CLI Usage
 

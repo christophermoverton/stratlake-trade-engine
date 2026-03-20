@@ -2,12 +2,13 @@
 
 ## Overview
 
-Milestone 4 introduces deterministic evaluation split generation for future
+Milestone 4 introduces deterministic evaluation split generation for
 walk-forward strategy validation.
 
-This layer does not run backtests across splits yet. It only converts
-configuration into serializable train/test window definitions that can be used
-later by the research runner and artifact logging.
+The split layer converts configuration into serializable train/test window
+definitions that are consumed directly by the walk-forward runner. The same
+split metadata is also written into run artifacts so evaluation windows remain
+traceable and reproducible.
 
 Implementation lives in:
 
@@ -45,6 +46,11 @@ by the configured `step`.
 
 Keeps the initial `train_start` fixed, expands `train_end` by `step`, and rolls
 the test window forward by `step`.
+
+These modes are used by
+[docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
+and summarized in
+[docs/strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md).
 
 ---
 

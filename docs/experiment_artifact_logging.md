@@ -10,8 +10,9 @@ Current implementation:
 * creates a unique run directory under `artifacts/strategies/`
 * appends one registry row per completed run to `artifacts/strategies/registry.jsonl`
 * writes signal-engine outputs to parquet
-* writes backtest equity-curve outputs to parquet
+* writes standardized equity-curve outputs to CSV and preserves legacy parquet compatibility
 * writes metrics and strategy configuration to JSON
+* writes a manifest for fast inspection and reporting
 * writes split-level walk-forward artifacts when evaluation mode is used
 
 This module is intentionally file-based and lightweight. It does not add
@@ -63,20 +64,29 @@ Example contents:
 
 ```text
 artifacts/strategies/20260318T153045123456Z_mean_reversion/
+  config.json
+  metrics.json
+  equity_curve.csv
   signals.parquet
   equity_curve.parquet
-  metrics.json
-  config.json
+  trades.parquet
+  manifest.json
 ```
 
 Walk-forward runs add split-aware outputs inside the same root:
 
 ```text
 artifacts/strategies/<run_id>/
-  metrics.json
   config.json
+  metrics.json
+  equity_curve.csv
+  signals.parquet
+  equity_curve.parquet
+  trades.parquet
+  manifest.json
   metrics_by_split.csv
   splits/<split_id>/signals.parquet
+  splits/<split_id>/equity_curve.csv
   splits/<split_id>/equity_curve.parquet
   splits/<split_id>/metrics.json
   splits/<split_id>/split.json
@@ -143,16 +153,38 @@ If either backtest column is missing, the function raises a `ValueError`.
 
 ### `signals.parquet`
 
-Contains the signal-engine portion of the experiment DataFrame. In the current
-implementation this includes all columns from `results_df` except
-`strategy_return` and `equity_curve`.
+Contains the signal-engine portion of the experiment DataFrame. It preserves
+all non-backtest columns from `results_df` and standardizes the leading
+inspection columns to include:
+
+* `ts_utc`
+* `date` when present
+* `symbol` when present
+* `signal`
+* `position`
 
 This keeps the signal artifact aligned with the dataset used for strategy
 evaluation while excluding the derived backtest-only outputs.
 
+### `equity_curve.csv`
+
+Contains the standardized backtest timeline used for reporting and debugging.
+
+Current columns:
+
+* `ts_utc`
+* `symbol` when present
+* `equity`
+* `strategy_return`
+* `signal` when present
+* `position`
+
+Rows are sorted by time and use the same schema for single runs and split-level
+walk-forward outputs.
+
 ### `equity_curve.parquet`
 
-Contains the backtest outputs needed to inspect realized strategy performance.
+Legacy compatibility artifact that preserves the older parquet export.
 
 Current columns:
 
@@ -171,6 +203,23 @@ factor, turnover, or exposure.
 Contains the strategy configuration used for the experiment run, making the
 artifact directory self-describing and reproducible.
 
+### `manifest.json`
+
+Contains a compact run summary with:
+
+* `run_id`
+* `timestamp`
+* `strategy_name`
+* `evaluation_mode`
+* `evaluation_config_path`
+* `artifact_files`
+* `split_count`
+* `primary_metric`
+* `metric_summary`
+
+Use this as the first file to inspect when loading a run for debugging or
+reporting.
+
 ### `registry.jsonl`
 
 Contains one JSON object per completed strategy run. Each line is appended only
@@ -184,14 +233,39 @@ Present for walk-forward runs. Contains one row per executed split with:
 * split, train, and test row counts
 * the same metric columns used elsewhere in the research layer
 
+The first columns are deterministic across runs:
+
+* `split_id`
+* `mode`
+* `train_start`
+* `train_end`
+* `test_start`
+* `test_end`
+* `split_rows`
+* `train_rows`
+* `test_rows`
+
 ### `splits/<split_id>/...`
 
 Present for walk-forward runs. Each split directory stores:
 
 * `signals.parquet` for test-window signal outputs with split metadata columns
+* `equity_curve.csv` for standardized test-window backtest outputs
 * `equity_curve.parquet` for test-window backtest outputs
 * `metrics.json` for split-level summary metrics
 * `split.json` for the split definition itself
+
+### Inspecting A Run
+
+```python
+from pathlib import Path
+
+from src.research.reporting import load_run_artifacts, summarize_run
+
+run_dir = Path("artifacts/strategies/<run_id>")
+summary = summarize_run(run_dir)
+artifacts = load_run_artifacts(run_dir)
+```
 
 ---
 

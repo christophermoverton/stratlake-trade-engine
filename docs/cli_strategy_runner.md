@@ -264,15 +264,19 @@ artifacts/strategies/<run_id>/
 
 Current artifact contents:
 
+* `config.json`
+* `metrics.json`
+* `equity_curve.csv`
 * `signals.parquet`
 * `equity_curve.parquet`
-* `metrics.json`
-* `config.json`
+* `trades.parquet` when closed trades are available
+* `manifest.json`
 
 Walk-forward runs keep the same run-directory pattern and add:
 
 * `metrics_by_split.csv`
 * `splits/<split_id>/signals.parquet`
+* `splits/<split_id>/equity_curve.csv`
 * `splits/<split_id>/equity_curve.parquet`
 * `splits/<split_id>/metrics.json`
 * `splits/<split_id>/split.json`

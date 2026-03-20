@@ -160,8 +160,11 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     assert len(result.splits) == 4
     assert (result.experiment_dir / "metrics.json").exists()
     assert (result.experiment_dir / "config.json").exists()
+    assert (result.experiment_dir / "manifest.json").exists()
+    assert (result.experiment_dir / "equity_curve.csv").exists()
     assert (result.experiment_dir / "metrics_by_split.csv").exists()
     assert (result.experiment_dir / "splits" / "rolling_0000" / "signals.parquet").exists()
+    assert (result.experiment_dir / "splits" / "rolling_0000" / "equity_curve.csv").exists()
     assert (result.experiment_dir / "splits" / "rolling_0000" / "equity_curve.parquet").exists()
     assert (result.experiment_dir / "splits" / "rolling_0000" / "metrics.json").exists()
     assert (result.experiment_dir / "splits" / "rolling_0000" / "split.json").exists()
@@ -175,6 +178,17 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     ]
     assert metrics_by_split["train_rows"].tolist() == [2, 2, 2, 2]
     assert metrics_by_split["test_rows"].tolist() == [1, 1, 1, 1]
+    assert list(metrics_by_split.columns[:9]) == [
+        "split_id",
+        "mode",
+        "train_start",
+        "train_end",
+        "test_start",
+        "test_end",
+        "split_rows",
+        "train_rows",
+        "test_rows",
+    ]
     for metric_name in _expected_metric_keys():
         assert metric_name in metrics_by_split.columns
 
@@ -182,6 +196,44 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     assert aggregate_metrics["split_count"] == 4
     assert _expected_metric_keys().issubset(aggregate_metrics)
     assert aggregate_metrics["cumulative_return"] == pytest.approx(result.metrics["cumulative_return"])
+
+    manifest = json.loads((result.experiment_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["run_id"] == result.run_id
+    assert manifest["strategy_name"] == "sign_v1"
+    assert manifest["evaluation_mode"] == "walk_forward"
+    assert manifest["evaluation_config_path"] == str(config_path)
+    assert manifest["split_count"] == 4
+    assert "metrics_by_split.csv" in manifest["artifact_files"]
+    assert "splits/rolling_0000/equity_curve.csv" in manifest["artifact_files"]
+    assert "splits/rolling_0000/signals.parquet" in manifest["artifact_files"]
+
+    aggregate_equity_curve = pd.read_csv(result.experiment_dir / "equity_curve.csv")
+    split_equity_curve = pd.read_csv(result.experiment_dir / "splits" / "rolling_0000" / "equity_curve.csv")
+    split_signals = pd.read_parquet(result.experiment_dir / "splits" / "rolling_0000" / "signals.parquet")
+    split_metadata = json.loads(
+        (result.experiment_dir / "splits" / "rolling_0000" / "split.json").read_text(encoding="utf-8")
+    )
+
+    assert aggregate_equity_curve.columns.tolist() == [
+        "ts_utc",
+        "symbol",
+        "equity",
+        "strategy_return",
+        "signal",
+        "position",
+    ]
+    assert aggregate_equity_curve["ts_utc"].tolist() == sorted(aggregate_equity_curve["ts_utc"].tolist())
+    assert split_equity_curve.columns.tolist() == aggregate_equity_curve.columns.tolist()
+    assert split_signals.columns.tolist()[:5] == ["ts_utc", "date", "symbol", "signal", "position"]
+    assert split_signals["split_id"].tolist() == ["rolling_0000"]
+    assert split_metadata == {
+        "split_id": "rolling_0000",
+        "mode": "rolling",
+        "train_start": "2022-01-01",
+        "train_end": "2022-01-03",
+        "test_start": "2022-01-03",
+        "test_end": "2022-01-04",
+    }
 
 
 def test_run_walk_forward_experiment_rejects_invalid_evaluation_config(tmp_path: Path) -> None:

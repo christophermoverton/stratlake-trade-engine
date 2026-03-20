@@ -292,19 +292,25 @@ artifacts/strategies/<run_id>/
 
 ```text
 artifacts/strategies/<run_id>/
+  config.json
+  metrics.json
+  equity_curve.csv
   signals.parquet
   equity_curve.parquet
-  metrics.json
-  config.json
+  trades.parquet
+  manifest.json
 ```
 
 Where to look:
 
 * `signals.parquet`: feature rows plus strategy signal output
+* `equity_curve.csv`: standardized equity timeline for reporting and debugging
 * `equity_curve.parquet`: backtest view with `signal` when present,
   `strategy_return`, and `equity_curve`
 * `metrics.json`: summary metric payload
 * `config.json`: strategy and run configuration used for the experiment
+* `trades.parquet`: closed-trade summaries when the run produces them
+* `manifest.json`: compact run summary with artifact inventory and metric overview
 
 ### Walk-Forward Artifacts
 
@@ -312,8 +318,12 @@ Where to look:
 artifacts/strategies/<run_id>/
   metrics.json
   config.json
+  equity_curve.csv
+  equity_curve.parquet
+  manifest.json
   metrics_by_split.csv
   splits/<split_id>/signals.parquet
+  splits/<split_id>/equity_curve.csv
   splits/<split_id>/equity_curve.parquet
   splits/<split_id>/metrics.json
   splits/<split_id>/split.json
@@ -324,9 +334,12 @@ Per-split versus aggregate outputs:
 * run-root `metrics.json` is the aggregate walk-forward summary
 * `metrics_by_split.csv` is one row per split with split metadata plus metric
   columns
+* run-root `equity_curve.csv` and `equity_curve.parquet` store aggregate
+  walk-forward backtest outputs
+* run-root `manifest.json` records the artifact inventory and summary metrics
 * `splits/<split_id>/metrics.json` stores split-level metrics
-* `splits/<split_id>/signals.parquet` and `equity_curve.parquet` store the
-  split test-window outputs
+* `splits/<split_id>/signals.parquet`, `equity_curve.csv`, and
+  `equity_curve.parquet` store the split test-window outputs
 * `splits/<split_id>/split.json` stores the split definition itself
 
 Aggregate walk-forward metrics are computed on concatenated split test windows

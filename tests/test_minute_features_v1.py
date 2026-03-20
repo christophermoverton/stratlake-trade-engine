@@ -47,7 +47,6 @@ def test_minute_returns_respect_exact_lags_and_missing_minutes() -> None:
     ts_931 = pd.Timestamp("2025-01-01T09:31:00Z")
     ts_934 = pd.Timestamp("2025-01-01T09:34:00Z")
     ts_935 = pd.Timestamp("2025-01-01T09:35:00Z")
-    ts_936 = pd.Timestamp("2025-01-01T09:36:00Z")
     ts_938 = pd.Timestamp("2025-01-01T09:38:00Z")
 
     assert np.isclose(by_ts.loc[ts_931, "feature_ret_1m"], (101.0 / 100.0) - 1.0)

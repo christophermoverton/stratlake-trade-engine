@@ -52,7 +52,6 @@ def compute_daily_features_v1(
     g = df.groupby("symbol", sort=False)
     
     #Returns
-    close = df["close"].astype("float64")
     for w in cfg.ret_windows:
         df[f"feature_ret_{w}d"] = g["close"].transform(lambda s: s.astype("float64") / s.shift(w) - 1.0)
         

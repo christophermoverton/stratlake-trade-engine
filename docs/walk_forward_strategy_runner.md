@@ -134,8 +134,12 @@ Additional walk-forward artifacts:
 artifacts/strategies/<run_id>/
   metrics.json
   config.json
+  equity_curve.csv
+  equity_curve.parquet
+  manifest.json
   metrics_by_split.csv
   splits/<split_id>/signals.parquet
+  splits/<split_id>/equity_curve.csv
   splits/<split_id>/equity_curve.parquet
   splits/<split_id>/metrics.json
   splits/<split_id>/split.json

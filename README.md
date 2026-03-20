@@ -10,15 +10,16 @@ It consumes validated, QA-enforced OHLCV data from an external marketlake.
 
 ## Milestone Summary
 
-StratLake now spans three connected layers:
+StratLake now spans four connected milestones:
 
 * Milestone 1: repository foundation, configuration loading, and data access
 * Milestone 2: deterministic feature engineering and pipeline orchestration
 * Milestone 3: Strategy Research Layer for systematic experimentation and backtesting
 * Milestone 4: strategy evaluation, walk-forward validation, baselines, registry-backed comparison, and documentation
 
-Milestone 3 extends StratLake from a feature engineering and analytics platform
-into a reproducible strategy research workflow. The repository now supports:
+Milestones 3 and 4 extend StratLake from a feature engineering and analytics
+platform into a reproducible strategy research and evaluation workflow. The
+repository now supports:
 
 * standardized strategy interfaces
 * YAML-backed strategy configuration registry
@@ -375,11 +376,11 @@ Baseline examples:
 See [docs/baseline_strategies.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/baseline_strategies.md)
 for the benchmark intent, parameter definitions, and config examples.
 
-Milestone 3 outcome:
+Milestone 4 outcome:
 
-* StratLake can now load feature datasets, generate strategy signals, run a
-  deterministic backtest, compute research metrics, and persist reproducible
-  experiment artifacts from a single CLI command.
+* StratLake can now execute single-run and walk-forward strategy evaluations,
+  benchmark against deterministic baselines, persist registry-backed artifacts,
+  and compare strategies through a shared leaderboard workflow.
 
 ---
 

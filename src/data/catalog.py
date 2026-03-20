@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 import glob
 from pathlib import Path
-from typing import Iterable, Optional, Sequence
+from typing import Optional, Sequence
 
 import duckdb
 

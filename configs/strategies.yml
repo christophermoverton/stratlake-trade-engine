@@ -14,8 +14,8 @@ momentum_v1:
 mean_reversion_v1:
   dataset: features_daily
   parameters:
-    zscore_window: 20
-    entry_threshold: -2
+    lookback: 20
+    threshold: 1.0
 
 buy_and_hold_v1:
   dataset: features_daily

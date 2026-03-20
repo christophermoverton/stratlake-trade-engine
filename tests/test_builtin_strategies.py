@@ -9,7 +9,8 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.research.strategies import MomentumStrategy
+from src.research.signal_engine import generate_signals
+from src.research.strategies import MeanReversionStrategy, MomentumStrategy, build_strategy
 from src.research.walk_forward import compute_metrics, run_walk_forward_experiment
 
 
@@ -49,6 +50,25 @@ def _walk_forward_frame() -> pd.DataFrame:
     )
 
 
+def _mean_reversion_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "close": [100.0, 100.0, 100.0, 100.0, 103.0, 97.0, 100.0],
+        },
+        index=pd.Index([20, 21, 22, 23, 24, 25, 26], name="row_id"),
+    )
+
+
+def _mean_reversion_multi_symbol_frame() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "symbol": ["AAA", "AAA", "AAA", "AAA", "BBB", "BBB", "BBB", "BBB"],
+            "close": [100.0, 100.0, 100.0, 103.0, 50.0, 50.0, 50.0, 47.0],
+        },
+        index=pd.Index(range(100, 108), name="row_id"),
+    )
+
+
 def test_momentum_produces_expected_signals_for_known_inputs() -> None:
     strategy = MomentumStrategy(lookback_short=2, lookback_long=3)
 
@@ -80,6 +100,56 @@ def test_momentum_is_deterministic_across_repeated_runs() -> None:
 def test_momentum_rejects_invalid_window_configuration() -> None:
     with pytest.raises(ValueError, match="lookback_short must be smaller than lookback_long"):
         MomentumStrategy(lookback_short=5, lookback_long=5)
+
+
+def test_mean_reversion_produces_expected_zscore_signals_for_known_inputs() -> None:
+    strategy = MeanReversionStrategy(lookback=4, threshold=1.0)
+
+    signals = strategy.generate_signals(_mean_reversion_frame())
+
+    assert signals.tolist() == [0, 0, 0, 0, -1, 1, 0]
+    assert signals.index.tolist() == [20, 21, 22, 23, 24, 25, 26]
+    assert set(signals.unique()) <= {-1, 0, 1}
+
+
+def test_mean_reversion_handles_multi_symbol_frames_without_cross_symbol_bleed() -> None:
+    strategy = MeanReversionStrategy(lookback=3, threshold=1.0)
+
+    signals = strategy.generate_signals(_mean_reversion_multi_symbol_frame())
+
+    assert signals.tolist() == [0, 0, 0, -1, 0, 0, 0, 1]
+
+
+def test_mean_reversion_is_deterministic_across_repeated_runs() -> None:
+    strategy = MeanReversionStrategy(lookback=3, threshold=1.0)
+    df = _mean_reversion_multi_symbol_frame()
+
+    first = strategy.generate_signals(df)
+    second = strategy.generate_signals(df.copy())
+
+    pd.testing.assert_series_equal(first, second)
+
+
+@pytest.mark.parametrize(
+    ("kwargs", "message"),
+    [
+        ({"lookback": 1, "threshold": 1.0}, "lookback must be greater than 1"),
+        ({"lookback": 5, "threshold": 0.0}, "threshold must be greater than 0"),
+    ],
+)
+def test_mean_reversion_rejects_invalid_configuration(kwargs: dict[str, float], message: str) -> None:
+    with pytest.raises(ValueError, match=message):
+        MeanReversionStrategy(**kwargs)
+
+
+def test_mean_reversion_integrates_with_strategy_build_and_signal_engine() -> None:
+    config = {"dataset": "features_daily", "parameters": {"lookback": 4, "threshold": 1.0}}
+    strategy = build_strategy("mean_reversion_v1", config)
+
+    signal_frame = generate_signals(_mean_reversion_frame(), strategy)
+
+    assert signal_frame["signal"].tolist() == [0, 0, 0, 0, -1, 1, 0]
+    assert signal_frame.index.tolist() == [20, 21, 22, 23, 24, 25, 26]
 
 
 def test_momentum_runs_successfully_through_walk_forward_execution(

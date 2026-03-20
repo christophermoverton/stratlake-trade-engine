@@ -20,8 +20,8 @@ def _build_momentum(parameters: dict[str, Any]) -> BaseStrategy:
 
 def _build_mean_reversion(parameters: dict[str, Any]) -> BaseStrategy:
     return MeanReversionStrategy(
-        zscore_window=int(parameters["zscore_window"]),
-        entry_threshold=float(parameters["entry_threshold"]),
+        lookback=int(parameters["lookback"]),
+        threshold=float(parameters["threshold"]),
     )
 
 

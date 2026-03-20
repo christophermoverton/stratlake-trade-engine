@@ -83,7 +83,7 @@ def test_compare_strategies_runs_walk_forward_execution_when_evaluation_provided
 ) -> None:
     strategy_configs = {
         "momentum_v1": {"dataset": "features_daily", "parameters": {"lookback_short": 5}},
-        "mean_reversion_v1": {"dataset": "features_daily", "parameters": {"zscore_window": 10}},
+        "mean_reversion_v1": {"dataset": "features_daily", "parameters": {"lookback": 10, "threshold": 1.0}},
     }
     calls: list[tuple[str, Path]] = []
 

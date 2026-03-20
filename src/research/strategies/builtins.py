@@ -42,28 +42,40 @@ class MomentumStrategy(BaseStrategy):
 
 
 class MeanReversionStrategy(BaseStrategy):
-    """Simple mean-reversion strategy based on a rolling return z-score."""
+    """Mean-reversion strategy based on rolling close-price z-scores."""
 
     name = "mean_reversion_v1"
     dataset = "features_daily"
 
-    def __init__(self, *, zscore_window: int, entry_threshold: float) -> None:
-        self.zscore_window = zscore_window
-        self.entry_threshold = entry_threshold
+    def __init__(self, *, lookback: int, threshold: float) -> None:
+        if lookback <= 1:
+            raise ValueError("MeanReversionStrategy lookback must be greater than 1.")
+        if threshold <= 0:
+            raise ValueError("MeanReversionStrategy threshold must be greater than 0.")
+
+        self.lookback = lookback
+        self.threshold = threshold
 
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
-        return_column = resolve_return_column(df)
-        rolling_mean = df[return_column].rolling(window=self.zscore_window, min_periods=1).mean()
-        rolling_std = (
-            df[return_column]
-            .rolling(window=self.zscore_window, min_periods=1)
-            .std()
-            .replace(0.0, pd.NA)
-        )
-        zscore = ((df[return_column] - rolling_mean) / rolling_std).fillna(0.0)
-        threshold = abs(float(self.entry_threshold))
+        if "close" not in df.columns:
+            raise ValueError("MeanReversionStrategy requires a 'close' column in the feature dataset.")
+
+        closes = df["close"].astype("float64")
+        if "symbol" in df.columns:
+            grouped_closes = closes.groupby(df["symbol"], sort=False)
+            rolling_mean = grouped_closes.transform(
+                lambda series: series.rolling(window=self.lookback, min_periods=self.lookback).mean()
+            )
+            rolling_std = grouped_closes.transform(
+                lambda series: series.rolling(window=self.lookback, min_periods=self.lookback).std()
+            )
+        else:
+            rolling_mean = closes.rolling(window=self.lookback, min_periods=self.lookback).mean()
+            rolling_std = closes.rolling(window=self.lookback, min_periods=self.lookback).std()
+
+        zscore = ((closes - rolling_mean) / rolling_std.replace(0.0, pd.NA)).fillna(0.0)
 
         signals = pd.Series(0, index=df.index, dtype="int64")
-        signals.loc[zscore <= -threshold] = 1
-        signals.loc[zscore >= threshold] = -1
+        signals.loc[zscore < -self.threshold] = 1
+        signals.loc[zscore > self.threshold] = -1
         return signals.rename("signal")

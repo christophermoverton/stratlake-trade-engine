@@ -14,16 +14,31 @@ class MomentumStrategy(BaseStrategy):
     dataset = "features_daily"
 
     def __init__(self, *, lookback_short: int, lookback_long: int) -> None:
+        if lookback_short <= 0 or lookback_long <= 0:
+            raise ValueError("MomentumStrategy lookback windows must be positive integers.")
+        if lookback_short >= lookback_long:
+            raise ValueError("MomentumStrategy lookback_short must be smaller than lookback_long.")
+
         self.lookback_short = lookback_short
         self.lookback_long = lookback_long
 
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         return_column = resolve_return_column(df)
-        short_trend = df[return_column].rolling(window=self.lookback_short, min_periods=1).mean()
-        long_trend = df[return_column].rolling(window=self.lookback_long, min_periods=1).mean()
-        return ((short_trend > long_trend).astype("int64") - (short_trend < long_trend).astype("int64")).rename(
-            "signal"
-        )
+        returns = df[return_column]
+        if "symbol" in df.columns:
+            grouped_returns = returns.groupby(df["symbol"], sort=False)
+            short_trend = grouped_returns.transform(
+                lambda series: series.rolling(window=self.lookback_short, min_periods=self.lookback_short).mean()
+            )
+            long_trend = grouped_returns.transform(
+                lambda series: series.rolling(window=self.lookback_long, min_periods=self.lookback_long).mean()
+            )
+        else:
+            short_trend = returns.rolling(window=self.lookback_short, min_periods=self.lookback_short).mean()
+            long_trend = returns.rolling(window=self.lookback_long, min_periods=self.lookback_long).mean()
+
+        signal = (short_trend > long_trend).astype("int64") - (short_trend < long_trend).astype("int64")
+        return signal.rename("signal")
 
 
 class MeanReversionStrategy(BaseStrategy):

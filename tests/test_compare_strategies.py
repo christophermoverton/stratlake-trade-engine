@@ -8,7 +8,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.cli.compare_strategies import parse_args, run_cli
+import pandas as pd
+
+from src.cli.compare_strategies import parse_args, parse_strategy_names, run_cli
 from src.research import compare
 
 
@@ -16,7 +18,8 @@ def test_parse_args_supports_comparison_flags() -> None:
     args = parse_args(
         [
             "--strategies",
-            "momentum_v1,mean_reversion_v1",
+            "momentum_v1",
+            "mean_reversion_v1",
             "--metric",
             "total_return",
             "--top_k",
@@ -27,12 +30,18 @@ def test_parse_args_supports_comparison_flags() -> None:
         ]
     )
 
-    assert args.strategies == "momentum_v1,mean_reversion_v1"
+    assert args.strategies == ["momentum_v1", "mean_reversion_v1"]
     assert args.metric == "total_return"
     assert args.top_k == 2
     assert args.from_registry is True
     assert args.output_path == "artifacts/custom"
     assert args.evaluation is None
+
+
+def test_parse_strategy_names_supports_mixed_cli_formats() -> None:
+    assert parse_strategy_names(
+        ["momentum_v1,mean_reversion_v1", "buy_and_hold_v1", "momentum_v1"]
+    ) == ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1", "momentum_v1"]
 
 
 def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
@@ -48,8 +57,10 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
             metrics={
                 "total_return": 0.11 if strategy_name == "momentum_v1" else 0.05,
                 "cumulative_return": 0.11 if strategy_name == "momentum_v1" else 0.05,
+                "annualized_return": 0.18 if strategy_name == "momentum_v1" else 0.08,
                 "sharpe_ratio": 1.4 if strategy_name == "momentum_v1" else 0.8,
                 "max_drawdown": 0.07 if strategy_name == "momentum_v1" else 0.03,
+                "win_rate": 0.62 if strategy_name == "momentum_v1" else 0.51,
             },
             experiment_dir=tmp_path / f"run-{strategy_name}",
             results_df=None,  # type: ignore[arg-type]
@@ -76,6 +87,30 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
     assert payload["selection_mode"] == "fresh"
     assert payload["metric"] == "sharpe_ratio"
     assert payload["leaderboard"][0]["strategy_name"] == "momentum_v1"
+    assert "run_id" not in payload["leaderboard"][0]
+    assert payload["leaderboard"][0]["annualized_return"] == pytest.approx(0.18)
+    assert payload["leaderboard"][0]["win_rate"] == pytest.approx(0.62)
+
+    leaderboard_frame = pd.read_csv(result.csv_path)
+    assert list(leaderboard_frame.columns) == [
+        "rank",
+        "strategy_name",
+        "evaluation_mode",
+        "selected_metric_name",
+        "selected_metric_value",
+        "cumulative_return",
+        "total_return",
+        "annualized_return",
+        "annualized_volatility",
+        "volatility",
+        "sharpe_ratio",
+        "max_drawdown",
+        "win_rate",
+        "hit_rate",
+        "profit_factor",
+        "turnover",
+        "exposure_pct",
+    ]
 
 
 def test_compare_strategies_runs_walk_forward_execution_when_evaluation_provided(
@@ -208,6 +243,55 @@ def test_compare_strategies_handles_missing_metric_values_and_top_k(
     assert result.leaderboard[0].strategy_name == "momentum_v1"
 
 
+def test_compare_strategies_uses_deterministic_default_output_path_and_stable_file_contents(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    run_counts: dict[str, int] = {}
+
+    def fake_run_strategy_experiment(strategy_name: str, start=None, end=None):
+        run_counts[strategy_name] = run_counts.get(strategy_name, 0) + 1
+        return compare.StrategyRunResult(
+            strategy_name=strategy_name,
+            run_id=f"ephemeral-{run_counts[strategy_name]}-{strategy_name}",
+            metrics={
+                "total_return": 0.10 if strategy_name == "momentum_v1" else 0.06,
+                "cumulative_return": 0.10 if strategy_name == "momentum_v1" else 0.06,
+                "annualized_return": 0.12 if strategy_name == "momentum_v1" else 0.07,
+                "sharpe_ratio": 1.5 if strategy_name == "momentum_v1" else 0.9,
+                "max_drawdown": 0.04 if strategy_name == "momentum_v1" else 0.03,
+                "win_rate": 0.58 if strategy_name == "momentum_v1" else 0.53,
+            },
+            experiment_dir=tmp_path / f"run-{strategy_name}",
+            results_df=None,  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr(compare, "run_strategy_experiment", fake_run_strategy_experiment)
+
+    first = compare.compare_strategies(
+        ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"],
+    )
+    second = compare.compare_strategies(
+        ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"],
+    )
+
+    assert first.csv_path == second.csv_path
+    assert first.csv_path == compare.DEFAULT_COMPARISONS_ROOT / (
+        compare.build_comparison_id(
+            strategies=["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"],
+            metric="sharpe_ratio",
+            evaluation_mode="single",
+            selection_mode="fresh",
+            evaluation_path=None,
+            top_k=None,
+        )
+    ) / "leaderboard.csv"
+    assert first.csv_path.read_text(encoding="utf-8") == second.csv_path.read_text(encoding="utf-8")
+    assert first.json_path.read_text(encoding="utf-8") == second.json_path.read_text(encoding="utf-8")
+    assert first.leaderboard[0].run_id != second.leaderboard[0].run_id
+
+
 def test_compare_strategies_raises_for_missing_registry_strategy(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -264,3 +348,30 @@ def test_run_cli_prints_leaderboard_summary(monkeypatch, capsys, tmp_path: Path)
     assert "strategy" in stdout
     assert "momentum_v1" in stdout
     assert "leaderboard_csv:" in stdout
+
+
+def test_run_cli_accepts_space_separated_strategy_names(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+    expected_result = compare.ComparisonResult(
+        metric="sharpe_ratio",
+        evaluation_mode="single",
+        selection_mode="fresh",
+        selection_rule="freshly executed run per strategy",
+        leaderboard=[],
+        csv_path=tmp_path / "leaderboard.csv",
+        json_path=tmp_path / "leaderboard.json",
+    )
+
+    def fake_compare_strategies(strategies, **kwargs):
+        captured["strategies"] = list(strategies)
+        captured["kwargs"] = kwargs
+        return expected_result
+
+    monkeypatch.setattr("src.cli.compare_strategies.compare_strategies", fake_compare_strategies)
+
+    result = run_cli(
+        ["--strategies", "momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"]
+    )
+
+    assert result is expected_result
+    assert captured["strategies"] == ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"]

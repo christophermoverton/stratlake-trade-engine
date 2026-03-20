@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import hashlib
 import json
 from pathlib import Path
 from typing import Any, Sequence
@@ -17,7 +18,7 @@ from src.research.registry import default_registry_path, load_registry
 from src.research.strategies import build_strategy
 from src.research.walk_forward import WalkForwardRunResult, run_walk_forward_experiment
 
-DEFAULT_LEADERBOARD_PATH = Path("artifacts") / "strategies" / "leaderboard.csv"
+DEFAULT_COMPARISONS_ROOT = Path("artifacts") / "comparisons"
 DEFAULT_METRIC = "sharpe_ratio"
 
 
@@ -90,13 +91,21 @@ def compare_strategies(
         selection_rule = "freshly executed run per strategy"
 
     leaderboard = _rank_rows(rows, metric=metric, top_k=top_k)
+    resolved_output_path = output_path or default_output_path(
+        strategies=strategy_names,
+        metric=metric,
+        evaluation_mode=evaluation_mode,
+        selection_mode=selection_mode,
+        evaluation_path=evaluation_path,
+        top_k=top_k,
+    )
     csv_path, json_path = write_leaderboard_artifacts(
         leaderboard,
         metric=metric,
         evaluation_mode=evaluation_mode,
         selection_mode=selection_mode,
         selection_rule=selection_rule,
-        output_path=output_path,
+        output_path=resolved_output_path,
     )
     return ComparisonResult(
         metric=metric,
@@ -124,9 +133,10 @@ def write_leaderboard_artifacts(
     json_path = csv_path.with_suffix(".json")
     csv_path.parent.mkdir(parents=True, exist_ok=True)
 
+    persisted_rows = [_persisted_entry(entry) for entry in leaderboard]
     leaderboard_frame = pd.DataFrame(
-        [asdict(entry) for entry in leaderboard],
-        columns=list(LeaderboardEntry.__dataclass_fields__),
+        persisted_rows,
+        columns=_persisted_entry_columns(),
     )
     leaderboard_frame.to_csv(csv_path, index=False)
     payload = {
@@ -134,17 +144,64 @@ def write_leaderboard_artifacts(
         "evaluation_mode": evaluation_mode,
         "selection_mode": selection_mode,
         "selection_rule": selection_rule,
-        "leaderboard": [asdict(entry) for entry in leaderboard],
+        "leaderboard": persisted_rows,
     }
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return csv_path, json_path
+
+
+def default_output_path(
+    *,
+    strategies: Sequence[str],
+    metric: str,
+    evaluation_mode: str,
+    selection_mode: str,
+    evaluation_path: Path | None,
+    top_k: int | None,
+) -> Path:
+    """Return the deterministic default comparison leaderboard CSV path."""
+
+    comparison_id = build_comparison_id(
+        strategies=strategies,
+        metric=metric,
+        evaluation_mode=evaluation_mode,
+        selection_mode=selection_mode,
+        evaluation_path=evaluation_path,
+        top_k=top_k,
+    )
+    return DEFAULT_COMPARISONS_ROOT / comparison_id / "leaderboard.csv"
+
+
+def build_comparison_id(
+    *,
+    strategies: Sequence[str],
+    metric: str,
+    evaluation_mode: str,
+    selection_mode: str,
+    evaluation_path: Path | None,
+    top_k: int | None,
+) -> str:
+    """Return a stable comparison identifier derived from the comparison inputs."""
+
+    payload = {
+        "evaluation_mode": evaluation_mode,
+        "evaluation_path": None if evaluation_path is None else evaluation_path.as_posix(),
+        "metric": metric,
+        "selection_mode": selection_mode,
+        "strategies": list(strategies),
+        "top_k": top_k,
+    }
+    digest = hashlib.sha256(
+        json.dumps(payload, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()[:12]
+    return f"{selection_mode}_{evaluation_mode}_{metric}_{digest}"
 
 
 def resolve_output_csv_path(output_path: Path | None) -> Path:
     """Resolve the CSV path for leaderboard outputs."""
 
     if output_path is None:
-        return DEFAULT_LEADERBOARD_PATH
+        raise ValueError("An output path must be provided or resolved before writing leaderboard artifacts.")
     if output_path.suffix.lower() == ".csv":
         return output_path
     return output_path / "leaderboard.csv"
@@ -313,12 +370,12 @@ def _sort_key(row: dict[str, Any], *, metric: str) -> tuple[bool, float, str, st
         metric_value is None,
         0.0 if metric_value is None else -metric_value,
         str(row["strategy_name"]),
-        str(row["run_id"]),
+        str(row.get("evaluation_mode") or "single"),
     )
 
 
 def _normalize_strategy_names(strategies: Sequence[str]) -> list[str]:
-    names = [strategy.strip() for strategy in strategies if strategy.strip()]
+    names = list(dict.fromkeys(strategy.strip() for strategy in strategies if strategy.strip()))
     if not names:
         raise ValueError("At least one strategy name must be provided.")
     return names
@@ -334,3 +391,31 @@ def _coerce_metric(value: Any) -> float | None:
 
 def _format_metric(value: float | None) -> str:
     return "NA" if value is None else f"{value:.6f}"
+
+
+def _persisted_entry_columns() -> list[str]:
+    return [
+        "rank",
+        "strategy_name",
+        "evaluation_mode",
+        "selected_metric_name",
+        "selected_metric_value",
+        "cumulative_return",
+        "total_return",
+        "annualized_return",
+        "annualized_volatility",
+        "volatility",
+        "sharpe_ratio",
+        "max_drawdown",
+        "win_rate",
+        "hit_rate",
+        "profit_factor",
+        "turnover",
+        "exposure_pct",
+    ]
+
+
+def _persisted_entry(entry: LeaderboardEntry) -> dict[str, Any]:
+    payload = asdict(entry)
+    payload.pop("run_id", None)
+    return {column: payload.get(column) for column in _persisted_entry_columns()}

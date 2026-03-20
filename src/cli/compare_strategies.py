@@ -21,8 +21,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--strategies",
+        nargs="+",
         required=True,
-        help="Comma-separated strategy names defined in configs/strategies.yml.",
+        help="Strategy names defined in configs/strategies.yml. Accepts comma-separated and/or space-separated values.",
     )
     parser.add_argument(
         "--evaluation",
@@ -48,11 +49,23 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+def parse_strategy_names(raw_values: Sequence[str]) -> list[str]:
+    """Return normalized strategy names from comma-separated and/or repeated CLI values."""
+
+    names: list[str] = []
+    for raw_value in raw_values:
+        for name in raw_value.split(","):
+            normalized = name.strip()
+            if normalized:
+                names.append(normalized)
+    return names
+
+
 def run_cli(argv: Sequence[str] | None = None) -> ComparisonResult:
     """Execute the comparison CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
-    strategies = [name.strip() for name in args.strategies.split(",")]
+    strategies = parse_strategy_names(args.strategies)
     result = compare_strategies(
         strategies,
         metric=args.metric,

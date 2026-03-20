@@ -14,6 +14,7 @@ from src.cli.run_strategy import (
     get_strategy_config,
     parse_args,
     run_cli,
+    run_strategy_experiment,
 )
 from src.research.strategies import build_strategy
 
@@ -26,6 +27,25 @@ def _results_frame() -> pd.DataFrame:
             "equity_curve": [1.0, 1.02],
         }
     )
+
+
+def _write_daily_features_dataset(root: Path, symbol: str = "AAPL", periods: int = 30) -> pd.DataFrame:
+    ts = pd.date_range("2025-01-01", periods=periods, freq="D", tz="UTC")
+    closes = pd.Series([100.0 + float(index) for index in range(periods)], dtype="float64")
+    feature_df = pd.DataFrame(
+        {
+            "symbol": pd.Series([symbol] * periods, dtype="string"),
+            "ts_utc": ts,
+            "timeframe": pd.Series(["1D"] * periods, dtype="string"),
+            "date": pd.Series(ts.strftime("%Y-%m-%d"), dtype="string"),
+            "close": closes,
+            "feature_ret_1d": closes.div(closes.shift(1)).sub(1.0),
+        }
+    )
+    dataset_path = root / "data" / "curated" / "features_daily" / f"symbol={symbol}" / "year=2025"
+    dataset_path.mkdir(parents=True, exist_ok=True)
+    feature_df.to_parquet(dataset_path / "part-0.parquet", index=False)
+    return feature_df
 
 
 def test_parse_args_accepts_strategy_and_date_filters() -> None:
@@ -183,6 +203,23 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
 def test_run_cli_rejects_date_filters_in_evaluation_mode() -> None:
     with pytest.raises(ValueError, match="cannot be combined with --evaluation"):
         run_cli(["--strategy", "momentum_v1", "--evaluation", "--start", "2025-01-01"])
+
+
+def test_run_strategy_experiment_loads_curated_daily_features_and_supports_mean_reversion(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    feature_df = _write_daily_features_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_strategy.save_experiment", lambda *args, **kwargs: tmp_path / "run-mean-reversion")
+
+    result = run_strategy_experiment("mean_reversion_v1")
+
+    assert isinstance(result, StrategyRunResult)
+    assert result.strategy_name == "mean_reversion_v1"
+    assert result.run_id == "run-mean-reversion"
+    assert list(result.results_df.columns[-3:]) == ["signal", "strategy_return", "equity_curve"]
+    assert result.results_df["close"].tolist() == pytest.approx(feature_df["close"].tolist())
+    assert result.results_df["feature_ret_1d"].notna().sum() == len(feature_df) - 1
 
 
 def test_build_strategy_supports_buy_and_hold_baseline() -> None:

@@ -375,3 +375,48 @@ def test_run_cli_accepts_space_separated_strategy_names(monkeypatch, tmp_path: P
 
     assert result is expected_result
     assert captured["strategies"] == ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"]
+
+
+def test_compare_strategies_executes_against_curated_daily_features_layout(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    ts = pd.date_range("2025-01-01", periods=30, freq="D", tz="UTC")
+    closes = pd.Series([100.0 + float(index) for index in range(len(ts))], dtype="float64")
+    feature_df = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL"] * len(ts), dtype="string"),
+            "ts_utc": ts,
+            "timeframe": pd.Series(["1D"] * len(ts), dtype="string"),
+            "date": pd.Series(ts.strftime("%Y-%m-%d"), dtype="string"),
+            "close": closes,
+            "feature_ret_1d": closes.div(closes.shift(1)).sub(1.0),
+        }
+    )
+    dataset_path = tmp_path / "data" / "curated" / "features_daily" / "symbol=AAPL" / "year=2025"
+    dataset_path.mkdir(parents=True, exist_ok=True)
+    feature_df.to_parquet(dataset_path / "part-0.parquet", index=False)
+
+    run_counter = {"count": 0}
+
+    def fake_save_experiment(strategy_name, results_df, metrics, config):
+        run_counter["count"] += 1
+        return tmp_path / f"run-{run_counter['count']}-{strategy_name}"
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_strategy.save_experiment", fake_save_experiment)
+
+    result = compare.compare_strategies(
+        ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"],
+        output_path=tmp_path / "leaderboard.csv",
+    )
+
+    assert len(result.leaderboard) == 3
+    assert result.csv_path == tmp_path / "leaderboard.csv"
+    assert result.json_path == tmp_path / "leaderboard.json"
+    assert result.csv_path.exists()
+    assert result.json_path.exists()
+    assert {entry.strategy_name for entry in result.leaderboard} == {
+        "momentum_v1",
+        "mean_reversion_v1",
+        "buy_and_hold_v1",
+    }

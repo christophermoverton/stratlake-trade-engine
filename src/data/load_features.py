@@ -25,15 +25,19 @@ class FeaturePaths:
             raise ValueError(f"Unknown feature dataset: {dataset!r}. Expected one of: {expected}.")
 
         nested_root = self.root / "features" / dataset
+        curated_root = self.root / "curated" / dataset
         direct_root = self.root / dataset
+        candidates = (nested_root, curated_root, direct_root)
 
-        if nested_root.exists():
-            return nested_root
-        if direct_root.exists():
-            return direct_root
+        for candidate in candidates:
+            if candidate.exists():
+                return candidate
+
         if self.root.name == "features":
             return direct_root
-        return nested_root
+        if self.root.name == "curated":
+            return direct_root
+        return curated_root
 
     def dataset_glob(self, dataset: str) -> str:
         return (self.dataset_root(dataset) / "**" / "*.parquet").as_posix()

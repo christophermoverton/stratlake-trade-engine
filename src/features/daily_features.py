@@ -24,7 +24,7 @@ def compute_daily_features_v1(
       - timeframe should be "1D" for daily bars
 
     Output columns:
-      symbol, ts_utc, timeframe, date, feature_*
+      symbol, ts_utc, timeframe, date, close, feature_*
     """
     cfg = cfg or DailyFeatureConfig()
     
@@ -35,7 +35,7 @@ def compute_daily_features_v1(
     
     if bars_daily.empty:
         #Return empty with the right schema
-        base_cols = ["symbol", "ts_utc", "timeframe", "date"]
+        base_cols = ["symbol", "ts_utc", "timeframe", "date", "close"]
         feat_cols = (
             [f"feature_ret_{w}d" for w in cfg.ret_windows]
             + [f"feature_vol_{cfg.vol_window}d"]
@@ -76,7 +76,9 @@ def compute_daily_features_v1(
     df["feature_close_to_sma20"] = df["close"].astype("float64") / df["feature_sma_20"] - 1.0
     
     #Output contract
-    out_cols = ["symbol", "ts_utc", "timeframe", "date"] + [c for c in df.columns if c.startswith("feature_")]
+    out_cols = ["symbol", "ts_utc", "timeframe", "date", "close"] + [
+        c for c in df.columns if c.startswith("feature_")
+    ]
     out = df.loc[:, out_cols].copy()
     
     #Keep types clean

@@ -204,6 +204,32 @@ def test_load_features_supports_direct_root_and_year_partitions(tmp_path: Path) 
     assert df["feature_alpha"].tolist() == [5.0]
 
 
+def test_load_features_supports_curated_layout_from_default_data_root(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.chdir(tmp_path)
+    dataset_root = tmp_path / "data" / "curated" / "features_daily"
+
+    _write_parquet(
+        dataset_root / "symbol=AAPL" / "year=2025" / "part-0.parquet",
+        pd.DataFrame(
+            [
+                _make_feature_row(
+                    symbol="AAPL",
+                    ts_utc="2025-03-15T00:00:00Z",
+                    timeframe="1D",
+                    date="2025-03-15",
+                    feature_alpha=5.0,
+                )
+            ]
+        ),
+    )
+
+    df = load_features("features_daily", start="2025-01-01", end="2026-01-01")
+
+    assert len(df) == 1
+    assert df["symbol"].tolist() == ["AAPL"]
+    assert df["feature_alpha"].tolist() == [5.0]
+
+
 def test_create_feature_views_supports_sql_analytics_and_partition_discovery(tmp_path: Path) -> None:
     paths = FeaturePaths(root=tmp_path / "data")
     dataset_root = paths.dataset_root("features_1m")

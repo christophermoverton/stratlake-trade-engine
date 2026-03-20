@@ -88,6 +88,7 @@ def test_daily_features_empty_input_returns_expected_schema() -> None:
         "ts_utc",
         "timeframe",
         "date",
+        "close",
         "feature_ret_1d",
         "feature_ret_5d",
         "feature_ret_20d",

@@ -227,3 +227,29 @@ def test_build_strategy_supports_buy_and_hold_baseline() -> None:
 
     assert strategy.name == "buy_and_hold_v1"
     assert strategy.dataset == "features_1m"
+
+
+def test_run_strategy_experiment_is_reproducible_for_repeated_runs(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    _write_daily_features_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    first = run_strategy_experiment("momentum_v1")
+    first_metrics = dict(first.metrics)
+    first_artifacts = {
+        path.relative_to(first.experiment_dir).as_posix(): path.read_bytes()
+        for path in sorted(first.experiment_dir.rglob("*"))
+        if path.is_file()
+    }
+
+    second = run_strategy_experiment("momentum_v1")
+    second_artifacts = {
+        path.relative_to(second.experiment_dir).as_posix(): path.read_bytes()
+        for path in sorted(second.experiment_dir.rglob("*"))
+        if path.is_file()
+    }
+
+    assert first.run_id == second.run_id
+    assert first_metrics == second.metrics
+    assert first_artifacts == second_artifacts

@@ -1,14 +1,15 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
+import hashlib
 import json
 from pathlib import Path
+import shutil
 from typing import Any
 
 import pandas as pd
 
 from src.research.metrics import infer_position_series
-from src.research.registry import append_registry_entry, default_registry_path
+from src.research.registry import default_registry_path, serialize_canonical_json, upsert_registry_entry
 
 ARTIFACTS_ROOT = Path("artifacts") / "strategies"
 _BACKTEST_COLUMNS = ("strategy_return", "equity_curve")
@@ -53,13 +54,6 @@ def _sanitize_strategy_name(strategy_name: str) -> str:
     return normalized or "strategy"
 
 
-def _build_run_id(strategy_name: str) -> str:
-    """Return a unique experiment run identifier using the current UTC timestamp."""
-
-    timestamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-    return f"{timestamp}_{_sanitize_strategy_name(strategy_name)}"
-
-
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     """Persist a dictionary to disk using stable JSON formatting."""
 
@@ -67,14 +61,16 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
 
 
 def _utc_timestamp_from_run_id(run_id: str) -> str:
-    """Return an ISO8601 UTC timestamp derived from the run identifier when possible."""
+    """Return a stable pseudo-timestamp derived from a deterministic run identifier."""
 
-    timestamp_component = run_id.split("_", 1)[0]
-    try:
-        created_at = datetime.strptime(timestamp_component, "%Y%m%dT%H%M%S%fZ").replace(tzinfo=UTC)
-    except ValueError:
-        created_at = datetime.now(UTC)
-    return created_at.isoformat().replace("+00:00", "Z")
+    digest = hashlib.sha256(run_id.encode("utf-8")).hexdigest()
+    year = 2000 + int(digest[0:2], 16) % 25
+    month = (int(digest[2:4], 16) % 12) + 1
+    day = (int(digest[4:6], 16) % 28) + 1
+    hour = int(digest[6:8], 16) % 24
+    minute = int(digest[8:10], 16) % 60
+    second = int(digest[10:12], 16) % 60
+    return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z"
 
 
 def _first_non_empty_string(series: pd.Series) -> str | None:
@@ -203,15 +199,109 @@ def _build_registry_entry(
 def _write_registry_entry(entry: dict[str, Any]) -> None:
     """Append one completed run to the shared strategy registry."""
 
-    append_registry_entry(default_registry_path(ARTIFACTS_ROOT), entry)
+    upsert_registry_entry(default_registry_path(ARTIFACTS_ROOT), entry)
 
 
-def create_experiment_dir(strategy_name: str) -> Path:
-    """Create and return a new experiment directory for a strategy run."""
+def _normalize_run_payload(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, pd.DataFrame):
+        return [
+            _normalize_run_payload(record)
+            for record in _normalize_artifact_frame(value).to_dict(orient="records")
+        ]
+    if isinstance(value, str | bytes | bool | int | float):
+        if isinstance(value, float) and pd.isna(value):
+            return None
+        return value
+    if isinstance(value, pd.Series):
+        return [_normalize_run_payload(item) for item in value.tolist()]
+    if pd.isna(value):
+        return None
+    if isinstance(value, dict):
+        return {key: _normalize_run_payload(value[key]) for key in sorted(value)}
+    if isinstance(value, list):
+        return [_normalize_run_payload(item) for item in value]
+    if isinstance(value, tuple):
+        return [_normalize_run_payload(item) for item in value]
+    return value
 
-    experiment_dir = ARTIFACTS_ROOT / _build_run_id(strategy_name)
+
+def _build_deterministic_run_id(
+    strategy_name: str,
+    *,
+    evaluation_mode: str,
+    config: dict[str, Any],
+    results_df: pd.DataFrame | None = None,
+) -> str:
+    payload = {
+        "strategy_name": strategy_name,
+        "evaluation_mode": evaluation_mode,
+        "config": _normalize_run_payload(config),
+        "results": None if results_df is None else _normalize_run_payload(results_df),
+    }
+    digest = hashlib.sha256(serialize_canonical_json(payload).encode("utf-8")).hexdigest()[:12]
+    return f"{_sanitize_strategy_name(strategy_name)}_{evaluation_mode}_{digest}"
+
+
+def create_experiment_dir(
+    strategy_name: str,
+    *,
+    evaluation_mode: str,
+    config: dict[str, Any],
+    results_df: pd.DataFrame | None = None,
+) -> Path:
+    """Create and return the deterministic experiment directory for a strategy run."""
+
+    experiment_dir = ARTIFACTS_ROOT / _build_deterministic_run_id(
+        strategy_name,
+        evaluation_mode=evaluation_mode,
+        config=config,
+        results_df=results_df,
+    )
+    if experiment_dir.exists():
+        shutil.rmtree(experiment_dir)
     experiment_dir.mkdir(parents=True, exist_ok=False)
     return experiment_dir
+
+
+def _normalize_artifact_frame(df: pd.DataFrame) -> pd.DataFrame:
+    frame = df.copy()
+    if frame.empty:
+        return frame.reset_index(drop=True)
+
+    sort_keys: dict[str, pd.Series] = {}
+    if "ts_utc" in frame.columns:
+        timestamps = pd.to_datetime(frame["ts_utc"], utc=True, errors="coerce")
+        sort_keys["ts_utc"] = timestamps
+        frame["ts_utc"] = timestamps.dt.strftime("%Y-%m-%dT%H:%M:%SZ")
+    if "date" in frame.columns:
+        date_values = pd.to_datetime(frame["date"], utc=True, errors="coerce")
+        sort_keys["date"] = date_values
+        if date_values.notna().any():
+            frame["date"] = date_values.dt.strftime("%Y-%m-%d")
+
+    sort_columns = [column for column in ("symbol", "ts_utc", "date", "timeframe") if column in frame.columns]
+    if sort_columns:
+        ordering_frame = frame.assign(
+            **{
+                f"_sort_{column}": sort_keys[column]
+                for column in ("ts_utc", "date")
+                if column in sort_keys
+            }
+        )
+        by = [
+            "_sort_ts_utc" if column == "ts_utc" and "_sort_ts_utc" in ordering_frame.columns else
+            "_sort_date" if column == "date" and "_sort_date" in ordering_frame.columns else
+            column
+            for column in sort_columns
+        ]
+        frame = ordering_frame.sort_values(by, kind="mergesort", na_position="last")
+        frame = frame.drop(
+            columns=[column for column in ("_sort_ts_utc", "_sort_date") if column in frame.columns]
+        )
+
+    return frame.reset_index(drop=True)
 
 
 def _standardize_timestamp_columns(df: pd.DataFrame) -> pd.DataFrame:
@@ -258,7 +348,7 @@ def _signals_frame(results_df: pd.DataFrame) -> pd.DataFrame:
         if column in frame.columns
     ]
     deduped_columns = list(dict.fromkeys(ordered_columns))
-    return _sorted_by_time(frame.loc[:, deduped_columns])
+    return _normalize_artifact_frame(_sorted_by_time(frame.loc[:, deduped_columns]))
 
 
 def _equity_curve_frame(results_df: pd.DataFrame) -> pd.DataFrame:
@@ -269,7 +359,7 @@ def _equity_curve_frame(results_df: pd.DataFrame) -> pd.DataFrame:
         missing = ", ".join(missing_columns)
         raise ValueError(f"Experiment results must include backtest columns: {missing}.")
 
-    frame = _sorted_by_time(results_df)
+    frame = _normalize_artifact_frame(_sorted_by_time(results_df))
     payload = pd.DataFrame(index=frame.index)
     payload["ts_utc"] = frame["ts_utc"] if "ts_utc" in frame.columns else None
     if "symbol" in frame.columns:
@@ -290,7 +380,7 @@ def _legacy_equity_curve_frame(results_df: pd.DataFrame) -> pd.DataFrame:
     preferred_columns = [
         column for column in ("signal", *_BACKTEST_COLUMNS) if column in results_df.columns
     ]
-    return results_df.loc[:, preferred_columns].copy()
+    return _normalize_artifact_frame(results_df.loc[:, preferred_columns].copy())
 
 
 def _resolve_time_values(df: pd.DataFrame) -> pd.Series:
@@ -307,7 +397,7 @@ def _trades_frame(results_df: pd.DataFrame) -> pd.DataFrame:
             columns=["entry_ts_utc", "exit_ts_utc", "symbol", "direction", "return"]
         )
 
-    frame = _sorted_by_time(results_df)
+    frame = _normalize_artifact_frame(_sorted_by_time(results_df))
     position = infer_position_series(frame).astype("float64")
     returns = frame["strategy_return"].fillna(0.0).astype("float64")
     timestamps = _resolve_time_values(frame)
@@ -496,11 +586,16 @@ def save_walk_forward_experiment(
 ) -> Path:
     """Persist walk-forward artifacts under the standard strategy artifact root."""
 
-    experiment_dir = create_experiment_dir(strategy_name)
     aggregate_results_df = pd.concat(
         [split_result["results_df"] for split_result in split_results],
         ignore_index=True,
     ) if split_results else pd.DataFrame(columns=["ts_utc", "signal", "strategy_return", "equity_curve"])
+    experiment_dir = create_experiment_dir(
+        strategy_name,
+        evaluation_mode="walk_forward",
+        config=config,
+        results_df=aggregate_results_df,
+    )
 
     _write_run_outputs(experiment_dir, aggregate_results_df, aggregate_summary, config)
 
@@ -578,7 +673,12 @@ def save_experiment(
             ``equity_curve`` columns required for the equity curve artifact.
     """
 
-    experiment_dir = create_experiment_dir(strategy_name)
+    experiment_dir = create_experiment_dir(
+        strategy_name,
+        evaluation_mode="single",
+        config=config,
+        results_df=results_df,
+    )
     save_experiment_outputs(experiment_dir, results_df, metrics, config)
     _write_registry_entry(
         _build_registry_entry(

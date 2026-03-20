@@ -267,6 +267,37 @@ The leaderboard includes fields such as:
 - `turnover`
 - `exposure_pct`
 
+## Reproducibility
+
+Milestone 5 strategy examples are designed to be reproducible when the inputs are unchanged.
+
+What that means in practice:
+
+- repeated runs of `python -m src.cli.run_strategy --strategy momentum_v1` produce the same metrics and the same saved artifact contents
+- repeated runs of `python -m src.cli.compare_strategies --strategies momentum_v1 mean_reversion_v1 buy_and_hold_v1` produce the same leaderboard ordering and the same `leaderboard.csv` and `leaderboard.json` contents
+- saved strategy run directories use a deterministic `run_id` derived from the run inputs and normalized results instead of a wall-clock timestamp
+
+How reproducibility is enforced:
+
+- feature datasets are loaded with explicit ordering and normalized again before persistence
+- strategy groupby-based calculations operate on deterministic row order
+- comparison outputs exclude volatile fields such as per-run `run_id` values
+- metrics are serialized with stable JSON key ordering
+- seeded randomness is only reproducible when a strategy provides an explicit fixed seed
+- registry entries are updated by deterministic `run_id`, so rerunning the same experiment refreshes the same logical record instead of appending a new timestamp-only variant
+
+Assumptions:
+
+- the curated source data and feature parquet files are unchanged between runs
+- the same strategy config, date bounds, and evaluation config are used
+- the same Python environment and dependency versions are used
+
+Known limitations:
+
+- if the curated input data changes, the deterministic `run_id` and saved artifacts may also change because the normalized results change
+- registry-backed selection still depends on the set of saved runs available in `artifacts/strategies/registry.jsonl`
+- reproducibility guarantees cover deterministic execution and persisted contents, not cross-platform floating-point identity across different Python, pandas, or parquet-engine versions
+
 ## Read the Example Reports
 
 After your first runs, these example reports are good references:

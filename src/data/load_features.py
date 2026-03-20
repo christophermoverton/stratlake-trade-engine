@@ -140,7 +140,7 @@ def load_features(
         SELECT *
         FROM {view_name}
         {where_sql}
-        ORDER BY symbol, ts_utc
+        ORDER BY symbol, ts_utc, timeframe, date
     """
     df = connection.execute(sql, params).df()
     return _postprocess(df)
@@ -159,5 +159,9 @@ def _postprocess(df: pd.DataFrame) -> pd.DataFrame:
     for column in ("symbol", "timeframe", "date"):
         if column in df.columns:
             df[column] = df[column].astype("string")
+
+    sort_columns = [column for column in ("symbol", "ts_utc", "timeframe", "date") if column in df.columns]
+    if sort_columns:
+        df = df.sort_values(sort_columns, kind="mergesort", na_position="last")
 
     return df.reset_index(drop=True)

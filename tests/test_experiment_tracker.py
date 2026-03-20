@@ -171,3 +171,33 @@ def test_save_walk_forward_experiment_supports_empty_split_sets(
     assert manifest["evaluation_mode"] == "walk_forward"
     assert manifest["split_count"] == 0
     assert "metrics_by_split.csv" in manifest["artifact_files"]
+
+
+def test_save_experiment_is_reproducible_across_repeated_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    config = {"strategy_name": "mean_reversion", "lookback": 20, "threshold": 0.75}
+    results_df = _experiment_results()
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+
+    first_dir = save_experiment("mean_reversion", results_df, _metrics(), config)
+    first_snapshot = {
+        path.relative_to(first_dir).as_posix(): path.read_bytes()
+        for path in sorted(first_dir.rglob("*"))
+        if path.is_file()
+    }
+    first_registry = (artifact_root / "registry.jsonl").read_bytes()
+
+    second_dir = save_experiment("mean_reversion", results_df, _metrics(), config)
+    second_snapshot = {
+        path.relative_to(second_dir).as_posix(): path.read_bytes()
+        for path in sorted(second_dir.rglob("*"))
+        if path.is_file()
+    }
+    second_registry = (artifact_root / "registry.jsonl").read_bytes()
+
+    assert first_dir == second_dir
+    assert first_snapshot == second_snapshot
+    assert first_registry == second_registry

@@ -420,3 +420,55 @@ def test_compare_strategies_executes_against_curated_daily_features_layout(
         "mean_reversion_v1",
         "buy_and_hold_v1",
     }
+
+
+def test_compare_strategies_repeated_runs_keep_leaderboard_bytes_identical(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_counts: dict[str, int] = {}
+
+    def fake_run_strategy_experiment(strategy_name: str, start=None, end=None):
+        run_counts[strategy_name] = run_counts.get(strategy_name, 0) + 1
+        return compare.StrategyRunResult(
+            strategy_name=strategy_name,
+            run_id=f"ephemeral-{run_counts[strategy_name]}-{strategy_name}",
+            metrics={
+                "total_return": 0.11 if strategy_name == "momentum_v1" else 0.05,
+                "cumulative_return": 0.11 if strategy_name == "momentum_v1" else 0.05,
+                "annualized_return": 0.18 if strategy_name == "momentum_v1" else 0.08,
+                "annualized_volatility": 0.21 if strategy_name == "momentum_v1" else 0.12,
+                "volatility": 0.01 if strategy_name == "momentum_v1" else 0.02,
+                "sharpe_ratio": 1.4 if strategy_name == "momentum_v1" else 0.8,
+                "max_drawdown": 0.07 if strategy_name == "momentum_v1" else 0.03,
+                "win_rate": 0.62 if strategy_name == "momentum_v1" else 0.51,
+                "hit_rate": 0.6 if strategy_name == "momentum_v1" else 0.5,
+                "profit_factor": 1.5 if strategy_name == "momentum_v1" else 1.1,
+                "turnover": 0.2 if strategy_name == "momentum_v1" else 0.1,
+                "exposure_pct": 80.0 if strategy_name == "momentum_v1" else 75.0,
+            },
+            experiment_dir=tmp_path / f"run-{strategy_name}",
+            results_df=None,  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr(compare, "run_strategy_experiment", fake_run_strategy_experiment)
+
+    first = compare.compare_strategies(
+        ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"],
+        output_path=tmp_path / "leaderboard.csv",
+    )
+    first_csv = first.csv_path.read_bytes()
+    first_json = first.json_path.read_bytes()
+
+    second = compare.compare_strategies(
+        ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"],
+        output_path=tmp_path / "leaderboard.csv",
+    )
+
+    assert [entry.strategy_name for entry in first.leaderboard] == [
+        entry.strategy_name for entry in second.leaderboard
+    ]
+    assert [entry.selected_metric_value for entry in first.leaderboard] == [
+        entry.selected_metric_value for entry in second.leaderboard
+    ]
+    assert first_csv == second.csv_path.read_bytes()
+    assert first_json == second.json_path.read_bytes()

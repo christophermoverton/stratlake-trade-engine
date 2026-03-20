@@ -145,6 +145,41 @@ def append_registry_entry(path: Path, entry: Mapping[str, Any]) -> None:
             os.close(descriptor)
 
 
+def upsert_registry_entry(path: Path, entry: Mapping[str, Any]) -> None:
+    """Insert or replace one registry entry by deterministic run-id."""
+
+    canonical_entry = canonicalize_value(entry)
+    if not isinstance(canonical_entry, dict):
+        raise RegistryError("Registry entries must serialize to a JSON object.")
+
+    run_id = canonical_entry.get("run_id")
+    if not isinstance(run_id, str) or not run_id:
+        raise RegistryError("Registry entries must include a non-empty string run_id.")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(canonical_entry, separators=(",", ":"), sort_keys=False) + "\n"
+
+    with _registry_lock(path):
+        existing_entries = [
+            existing
+            for existing in load_registry(path)
+            if existing.get("run_id") != run_id
+        ]
+        serialized = [
+            json.dumps(canonicalize_value(existing), separators=(",", ":"), sort_keys=False)
+            for existing in existing_entries
+        ]
+        serialized.append(line.rstrip("\n"))
+        payload = "\n".join(serialized)
+        if payload:
+            payload += "\n"
+
+        try:
+            path.write_text(payload, encoding="utf-8")
+        except OSError as exc:
+            raise RegistryError(f"Failed to upsert registry entry to '{path}'.") from exc
+
+
 @contextmanager
 def _registry_lock(path: Path) -> Iterable[None]:
     lock_path = path.with_name(f"{path.name}{LOCK_SUFFIX}")

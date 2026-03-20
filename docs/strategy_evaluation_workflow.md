@@ -71,7 +71,7 @@ Each stage maps to the current implementation:
 5. `artifacts`
    Each run writes files under `artifacts/strategies/<run_id>/`.
 6. `registry`
-   Each completed run appends one row to
+   Each completed run upserts one deterministic row in
    `artifacts/strategies/registry.jsonl`.
 7. `comparison`
    `src.cli.compare_strategies` ranks fresh or registry-backed runs into a
@@ -350,7 +350,7 @@ for the full artifact contract.
 
 ## Experiment Registry
 
-The experiment registry is a lightweight append-only index for completed runs.
+The experiment registry is a lightweight index for completed runs.
 
 Location:
 
@@ -434,8 +434,8 @@ Registry mode behavior:
 
 Leaderboard outputs:
 
-* `artifacts/strategies/leaderboard.csv`
-* `artifacts/strategies/leaderboard.json`
+* `artifacts/comparisons/<comparison_id>/leaderboard.csv`
+* `artifacts/comparisons/<comparison_id>/leaderboard.json`
 
 Each leaderboard row includes:
 
@@ -453,7 +453,7 @@ Ranking behavior:
 * selected metric descending
 * missing selected metric values last
 * tie-break by `strategy_name`
-* final tie-break by `run_id`
+* final tie-break by `evaluation_mode`
 
 See [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
 for the full CLI reference.

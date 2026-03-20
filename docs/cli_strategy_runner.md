@@ -232,9 +232,10 @@ Leaderboard rows include:
 * `selected_metric_value`
 * core metrics such as `total_return`, `sharpe_ratio`, and `max_drawdown`
 
-Leaderboard outputs are written to `artifacts/strategies/leaderboard.csv` and
-`artifacts/strategies/leaderboard.json` unless `--output_path` overrides the
-CSV location or directory.
+Leaderboard outputs are written to
+`artifacts/comparisons/<comparison_id>/leaderboard.csv` and
+`artifacts/comparisons/<comparison_id>/leaderboard.json` unless `--output_path`
+overrides the CSV location or directory.
 
 ---
 
@@ -242,21 +243,25 @@ CSV location or directory.
 
 After a successful run, the CLI prints a concise summary:
 
+Example deterministic single-run output now looks like:
+
 ```text
 strategy: momentum_v1
-run_id: 20260318T201530123456Z_momentum_v1
-cumulative_return: 0.123456
-sharpe_ratio: 1.234567
+run_id: momentum_v1_single_cf4a89987721
+cumulative_return: -0.999855
+sharpe_ratio: 0.032373
 ```
 
 The `run_id` matches the directory name created under `artifacts/strategies/`.
-Walk-forward runs also print `split_count`.
+Rerunning the same experiment on unchanged inputs reuses the same directory name
+instead of creating a timestamp-only variant. Walk-forward runs also print
+`split_count`.
 
 ---
 
 ## Artifact Outputs
 
-Each CLI run writes a new experiment directory:
+Each CLI run writes a deterministic experiment directory:
 
 ```text
 artifacts/strategies/<run_id>/

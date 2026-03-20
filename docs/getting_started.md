@@ -177,7 +177,7 @@ What this does:
 - generates trading signals
 - runs the backtest
 - computes summary metrics
-- saves a new experiment directory under `artifacts/strategies/<run_id>/`
+- saves a deterministic experiment directory under `artifacts/strategies/<run_id>/`
 
 The CLI prints a short summary including:
 

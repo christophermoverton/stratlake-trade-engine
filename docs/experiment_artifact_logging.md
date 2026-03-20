@@ -7,8 +7,8 @@ strategy run so results can be reproduced, inspected, and compared later.
 
 Current implementation:
 
-* creates a unique run directory under `artifacts/strategies/`
-* appends one registry row per completed run to `artifacts/strategies/registry.jsonl`
+* creates a deterministic run directory under `artifacts/strategies/`
+* upserts one registry row per deterministic run to `artifacts/strategies/registry.jsonl`
 * writes signal-engine outputs to parquet
 * writes standardized equity-curve outputs to CSV and preserves legacy parquet compatibility
 * writes metrics and strategy configuration to JSON
@@ -53,8 +53,8 @@ save_walk_forward_experiment(
 
 ## Artifact Layout
 
-Each call to `save_experiment()` creates a new directory using a timestamp-based
-run identifier combined with the strategy name:
+Each call to `save_experiment()` creates a deterministic directory using the
+strategy name, evaluation mode, normalized config, and normalized results:
 
 ```text
 artifacts/strategies/<run_id>/
@@ -63,7 +63,7 @@ artifacts/strategies/<run_id>/
 Example contents:
 
 ```text
-artifacts/strategies/20260318T153045123456Z_mean_reversion/
+artifacts/strategies/mean_reversion_single_<digest>/
   config.json
   metrics.json
   equity_curve.csv
@@ -92,18 +92,19 @@ artifacts/strategies/<run_id>/
   splits/<split_id>/split.json
 ```
 
-The timestamp component is generated in UTC and keeps runs unique while
-remaining easy to sort chronologically.
+If the same experiment is rerun on unchanged inputs, the same `run_id` is
+reused and the directory is rewritten in place with stable artifact contents.
 
-In addition to the per-run directory, completed runs append one JSON object line
-to:
+In addition to the per-run directory, completed runs write one JSON object line
+per `run_id` to:
 
 ```text
 artifacts/strategies/registry.jsonl
 ```
 
-The registry is append-only and intended for lightweight querying without
-scanning each artifact directory.
+The registry is intended for lightweight querying without scanning each artifact
+directory. Repeated deterministic reruns update the existing row for the same
+`run_id` instead of adding a timestamp-only duplicate.
 
 ---
 
@@ -222,8 +223,8 @@ reporting.
 
 ### `registry.jsonl`
 
-Contains one JSON object per completed strategy run. Each line is appended only
-after the run artifacts are written successfully.
+Contains one JSON object per deterministic strategy run. Each line is written
+only after the run artifacts are written successfully.
 
 ### `metrics_by_split.csv`
 

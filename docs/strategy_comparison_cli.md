@@ -43,7 +43,7 @@ Optional arguments:
 * `--metric` -> metric used for ranking, defaults to `sharpe_ratio`
 * `--top_k` -> keep only the top `N` rows in the final leaderboard
 * `--from_registry` -> use stored registry runs instead of executing new runs
-* `--output_path` -> override the default `artifacts/strategies/leaderboard.csv` path
+* `--output_path` -> override the default comparison output path
 
 Without `--evaluation`, comparison runs in single-run mode. With
 `--evaluation`, comparison runs in walk-forward mode and reuses the same split
@@ -103,7 +103,7 @@ This rule is deterministic for identical registry state.
 
 ## Leaderboard Schema
 
-Each leaderboard row includes:
+Each in-memory leaderboard row includes:
 
 * `rank`
 * `strategy_name`
@@ -129,7 +129,11 @@ Sorting rule:
 * selected metric descending
 * missing selected metric values last
 * tie-break by `strategy_name`
-* final tie-break by `run_id`
+* final tie-break by `evaluation_mode`
+
+Persisted `leaderboard.csv` and `leaderboard.json` omit `run_id` on purpose so
+repeated fresh executions can keep the saved comparison artifacts byte-stable
+even when the CLI table still prints source run identifiers.
 
 ---
 
@@ -137,8 +141,11 @@ Sorting rule:
 
 Default outputs:
 
-* `artifacts/strategies/leaderboard.csv`
-* `artifacts/strategies/leaderboard.json`
+* `artifacts/comparisons/<comparison_id>/leaderboard.csv`
+* `artifacts/comparisons/<comparison_id>/leaderboard.json`
+
+`<comparison_id>` is deterministic for the same strategy list, metric,
+evaluation mode, selection mode, evaluation path, and `top_k` inputs.
 
 The CLI also prints a compact console table that includes:
 
@@ -188,7 +195,7 @@ Limit the final leaderboard:
 Write the leaderboard to a custom location:
 
 ```powershell
-.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1 --output_path artifacts/strategies/custom_leaderboard.csv
+.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1 --output_path artifacts/comparisons/custom_leaderboard.csv
 ```
 
 ---

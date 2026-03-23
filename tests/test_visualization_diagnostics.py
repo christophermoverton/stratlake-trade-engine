@@ -12,12 +12,17 @@ matplotlib.use("Agg")
 from matplotlib.figure import Figure
 
 from src.research.visualization.diagnostics import (
+    compute_long_short_counts,
     compute_drawdown_series,
     compute_equity_from_returns,
     compute_rolling_sharpe,
     plot_drawdown,
+    plot_exposure_over_time,
+    plot_long_short_counts,
     plot_rolling_metric,
     plot_rolling_sharpe,
+    plot_signal_distribution,
+    plot_signal_diagnostics,
     plot_underwater_curve,
 )
 
@@ -163,3 +168,99 @@ def test_plot_rolling_sharpe_raises_for_empty_input() -> None:
 
     with pytest.raises(ValueError, match="non-empty"):
         plot_rolling_sharpe(empty_series, window=2)
+
+
+def test_plot_signal_distribution_saves_png_for_series_input(tmp_path: Path) -> None:
+    signals = pd.Series([-1, 0, 1, 1, -1, 0], index=_date_index().repeat(2)[:6], name="Signal")
+
+    output = plot_signal_distribution(signals, output_path=tmp_path / "plots" / "signal_distribution.png")
+
+    assert output == tmp_path / "plots" / "signal_distribution.png"
+    assert output.exists()
+    assert output.suffix == ".png"
+    assert output.stat().st_size > 0
+
+
+def test_plot_signal_diagnostics_accepts_single_column_dataframe_and_returns_figure() -> None:
+    signals = pd.DataFrame({"target_weight": [-1.0, -0.5, 0.0, 0.5]}, index=_date_index())
+
+    result = plot_signal_diagnostics(signals)
+
+    assert isinstance(result, Figure)
+    axis = result.axes[0]
+    assert axis.get_title() == "Signal Diagnostics"
+    assert axis.get_xlabel() == "target_weight"
+    result.clf()
+
+
+def test_plot_exposure_over_time_saves_png_for_dataframe_input(tmp_path: Path) -> None:
+    exposure = pd.DataFrame({"net_exposure": [-0.25, 0.10, 0.35, -0.05]}, index=_date_index())
+
+    output = plot_exposure_over_time(exposure, output_path=tmp_path / "plots" / "exposure.png")
+
+    assert output == tmp_path / "plots" / "exposure.png"
+    assert output.exists()
+    assert output.suffix == ".png"
+    assert output.stat().st_size > 0
+
+
+def test_plot_exposure_over_time_returns_figure_for_series_input() -> None:
+    exposure = pd.Series([0.2, 0.4, 0.1, 0.3], index=_date_index(), name="Gross Exposure")
+
+    result = plot_exposure_over_time(exposure)
+
+    assert isinstance(result, Figure)
+    axis = result.axes[0]
+    assert axis.get_ylabel() == "Gross Exposure"
+    assert len(axis.lines) == 1
+    result.clf()
+
+
+def test_compute_long_short_counts_matches_expected_counts_for_position_matrix() -> None:
+    positions = pd.DataFrame(
+        {
+            "AAPL": [1.0, 0.0, -1.0, 2.0],
+            "MSFT": [-0.5, 1.0, 0.0, 3.0],
+            "NVDA": [0.0, -2.0, -0.25, 0.0],
+        },
+        index=_date_index(),
+    )
+
+    result = compute_long_short_counts(positions)
+
+    expected = pd.DataFrame(
+        {
+            "long_count": [1, 1, 0, 2],
+            "short_count": [1, 1, 2, 0],
+        },
+        index=_date_index(),
+    )
+    pd.testing.assert_frame_equal(result, expected)
+
+
+def test_plot_long_short_counts_handles_long_only_series_predictably() -> None:
+    aggregate_positions = pd.Series([0.0, 1.0, 0.5, 0.25], index=_date_index(), name="Net Position")
+
+    result = plot_long_short_counts(aggregate_positions)
+
+    assert isinstance(result, Figure)
+    axis = result.axes[0]
+    long_values = axis.lines[0].get_ydata()
+    short_values = axis.lines[1].get_ydata()
+    assert long_values.tolist() == [0, 1, 1, 1]
+    assert short_values.tolist() == [0, 0, 0, 0]
+    result.clf()
+
+
+def test_signal_and_exposure_helpers_raise_for_empty_input() -> None:
+    empty_series = pd.Series(dtype="float64")
+    empty_frame = pd.DataFrame()
+
+    with pytest.raises(ValueError, match="non-empty"):
+        plot_signal_distribution(empty_series)
+
+    with pytest.raises(ValueError, match="non-empty"):
+        plot_exposure_over_time(empty_series)
+
+    with pytest.raises(ValueError, match="non-empty"):
+        compute_long_short_counts(empty_frame)

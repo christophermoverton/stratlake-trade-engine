@@ -19,6 +19,7 @@ PlotInput = pd.Series | pd.DataFrame
 PlotResult = Path | Figure
 InputType = Literal["returns", "equity"]
 MetricInput = pd.Series | pd.DataFrame
+PositionsInput = pd.Series | pd.DataFrame
 
 
 def normalize_drawdown_input(data: PlotInput, *, series_name: str = "Strategy") -> pd.Series:
@@ -129,6 +130,81 @@ def normalize_returns_input(data: MetricInput, *, series_name: str = "Strategy R
     normalized = normalize_equity_input(data, series_name=series_name)
     normalized.name = normalized.name or series_name
     return normalized
+
+
+def normalize_signal_input(data: PlotInput, *, series_name: str = "Signal") -> pd.Series:
+    """Return a copied numeric signal series from a Series or single-column DataFrame."""
+
+    normalized = normalize_equity_input(data, series_name=series_name)
+    normalized.name = normalized.name or series_name
+    return normalized
+
+
+def normalize_exposure_input(data: PlotInput, *, series_name: str = "Exposure") -> pd.Series:
+    """Return a copied numeric exposure series from a Series or single-column DataFrame."""
+
+    normalized = normalize_equity_input(data, series_name=series_name)
+    normalized.name = normalized.name or series_name
+    return normalized
+
+
+def compute_long_short_counts(positions: PositionsInput) -> pd.DataFrame:
+    """Compute long and short counts by timestamp from aggregate or per-asset positions.
+
+    Args:
+        positions: Either a time-indexed aggregate position Series or single-column
+            DataFrame, or a multi-column DataFrame where each column represents an
+            asset position at each timestamp.
+
+    Returns:
+        A DataFrame indexed like the input with ``long_count`` and ``short_count``
+        integer columns.
+    """
+
+    if isinstance(positions, pd.Series):
+        normalized = normalize_equity_input(positions, series_name="Position")
+        counts = pd.DataFrame(index=normalized.index)
+        counts["long_count"] = (normalized > 0.0).astype("int64")
+        counts["short_count"] = (normalized < 0.0).astype("int64")
+        return counts
+
+    if not isinstance(positions, pd.DataFrame):
+        raise ValueError("Positions input must be a pandas Series or DataFrame.")
+    if positions.empty:
+        raise ValueError("Positions input must be non-empty.")
+
+    numeric_positions = positions.copy(deep=True).apply(pd.to_numeric, errors="coerce")
+    numeric_positions = numeric_positions.dropna(axis=1, how="all")
+
+    if numeric_positions.empty:
+        raise ValueError("Positions input must contain at least one numeric value.")
+    if numeric_positions.notna().sum().sum() == 0:
+        raise ValueError("Positions input must contain at least one numeric value.")
+
+    if len(numeric_positions.columns) == 1:
+        single_position = numeric_positions.iloc[:, 0].astype("float64")
+        counts = pd.DataFrame(index=single_position.index)
+        counts["long_count"] = (single_position > 0.0).astype("int64")
+        counts["short_count"] = (single_position < 0.0).astype("int64")
+        return counts
+
+    counts = pd.DataFrame(index=numeric_positions.index.copy())
+    counts["long_count"] = numeric_positions.gt(0.0).sum(axis=1).astype("int64")
+    counts["short_count"] = numeric_positions.lt(0.0).sum(axis=1).astype("int64")
+    return counts
+
+
+def _save_or_return_figure(figure: Figure, output_path: Path | None) -> PlotResult:
+    """Save a figure as a PNG artifact or return it directly."""
+
+    if output_path is None:
+        return figure
+
+    resolved_output_path = Path(output_path)
+    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(resolved_output_path, format="png", dpi=100)
+    plt.close(figure)
+    return resolved_output_path
 
 
 def _validate_rolling_window(window: int) -> None:
@@ -253,14 +329,116 @@ def plot_rolling_sharpe(
     )
 
 
+def plot_signal_distribution(
+    signals: PlotInput,
+    *,
+    title: str = "Signal Distribution",
+    output_path: Path | None = None,
+) -> PlotResult:
+    """Plot a histogram of signal or target exposure values."""
+
+    normalized_signals = normalize_signal_input(signals)
+    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+
+    unique_values = pd.Index(normalized_signals.dropna().unique())
+    is_discrete = len(unique_values) <= 20 and all(float(value).is_integer() for value in unique_values)
+
+    hist_kwargs: dict[str, Any] = {
+        "color": "tab:blue",
+        "edgecolor": "black",
+        "alpha": 0.8,
+    }
+    if is_discrete:
+        sorted_unique = sorted(float(value) for value in unique_values)
+        bins = [sorted_unique[0] - 0.5]
+        bins.extend(value + 0.5 for value in sorted_unique)
+        hist_kwargs["bins"] = bins
+    else:
+        hist_kwargs["bins"] = min(30, max(10, len(normalized_signals) // 5))
+
+    axis.hist(normalized_signals.values, **hist_kwargs)
+    axis.set_title(title)
+    axis.set_xlabel(normalized_signals.name or "Signal")
+    axis.set_ylabel("Frequency")
+    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7, axis="y")
+    figure.tight_layout()
+
+    return _save_or_return_figure(figure, output_path)
+
+
+def plot_exposure_over_time(
+    exposure: PlotInput,
+    *,
+    title: str = "Exposure Over Time",
+    output_path: Path | None = None,
+) -> PlotResult:
+    """Plot aggregate strategy exposure, weight, or net exposure over time."""
+
+    normalized_exposure = normalize_exposure_input(exposure)
+    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+
+    axis.plot(
+        normalized_exposure.index,
+        normalized_exposure.values,
+        label=normalized_exposure.name or "Exposure",
+        linewidth=2.0,
+        color="tab:green",
+    )
+    if normalized_exposure.min() <= 0.0 <= normalized_exposure.max():
+        axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
+    axis.set_title(title)
+    axis.set_xlabel("Date")
+    axis.set_ylabel(normalized_exposure.name or "Exposure")
+    axis.legend()
+    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
+    figure.autofmt_xdate()
+    figure.tight_layout()
+
+    return _save_or_return_figure(figure, output_path)
+
+
+def plot_long_short_counts(
+    positions: PositionsInput,
+    *,
+    title: str = "Long/Short Counts",
+    output_path: Path | None = None,
+) -> PlotResult:
+    """Plot long and short position counts over time.
+
+    Args:
+        positions: Either a time-indexed aggregate position Series or
+            single-column DataFrame, or a multi-column DataFrame whose columns
+            represent per-asset positions and rows represent timestamps.
+    """
+
+    counts = compute_long_short_counts(positions)
+    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+
+    axis.plot(counts.index, counts["long_count"].values, label="Long Count", linewidth=2.0, color="tab:green")
+    axis.plot(counts.index, counts["short_count"].values, label="Short Count", linewidth=2.0, color="tab:red")
+    axis.set_title(title)
+    axis.set_xlabel("Date")
+    axis.set_ylabel("Count")
+    axis.legend()
+    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
+    figure.autofmt_xdate()
+    figure.tight_layout()
+
+    return _save_or_return_figure(figure, output_path)
+
+
 def plot_signal_diagnostics(
-    signals: pd.DataFrame,
+    signals: PlotInput,
     *,
     feature_columns: Sequence[str] | None = None,
     title: str = "Signal Diagnostics",
     output_path: Path | None = None,
 ) -> PlotResult:
-    """Plot diagnostic views for generated signals and related feature inputs."""
+    """Plot a diagnostic histogram for strategy signals.
 
-    # TODO: Visualize signal behavior, coverage, and optional feature relationships.
-    raise NotImplementedError("Signal diagnostics plotting is not implemented yet.")
+    ``feature_columns`` is accepted for backward compatibility but is not used by
+    this artifact-focused plotting interface.
+    """
+
+    del feature_columns
+    return plot_signal_distribution(signals, title=title, output_path=output_path)

@@ -15,8 +15,12 @@ from src.research.visualization.comparison import (
     plot_strategy_overlays,
 )
 from src.research.visualization.diagnostics import (
+    compute_long_short_counts,
     plot_drawdown,
+    plot_exposure_over_time,
+    plot_long_short_counts,
     plot_underwater_curve,
+    plot_signal_distribution,
     plot_rolling_metric,
     plot_rolling_sharpe,
     plot_signal_diagnostics,
@@ -40,13 +44,17 @@ PlotResult = Path | Figure
 
 __all__ = [
     "PlotResult",
+    "compute_long_short_counts",
     "plot_cumulative_returns",
     "plot_drawdown",
     "plot_equity_curve",
+    "plot_exposure_over_time",
     "plot_fold_level_metrics",
+    "plot_long_short_counts",
     "plot_metric_comparison",
     "plot_rolling_metric",
     "plot_rolling_sharpe",
+    "plot_signal_distribution",
     "plot_signal_diagnostics",
     "plot_strategy_metric_bars",
     "plot_strategy_overlays",

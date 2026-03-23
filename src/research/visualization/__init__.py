@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from src.research.visualization.comparison import (
+    plot_equity_comparison,
     plot_metric_comparison,
     plot_strategy_metric_bars,
     plot_strategy_overlays,
@@ -47,6 +48,7 @@ __all__ = [
     "compute_long_short_counts",
     "plot_cumulative_returns",
     "plot_drawdown",
+    "plot_equity_comparison",
     "plot_equity_curve",
     "plot_exposure_over_time",
     "plot_fold_level_metrics",

@@ -18,6 +18,7 @@ else:
 PlotInput = pd.Series | pd.DataFrame
 PlotResult = Path | Figure
 InputType = Literal["returns", "equity"]
+MetricInput = pd.Series | pd.DataFrame
 
 
 def normalize_drawdown_input(data: PlotInput, *, series_name: str = "Strategy") -> pd.Series:
@@ -122,18 +123,134 @@ def plot_underwater_curve(
     )
 
 
+def normalize_returns_input(data: MetricInput, *, series_name: str = "Strategy Returns") -> pd.Series:
+    """Return a copied numeric returns series from a Series or single-column DataFrame."""
+
+    normalized = normalize_equity_input(data, series_name=series_name)
+    normalized.name = normalized.name or series_name
+    return normalized
+
+
+def _validate_rolling_window(window: int) -> None:
+    """Validate a rolling window size."""
+
+    if window <= 0:
+        raise ValueError("window must be greater than zero.")
+
+
+def compute_rolling_sharpe(
+    returns: MetricInput,
+    *,
+    window: int,
+) -> pd.Series:
+    """Compute a rolling Sharpe ratio from periodic returns.
+
+    Args:
+        returns: Time-indexed periodic returns as a pandas Series or
+            single-column DataFrame.
+        window: Rolling window size. Must be greater than zero.
+
+    Returns:
+        A float series on the original index where values are ``NaN`` until the
+        rolling window is fully populated. Windows with zero standard deviation
+        also produce ``NaN`` values.
+    """
+
+    _validate_rolling_window(window)
+    normalized_returns = normalize_returns_input(returns)
+    rolling_mean = normalized_returns.rolling(window=window, min_periods=window).mean()
+    rolling_std = normalized_returns.rolling(window=window, min_periods=window).std()
+    rolling_std = rolling_std.mask(rolling_std == 0.0)
+    rolling_sharpe = rolling_mean / rolling_std
+    rolling_sharpe.name = f"{normalized_returns.name or 'Strategy'} Rolling Sharpe"
+    return rolling_sharpe
+
+
+def compute_rolling_volatility(
+    returns: MetricInput,
+    *,
+    window: int,
+) -> pd.Series:
+    """Compute rolling return volatility from periodic returns."""
+
+    _validate_rolling_window(window)
+    normalized_returns = normalize_returns_input(returns)
+    rolling_volatility = normalized_returns.rolling(window=window, min_periods=window).std()
+    rolling_volatility.name = f"{normalized_returns.name or 'Strategy'} Rolling Volatility"
+    return rolling_volatility
+
+
 def plot_rolling_metric(
-    metric_data: pd.Series,
+    metric_data: MetricInput,
     *,
     metric_name: str,
     window_label: str | None = None,
     title: str | None = None,
     output_path: Path | None = None,
 ) -> PlotResult:
-    """Plot a rolling metric time series for diagnostic analysis."""
+    """Plot a rolling metric time series for diagnostic analysis.
 
-    # TODO: Render the rolling metric series with appropriate labels and scales.
-    raise NotImplementedError("Rolling metric plotting is not implemented yet.")
+    Args:
+        metric_data: Time-indexed rolling metric values as a pandas Series or
+            single-column DataFrame.
+        metric_name: Metric label used for chart titling, axis labeling, and
+            legend text.
+        window_label: Optional label such as ``"20-period"`` shown in the
+            legend and title.
+        title: Optional explicit chart title. When omitted, a deterministic
+            title is generated from ``metric_name`` and ``window_label``.
+        output_path: Optional output location. When provided, the figure is
+            saved as a PNG and the saved path is returned.
+    """
+
+    normalized_metric = normalize_equity_input(metric_data, series_name=metric_name)
+    label = metric_name if window_label is None else f"{metric_name} ({window_label})"
+    resolved_title = title or label
+
+    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    axis.plot(
+        normalized_metric.index,
+        normalized_metric.values,
+        label=label,
+        linewidth=2.0,
+        color="tab:blue",
+    )
+    axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
+    axis.set_title(resolved_title)
+    axis.set_xlabel("Date")
+    axis.set_ylabel(metric_name)
+    axis.legend()
+    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
+    figure.autofmt_xdate()
+    figure.tight_layout()
+
+    if output_path is None:
+        return figure
+
+    resolved_output_path = Path(output_path)
+    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
+    figure.savefig(resolved_output_path, format="png", dpi=100)
+    plt.close(figure)
+    return resolved_output_path
+
+
+def plot_rolling_sharpe(
+    returns: MetricInput,
+    *,
+    window: int,
+    title: str | None = None,
+    output_path: Path | None = None,
+) -> PlotResult:
+    """Compute and plot a rolling Sharpe ratio from periodic returns."""
+
+    rolling_sharpe = compute_rolling_sharpe(returns, window=window)
+    return plot_rolling_metric(
+        rolling_sharpe,
+        metric_name="Rolling Sharpe",
+        window_label=f"{window}-period",
+        title=title or f"Rolling Sharpe ({window}-period)",
+        output_path=output_path,
+    )
 
 
 def plot_signal_diagnostics(

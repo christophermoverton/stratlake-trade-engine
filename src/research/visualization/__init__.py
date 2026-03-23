@@ -18,6 +18,7 @@ from src.research.visualization.diagnostics import (
     plot_drawdown,
     plot_underwater_curve,
     plot_rolling_metric,
+    plot_rolling_sharpe,
     plot_signal_diagnostics,
 )
 from src.research.visualization.equity import (
@@ -45,6 +46,7 @@ __all__ = [
     "plot_fold_level_metrics",
     "plot_metric_comparison",
     "plot_rolling_metric",
+    "plot_rolling_sharpe",
     "plot_signal_diagnostics",
     "plot_strategy_metric_bars",
     "plot_strategy_overlays",

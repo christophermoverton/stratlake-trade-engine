@@ -40,6 +40,8 @@ Required arguments:
 Optional arguments:
 
 * `--evaluation [PATH]` -> run comparison in walk-forward mode using the default or provided evaluation config
+* `--start` -> inclusive start date for fresh single-run comparisons
+* `--end` -> exclusive end date for fresh single-run comparisons
 * `--metric` -> metric used for ranking, defaults to `sharpe_ratio`
 * `--top_k` -> keep only the top `N` rows in the final leaderboard
 * `--from_registry` -> use stored registry runs instead of executing new runs
@@ -48,6 +50,9 @@ Optional arguments:
 Without `--evaluation`, comparison runs in single-run mode. With
 `--evaluation`, comparison runs in walk-forward mode and reuses the same split
 logic as the single-strategy runner.
+
+`--start` and `--end` are supported only for fresh single-run comparison mode.
+They cannot be combined with `--evaluation` or `--from_registry`.
 
 ---
 
@@ -166,6 +171,12 @@ Compare fresh single-run results:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1
+```
+
+Compare fresh single-run results over a bounded date range:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1 --start 2025-01-01 --end 2025-03-01
 ```
 
 Compare fresh walk-forward results:

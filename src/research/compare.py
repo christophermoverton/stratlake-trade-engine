@@ -60,6 +60,8 @@ def compare_strategies(
     *,
     metric: str = DEFAULT_METRIC,
     evaluation_path: Path | None = None,
+    start: str | None = None,
+    end: str | None = None,
     top_k: int | None = None,
     from_registry: bool = False,
     output_path: Path | None = None,
@@ -68,6 +70,10 @@ def compare_strategies(
 
     strategy_names = _normalize_strategy_names(strategies)
     evaluation_mode = "walk_forward" if evaluation_path is not None else "single"
+    if evaluation_path is not None and (start is not None or end is not None):
+        raise ValueError("The --start and --end arguments cannot be combined with --evaluation.")
+    if from_registry and (start is not None or end is not None):
+        raise ValueError("The --start and --end arguments cannot be combined with --from_registry.")
 
     if from_registry:
         rows = _load_rows_from_registry(
@@ -86,6 +92,8 @@ def compare_strategies(
         rows = _execute_rows(
             strategy_names,
             evaluation_path=evaluation_path,
+            start=start,
+            end=end,
         )
         selection_mode = "fresh"
         selection_rule = "freshly executed run per strategy"
@@ -97,6 +105,8 @@ def compare_strategies(
         evaluation_mode=evaluation_mode,
         selection_mode=selection_mode,
         evaluation_path=evaluation_path,
+        start=start,
+        end=end,
         top_k=top_k,
     )
     csv_path, json_path = write_leaderboard_artifacts(
@@ -157,6 +167,8 @@ def default_output_path(
     evaluation_mode: str,
     selection_mode: str,
     evaluation_path: Path | None,
+    start: str | None,
+    end: str | None,
     top_k: int | None,
 ) -> Path:
     """Return the deterministic default comparison leaderboard CSV path."""
@@ -167,6 +179,8 @@ def default_output_path(
         evaluation_mode=evaluation_mode,
         selection_mode=selection_mode,
         evaluation_path=evaluation_path,
+        start=start,
+        end=end,
         top_k=top_k,
     )
     return DEFAULT_COMPARISONS_ROOT / comparison_id / "leaderboard.csv"
@@ -179,6 +193,8 @@ def build_comparison_id(
     evaluation_mode: str,
     selection_mode: str,
     evaluation_path: Path | None,
+    start: str | None,
+    end: str | None,
     top_k: int | None,
 ) -> str:
     """Return a stable comparison identifier derived from the comparison inputs."""
@@ -186,6 +202,8 @@ def build_comparison_id(
     payload = {
         "evaluation_mode": evaluation_mode,
         "evaluation_path": None if evaluation_path is None else evaluation_path.as_posix(),
+        "start": start,
+        "end": end,
         "metric": metric,
         "selection_mode": selection_mode,
         "strategies": list(strategies),
@@ -252,11 +270,13 @@ def _execute_rows(
     strategies: Sequence[str],
     *,
     evaluation_path: Path | None,
+    start: str | None,
+    end: str | None,
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for strategy_name in strategies:
         if evaluation_path is None:
-            result: StrategyRunResult | WalkForwardRunResult = run_strategy_experiment(strategy_name)
+            result = run_strategy_experiment(strategy_name, start=start, end=end)
             evaluation_mode = "single"
         else:
             config = get_strategy_config(strategy_name)

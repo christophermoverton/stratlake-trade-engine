@@ -20,6 +20,10 @@ def test_parse_args_supports_comparison_flags() -> None:
             "--strategies",
             "momentum_v1",
             "mean_reversion_v1",
+            "--start",
+            "2025-01-01",
+            "--end",
+            "2025-03-01",
             "--metric",
             "total_return",
             "--top_k",
@@ -31,6 +35,8 @@ def test_parse_args_supports_comparison_flags() -> None:
     )
 
     assert args.strategies == ["momentum_v1", "mean_reversion_v1"]
+    assert args.start == "2025-01-01"
+    assert args.end == "2025-03-01"
     assert args.metric == "total_return"
     assert args.top_k == 2
     assert args.from_registry is True
@@ -51,6 +57,8 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
 
     def fake_run_strategy_experiment(strategy_name: str, start=None, end=None):
         calls.append(strategy_name)
+        assert start == "2025-01-01"
+        assert end == "2025-03-01"
         return compare.StrategyRunResult(
             strategy_name=strategy_name,
             run_id=f"run-{strategy_name}",
@@ -70,6 +78,8 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
 
     result = compare.compare_strategies(
         ["momentum_v1", "mean_reversion_v1"],
+        start="2025-01-01",
+        end="2025-03-01",
         output_path=tmp_path,
     )
 
@@ -284,6 +294,8 @@ def test_compare_strategies_uses_deterministic_default_output_path_and_stable_fi
             evaluation_mode="single",
             selection_mode="fresh",
             evaluation_path=None,
+            start=None,
+            end=None,
             top_k=None,
         )
     ) / "leaderboard.csv"
@@ -304,6 +316,25 @@ def test_compare_strategies_raises_for_missing_registry_strategy(
 
     with pytest.raises(ValueError, match="No registry runs found for strategy 'missing_v1'"):
         compare.compare_strategies(["missing_v1"], from_registry=True, output_path=tmp_path)
+
+
+def test_compare_strategies_rejects_date_filters_with_evaluation() -> None:
+    with pytest.raises(ValueError, match="cannot be combined with --evaluation"):
+        compare.compare_strategies(
+            ["momentum_v1"],
+            evaluation_path=Path("configs/evaluation.yml"),
+            start="2025-01-01",
+        )
+
+
+def test_compare_strategies_rejects_date_filters_with_registry(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="cannot be combined with --from_registry"):
+        compare.compare_strategies(
+            ["momentum_v1"],
+            from_registry=True,
+            start="2025-01-01",
+            output_path=tmp_path,
+        )
 
 
 def test_run_cli_prints_leaderboard_summary(monkeypatch, capsys, tmp_path: Path) -> None:
@@ -375,6 +406,43 @@ def test_run_cli_accepts_space_separated_strategy_names(monkeypatch, tmp_path: P
 
     assert result is expected_result
     assert captured["strategies"] == ["momentum_v1", "mean_reversion_v1", "buy_and_hold_v1"]
+
+
+def test_run_cli_passes_date_filters_to_compare_strategies(monkeypatch, tmp_path: Path) -> None:
+    captured: dict[str, object] = {}
+    expected_result = compare.ComparisonResult(
+        metric="sharpe_ratio",
+        evaluation_mode="single",
+        selection_mode="fresh",
+        selection_rule="freshly executed run per strategy",
+        leaderboard=[],
+        csv_path=tmp_path / "leaderboard.csv",
+        json_path=tmp_path / "leaderboard.json",
+    )
+
+    def fake_compare_strategies(strategies, **kwargs):
+        captured["strategies"] = list(strategies)
+        captured["kwargs"] = kwargs
+        return expected_result
+
+    monkeypatch.setattr("src.cli.compare_strategies.compare_strategies", fake_compare_strategies)
+
+    result = run_cli(
+        [
+            "--strategies",
+            "momentum_v1",
+            "mean_reversion_v1",
+            "--start",
+            "2025-01-01",
+            "--end",
+            "2025-03-01",
+        ]
+    )
+
+    assert result is expected_result
+    assert captured["strategies"] == ["momentum_v1", "mean_reversion_v1"]
+    assert captured["kwargs"]["start"] == "2025-01-01"
+    assert captured["kwargs"]["end"] == "2025-03-01"
 
 
 def test_compare_strategies_executes_against_curated_daily_features_layout(

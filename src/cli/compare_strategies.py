@@ -31,6 +31,8 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         const=str(EVALUATION_CONFIG),
         help="Enable walk-forward comparison using configs/evaluation.yml or a provided path.",
     )
+    parser.add_argument("--start", dest="start", help="Inclusive comparison start date (YYYY-MM-DD).")
+    parser.add_argument("--end", dest="end", help="Exclusive comparison end date (YYYY-MM-DD).")
     parser.add_argument(
         "--metric",
         default=DEFAULT_METRIC,
@@ -70,6 +72,8 @@ def run_cli(argv: Sequence[str] | None = None) -> ComparisonResult:
         strategies,
         metric=args.metric,
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
+        start=args.start,
+        end=args.end,
         top_k=args.top_k,
         from_registry=args.from_registry,
         output_path=None if args.output_path is None else Path(args.output_path),

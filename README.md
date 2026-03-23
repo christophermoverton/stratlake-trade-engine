@@ -1,4 +1,4 @@
-﻿# StratLake Trade Engine
+# StratLake Trade Engine
 
 StratLake is a systematic trade research engine designed to operate on
 curated market data produced by the `fintech-market-ingestion` repository.
@@ -37,8 +37,8 @@ StratLake is a **consumer-layer research engine**.
 
 ```text
 fintech-market-ingestion
-└── data/curated/
-↓
+|-- data/curated/
+v
 stratlake-trade-engine
 ```
 
@@ -80,9 +80,9 @@ Create a `.env` file from `.env.example`.
 Important variables:
 
 ```text
-MARKETLAKE_ROOT=C:/path/to/fintech-market-ingestion/data/curated
-DUCKDB_PATH=C:/path/to/stratlake.duckdb
-FEATURES_ROOT=C:/path/to/output/features
+MARKETLAKE_ROOT=/path/to/fintech-market-ingestion/data/curated
+DUCKDB_PATH=/path/to/stratlake.duckdb
+FEATURES_ROOT=/path/to/output/features
 LOG_LEVEL=INFO
 DEFAULT_TIMEZONE=UTC
 ```
@@ -203,7 +203,7 @@ The current research workflow extends the single-run execution path into a full
 evaluation and comparison workflow:
 
 * single-run execution with optional date filters
-* walk-forward execution from [configs/evaluation.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/evaluation.yml)
+* walk-forward execution from [configs/evaluation.yml](configs/evaluation.yml)
 * deterministic evaluation splits in `fixed`, `rolling`, and `expanding` modes
 * baseline benchmarks through the same runner and metric stack
 * file-based artifacts plus append-only registry tracking
@@ -224,17 +224,17 @@ feature datasets -> signals -> backtest -> metrics -> artifacts -> plots -> repo
 
 Start with the central workflow guide:
 
-* [docs/strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md)
+* [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
 
 Focused references:
 
-* [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
-* [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
-* [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
-* [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
-* [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
-* [docs/evaluation_split_configuration.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/evaluation_split_configuration.md)
-* [docs/research_visualization_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/research_visualization_workflow.md)
+* [docs/cli_strategy_runner.md](docs/cli_strategy_runner.md)
+* [docs/walk_forward_strategy_runner.md](docs/walk_forward_strategy_runner.md)
+* [docs/strategy_comparison_cli.md](docs/strategy_comparison_cli.md)
+* [docs/strategy_performance_metrics.md](docs/strategy_performance_metrics.md)
+* [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
+* [docs/evaluation_split_configuration.md](docs/evaluation_split_configuration.md)
+* [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 
 ### Research Flow
 
@@ -293,17 +293,17 @@ artifact_dir = save_experiment(
 report_path = generate_strategy_report(artifact_dir)
 ```
 
-See [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
+See [docs/backtest_runner.md](docs/backtest_runner.md)
 for the input contract, supported return columns, and expected outputs.
-See [docs/strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md)
+See [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
 for the end-to-end evaluation and benchmarking workflow.
-See [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
+See [docs/strategy_performance_metrics.md](docs/strategy_performance_metrics.md)
 for the available metrics, formulas, and annualization behavior.
-See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
+See [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
 for the artifact layout, registry schema, and saved files.
-See [docs/research_visualization_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/research_visualization_workflow.md)
+See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 for how saved run artifacts become plots and a deterministic Markdown report.
-See [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
+See [docs/strategy_comparison_cli.md](docs/strategy_comparison_cli.md)
 for comparison modes, leaderboard ordering, and output artifacts.
 
 ### Visualization And Reporting
@@ -334,7 +334,7 @@ Standardized outputs:
 `generate_report` also supports `--output-path <path>` for a custom Markdown
 destination while still keeping plot artifacts under `<run_dir>/plots/`.
 
-See [docs/research_visualization_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/research_visualization_workflow.md)
+See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 for the workflow, supported plots, artifact layout, and reporting behavior.
 
 ### Strategy CLI Usage
@@ -397,7 +397,7 @@ Saved leaderboard artifacts:
 * `artifacts/strategies/leaderboard.csv`
 * `artifacts/strategies/leaderboard.json`
 
-See [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
+See [docs/strategy_comparison_cli.md](docs/strategy_comparison_cli.md)
 for the full comparison CLI reference, selection rules, and examples.
 
 Metrics artifacts and walk-forward summaries also include:
@@ -422,7 +422,7 @@ Baseline examples:
 .\.venv\Scripts\python.exe -m src.cli.run_strategy --strategy sma_crossover_v1 --evaluation
 ```
 
-See [docs/baseline_strategies.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/baseline_strategies.md)
+See [docs/baseline_strategies.md](docs/baseline_strategies.md)
 for the benchmark intent, parameter definitions, and config examples.
 
 Current release outcome:
@@ -445,19 +445,19 @@ Current feature datasets:
 * `features_1m`
 
 These datasets follow the shared feature dataset contract documented in
-[docs/feature_dataset_contract.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/feature_dataset_contract.md).
+[docs/feature_dataset_contract.md](docs/feature_dataset_contract.md).
 
 ### Architecture Overview
 
 ```text
 Alpaca market data
-        ↓
+        v
 curated bars datasets
-        ↓
+        v
 feature engineering pipeline
-        ↓
+        v
 daily and minute feature datasets
-        ↓
+        v
 analytics / research workflows
 ```
 
@@ -472,7 +472,7 @@ feature groups:
 * liquidity/activity features: normalized volume and trading activity metrics
 
 The repository-level feature registry in
-[configs/features.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/features.yml)
+[configs/features.yml](configs/features.yml)
 documents the currently implemented feature sets, their source datasets, and
 their engineered columns.
 
@@ -512,11 +512,11 @@ Feature datasets can be accessed in two main ways:
 
 See the related documentation for details:
 
-* [docs/load_features.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/load_features.md) for loader usage and DuckDB feature views
-* [docs/dataset_qa_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/dataset_qa_metrics.md) for QA summary outputs and checks
-* [docs/feature_metadata_export.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/feature_metadata_export.md) for the feature metadata JSON export, included fields, and generation behavior
-* [docs/feature_dataset_contract.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/feature_dataset_contract.md) for schema, naming, and behavioral guarantees
-* [configs/features.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/features.yml) for the feature registry and source dataset mapping
+* [docs/load_features.md](docs/load_features.md) for loader usage and DuckDB feature views
+* [docs/dataset_qa_metrics.md](docs/dataset_qa_metrics.md) for QA summary outputs and checks
+* [docs/feature_metadata_export.md](docs/feature_metadata_export.md) for the feature metadata JSON export, included fields, and generation behavior
+* [docs/feature_dataset_contract.md](docs/feature_dataset_contract.md) for schema, naming, and behavioral guarantees
+* [configs/features.yml](configs/features.yml) for the feature registry and source dataset mapping
 
 ---
 

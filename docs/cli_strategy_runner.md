@@ -22,7 +22,7 @@ not schedule runs, perform live trading, or manage portfolio optimization.
 The repository also includes a comparison CLI for ranking multiple strategies
 against the same metric without changing the execution or registry layers.
 The dedicated comparison reference lives in
-[docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md).
+[docs/strategy_comparison_cli.md](strategy_comparison_cli.md).
 
 ---
 
@@ -308,10 +308,10 @@ statistics:
 
 See the adjacent research-layer docs for implementation details:
 
-* [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
-* [docs/baseline_strategies.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/baseline_strategies.md)
-* [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
-* [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
-* [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
-* [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
-* [configs/strategies.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/strategies.yml)
+* [docs/backtest_runner.md](backtest_runner.md)
+* [docs/baseline_strategies.md](baseline_strategies.md)
+* [docs/strategy_performance_metrics.md](strategy_performance_metrics.md)
+* [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
+* [docs/strategy_comparison_cli.md](strategy_comparison_cli.md)
+* [docs/walk_forward_strategy_runner.md](walk_forward_strategy_runner.md)
+* [configs/strategies.yml](../configs/strategies.yml)

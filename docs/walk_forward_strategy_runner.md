@@ -181,6 +181,6 @@ to diagnose.
 
 ## Related Docs
 
-* [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
-* [docs/evaluation_split_configuration.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/evaluation_split_configuration.md)
-* [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
+* [docs/cli_strategy_runner.md](cli_strategy_runner.md)
+* [docs/evaluation_split_configuration.md](evaluation_split_configuration.md)
+* [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)

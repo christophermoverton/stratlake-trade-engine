@@ -48,9 +48,9 @@ Keeps the initial `train_start` fixed, expands `train_end` by `step`, and rolls
 the test window forward by `step`.
 
 These modes are used by
-[docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
+[docs/walk_forward_strategy_runner.md](walk_forward_strategy_runner.md)
 and summarized in
-[docs/strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md).
+[docs/strategy_evaluation_workflow.md](strategy_evaluation_workflow.md).
 
 ---
 

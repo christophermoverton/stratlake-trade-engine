@@ -13,7 +13,7 @@ This guide walks you through the Milestone 5 workflow:
 5. Compare multiple strategies
 6. Inspect the resulting artifacts
 
-If you want deeper detail after this guide, start with [strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md).
+If you want deeper detail after this guide, start with [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md).
 
 ## Prerequisites
 
@@ -34,7 +34,7 @@ Important environment settings:
 In the current repository, the practical defaults are:
 
 ```text
-MARKETLAKE_ROOT=C:/path/to/fintech-market-ingestion/data/curated
+MARKETLAKE_ROOT=/path/to/fintech-market-ingestion/data/curated
 FEATURES_ROOT=data
 ARTIFACTS_ROOT=artifacts
 DUCKDB_PATH=:memory:
@@ -93,7 +93,7 @@ Then edit `.env` so `MARKETLAKE_ROOT` points to your curated data directory.
 Example:
 
 ```text
-MARKETLAKE_ROOT=C:/Users/yourname/dev/fintech-market-ingestion/data/curated
+MARKETLAKE_ROOT=/path/to/fintech-market-ingestion/data/curated
 FEATURES_ROOT=data
 ARTIFACTS_ROOT=artifacts
 DUCKDB_PATH=:memory:
@@ -302,9 +302,9 @@ Known limitations:
 
 After your first runs, these example reports are good references:
 
-- [momentum_v1.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/momentum_v1.md)
-- [mean_reversion_v1.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/mean_reversion_v1.md)
-- [comparison_case_study.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/comparison_case_study.md)
+- [momentum_v1.md](examples/momentum_v1.md)
+- [mean_reversion_v1.md](examples/mean_reversion_v1.md)
+- [comparison_case_study.md](examples/comparison_case_study.md)
 
 They show how to interpret strategy behavior, metrics, and comparison results using repository artifacts.
 
@@ -362,7 +362,7 @@ Fix:
 
 - rerun the individual strategies after rebuilding features
 - rerun the comparison so all strategies are scored from the same dataset state
-- if you intentionally want old results, use the registry-backed workflow documented in [strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
+- if you intentionally want old results, use the registry-backed workflow documented in [strategy_comparison_cli.md](strategy_comparison_cli.md)
 
 ### A comparison fails after data changes
 
@@ -378,6 +378,6 @@ Fix:
 
 Once you can run the commands in this guide successfully, the next useful docs are:
 
-- [cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
-- [strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
-- [strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md)
+- [cli_strategy_runner.md](cli_strategy_runner.md)
+- [strategy_comparison_cli.md](strategy_comparison_cli.md)
+- [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)

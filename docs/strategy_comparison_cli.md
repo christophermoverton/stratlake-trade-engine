@@ -213,7 +213,7 @@ Write the leaderboard to a custom location:
 
 ## Related Docs
 
-* [docs/cli_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/cli_strategy_runner.md)
-* [docs/walk_forward_strategy_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/walk_forward_strategy_runner.md)
-* [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
-* [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
+* [docs/cli_strategy_runner.md](cli_strategy_runner.md)
+* [docs/walk_forward_strategy_runner.md](walk_forward_strategy_runner.md)
+* [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
+* [docs/strategy_performance_metrics.md](strategy_performance_metrics.md)

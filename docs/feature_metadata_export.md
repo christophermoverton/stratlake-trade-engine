@@ -155,7 +155,7 @@ print(path)
 
 ## Related Documentation
 
-* [docs/feature_dataset_contract.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/feature_dataset_contract.md)
-* [docs/load_features.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/load_features.md)
-* [docs/dataset_qa_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/dataset_qa_metrics.md)
-* [configs/features.yml](/C:/Users/christophermoverton/stratlake-trade-engine/configs/features.yml)
+* [docs/feature_dataset_contract.md](feature_dataset_contract.md)
+* [docs/load_features.md](load_features.md)
+* [docs/dataset_qa_metrics.md](dataset_qa_metrics.md)
+* [configs/features.yml](../configs/features.yml)

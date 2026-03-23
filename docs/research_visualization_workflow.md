@@ -18,9 +18,9 @@ logic.
 
 Use this guide alongside:
 
-* [docs/strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md)
-* [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
-* [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
+* [docs/strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
+* [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
+* [docs/strategy_performance_metrics.md](strategy_performance_metrics.md)
 
 ## Workflow Integration
 

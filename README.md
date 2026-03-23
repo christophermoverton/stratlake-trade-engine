@@ -10,14 +10,11 @@ It consumes validated, QA-enforced OHLCV data from an external marketlake.
 
 ## Milestone Summary
 
-StratLake now spans four connected milestones:
+StratLake now spans multiple connected milestones across repository
+foundation, feature engineering, research execution, evaluation, and
+artifact-driven review workflows.
 
-* Milestone 1: repository foundation, configuration loading, and data access
-* Milestone 2: deterministic feature engineering and pipeline orchestration
-* Milestone 3: Strategy Research Layer for systematic experimentation and backtesting
-* Milestone 4: strategy evaluation, walk-forward validation, baselines, registry-backed comparison, visualization/reporting, and documentation
-
-Milestones 3 and 4 extend StratLake from a feature engineering and analytics
+The current release extends StratLake from a feature engineering and analytics
 platform into a reproducible strategy research and evaluation workflow. The
 repository now supports:
 
@@ -189,20 +186,20 @@ flow from a strategy name in `configs/strategies.yml`, including dataset load,
 signal generation, backtest execution, metric calculation, artifact logging,
 and console summary output.
 
-Milestone 4 now also includes deterministic baseline strategies that run
+The current evaluation layer now also includes deterministic baseline strategies that run
 through the same interface and execution path as research strategies:
 
 * `buy_and_hold_v1`
 * `sma_crossover_v1`
 * `seeded_random_v1`
 
-Milestone 4 includes deterministic evaluation split generation via
+The evaluation workflow includes deterministic split generation via
 `configs/evaluation.yml` and `src/research/splits.py`. Split windows use
 half-open date intervals: `start` is inclusive and `end` is exclusive.
 
 ### Strategy Evaluation
 
-Milestone 4 extends the research layer from single-run execution into a full
+The current research workflow extends the single-run execution path into a full
 evaluation and comparison workflow:
 
 * single-run execution with optional date filters
@@ -376,7 +373,7 @@ Console summary output includes:
 Compare multiple strategies with a shared leaderboard:
 
 ```powershell
-python -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1
+python -m src.cli.compare_strategies --strategies momentum_v1 mean_reversion_v1
 ```
 
 Optional arguments:
@@ -428,7 +425,7 @@ Baseline examples:
 See [docs/baseline_strategies.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/baseline_strategies.md)
 for the benchmark intent, parameter definitions, and config examples.
 
-Milestone 4 outcome:
+Current release outcome:
 
 * StratLake can now execute single-run and walk-forward strategy evaluations,
   benchmark against deterministic baselines, persist registry-backed artifacts,

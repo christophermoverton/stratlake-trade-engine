@@ -2,280 +2,80 @@
 
 ## Overview
 
-StratLake's visualization and reporting layers extend the existing research
-artifact workflow after signals, backtests, and metrics have already been
-computed.
+StratLake's visualization and reporting layers sit after research execution.
+They extend the saved outputs of a strategy run; they do not replace the core
+artifacts, metrics, or evaluation flow.
 
-They do not replace the core research outputs. Instead, they consume saved run
-artifacts and produce deterministic inspection assets that make a run easier to
-review, compare, and share.
+The purpose of these layers is to turn existing run artifacts into
+deterministic review assets:
 
-At a high level, the workflow is:
+* plots for visual inspection of performance and diagnostics
+* a Markdown report for a portable research summary
+
+The implementation is artifact-driven and file-based. Once a run has been
+saved, plots and reports can be generated later without rerunning the strategy
+logic.
+
+Use this guide alongside:
+
+* [docs/strategy_evaluation_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_evaluation_workflow.md)
+* [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
+* [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
+
+## Workflow Integration
+
+Visualization and reporting extend StratLake's existing research workflow:
 
 ```text
-feature dataset
+data
+    ->
+features
+    ->
+strategy
+    ->
+evaluation
+    ->
+visualization
+    ->
+reporting
+```
+
+In practical repository terms, that flow becomes:
+
+```text
+curated market data
+    ->
+feature datasets
     ->
 signals
     ->
-backtest
+backtest and metrics
     ->
-metrics
-    ->
-run artifacts
+saved run artifacts
     ->
 plots
     ->
 report.md
 ```
 
-The visualization layer lives under `src/research/visualization/`.
-The reporting layer lives under `src/research/reporting/`.
+The saved run directory remains the source of truth. Visualization consumes
+artifacts such as `metrics.json`, `equity_curve.csv`, and optional trade or
+signal files. Reporting then assembles those artifacts and any supported plots
+into one deterministic Markdown deliverable.
 
-Use this guide alongside:
+## How To Generate Plots
 
-* [strategy evaluation workflow](strategy_evaluation_workflow.md)
-* [experiment artifact logging](experiment_artifact_logging.md)
-* [strategy performance metrics](strategy_performance_metrics.md)
-* [CLI strategy runner](cli_strategy_runner.md)
+The plot generation CLI is implemented by
+`src/cli/plot_strategy_run.py` and the underlying reporting helpers in
+`src/research/reporting/report_generator.py`.
 
-## Where Visualization Fits In The Research Workflow
-
-The research runner still centers on deterministic strategy execution:
-
-1. load a feature dataset
-2. generate signals
-3. run the backtest
-4. compute summary metrics
-5. persist run artifacts under `artifacts/strategies/<run_id>/`
-
-Visualization starts after those artifacts exist.
-
-The current implementation treats plotting as artifact-driven analysis:
-
-* strategy artifacts remain the source of truth
-* metrics remain the primary numeric summary
-* plots provide visual inspection of those saved outputs
-* reports assemble metrics and plot artifacts into a deterministic Markdown
-  document
-
-This keeps the workflow file-based and reproducible. A run can be visualized or
-reported later without rerunning the strategy logic, as long as the required
-artifacts are available in the run directory.
-
-## Visualization Modules And Responsibilities
-
-The visualization package groups plotting helpers by analysis domain.
-
-### `src/research/visualization/equity.py`
-
-Purpose:
-
-* normalize time-indexed strategy inputs
-* compound returns into cumulative equity when needed
-* render strategy performance charts
-
-Current responsibilities:
-
-* `plot_equity_curve()`: plot a strategy equity curve, optionally with a
-  benchmark overlay
-* `plot_cumulative_returns()`: plot cumulative performance from returns or
-  equity inputs
-
-These functions accept pandas `Series` or single-column `DataFrame` inputs and
-either return a matplotlib figure or save a deterministic PNG artifact when
-`output_path` is provided.
-
-### `src/research/visualization/diagnostics.py`
-
-Purpose:
-
-* provide diagnostic views derived from returns, drawdowns, signals, exposures,
-  positions, and trade-level outputs
-
-Current responsibilities:
-
-* drawdown and underwater analysis via `plot_drawdown()` and
-  `plot_underwater_curve()`
-* rolling metric analysis via `compute_rolling_sharpe()`,
-  `compute_rolling_volatility()`, `plot_rolling_metric()`, and
-  `plot_rolling_sharpe()`
-* signal diagnostics via `plot_signal_distribution()` and
-  `plot_signal_diagnostics()`
-* exposure diagnostics via `plot_exposure_over_time()`
-* long/short count diagnostics via `compute_long_short_counts()` and
-  `plot_long_short_counts()`
-* trade-level analysis via `compute_trade_statistics()`,
-  `plot_trade_return_distribution()`, and `plot_win_loss_distribution()`
-
-These helpers are deterministic functions over already-saved or already-loaded
-research outputs. They do not introduce a separate stateful reporting system.
-
-### `src/research/visualization/walk_forward.py`
-
-Purpose:
-
-* visualize evaluation split structure and fold-level results for walk-forward
-  analysis
-
-Current responsibilities:
-
-* `plot_walk_forward_splits()`: visualize train and test windows by fold
-* `plot_fold_level_metrics()`: plot one metric across folds
-* `plot_walk_forward_results()`: summarize per-fold outcomes from fold result
-  frames
-
-These functions are useful once walk-forward split definitions,
-`metrics_by_split.csv`, or split-level result frames already exist.
-
-### `src/research/visualization/comparison.py`
-
-Purpose:
-
-* visualize multiple strategies or runs on shared axes
-
-Current responsibilities:
-
-* `plot_equity_comparison()`: compare aligned equity curves across runs
-* `plot_strategy_overlays()`: overlay legacy strategy frames
-* `plot_metric_comparison()`: compare one metric across strategies or runs
-* `plot_strategy_metric_bars()`: compare multiple metrics across strategies
-
-These helpers complement the comparison CLI and leaderboard artifacts by adding
-artifact-driven visual inspection of strategy differences.
-
-## Plot Artifact Conventions
-
-Visualization helpers follow a simple convention:
-
-* if `output_path` is omitted, the function returns a matplotlib `Figure`
-* if `output_path` is provided, the function saves a PNG artifact and returns
-  the saved `Path`
-
-The plotting layer itself does not enforce one global output directory. The
-caller chooses where artifacts are stored.
-
-The reporting layer currently standardizes plot output under:
+The run-scoped command is:
 
 ```text
-artifacts/strategies/<run_id>/plots/
+plot_strategy_run --run-dir <path>
 ```
 
-Current report-generated filenames are:
-
-* `equity_curve.png`
-* `drawdown.png`
-* `rolling_sharpe.png`
-* `trade_return_distribution.png`
-* `win_loss_distribution.png`
-
-Only plots supported by the available run artifacts are generated. For example:
-
-* `rolling_sharpe.png` requires a usable `strategy_return` series with at least
-  the current 20-period rolling window
-* trade distribution plots require `trades.parquet` with a numeric `return`
-  column
-
-Walk-forward and comparison plots exist in the visualization layer, but they
-are not automatically emitted by `generate_strategy_report()` in the current
-implementation.
-
-## Report Generation Workflow
-
-The reporting entrypoint is:
-
-```python
-from src.research.reporting import generate_strategy_report
-```
-
-Implementation location:
-
-```text
-src/research/reporting/report_generator.py
-```
-
-Primary interface:
-
-```python
-generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> Path
-```
-
-`generate_strategy_report()` expects a saved strategy run directory and writes a
-deterministic Markdown report.
-
-Default output location:
-
-```text
-artifacts/strategies/<run_id>/report.md
-```
-
-If `output_path` is omitted, the report is written to `run_dir / "report.md"`.
-
-### Inputs From A Run Directory
-
-Required artifact:
-
-* `metrics.json`
-
-Optional artifacts:
-
-* `manifest.json`
-* `config.json`
-* `equity_curve.csv`
-* `trades.parquet`
-* `signals.parquet`
-
-Current input usage:
-
-* `metrics.json`: required for the performance summary table
-* `manifest.json`: used for run metadata and report title when present
-* `config.json`: used for strategy name fallback and parameter display
-* `equity_curve.csv`: used to derive equity, drawdown, and rolling Sharpe plots
-* `trades.parquet`: used to derive trade statistics and trade distribution plots
-* `signals.parquet`: currently used only for optional signal-count notes when
-  equity artifacts do not already expose signal rows
-
-### Report Sections
-
-The current `report.md` structure is:
-
-* `# Strategy Report: <name>`
-* `## Run Metadata`
-* `## Performance Summary`
-* `## Equity Curve` when an equity artifact is available
-* `## Drawdown` when an equity artifact is available
-* `## Rolling Metrics`
-* `## Trade Analysis`
-* `## Signal Summary` when signal-related artifacts are available
-* `## Observations`
-
-`Rolling Metrics` and `Trade Analysis` always appear, but they may fall back to
-deterministic placeholder text when the required optional artifacts are absent.
-
-### Markdown Image References
-
-Report plot references are stored as relative paths from `report.md` to the
-plot artifact. In the default layout, image links look like:
-
-```markdown
-![Equity Curve](plots/equity_curve.png)
-```
-
-This keeps the report portable within its run directory.
-
-## CLI Entry Points
-
-The repository now exposes the existing visualization and reporting workflow
-through two thin CLI modules:
-
-* `src/cli/plot_strategy_run.py`
-* `src/cli/generate_report.py`
-
-These commands operate on an existing saved run directory. They do not rerun a
-strategy, recompute metrics, or introduce a new reporting stack.
-
-### `plot_strategy_run`
-
-Usage:
+Repository module invocation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.cli.plot_strategy_run --run-dir artifacts/strategies/<run_id>
@@ -283,16 +83,39 @@ Usage:
 
 Behavior:
 
-* validates that `--run-dir` exists and contains the required core run artifact
-  `metrics.json`
-* generates the currently supported plot artifacts for the available inputs
-* writes those artifacts under `artifacts/strategies/<run_id>/plots/`
-* skips plots that require optional artifacts not present in the run directory
-* raises a clear error if no supported plot inputs are available
+* validates that `--run-dir` exists and contains `metrics.json`
+* writes supported plot artifacts under `<run_dir>/plots/`
+* generates only plots supported by the artifacts present in the run directory
+* raises an error if the run has no usable plot inputs
 
-### `generate_report`
+Plots currently generated from a supported single-run artifact set are:
 
-Usage:
+* `equity_curve.png`
+* `drawdown.png`
+* `rolling_sharpe.png` when `equity_curve.csv` contains enough
+  `strategy_return` history for the current 20-period window
+* `trade_return_distribution.png` when `trades.parquet` has a numeric
+  `return` column
+* `win_loss_distribution.png` when `trades.parquet` has a numeric `return`
+  column
+
+Only supported plots are emitted. For example:
+
+* if `equity_curve.csv` is absent, equity, drawdown, and rolling Sharpe plots
+  are skipped
+* if `trades.parquet` is absent, trade distribution plots are skipped
+
+## How To Generate Reports
+
+The report generation CLI is implemented by `src/cli/generate_report.py`.
+
+The run-scoped command is:
+
+```text
+generate_report --run-dir <path>
+```
+
+Repository module invocation:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.cli.generate_report --run-dir artifacts/strategies/<run_id>
@@ -300,102 +123,135 @@ Usage:
 
 Optional output override:
 
+```text
+generate_report --run-dir <path> --output-path <path>
+```
+
+Repository module invocation with output override:
+
 ```powershell
 .\.venv\Scripts\python.exe -m src.cli.generate_report --run-dir artifacts/strategies/<run_id> --output-path artifacts/strategies/<run_id>/custom_report.md
 ```
 
 Behavior:
 
-* validates that `--run-dir` exists
-* requires `metrics.json`
-* calls `generate_strategy_report(...)`
-* reuses existing plot artifacts when present and generates missing ones through
-  the reporting flow
-* writes `report.md` to the run directory by default
+* validates that `--run-dir` exists and contains `metrics.json`
+* writes `<run_dir>/report.md` by default
+* accepts `--output-path <path>` to write the report somewhere else
+* reuses existing standardized plot artifacts when they already exist
+* generates missing supported plots as part of report generation when needed
 
-## Typical Output Structure
+The report generator always anchors plot artifacts under the standardized
+`<run_dir>/plots/` directory, even when the report itself is written to a
+custom output path.
 
-For a single-run report, the current output shape is:
+## Artifact Structure
+
+The standardized visualization and reporting artifact layout is:
+
+* `<run_dir>/plots/`
+* `<run_dir>/report.md` by default
+* a custom report location when `--output-path` is provided
+
+Example run layout:
 
 ```text
 artifacts/strategies/<run_id>/
+  manifest.json
   config.json
   metrics.json
   equity_curve.csv
-  equity_curve.parquet
   signals.parquet
   trades.parquet
-  manifest.json
-  report.md
   plots/
     equity_curve.png
     drawdown.png
     rolling_sharpe.png
     trade_return_distribution.png
     win_loss_distribution.png
+  report.md
 ```
 
-A run does not need every optional artifact to produce a report. The minimum
-contract is `metrics.json`, with additional sections and plots included only
-when the supporting files exist.
+Not every run will contain every optional artifact. The minimum contract for
+plot and report generation is `metrics.json`, with additional visual outputs
+included only when the supporting artifacts exist.
 
-For walk-forward runs, the report generator still operates at the run-root
-artifact level. It does not currently generate one separate Markdown report per
-split.
+## Visualization Coverage
+
+The visualization package is organized by analysis domain under
+`src/research/visualization/`.
+
+### `equity.py`
+
+Performance-oriented plotting for saved return and equity artifacts.
+
+Current responsibilities include:
+
+* equity curve visualization
+* cumulative return visualization
+
+### `diagnostics.py`
+
+Diagnostic plotting and summary helpers for risk, rolling metrics, signals,
+exposure, and trades.
+
+Current responsibilities include:
+
+* drawdown and underwater analysis
+* rolling Sharpe and rolling volatility helpers
+* signal distribution and signal diagnostics
+* exposure and long/short count diagnostics
+* trade return and win/loss distributions
+
+### `walk_forward.py`
+
+Validation-oriented plotting for walk-forward research outputs.
+
+Current responsibilities include:
+
+* train/test split visualization
+* fold-level metric visualization
+* aggregate walk-forward result plotting
+
+### `comparison.py`
+
+Multi-strategy comparison plots for shared review across runs.
+
+Current responsibilities include:
+
+* equity overlays across runs
+* single-metric comparisons
+* multi-metric comparison bars
+
+These modules exist as reusable visualization helpers. The current report
+generation flow automatically emits only the supported single-run plots derived
+from saved run artifacts.
 
 ## Determinism And Reproducibility
 
-The visualization and reporting layers are designed to match the rest of the
-research stack's deterministic behavior.
+Visualization and reporting follow the same reproducibility goals as the rest
+of StratLake:
 
-Current reproducibility properties:
-
-* reports are generated from persisted run artifacts rather than live notebook
-  state
-* report plot names are fixed by the implementation
-* plot generation reuses an existing artifact unless overwrite behavior is
-  requested internally
+* outputs are generated from persisted artifacts rather than notebook state
+* plot filenames and plot locations are standardized
+* existing plot artifacts are reused unless regeneration is required
 * report sections are emitted in a fixed order
-* Markdown image links are derived relative to the report location
-* identical inputs produce the same `report.md` contents
+* relative plot links keep `report.md` portable within the artifact layout
 
-In practice, this means the visualization/reporting workflow is best thought of
-as a deterministic presentation layer on top of saved research outputs.
+Given the same saved run artifacts, StratLake produces the same plot set and
+the same Markdown report content.
 
-## Relationship Between Artifacts, Metrics, Plots, And Reports
+## Limitations And Scope
 
-The current relationship is:
+The current scope is intentionally narrow:
 
-* strategy artifacts capture the saved outputs of one run
-* metrics summarize the run numerically
-* plots visualize selected time-series and diagnostic artifacts
-* the Markdown report assembles metrics, plots, and metadata into one reviewable
-  deliverable
+* no dashboards
+* no interactive UI
+* CLI commands and saved artifacts are the primary interface
+* report generation uses a fixed Markdown structure rather than a templating
+  system
+* visualization helpers for walk-forward and comparison workflows exist, but
+  they are not automatically inserted into the generated single-run report
 
-A simple mental model is:
-
-```text
-run directory = source artifacts
-metrics.json = numeric summary
-plots/ = visual summary
-report.md = assembled research brief
-```
-
-## Current Limitations And Future Extensions
-
-The current implementation is intentionally narrow and file-based.
-
-Current limitations:
-
-* no dedicated reporting CLI is documented or required
-* no dashboard or interactive visualization surface exists in this repository
-* `generate_strategy_report()` currently emits a fixed report structure rather
-  than a customizable template system
-* walk-forward, comparison, signal, and exposure plotting helpers exist as
-  modules, but are not yet automatically attached to the generated Markdown
-  report
-* plot filenames are deterministic only for the artifacts currently generated by
-  the reporting layer
-
-These limits are deliberate. The implemented workflow focuses on deterministic,
-inspectable research artifacts rather than a larger visualization platform.
+This design keeps the workflow deterministic, reviewable, and aligned with the
+repository's artifact-first research model.

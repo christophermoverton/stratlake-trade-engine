@@ -237,7 +237,7 @@ Focused references:
 * [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
 * [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
 * [docs/evaluation_split_configuration.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/evaluation_split_configuration.md)
-* [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
+* [docs/research_visualization_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/research_visualization_workflow.md)
 
 ### Research Flow
 
@@ -304,31 +304,41 @@ See [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratla
 for the available metrics, formulas, and annualization behavior.
 See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
 for the artifact layout, registry schema, and saved files.
-See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
+See [docs/research_visualization_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/research_visualization_workflow.md)
 for how saved run artifacts become plots and a deterministic Markdown report.
 See [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
 for comparison modes, leaderboard ordering, and output artifacts.
 
-Generated report artifacts currently include:
+### Visualization And Reporting
 
-* `report.md`
-* `plots/equity_curve.png`
-* `plots/drawdown.png`
-* `plots/rolling_sharpe.png` when the run has enough return history
-* `plots/trade_return_distribution.png` and `plots/win_loss_distribution.png`
-  when trade artifacts are available
+Saved strategy artifacts can be turned into deterministic plots and a Markdown
+report without rerunning the strategy itself. These layers extend the existing
+research outputs; they do not replace metrics, artifacts, or evaluation.
 
-Existing run artifacts can also be visualized and reported directly from the
-CLI:
+High-level CLI commands:
+
+```text
+plot_strategy_run --run-dir artifacts/strategies/<run_id>
+generate_report --run-dir artifacts/strategies/<run_id>
+```
+
+Repository module entrypoints:
 
 ```powershell
 .\.venv\Scripts\python.exe -m src.cli.plot_strategy_run --run-dir artifacts/strategies/<run_id>
 .\.venv\Scripts\python.exe -m src.cli.generate_report --run-dir artifacts/strategies/<run_id>
 ```
 
-See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
-for the visualization/reporting artifact flow, supported plot outputs, and CLI
-usage details.
+Standardized outputs:
+
+* `artifacts/strategies/<run_id>/plots/`
+* `artifacts/strategies/<run_id>/report.md`
+
+`generate_report` also supports `--output-path <path>` for a custom Markdown
+destination while still keeping plot artifacts under `<run_dir>/plots/`.
+
+See [docs/research_visualization_workflow.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/research_visualization_workflow.md)
+for the workflow, supported plots, artifact layout, and reporting behavior.
 
 ### Strategy CLI Usage
 

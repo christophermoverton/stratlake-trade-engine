@@ -1,4 +1,4 @@
-"""Plotting interfaces for drawdowns, rolling metrics, and signal diagnostics."""
+"""Plotting interfaces for drawdowns, rolling metrics, and trade diagnostics."""
 
 from __future__ import annotations
 
@@ -20,6 +20,7 @@ PlotResult = Path | Figure
 InputType = Literal["returns", "equity"]
 MetricInput = pd.Series | pd.DataFrame
 PositionsInput = pd.Series | pd.DataFrame
+TradeInput = pd.Series | pd.DataFrame
 
 
 def normalize_drawdown_input(data: PlotInput, *, series_name: str = "Strategy") -> pd.Series:
@@ -146,6 +147,43 @@ def normalize_exposure_input(data: PlotInput, *, series_name: str = "Exposure") 
     normalized = normalize_equity_input(data, series_name=series_name)
     normalized.name = normalized.name or series_name
     return normalized
+
+
+def normalize_trade_returns(data: TradeInput, *, series_name: str = "Trade Return") -> pd.Series:
+    """Return a copied numeric per-trade return series from a Series or single-column DataFrame."""
+
+    normalized = normalize_equity_input(data, series_name=series_name)
+    normalized.name = normalized.name or series_name
+    return normalized
+
+
+def compute_trade_statistics(trade_returns: TradeInput) -> dict[str, float]:
+    """Compute lightweight deterministic summary statistics for per-trade returns.
+
+    Args:
+        trade_returns: A pandas Series or single-column DataFrame of decimal
+            per-trade returns such as ``0.02`` for ``2%``.
+
+    Returns:
+        A dictionary containing counts, rates, and simple distribution summary
+        statistics.
+    """
+
+    normalized_returns = normalize_trade_returns(trade_returns)
+    total_trades = int(len(normalized_returns))
+    win_count = int((normalized_returns > 0.0).sum())
+    loss_count = total_trades - win_count
+
+    return {
+        "count": float(total_trades),
+        "win_count": float(win_count),
+        "loss_count": float(loss_count),
+        "win_rate": win_count / total_trades,
+        "loss_rate": loss_count / total_trades,
+        "mean_return": float(normalized_returns.mean()),
+        "median_return": float(normalized_returns.median()),
+        "std_return": float(normalized_returns.std()),
+    }
 
 
 def compute_long_short_counts(positions: PositionsInput) -> pd.DataFrame:
@@ -363,6 +401,80 @@ def plot_signal_distribution(
     axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7, axis="y")
     figure.tight_layout()
 
+    return _save_or_return_figure(figure, output_path)
+
+
+def plot_trade_return_distribution(
+    trade_returns: TradeInput,
+    *,
+    title: str = "Trade Return Distribution",
+    output_path: Path | None = None,
+) -> PlotResult:
+    """Plot a histogram of per-trade returns with a zero-return reference line."""
+
+    normalized_returns = normalize_trade_returns(trade_returns)
+    statistics = compute_trade_statistics(normalized_returns)
+    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+
+    bin_count = min(30, max(10, len(normalized_returns) // 5))
+    axis.hist(
+        normalized_returns.values,
+        bins=bin_count,
+        color="tab:blue",
+        edgecolor="black",
+        alpha=0.8,
+        label=(
+            f"Trades (mean={statistics['mean_return']:.2%}, "
+            f"median={statistics['median_return']:.2%}, "
+            f"std={statistics['std_return']:.2%})"
+        ),
+    )
+    axis.axvline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8, label="Break-even")
+    axis.set_title(title)
+    axis.set_xlabel(normalized_returns.name or "Trade Return")
+    axis.set_ylabel("Frequency")
+    axis.legend()
+    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7, axis="y")
+    figure.tight_layout()
+
+    return _save_or_return_figure(figure, output_path)
+
+
+def plot_win_loss_distribution(
+    trade_returns: TradeInput,
+    *,
+    title: str = "Win/Loss Distribution",
+    output_path: Path | None = None,
+) -> PlotResult:
+    """Plot deterministic win/loss counts derived from per-trade returns."""
+
+    normalized_returns = normalize_trade_returns(trade_returns)
+    statistics = compute_trade_statistics(normalized_returns)
+    labels = ["Wins", "Losses"]
+    counts = [int(statistics["win_count"]), int(statistics["loss_count"])]
+    colors = ["tab:green", "tab:red"]
+
+    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    bars = axis.bar(labels, counts, color=colors, edgecolor="black", linewidth=0.8, alpha=0.85)
+    axis.set_title(title)
+    axis.set_xlabel("Outcome")
+    axis.set_ylabel("Trade Count")
+    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7, axis="y")
+
+    annotations = [
+        f"{counts[0]} ({statistics['win_rate']:.1%})",
+        f"{counts[1]} ({statistics['loss_rate']:.1%})",
+    ]
+    for bar, annotation in zip(bars, annotations, strict=True):
+        axis.text(
+            bar.get_x() + bar.get_width() / 2.0,
+            bar.get_height(),
+            annotation,
+            ha="center",
+            va="bottom",
+        )
+
+    figure.tight_layout()
     return _save_or_return_figure(figure, output_path)
 
 

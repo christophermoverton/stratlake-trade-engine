@@ -16,11 +16,14 @@ from src.research.visualization.comparison import (
     plot_strategy_overlays,
 )
 from src.research.visualization.diagnostics import (
+    compute_trade_statistics,
     compute_long_short_counts,
     plot_drawdown,
     plot_exposure_over_time,
     plot_long_short_counts,
+    plot_trade_return_distribution,
     plot_underwater_curve,
+    plot_win_loss_distribution,
     plot_signal_distribution,
     plot_rolling_metric,
     plot_rolling_sharpe,
@@ -46,6 +49,7 @@ PlotResult = Path | Figure
 __all__ = [
     "PlotResult",
     "compute_long_short_counts",
+    "compute_trade_statistics",
     "plot_cumulative_returns",
     "plot_drawdown",
     "plot_equity_comparison",
@@ -60,7 +64,9 @@ __all__ = [
     "plot_signal_diagnostics",
     "plot_strategy_metric_bars",
     "plot_strategy_overlays",
+    "plot_trade_return_distribution",
     "plot_underwater_curve",
+    "plot_win_loss_distribution",
     "plot_walk_forward_results",
     "plot_walk_forward_splits",
 ]

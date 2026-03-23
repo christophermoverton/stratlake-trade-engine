@@ -16,6 +16,7 @@ from src.research.visualization.diagnostics import (
     compute_drawdown_series,
     compute_equity_from_returns,
     compute_rolling_sharpe,
+    compute_trade_statistics,
     plot_drawdown,
     plot_exposure_over_time,
     plot_long_short_counts,
@@ -23,7 +24,9 @@ from src.research.visualization.diagnostics import (
     plot_rolling_sharpe,
     plot_signal_distribution,
     plot_signal_diagnostics,
+    plot_trade_return_distribution,
     plot_underwater_curve,
+    plot_win_loss_distribution,
 )
 
 
@@ -179,6 +182,100 @@ def test_plot_signal_distribution_saves_png_for_series_input(tmp_path: Path) -> 
     assert output.exists()
     assert output.suffix == ".png"
     assert output.stat().st_size > 0
+
+
+def test_compute_trade_statistics_matches_known_dataset() -> None:
+    trade_returns = pd.Series([0.10, -0.05, 0.00, 0.02, -0.01], name="Trade Return")
+
+    result = compute_trade_statistics(trade_returns)
+
+    assert result["count"] == pytest.approx(5.0)
+    assert result["win_count"] == pytest.approx(2.0)
+    assert result["loss_count"] == pytest.approx(3.0)
+    assert result["win_rate"] == pytest.approx(0.4)
+    assert result["loss_rate"] == pytest.approx(0.6)
+    assert result["mean_return"] == pytest.approx(float(trade_returns.mean()))
+    assert result["median_return"] == pytest.approx(float(trade_returns.median()))
+    assert result["std_return"] == pytest.approx(float(trade_returns.std()))
+
+
+def test_plot_trade_return_distribution_saves_png_for_series_input(tmp_path: Path) -> None:
+    trade_returns = pd.Series([0.04, -0.02, 0.01, -0.03, 0.06, 0.00], name="Per-Trade Return")
+
+    output = plot_trade_return_distribution(
+        trade_returns,
+        output_path=tmp_path / "plots" / "trade_return_distribution.png",
+    )
+
+    assert output == tmp_path / "plots" / "trade_return_distribution.png"
+    assert output.exists()
+    assert output.suffix == ".png"
+    assert output.stat().st_size > 0
+
+
+def test_plot_trade_return_distribution_accepts_single_column_dataframe_and_returns_figure() -> None:
+    trade_returns = pd.DataFrame({"trade_return": [0.03, -0.01, 0.02, -0.04, 0.01]})
+
+    result = plot_trade_return_distribution(trade_returns)
+
+    assert isinstance(result, Figure)
+    axis = result.axes[0]
+    assert axis.get_title() == "Trade Return Distribution"
+    assert axis.get_xlabel() == "trade_return"
+    assert len(axis.patches) > 0
+    result.clf()
+
+
+def test_plot_win_loss_distribution_saves_png_for_series_input(tmp_path: Path) -> None:
+    trade_returns = pd.Series([0.03, -0.02, 0.01, 0.02, -0.01], name="Trade Return")
+
+    output = plot_win_loss_distribution(
+        trade_returns,
+        output_path=tmp_path / "plots" / "win_loss_distribution.png",
+    )
+
+    assert output == tmp_path / "plots" / "win_loss_distribution.png"
+    assert output.exists()
+    assert output.suffix == ".png"
+    assert output.stat().st_size > 0
+
+
+def test_plot_win_loss_distribution_returns_expected_counts() -> None:
+    trade_returns = pd.Series([0.03, -0.02, 0.00, 0.01, -0.01], name="Trade Return")
+
+    result = plot_win_loss_distribution(trade_returns)
+
+    assert isinstance(result, Figure)
+    axis = result.axes[0]
+    heights = [patch.get_height() for patch in axis.patches]
+    assert heights == pytest.approx([2.0, 3.0])
+    result.clf()
+
+
+def test_trade_diagnostic_helpers_raise_for_empty_input() -> None:
+    empty_series = pd.Series(dtype="float64")
+
+    with pytest.raises(ValueError, match="non-empty"):
+        compute_trade_statistics(empty_series)
+
+    with pytest.raises(ValueError, match="non-empty"):
+        plot_trade_return_distribution(empty_series)
+
+    with pytest.raises(ValueError, match="non-empty"):
+        plot_win_loss_distribution(empty_series)
+
+
+def test_trade_diagnostic_helpers_raise_for_non_numeric_input() -> None:
+    invalid_series = pd.Series(["win", "loss"], name="Trade Return")
+
+    with pytest.raises(ValueError, match="numeric"):
+        compute_trade_statistics(invalid_series)
+
+    with pytest.raises(ValueError, match="numeric"):
+        plot_trade_return_distribution(invalid_series)
+
+    with pytest.raises(ValueError, match="numeric"):
+        plot_win_loss_distribution(invalid_series)
 
 
 def test_plot_signal_diagnostics_accepts_single_column_dataframe_and_returns_figure() -> None:

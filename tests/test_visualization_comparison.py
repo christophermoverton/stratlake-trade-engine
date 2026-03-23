@@ -81,10 +81,10 @@ def test_plot_metric_comparison_saves_png_for_record_sequence(tmp_path: Path) ->
     output = plot_metric_comparison(
         metrics,
         metric_name="sharpe",
-        output_path=tmp_path / "plots" / "sharpe_comparison.png",
+        output_path=tmp_path / "plots" / "metric_comparison_sharpe.png",
     )
 
-    assert output == tmp_path / "plots" / "sharpe_comparison.png"
+    assert output == tmp_path / "plots" / "metric_comparison_sharpe.png"
     assert output.exists()
     assert output.suffix == ".png"
     assert output.stat().st_size > 0

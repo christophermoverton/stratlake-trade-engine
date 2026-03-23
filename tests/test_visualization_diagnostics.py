@@ -293,9 +293,9 @@ def test_plot_signal_diagnostics_accepts_single_column_dataframe_and_returns_fig
 def test_plot_exposure_over_time_saves_png_for_dataframe_input(tmp_path: Path) -> None:
     exposure = pd.DataFrame({"net_exposure": [-0.25, 0.10, 0.35, -0.05]}, index=_date_index())
 
-    output = plot_exposure_over_time(exposure, output_path=tmp_path / "plots" / "exposure.png")
+    output = plot_exposure_over_time(exposure, output_path=tmp_path / "plots" / "exposure_over_time.png")
 
-    assert output == tmp_path / "plots" / "exposure.png"
+    assert output == tmp_path / "plots" / "exposure_over_time.png"
     assert output.exists()
     assert output.suffix == ".png"
     assert output.stat().st_size > 0

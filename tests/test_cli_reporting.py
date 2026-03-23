@@ -14,6 +14,7 @@ from src.cli.plot_strategy_run import parse_args as parse_plot_args
 from src.cli.plot_strategy_run import run_cli as run_plot_strategy_run_cli
 from src.research import experiment_tracker
 from src.research.experiment_tracker import save_experiment
+from src.research.visualization import get_plot_dir, get_plot_path
 
 
 def _metrics() -> dict[str, float | None]:
@@ -113,7 +114,7 @@ def test_plot_strategy_run_cli_generates_supported_plot_artifacts(
     }
     for path in plot_paths.values():
         assert path.exists()
-        assert path.parent == run_dir / "plots"
+        assert path.parent == get_plot_dir(run_dir)
 
     stdout = capsys.readouterr().out
     assert f"run_dir: {run_dir}" in stdout
@@ -173,8 +174,8 @@ def test_generate_report_cli_writes_default_report_and_reuses_reporting_flow(
 
     assert report_path == run_dir / "report.md"
     assert report_path.exists()
-    assert (run_dir / "plots" / "equity_curve.png").exists()
-    assert (run_dir / "plots" / "drawdown.png").exists()
+    assert get_plot_path(run_dir, "equity_curve").exists()
+    assert get_plot_path(run_dir, "drawdown").exists()
 
     stdout = capsys.readouterr().out
     assert f"run_dir: {run_dir}" in stdout

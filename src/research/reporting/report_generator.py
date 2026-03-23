@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import json
+import os
 from pathlib import Path
 from typing import Any
 
 import pandas as pd
 
+from src.research.visualization.artifacts import get_plot_dir, get_plot_path, is_standard_plot_dir
 from src.research.visualization.diagnostics import (
     compute_trade_statistics,
     plot_drawdown,
@@ -48,14 +50,18 @@ _ROLLING_SHARPE_WINDOW = 20
 
 
 def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> Path:
-    """Generate a deterministic Markdown report for one strategy run directory."""
+    """Generate a deterministic Markdown report for one strategy run directory.
+
+    Plot artifacts are always resolved under the standardized ``<run_dir>/plots``
+    directory so report generation and direct plot generation share one layout.
+    """
 
     resolved_run_dir = Path(run_dir)
     _validate_run_dir(resolved_run_dir)
 
     resolved_output_path = Path(output_path) if output_path is not None else resolved_run_dir / "report.md"
     resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-    plots_dir = resolved_run_dir / "plots"
+    plots_dir = get_plot_dir(resolved_run_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
     metrics = load_metrics(resolved_run_dir / "metrics.json")
@@ -67,7 +73,6 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
 
     plot_paths = generate_report_plots(
         run_dir=resolved_run_dir,
-        plots_dir=plots_dir,
         equity_curve=equity_curve,
         trades=trades,
     )
@@ -91,13 +96,19 @@ def generate_strategy_plots(run_dir: Path, plots_dir: Path | None = None) -> dic
 
     The plotting contract mirrors the plot-generation step used by
     ``generate_strategy_report()``. Only artifacts supported by the saved run
-    inputs are emitted.
+    inputs are emitted, and artifacts are anchored under the standardized
+    run-scoped plots directory.
     """
 
     resolved_run_dir = Path(run_dir)
     _validate_run_dir(resolved_run_dir)
 
-    resolved_plots_dir = Path(plots_dir) if plots_dir is not None else resolved_run_dir / "plots"
+    resolved_plots_dir = get_plot_dir(resolved_run_dir)
+    if plots_dir is not None and not is_standard_plot_dir(resolved_run_dir, Path(plots_dir)):
+        raise ValueError(
+            "plots_dir must match the standardized run plot directory "
+            f"'{resolved_plots_dir}'."
+        )
     resolved_plots_dir.mkdir(parents=True, exist_ok=True)
 
     equity_curve = _load_equity_curve(resolved_run_dir)
@@ -105,7 +116,6 @@ def generate_strategy_plots(run_dir: Path, plots_dir: Path | None = None) -> dic
 
     plot_paths = generate_report_plots(
         run_dir=resolved_run_dir,
-        plots_dir=resolved_plots_dir,
         equity_curve=equity_curve,
         trades=trades,
     )
@@ -219,26 +229,24 @@ def build_markdown_report(
 def generate_report_plots(
     *,
     run_dir: Path,
-    plots_dir: Path,
     equity_curve: pd.DataFrame | None,
     trades: pd.DataFrame | None,
 ) -> dict[str, Path]:
     """Generate or reuse report plots derived from run artifacts."""
 
-    del run_dir
     plot_paths: dict[str, Path] = {}
 
     if equity_curve is not None:
         equity_series = _select_equity_series(equity_curve)
         plot_paths["equity_curve"] = generate_plot_if_needed(
-            output_path=plots_dir / "equity_curve.png",
+            output_path=get_plot_path(run_dir, "equity_curve"),
             plotter=plot_equity_curve,
             equity_data=equity_series,
             input_type="equity",
             title="Equity Curve",
         )
         plot_paths["drawdown"] = generate_plot_if_needed(
-            output_path=plots_dir / "drawdown.png",
+            output_path=get_plot_path(run_dir, "drawdown"),
             plotter=plot_drawdown,
             equity_data=equity_series,
             input_type="equity",
@@ -248,7 +256,7 @@ def generate_report_plots(
         returns_series = _select_returns_series(equity_curve)
         if returns_series is not None and len(returns_series) >= _ROLLING_SHARPE_WINDOW:
             plot_paths["rolling_sharpe"] = generate_plot_if_needed(
-                output_path=plots_dir / "rolling_sharpe.png",
+                output_path=get_plot_path(run_dir, "rolling_sharpe"),
                 plotter=plot_rolling_sharpe,
                 returns=returns_series,
                 window=_ROLLING_SHARPE_WINDOW,
@@ -258,13 +266,13 @@ def generate_report_plots(
     trade_returns = _select_trade_returns(trades)
     if trade_returns is not None:
         plot_paths["trade_return_distribution"] = generate_plot_if_needed(
-            output_path=plots_dir / "trade_return_distribution.png",
+            output_path=get_plot_path(run_dir, "trade_return_distribution"),
             plotter=plot_trade_return_distribution,
             trade_returns=trade_returns,
             title="Trade Return Distribution",
         )
         plot_paths["win_loss_distribution"] = generate_plot_if_needed(
-            output_path=plots_dir / "win_loss_distribution.png",
+            output_path=get_plot_path(run_dir, "win_loss_distribution"),
             plotter=plot_win_loss_distribution,
             trade_returns=trade_returns,
             title="Win/Loss Distribution",
@@ -456,7 +464,7 @@ def _resolve_index(frame: pd.DataFrame) -> pd.Index:
 
 
 def _relative_markdown_path(report_path: Path, target_path: Path) -> str:
-    return target_path.relative_to(report_path.parent).as_posix()
+    return Path(os.path.relpath(target_path, start=report_path.parent)).as_posix()
 
 
 def _format_value(value: Any) -> str:

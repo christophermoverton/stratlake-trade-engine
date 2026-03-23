@@ -69,10 +69,10 @@ def test_plot_fold_level_metrics_saves_png_and_returns_path(tmp_path: Path) -> N
     output = plot_fold_level_metrics(
         metrics_frame,
         metric_name="sharpe",
-        output_path=tmp_path / "plots" / "fold_sharpe.png",
+        output_path=tmp_path / "plots" / "fold_metric_sharpe.png",
     )
 
-    assert output == tmp_path / "plots" / "fold_sharpe.png"
+    assert output == tmp_path / "plots" / "fold_metric_sharpe.png"
     assert output.exists()
     assert output.suffix == ".png"
     assert output.stat().st_size > 0

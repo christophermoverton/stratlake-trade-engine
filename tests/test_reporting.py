@@ -8,11 +8,13 @@ import pandas as pd
 from src.research import experiment_tracker
 from src.research.experiment_tracker import save_experiment
 from src.research.reporting import (
+    generate_strategy_plots,
     generate_strategy_report,
     load_run_artifacts,
     print_quick_report,
     summarize_run,
 )
+from src.research.visualization import get_plot_dir, get_plot_path
 
 
 def _metrics() -> dict[str, float | None]:
@@ -169,6 +171,54 @@ def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
     assert (run_dir / "plots" / "rolling_sharpe.png").exists()
     assert (run_dir / "plots" / "trade_return_distribution.png").exists()
     assert (run_dir / "plots" / "win_loss_distribution.png").exists()
+
+
+def test_strategy_plot_generation_and_reporting_share_standardized_plot_paths(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "shared_paths",
+        _report_results(),
+        _metrics(),
+        {"strategy_name": "shared_paths"},
+    )
+
+    plot_paths = generate_strategy_plots(run_dir)
+    report_path = generate_strategy_report(run_dir)
+    report_text = report_path.read_text(encoding="utf-8")
+
+    assert get_plot_dir(run_dir) == run_dir / "plots"
+    assert plot_paths["equity_curve"] == get_plot_path(run_dir, "equity_curve")
+    assert plot_paths["drawdown"] == get_plot_path(run_dir, "drawdown")
+    assert plot_paths["rolling_sharpe"] == get_plot_path(run_dir, "rolling_sharpe")
+    assert plot_paths["trade_return_distribution"] == get_plot_path(run_dir, "trade_return_distribution")
+    assert plot_paths["win_loss_distribution"] == get_plot_path(run_dir, "win_loss_distribution")
+    assert "![Equity Curve](plots/equity_curve.png)" in report_text
+    assert sorted(path.name for path in get_plot_dir(run_dir).iterdir()) == [
+        "drawdown.png",
+        "equity_curve.png",
+        "rolling_sharpe.png",
+        "trade_return_distribution.png",
+        "win_loss_distribution.png",
+    ]
+
+
+def test_generate_strategy_plots_rejects_nonstandard_plot_directory(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "nonstandard_plots",
+        _report_results(),
+        _metrics(),
+        {"strategy_name": "nonstandard_plots"},
+    )
+
+    with pytest.raises(ValueError, match="standardized run plot directory"):
+        generate_strategy_plots(run_dir, plots_dir=run_dir / "custom_plots")
 
 
 def test_generate_strategy_report_skips_optional_sections_when_artifacts_are_missing(tmp_path: Path) -> None:

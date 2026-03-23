@@ -9,6 +9,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from src.research.visualization.artifacts import (
+    get_plot_dir,
+    get_plot_filename,
+    get_plot_path,
+    is_standard_plot_dir,
+)
 from src.research.visualization.comparison import (
     plot_equity_comparison,
     plot_metric_comparison,
@@ -50,6 +56,10 @@ __all__ = [
     "PlotResult",
     "compute_long_short_counts",
     "compute_trade_statistics",
+    "get_plot_dir",
+    "get_plot_filename",
+    "get_plot_path",
+    "is_standard_plot_dir",
     "plot_cumulative_returns",
     "plot_drawdown",
     "plot_equity_comparison",

@@ -6,6 +6,8 @@ from typing import Any
 
 import pandas as pd
 
+from src.research.reporting.report_generator import generate_strategy_report
+
 
 def load_run_artifacts(run_dir: Path | str) -> dict[str, Any]:
     """Load the standard artifact files for one strategy run."""
@@ -105,3 +107,11 @@ def _format_metric(value: Any) -> str:
     if value is None:
         return "NA"
     return f"{float(value):.6f}"
+
+
+__all__ = [
+    "generate_strategy_report",
+    "load_run_artifacts",
+    "print_quick_report",
+    "summarize_run",
+]

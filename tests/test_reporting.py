@@ -7,7 +7,12 @@ import pandas as pd
 
 from src.research import experiment_tracker
 from src.research.experiment_tracker import save_experiment
-from src.research.reporting import load_run_artifacts, print_quick_report, summarize_run
+from src.research.reporting import (
+    generate_strategy_report,
+    load_run_artifacts,
+    print_quick_report,
+    summarize_run,
+)
 
 
 def _metrics() -> dict[str, float | None]:
@@ -36,6 +41,49 @@ def _experiment_results() -> pd.DataFrame:
             "signal": [1, 1, 0, 0],
             "strategy_return": [0.0, 0.02, -0.01, 0.0],
             "equity_curve": [1.0, 1.02, 1.0098, 1.0098],
+        }
+    )
+
+
+def _report_results() -> pd.DataFrame:
+    dates = pd.date_range("2022-01-01", periods=25, freq="D")
+    strategy_returns = [
+        0.010,
+        -0.004,
+        0.006,
+        0.003,
+        -0.002,
+        0.005,
+        0.004,
+        -0.003,
+        0.007,
+        0.002,
+        -0.001,
+        0.004,
+        0.003,
+        -0.002,
+        0.006,
+        0.005,
+        -0.004,
+        0.004,
+        0.003,
+        -0.001,
+        0.005,
+        0.002,
+        -0.002,
+        0.004,
+        0.003,
+    ]
+    equity_curve = (1.0 + pd.Series(strategy_returns)).cumprod()
+    signal = [1, 1, 1, 0, 0, 1, 1, -1, -1, 0, 1, 1, 0, -1, -1, 1, 1, 0, -1, -1, 1, 1, 0, 1, 0]
+
+    return pd.DataFrame(
+        {
+            "symbol": ["SPY"] * len(dates),
+            "date": dates.strftime("%Y-%m-%d"),
+            "signal": signal,
+            "strategy_return": strategy_returns,
+            "equity_curve": equity_curve,
         }
     )
 
@@ -82,3 +130,92 @@ def test_reporting_helpers_load_and_summarize_run(
     assert "strategy: mean_reversion" in stdout
     assert "mode: single" in stdout
     assert "sharpe_ratio: 0.410000" in stdout
+
+
+def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "momentum",
+        _report_results(),
+        _metrics(),
+        {"strategy_name": "momentum", "parameters": {"lookback": 20, "threshold": 0.5}},
+    )
+
+    output_path = generate_strategy_report(run_dir)
+    report_text = output_path.read_text(encoding="utf-8")
+
+    assert output_path == run_dir / "report.md"
+    assert output_path.exists()
+    assert "# Strategy Report: momentum" in report_text
+    assert "## Run Metadata" in report_text
+    assert "## Performance Summary" in report_text
+    assert "## Equity Curve" in report_text
+    assert "## Drawdown" in report_text
+    assert "## Rolling Metrics" in report_text
+    assert "## Trade Analysis" in report_text
+    assert "## Observations" in report_text
+    assert "| Sharpe | 0.410000 |" in report_text
+    assert "![Equity Curve](plots/equity_curve.png)" in report_text
+    assert "![Drawdown](plots/drawdown.png)" in report_text
+    assert "![Rolling Sharpe](plots/rolling_sharpe.png)" in report_text
+    assert "![Trade Return Distribution](plots/trade_return_distribution.png)" in report_text
+    assert "![Win Loss Distribution](plots/win_loss_distribution.png)" in report_text
+
+    assert (run_dir / "plots" / "equity_curve.png").exists()
+    assert (run_dir / "plots" / "drawdown.png").exists()
+    assert (run_dir / "plots" / "rolling_sharpe.png").exists()
+    assert (run_dir / "plots" / "trade_return_distribution.png").exists()
+    assert (run_dir / "plots" / "win_loss_distribution.png").exists()
+
+
+def test_generate_strategy_report_skips_optional_sections_when_artifacts_are_missing(tmp_path: Path) -> None:
+    run_dir = tmp_path / "run_without_optionals"
+    run_dir.mkdir()
+    (run_dir / "metrics.json").write_text(
+        '{"max_drawdown": 0.05, "sharpe_ratio": 0.41, "total_return": 0.0098}',
+        encoding="utf-8",
+    )
+
+    output_path = generate_strategy_report(run_dir)
+    report_text = output_path.read_text(encoding="utf-8")
+
+    assert output_path.exists()
+    assert "## Performance Summary" in report_text
+    assert "## Rolling Metrics" in report_text
+    assert "_Rolling Sharpe unavailable for this run._" in report_text
+    assert "## Trade Analysis" in report_text
+    assert "_Trade data unavailable for this run._" in report_text
+    assert "## Equity Curve" not in report_text
+    assert "## Drawdown" not in report_text
+
+
+def test_generate_strategy_report_raises_when_metrics_are_missing(tmp_path: Path) -> None:
+    run_dir = tmp_path / "missing_metrics"
+    run_dir.mkdir()
+
+    with pytest.raises(FileNotFoundError, match="metrics.json"):
+        generate_strategy_report(run_dir)
+
+
+def test_generate_strategy_report_is_deterministic_for_identical_inputs(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "deterministic",
+        _report_results(),
+        _metrics(),
+        {"strategy_name": "deterministic", "parameters": {"lookback": 20}},
+    )
+
+    first_output = generate_strategy_report(run_dir)
+    first_text = first_output.read_text(encoding="utf-8")
+    second_output = generate_strategy_report(run_dir)
+    second_text = second_output.read_text(encoding="utf-8")
+
+    assert first_output == second_output
+    assert first_text == second_text

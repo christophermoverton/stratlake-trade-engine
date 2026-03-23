@@ -54,6 +54,7 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
     _validate_run_dir(resolved_run_dir)
 
     resolved_output_path = Path(output_path) if output_path is not None else resolved_run_dir / "report.md"
+    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
     plots_dir = resolved_run_dir / "plots"
     plots_dir.mkdir(parents=True, exist_ok=True)
 
@@ -83,6 +84,37 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
     )
     resolved_output_path.write_text(markdown, encoding="utf-8")
     return resolved_output_path
+
+
+def generate_strategy_plots(run_dir: Path, plots_dir: Path | None = None) -> dict[str, Path]:
+    """Generate deterministic plot artifacts for one saved strategy run.
+
+    The plotting contract mirrors the plot-generation step used by
+    ``generate_strategy_report()``. Only artifacts supported by the saved run
+    inputs are emitted.
+    """
+
+    resolved_run_dir = Path(run_dir)
+    _validate_run_dir(resolved_run_dir)
+
+    resolved_plots_dir = Path(plots_dir) if plots_dir is not None else resolved_run_dir / "plots"
+    resolved_plots_dir.mkdir(parents=True, exist_ok=True)
+
+    equity_curve = _load_equity_curve(resolved_run_dir)
+    trades = _load_optional_parquet(resolved_run_dir / "trades.parquet")
+
+    plot_paths = generate_report_plots(
+        run_dir=resolved_run_dir,
+        plots_dir=resolved_plots_dir,
+        equity_curve=equity_curve,
+        trades=trades,
+    )
+    if not plot_paths:
+        raise ValueError(
+            "No plot artifacts can be generated from this run directory. "
+            "Expected an equity_curve.csv artifact and/or trades.parquet with a numeric 'return' column."
+        )
+    return plot_paths
 
 
 def load_metrics(metrics_path: Path) -> dict[str, Any]:

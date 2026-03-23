@@ -6,7 +6,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.research.reporting.report_generator import generate_strategy_report
+from src.research.reporting.report_generator import generate_strategy_plots, generate_strategy_report
 
 
 def load_run_artifacts(run_dir: Path | str) -> dict[str, Any]:
@@ -110,6 +110,7 @@ def _format_metric(value: Any) -> str:
 
 
 __all__ = [
+    "generate_strategy_plots",
     "generate_strategy_report",
     "load_run_artifacts",
     "print_quick_report",

@@ -22,7 +22,13 @@ from src.research.registry import (
     filter_by_strategy_name,
     load_registry,
 )
-from src.research.reporting import generate_strategy_report, load_run_artifacts, print_quick_report, summarize_run
+from src.research.reporting import (
+    generate_strategy_plots,
+    generate_strategy_report,
+    load_run_artifacts,
+    print_quick_report,
+    summarize_run,
+)
 from src.research.signal_engine import generate_signals
 from src.research.splits import (
     EvaluationSplit,
@@ -46,6 +52,7 @@ __all__ = [
     "filter_by_metric_threshold",
     "filter_by_strategy_name",
     "generate_evaluation_splits",
+    "generate_strategy_plots",
     "generate_strategy_report",
     "generate_signals",
     "hit_rate",

@@ -15,7 +15,7 @@ StratLake now spans four connected milestones:
 * Milestone 1: repository foundation, configuration loading, and data access
 * Milestone 2: deterministic feature engineering and pipeline orchestration
 * Milestone 3: Strategy Research Layer for systematic experimentation and backtesting
-* Milestone 4: strategy evaluation, walk-forward validation, baselines, registry-backed comparison, and documentation
+* Milestone 4: strategy evaluation, walk-forward validation, baselines, registry-backed comparison, visualization/reporting, and documentation
 
 Milestones 3 and 4 extend StratLake from a feature engineering and analytics
 platform into a reproducible strategy research and evaluation workflow. The
@@ -30,6 +30,7 @@ repository now supports:
 * append-only experiment registry tracking under `artifacts/strategies/registry.jsonl`
 * a CLI strategy runner for end-to-end research execution
 * a comparison CLI for multi-strategy leaderboards from fresh runs or registry-backed results
+* deterministic visualization and Markdown reporting layers for saved research artifacts
 
 ---
 
@@ -153,6 +154,7 @@ Current implementation includes:
 * Walk-forward evaluation across deterministic train/test splits
 * Baseline benchmark strategies for buy-and-hold, SMA crossover, and seeded random references
 * Strategy comparison and leaderboard generation from fresh runs or registry-backed selection
+* Deterministic plot and Markdown report generation from saved run artifacts
 
 ---
 
@@ -175,6 +177,12 @@ operate on feature datasets already produced by the analytics layer, use the
 previous period's signal to avoid look-ahead bias, compound returns into an
 `equity_curve`, and compute deterministic summary statistics from the resulting
 strategy return series.
+
+The research package now also includes artifact-driven visualization and
+reporting helpers. These layers consume saved run outputs such as
+`metrics.json`, `equity_curve.csv`, and optional trade artifacts to generate
+deterministic plot files and a Markdown `report.md` without changing the
+underlying research results.
 
 The research layer also includes a CLI entrypoint that runs the full experiment
 flow from a strategy name in `configs/strategies.yml`, including dataset load,
@@ -203,11 +211,18 @@ evaluation and comparison workflow:
 * baseline benchmarks through the same runner and metric stack
 * file-based artifacts plus append-only registry tracking
 * multi-strategy comparison with leaderboard outputs
+* deterministic plots and Markdown reports derived from saved run artifacts
 
 The end-to-end flow is:
 
 ```text
 feature datasets -> signals -> backtest -> metrics -> artifacts -> registry -> comparison
+```
+
+Visualization and reporting extend that artifact flow rather than replacing it:
+
+```text
+feature datasets -> signals -> backtest -> metrics -> artifacts -> plots -> report.md
 ```
 
 Start with the central workflow guide:
@@ -222,6 +237,7 @@ Focused references:
 * [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_performance_metrics.md)
 * [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
 * [docs/evaluation_split_configuration.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/evaluation_split_configuration.md)
+* [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 
 ### Research Flow
 
@@ -262,6 +278,7 @@ equity_curve = (1.0 + strategy_return).cumprod()
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.metrics import compute_performance_metrics
+from src.research.reporting import generate_strategy_report
 from src.research.signal_engine import generate_signals
 
 signals_df = generate_signals(features_df, strategy)
@@ -275,6 +292,8 @@ artifact_dir = save_experiment(
     metrics=metrics,
     config={"lookback": 20},
 )
+
+report_path = generate_strategy_report(artifact_dir)
 ```
 
 See [docs/backtest_runner.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/backtest_runner.md)
@@ -285,8 +304,31 @@ See [docs/strategy_performance_metrics.md](/C:/Users/christophermoverton/stratla
 for the available metrics, formulas, and annualization behavior.
 See [docs/experiment_artifact_logging.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/experiment_artifact_logging.md)
 for the artifact layout, registry schema, and saved files.
+See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
+for how saved run artifacts become plots and a deterministic Markdown report.
 See [docs/strategy_comparison_cli.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/strategy_comparison_cli.md)
 for comparison modes, leaderboard ordering, and output artifacts.
+
+Generated report artifacts currently include:
+
+* `report.md`
+* `plots/equity_curve.png`
+* `plots/drawdown.png`
+* `plots/rolling_sharpe.png` when the run has enough return history
+* `plots/trade_return_distribution.png` and `plots/win_loss_distribution.png`
+  when trade artifacts are available
+
+Existing run artifacts can also be visualized and reported directly from the
+CLI:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.plot_strategy_run --run-dir artifacts/strategies/<run_id>
+.\.venv\Scripts\python.exe -m src.cli.generate_report --run-dir artifacts/strategies/<run_id>
+```
+
+See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
+for the visualization/reporting artifact flow, supported plot outputs, and CLI
+usage details.
 
 ### Strategy CLI Usage
 
@@ -380,7 +422,8 @@ Milestone 4 outcome:
 
 * StratLake can now execute single-run and walk-forward strategy evaluations,
   benchmark against deterministic baselines, persist registry-backed artifacts,
-  and compare strategies through a shared leaderboard workflow.
+  compare strategies through a shared leaderboard workflow, and generate
+  deterministic visual and Markdown summaries from saved run outputs.
 
 ---
 

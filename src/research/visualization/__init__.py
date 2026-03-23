@@ -16,6 +16,7 @@ from src.research.visualization.comparison import (
 )
 from src.research.visualization.diagnostics import (
     plot_drawdown,
+    plot_underwater_curve,
     plot_rolling_metric,
     plot_signal_diagnostics,
 )
@@ -47,6 +48,7 @@ __all__ = [
     "plot_signal_diagnostics",
     "plot_strategy_metric_bars",
     "plot_strategy_overlays",
+    "plot_underwater_curve",
     "plot_walk_forward_results",
     "plot_walk_forward_splits",
 ]

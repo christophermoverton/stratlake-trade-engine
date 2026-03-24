@@ -269,6 +269,96 @@ def test_generate_comparison_plots_creates_expected_artifact_set_and_is_determin
     assert sorted(path.name for path in (comparison_dir / "plots").iterdir()) == expected_plot_listing
 
 
+def test_generate_comparison_plots_handles_duplicate_timestamps_from_run_artifacts(tmp_path: Path) -> None:
+    artifacts_root = tmp_path / "artifacts" / "strategies"
+    run_ids = {
+        "momentum_v1": "momentum_v1_single_abc123",
+        "mean_reversion_v1": "mean_reversion_v1_single_def456",
+    }
+    run_dirs: dict[str, Path] = {}
+
+    for strategy_name, run_id in run_ids.items():
+        run_dir = artifacts_root / run_id
+        run_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(
+            {
+                "ts_utc": [
+                    pd.Timestamp("2025-01-01", tz="UTC"),
+                    pd.Timestamp("2025-01-01", tz="UTC"),
+                    pd.Timestamp("2025-01-02", tz="UTC"),
+                    pd.Timestamp("2025-01-02", tz="UTC"),
+                ],
+                "symbol": ["AAPL", "MSFT", "AAPL", "MSFT"],
+                "equity": [1.0, 1.0, 1.05, 1.05]
+                if strategy_name == "momentum_v1"
+                else [1.0, 1.0, 0.99, 0.99],
+            }
+        ).to_csv(run_dir / "equity_curve.csv", index=False)
+        run_dirs[strategy_name] = run_dir
+
+    comparison_result = ComparisonResult(
+        metric="sharpe_ratio",
+        evaluation_mode="single",
+        selection_mode="fresh",
+        selection_rule="freshly executed run per strategy",
+        leaderboard=[
+            LeaderboardEntry(
+                rank=1,
+                strategy_name="momentum_v1",
+                run_id=run_ids["momentum_v1"],
+                evaluation_mode="single",
+                selected_metric_name="sharpe_ratio",
+                selected_metric_value=1.2,
+                cumulative_return=0.12,
+                total_return=0.12,
+                sharpe_ratio=1.2,
+                max_drawdown=0.02,
+                annualized_return=None,
+                annualized_volatility=None,
+                volatility=None,
+                win_rate=None,
+                hit_rate=None,
+                profit_factor=None,
+                turnover=None,
+                exposure_pct=None,
+            ),
+            LeaderboardEntry(
+                rank=2,
+                strategy_name="mean_reversion_v1",
+                run_id=run_ids["mean_reversion_v1"],
+                evaluation_mode="single",
+                selected_metric_name="sharpe_ratio",
+                selected_metric_value=0.4,
+                cumulative_return=0.03,
+                total_return=0.03,
+                sharpe_ratio=0.4,
+                max_drawdown=0.03,
+                annualized_return=None,
+                annualized_volatility=None,
+                volatility=None,
+                win_rate=None,
+                hit_rate=None,
+                profit_factor=None,
+                turnover=None,
+                exposure_pct=None,
+            ),
+        ],
+        csv_path=tmp_path / "artifacts" / "comparisons" / "example" / "leaderboard.csv",
+        json_path=tmp_path / "artifacts" / "comparisons" / "example" / "leaderboard.json",
+    )
+
+    comparison_dir = tmp_path / "artifacts" / "comparisons" / "example"
+    paths = _generate_comparison_plots(
+        comparison_result=comparison_result,
+        run_dirs=run_dirs,
+        comparison_dir=comparison_dir,
+    )
+
+    assert_file_exists(paths["equity_comparison"])
+    assert_file_exists(paths["equity_comparison_debug"])
+    assert_file_exists(paths["metric_comparison"])
+
+
 def test_run_cli_summary_lists_relative_comparison_artifacts_only(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     artifacts_root = tmp_path / "artifacts" / "strategies"
     run_ids = {

@@ -60,6 +60,7 @@ def normalize_strategy_series_inputs(
             series = compute_equity_from_returns(series)
         elif input_type != "equity":
             raise ValueError("input_type must be either 'returns' or 'equity'.")
+        series = _collapse_duplicate_index(series)
         series.name = name
         normalized.append((name, series))
 
@@ -436,6 +437,16 @@ def _validate_time_index(index: pd.Index, *, strategy_name: str) -> None:
 
     if not isinstance(index, _TIME_INDEX_TYPES):
         raise ValueError(f"Strategy '{strategy_name}' must be time-indexed.")
+
+
+def _collapse_duplicate_index(series: pd.Series) -> pd.Series:
+    """Reduce duplicate timestamps to the last observed value for stable plotting."""
+
+    if not series.index.has_duplicates:
+        return series
+    collapsed = series.groupby(level=0, sort=True).last()
+    collapsed.name = series.name
+    return collapsed
 
 
 def _coerce_metric_frame(metrics_frame: MetricInput) -> pd.DataFrame:

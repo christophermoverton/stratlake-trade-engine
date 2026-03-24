@@ -6,10 +6,19 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
-from src.research.visualization.equity import DEFAULT_FIGSIZE, normalize_equity_input
+from src.research.visualization.equity import normalize_equity_input
+from src.research.visualization.plot_utils import (
+    DEFAULT_BAR_ALPHA,
+    DEFAULT_FIGSIZE,
+    DEFAULT_LINEWIDTH,
+    REFERENCE_LINEWIDTH,
+    apply_axis_style,
+    create_figure,
+    finalize_figure,
+    save_or_return_figure,
+)
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -100,19 +109,14 @@ def plot_equity_comparison(
     normalized = normalize_strategy_series_inputs(strategy_data, input_type=input_type)
     aligned = align_series_collection(normalized)
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
     for name in aligned.columns:
-        axis.plot(aligned.index, aligned[name].values, label=name, linewidth=2.0)
+        axis.plot(aligned.index, aligned[name].values, label=name, linewidth=DEFAULT_LINEWIDTH)
 
-    axis.set_title(title)
-    axis.set_xlabel("Date")
-    axis.set_ylabel("Equity")
-    axis.legend()
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.autofmt_xdate()
-    figure.tight_layout()
+    apply_axis_style(axis, title=title, x_label="Date", y_label="Equity", legend=True)
+    finalize_figure(figure, axis, use_date_axis=True)
 
-    return _save_or_return_figure(figure, output_path)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_strategy_overlays(
@@ -178,23 +182,27 @@ def plot_metric_comparison(
     values = normalized[metric_name].astype("float64")
     colors = ["tab:green" if value >= 0.0 else "tab:red" for value in values]
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
     axis.bar(
         normalized["label"].astype(str),
         values,
         color=colors,
         edgecolor="black",
         linewidth=0.8,
-        alpha=0.85,
+        alpha=DEFAULT_BAR_ALPHA,
     )
-    axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
-    axis.set_title(resolved_title)
-    axis.set_xlabel("Strategy")
-    axis.set_ylabel(metric_name)
-    axis.grid(True, axis="y", linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.tight_layout()
+    axis.axhline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8)
+    apply_axis_style(
+        axis,
+        title=resolved_title,
+        x_label="Strategy",
+        y_label=metric_name,
+        grid_axis="y",
+        rotate_x_labels=True,
+    )
+    finalize_figure(figure, axis)
 
-    return _save_or_return_figure(figure, output_path)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_strategy_metric_bars(
@@ -226,7 +234,7 @@ def plot_strategy_metric_bars(
     positions = list(range(len(labels)))
     width = 0.8 / len(metrics)
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
     for metric_index, metric in enumerate(metrics):
         offsets = [position - 0.4 + (metric_index + 0.5) * width for position in positions]
         axis.bar(
@@ -234,22 +242,26 @@ def plot_strategy_metric_bars(
             result[metric].astype("float64"),
             width=width,
             label=metric,
-            alpha=0.85,
+            alpha=DEFAULT_BAR_ALPHA,
             edgecolor="black",
             linewidth=0.8,
         )
 
-    axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
-    axis.set_title(title)
-    axis.set_xlabel("Strategy")
-    axis.set_ylabel("Metric Value")
+    axis.axhline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8)
     axis.set_xticks(positions)
     axis.set_xticklabels(labels)
-    axis.legend()
-    axis.grid(True, axis="y", linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.tight_layout()
+    apply_axis_style(
+        axis,
+        title=title,
+        x_label="Strategy",
+        y_label="Metric Value",
+        legend=True,
+        grid_axis="y",
+        rotate_x_labels=True,
+    )
+    finalize_figure(figure, axis)
 
-    return _save_or_return_figure(figure, output_path)
+    return save_or_return_figure(figure, output_path)
 
 
 def _coerce_named_series_inputs(strategy_data: SeriesInput) -> list[tuple[str, PlotInput]]:
@@ -308,14 +320,3 @@ def _resolve_label_column(frame: pd.DataFrame) -> str:
     raise ValueError(f"Metrics input must contain one of the required label columns: {candidates}.")
 
 
-def _save_or_return_figure(figure: Figure, output_path: Path | None) -> PlotResult:
-    """Save a figure as a PNG artifact or return it directly."""
-
-    if output_path is None:
-        return figure
-
-    resolved_output_path = Path(output_path)
-    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(resolved_output_path, format="png", dpi=100)
-    plt.close(figure)
-    return resolved_output_path

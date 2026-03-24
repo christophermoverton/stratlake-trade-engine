@@ -7,11 +7,20 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import matplotlib.dates as mdates
-import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 import pandas as pd
 
-from src.research.visualization.equity import DEFAULT_FIGSIZE
+from src.research.visualization.plot_utils import (
+    DEFAULT_BAR_ALPHA,
+    DEFAULT_FIGSIZE,
+    DEFAULT_LINEWIDTH,
+    DEFAULT_MARKER,
+    REFERENCE_LINEWIDTH,
+    apply_axis_style,
+    create_figure,
+    finalize_figure,
+    save_or_return_figure,
+)
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -44,7 +53,7 @@ def plot_walk_forward_splits(
 
     normalized = normalize_walk_forward_folds(splits_frame)
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
     y_positions = list(range(len(normalized)))
     fold_labels = normalized["fold"].astype(str).tolist()
 
@@ -67,9 +76,6 @@ def plot_walk_forward_splits(
             hatch="//",
         )
 
-    axis.set_title(title)
-    axis.set_xlabel("Date")
-    axis.set_ylabel("Fold")
     axis.set_yticks(y_positions)
     axis.set_yticklabels(fold_labels)
     axis.invert_yaxis()
@@ -77,17 +83,16 @@ def plot_walk_forward_splits(
     locator = mdates.AutoDateLocator()
     axis.xaxis.set_major_locator(locator)
     axis.xaxis.set_major_formatter(mdates.ConciseDateFormatter(locator))
-    axis.grid(True, axis="x", linestyle=":", linewidth=0.75, alpha=0.7)
     axis.legend(
         handles=[
             Patch(facecolor=_TRAIN_COLOR, edgecolor=_TRAIN_COLOR, alpha=0.8, label="Train"),
             Patch(facecolor=_TEST_COLOR, edgecolor=_TEST_COLOR, alpha=0.9, hatch="//", label="Test"),
         ]
     )
-    figure.autofmt_xdate()
-    figure.tight_layout()
+    apply_axis_style(axis, title=title, x_label="Date", y_label="Fold", legend=True, grid_axis="x")
+    finalize_figure(figure, axis, use_date_axis=True)
 
-    return _save_or_return_figure(figure, output_path)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_fold_level_metrics(
@@ -116,16 +121,13 @@ def plot_fold_level_metrics(
     labels = normalized["fold"].astype(str)
     colors = ["tab:green" if value >= 0.0 else "tab:red" for value in values]
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
-    axis.bar(labels, values, color=colors, edgecolor="black", linewidth=0.8, alpha=0.85)
-    axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
-    axis.set_title(resolved_title)
-    axis.set_xlabel("Fold")
-    axis.set_ylabel(metric_name)
-    axis.grid(True, axis="y", linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.tight_layout()
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
+    axis.bar(labels, values, color=colors, edgecolor="black", linewidth=0.8, alpha=DEFAULT_BAR_ALPHA)
+    axis.axhline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8)
+    apply_axis_style(axis, title=resolved_title, x_label="Fold", y_label=metric_name, grid_axis="y")
+    finalize_figure(figure, axis)
 
-    return _save_or_return_figure(figure, output_path)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_walk_forward_results(
@@ -150,24 +152,27 @@ def plot_walk_forward_results(
 
     normalized = _normalize_fold_result_summaries(fold_results, labels=labels)
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
     axis.plot(
         normalized["fold"].astype(str),
         normalized["value"].astype("float64"),
-        marker="o",
-        linewidth=2.0,
+        marker=DEFAULT_MARKER,
+        linewidth=DEFAULT_LINEWIDTH,
         color="tab:blue",
         label=normalized["metric_label"].iat[0],
     )
-    axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
-    axis.set_title(title)
-    axis.set_xlabel("Fold")
-    axis.set_ylabel(normalized["metric_label"].iat[0])
-    axis.legend()
-    axis.grid(True, axis="y", linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.tight_layout()
+    axis.axhline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8)
+    apply_axis_style(
+        axis,
+        title=title,
+        x_label="Fold",
+        y_label=normalized["metric_label"].iat[0],
+        legend=True,
+        grid_axis="y",
+    )
+    finalize_figure(figure, axis)
 
-    return _save_or_return_figure(figure, output_path)
+    return save_or_return_figure(figure, output_path)
 
 
 def normalize_walk_forward_folds(splits_frame: RecordInput) -> pd.DataFrame:
@@ -308,14 +313,3 @@ def _extract_fold_summary_value(frame: pd.DataFrame) -> tuple[float, str]:
     return float(series.iloc[-1]), column_name
 
 
-def _save_or_return_figure(figure: Figure, output_path: Path | None) -> PlotResult:
-    """Save a figure as a PNG artifact or return it directly."""
-
-    if output_path is None:
-        return figure
-
-    resolved_output_path = Path(output_path)
-    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(resolved_output_path, format="png", dpi=100)
-    plt.close(figure)
-    return resolved_output_path

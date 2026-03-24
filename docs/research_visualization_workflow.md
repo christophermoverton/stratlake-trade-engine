@@ -182,6 +182,11 @@ included only when the supporting artifacts exist.
 The visualization package is organized by analysis domain under
 `src/research/visualization/`.
 
+Shared plot-level defaults live in `src/research/visualization/plot_utils.py`.
+That module centralizes figure sizing, save settings, date-axis formatting,
+label/grid application, and legend behavior so the existing plot helpers stay
+consistent without changing the artifact-driven workflow.
+
 ### `equity.py`
 
 Performance-oriented plotting for saved return and equity artifacts.

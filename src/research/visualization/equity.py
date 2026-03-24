@@ -5,8 +5,17 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
-import matplotlib.pyplot as plt
 import pandas as pd
+
+from src.research.visualization.plot_utils import (
+    DEFAULT_FIGSIZE,
+    DEFAULT_LINEWIDTH,
+    SECONDARY_LINEWIDTH,
+    apply_axis_style,
+    create_figure,
+    finalize_figure,
+    save_or_return_figure,
+)
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -16,8 +25,6 @@ else:
 PlotInput = pd.Series | pd.DataFrame
 PlotResult = Path | Figure
 InputType = Literal["returns", "equity"]
-
-DEFAULT_FIGSIZE = (10, 6)
 
 
 def normalize_equity_input(data: PlotInput, *, series_name: str) -> pd.Series:
@@ -188,31 +195,23 @@ def _plot_performance_series(
 ) -> PlotResult:
     """Render and optionally save a deterministic matplotlib performance chart."""
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
-    axis.plot(strategy_series.index, strategy_series.values, label=strategy_series.name or "Strategy", linewidth=2.0)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
+    axis.plot(
+        strategy_series.index,
+        strategy_series.values,
+        label=strategy_series.name or "Strategy",
+        linewidth=DEFAULT_LINEWIDTH,
+    )
 
     if benchmark_series is not None:
         axis.plot(
             benchmark_series.index,
             benchmark_series.values,
             label=benchmark_series.name or "Benchmark",
-            linewidth=1.75,
+            linewidth=SECONDARY_LINEWIDTH,
             linestyle="--",
         )
 
-    axis.set_title(title)
-    axis.set_xlabel("Date")
-    axis.set_ylabel(y_label)
-    axis.legend()
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.autofmt_xdate()
-    figure.tight_layout()
-
-    if output_path is None:
-        return figure
-
-    resolved_output_path = Path(output_path)
-    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(resolved_output_path, format="png", dpi=100)
-    plt.close(figure)
-    return resolved_output_path
+    apply_axis_style(axis, title=title, x_label="Date", y_label=y_label, legend=True)
+    finalize_figure(figure, axis, use_date_axis=True)
+    return save_or_return_figure(figure, output_path)

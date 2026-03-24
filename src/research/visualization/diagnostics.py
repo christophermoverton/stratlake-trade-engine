@@ -5,10 +5,21 @@ from __future__ import annotations
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Sequence
 
-import matplotlib.pyplot as plt
 import pandas as pd
 
-from src.research.visualization.equity import DEFAULT_FIGSIZE, normalize_equity_input
+from src.research.visualization.equity import normalize_equity_input
+from src.research.visualization.plot_utils import (
+    DEFAULT_BAR_ALPHA,
+    DEFAULT_FILL_ALPHA,
+    DEFAULT_FIGSIZE,
+    DEFAULT_HIST_ALPHA,
+    DEFAULT_LINEWIDTH,
+    REFERENCE_LINEWIDTH,
+    apply_axis_style,
+    create_figure,
+    finalize_figure,
+    save_or_return_figure,
+)
 
 if TYPE_CHECKING:
     from matplotlib.figure import Figure
@@ -75,33 +86,20 @@ def plot_drawdown(
     """Plot a drawdown time series and optionally save the resulting PNG artifact."""
 
     drawdown_series = compute_drawdown_series(equity_data, input_type=input_type)
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
 
     axis.plot(
         drawdown_series.index,
         drawdown_series.values,
         label=drawdown_series.name or "Drawdown",
-        linewidth=2.0,
+        linewidth=DEFAULT_LINEWIDTH,
         color="tab:red",
     )
-    axis.fill_between(drawdown_series.index, drawdown_series.values, 0.0, color="tab:red", alpha=0.25)
-    axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
-    axis.set_title(title)
-    axis.set_xlabel("Date")
-    axis.set_ylabel("Drawdown")
-    axis.legend()
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.autofmt_xdate()
-    figure.tight_layout()
-
-    if output_path is None:
-        return figure
-
-    resolved_output_path = Path(output_path)
-    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(resolved_output_path, format="png", dpi=100)
-    plt.close(figure)
-    return resolved_output_path
+    axis.fill_between(drawdown_series.index, drawdown_series.values, 0.0, color="tab:red", alpha=DEFAULT_FILL_ALPHA)
+    axis.axhline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8)
+    apply_axis_style(axis, title=title, x_label="Date", y_label="Drawdown", legend=True)
+    finalize_figure(figure, axis, use_date_axis=True)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_underwater_curve(
@@ -232,19 +230,6 @@ def compute_long_short_counts(positions: PositionsInput) -> pd.DataFrame:
     return counts
 
 
-def _save_or_return_figure(figure: Figure, output_path: Path | None) -> PlotResult:
-    """Save a figure as a PNG artifact or return it directly."""
-
-    if output_path is None:
-        return figure
-
-    resolved_output_path = Path(output_path)
-    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(resolved_output_path, format="png", dpi=100)
-    plt.close(figure)
-    return resolved_output_path
-
-
 def _validate_rolling_window(window: int) -> None:
     """Validate a rolling window size."""
 
@@ -321,31 +306,18 @@ def plot_rolling_metric(
     label = metric_name if window_label is None else f"{metric_name} ({window_label})"
     resolved_title = title or label
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
     axis.plot(
         normalized_metric.index,
         normalized_metric.values,
         label=label,
-        linewidth=2.0,
+        linewidth=DEFAULT_LINEWIDTH,
         color="tab:blue",
     )
-    axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
-    axis.set_title(resolved_title)
-    axis.set_xlabel("Date")
-    axis.set_ylabel(metric_name)
-    axis.legend()
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.autofmt_xdate()
-    figure.tight_layout()
-
-    if output_path is None:
-        return figure
-
-    resolved_output_path = Path(output_path)
-    resolved_output_path.parent.mkdir(parents=True, exist_ok=True)
-    figure.savefig(resolved_output_path, format="png", dpi=100)
-    plt.close(figure)
-    return resolved_output_path
+    axis.axhline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8)
+    apply_axis_style(axis, title=resolved_title, x_label="Date", y_label=metric_name, legend=True)
+    finalize_figure(figure, axis, use_date_axis=True)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_rolling_sharpe(
@@ -376,7 +348,7 @@ def plot_signal_distribution(
     """Plot a histogram of signal or target exposure values."""
 
     normalized_signals = normalize_signal_input(signals)
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
 
     unique_values = pd.Index(normalized_signals.dropna().unique())
     is_discrete = len(unique_values) <= 20 and all(float(value).is_integer() for value in unique_values)
@@ -384,7 +356,7 @@ def plot_signal_distribution(
     hist_kwargs: dict[str, Any] = {
         "color": "tab:blue",
         "edgecolor": "black",
-        "alpha": 0.8,
+        "alpha": DEFAULT_HIST_ALPHA,
     }
     if is_discrete:
         sorted_unique = sorted(float(value) for value in unique_values)
@@ -395,13 +367,15 @@ def plot_signal_distribution(
         hist_kwargs["bins"] = min(30, max(10, len(normalized_signals) // 5))
 
     axis.hist(normalized_signals.values, **hist_kwargs)
-    axis.set_title(title)
-    axis.set_xlabel(normalized_signals.name or "Signal")
-    axis.set_ylabel("Frequency")
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7, axis="y")
-    figure.tight_layout()
-
-    return _save_or_return_figure(figure, output_path)
+    apply_axis_style(
+        axis,
+        title=title,
+        x_label=normalized_signals.name or "Signal",
+        y_label="Frequency",
+        grid_axis="y",
+    )
+    finalize_figure(figure, axis)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_trade_return_distribution(
@@ -414,7 +388,7 @@ def plot_trade_return_distribution(
 
     normalized_returns = normalize_trade_returns(trade_returns)
     statistics = compute_trade_statistics(normalized_returns)
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
 
     bin_count = min(30, max(10, len(normalized_returns) // 5))
     axis.hist(
@@ -422,22 +396,24 @@ def plot_trade_return_distribution(
         bins=bin_count,
         color="tab:blue",
         edgecolor="black",
-        alpha=0.8,
+        alpha=DEFAULT_HIST_ALPHA,
         label=(
             f"Trades (mean={statistics['mean_return']:.2%}, "
             f"median={statistics['median_return']:.2%}, "
             f"std={statistics['std_return']:.2%})"
         ),
     )
-    axis.axvline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8, label="Break-even")
-    axis.set_title(title)
-    axis.set_xlabel(normalized_returns.name or "Trade Return")
-    axis.set_ylabel("Frequency")
-    axis.legend()
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7, axis="y")
-    figure.tight_layout()
-
-    return _save_or_return_figure(figure, output_path)
+    axis.axvline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8, label="Break-even")
+    apply_axis_style(
+        axis,
+        title=title,
+        x_label=normalized_returns.name or "Trade Return",
+        y_label="Frequency",
+        legend=True,
+        grid_axis="y",
+    )
+    finalize_figure(figure, axis)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_win_loss_distribution(
@@ -454,12 +430,9 @@ def plot_win_loss_distribution(
     counts = [int(statistics["win_count"]), int(statistics["loss_count"])]
     colors = ["tab:green", "tab:red"]
 
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
-    bars = axis.bar(labels, counts, color=colors, edgecolor="black", linewidth=0.8, alpha=0.85)
-    axis.set_title(title)
-    axis.set_xlabel("Outcome")
-    axis.set_ylabel("Trade Count")
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7, axis="y")
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
+    bars = axis.bar(labels, counts, color=colors, edgecolor="black", linewidth=0.8, alpha=DEFAULT_BAR_ALPHA)
+    apply_axis_style(axis, title=title, x_label="Outcome", y_label="Trade Count", grid_axis="y")
 
     annotations = [
         f"{counts[0]} ({statistics['win_rate']:.1%})",
@@ -474,8 +447,8 @@ def plot_win_loss_distribution(
             va="bottom",
         )
 
-    figure.tight_layout()
-    return _save_or_return_figure(figure, output_path)
+    finalize_figure(figure, axis)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_exposure_over_time(
@@ -487,26 +460,26 @@ def plot_exposure_over_time(
     """Plot aggregate strategy exposure, weight, or net exposure over time."""
 
     normalized_exposure = normalize_exposure_input(exposure)
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
 
     axis.plot(
         normalized_exposure.index,
         normalized_exposure.values,
         label=normalized_exposure.name or "Exposure",
-        linewidth=2.0,
+        linewidth=DEFAULT_LINEWIDTH,
         color="tab:green",
     )
     if normalized_exposure.min() <= 0.0 <= normalized_exposure.max():
-        axis.axhline(0.0, color="black", linewidth=1.0, linestyle="--", alpha=0.8)
-    axis.set_title(title)
-    axis.set_xlabel("Date")
-    axis.set_ylabel(normalized_exposure.name or "Exposure")
-    axis.legend()
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.autofmt_xdate()
-    figure.tight_layout()
-
-    return _save_or_return_figure(figure, output_path)
+        axis.axhline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8)
+    apply_axis_style(
+        axis,
+        title=title,
+        x_label="Date",
+        y_label=normalized_exposure.name or "Exposure",
+        legend=True,
+    )
+    finalize_figure(figure, axis, use_date_axis=True)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_long_short_counts(
@@ -524,19 +497,14 @@ def plot_long_short_counts(
     """
 
     counts = compute_long_short_counts(positions)
-    figure, axis = plt.subplots(figsize=DEFAULT_FIGSIZE)
+    figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
 
-    axis.plot(counts.index, counts["long_count"].values, label="Long Count", linewidth=2.0, color="tab:green")
-    axis.plot(counts.index, counts["short_count"].values, label="Short Count", linewidth=2.0, color="tab:red")
-    axis.set_title(title)
-    axis.set_xlabel("Date")
-    axis.set_ylabel("Count")
-    axis.legend()
-    axis.grid(True, linestyle=":", linewidth=0.75, alpha=0.7)
-    figure.autofmt_xdate()
-    figure.tight_layout()
+    axis.plot(counts.index, counts["long_count"].values, label="Long Count", linewidth=DEFAULT_LINEWIDTH, color="tab:green")
+    axis.plot(counts.index, counts["short_count"].values, label="Short Count", linewidth=DEFAULT_LINEWIDTH, color="tab:red")
+    apply_axis_style(axis, title=title, x_label="Date", y_label="Count", legend=True)
+    finalize_figure(figure, axis, use_date_axis=True)
 
-    return _save_or_return_figure(figure, output_path)
+    return save_or_return_figure(figure, output_path)
 
 
 def plot_signal_diagnostics(

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import matplotlib
 import pytest
 import pandas as pd
 
@@ -15,6 +16,23 @@ from src.research.reporting import (
     summarize_run,
 )
 from src.research.visualization import get_plot_dir, get_plot_path
+
+matplotlib.use("Agg")
+
+
+def assert_file_exists(path: Path) -> None:
+    assert path.exists(), f"Expected artifact to exist: {path}"
+    assert path.is_file(), f"Expected artifact to be a file: {path}"
+
+
+def assert_in_file(path: Path, substring: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    assert substring in text, f"Expected '{substring}' to appear in {path}"
+
+
+def assert_not_in_file(path: Path, substring: str) -> None:
+    text = path.read_text(encoding="utf-8")
+    assert substring not in text, f"Did not expect '{substring}' to appear in {path}"
 
 
 def _metrics() -> dict[str, float | None]:
@@ -86,6 +104,16 @@ def _report_results() -> pd.DataFrame:
             "signal": signal,
             "strategy_return": strategy_returns,
             "equity_curve": equity_curve,
+        }
+    )
+
+
+def _trade_results() -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "entry_ts_utc": pd.date_range("2022-01-02", periods=4, freq="7D", tz="UTC"),
+            "exit_ts_utc": pd.date_range("2022-01-03", periods=4, freq="7D", tz="UTC"),
+            "return": [0.015, -0.01, 0.02, 0.005],
         }
     )
 
@@ -169,11 +197,11 @@ def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
     assert "- [metrics.json](metrics.json)" in report_text
     assert "- [plots/](plots)" in report_text
 
-    assert (run_dir / "plots" / "equity_curve.png").exists()
-    assert (run_dir / "plots" / "drawdown.png").exists()
-    assert (run_dir / "plots" / "rolling_sharpe_debug.png").exists()
-    assert (run_dir / "plots" / "trade_return_distribution_debug.png").exists()
-    assert (run_dir / "plots" / "win_loss_distribution_debug.png").exists()
+    assert_file_exists(run_dir / "plots" / "equity_curve.png")
+    assert_file_exists(run_dir / "plots" / "drawdown.png")
+    assert_file_exists(run_dir / "plots" / "rolling_sharpe_debug.png")
+    assert_file_exists(run_dir / "plots" / "trade_return_distribution_debug.png")
+    assert_file_exists(run_dir / "plots" / "win_loss_distribution_debug.png")
 
 
 def test_strategy_plot_generation_and_reporting_share_standardized_plot_paths(
@@ -206,6 +234,56 @@ def test_strategy_plot_generation_and_reporting_share_standardized_plot_paths(
         "trade_return_distribution_debug.png",
         "win_loss_distribution_debug.png",
     ]
+
+
+def test_generate_strategy_report_preserves_expected_artifact_structure_and_relative_report_references(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "artifact_contract",
+        _report_results(),
+        _metrics(),
+        {"strategy_name": "artifact_contract", "parameters": {"lookback": 20}},
+    )
+    _trade_results().to_parquet(run_dir / "trades.parquet", index=False)
+
+    report_path = generate_strategy_report(run_dir)
+    plots_dir = get_plot_dir(run_dir)
+
+    expected_plot_names = [
+        "drawdown.png",
+        "equity_curve.png",
+        "rolling_sharpe_debug.png",
+        "trade_return_distribution_debug.png",
+        "win_loss_distribution_debug.png",
+    ]
+
+    assert plots_dir.is_dir()
+    assert sorted(path.name for path in plots_dir.iterdir()) == expected_plot_names
+    for plot_name in expected_plot_names:
+        assert_file_exists(plots_dir / plot_name)
+
+    assert_in_file(report_path, "# Strategy Report: artifact_contract")
+    assert_in_file(report_path, "## Run Configuration Summary")
+    assert_in_file(report_path, "## Key Metrics")
+    assert_in_file(report_path, "## Visualizations")
+    assert_in_file(report_path, "### Performance Overview")
+    assert_in_file(report_path, "### Trade Summary")
+    assert_in_file(report_path, "## Interpretation")
+    assert_in_file(report_path, "## Artifact References")
+    assert_in_file(report_path, "![Equity Curve](plots/equity_curve.png)")
+    assert_in_file(report_path, "![Drawdown](plots/drawdown.png)")
+    assert_in_file(report_path, "- [plots/](plots)")
+    assert_in_file(report_path, "- [equity_curve.png](plots/equity_curve.png)")
+    assert_in_file(report_path, "- [drawdown.png](plots/drawdown.png)")
+    assert_in_file(report_path, "Trade diagnostics cover `4` closed trades.")
+    assert_not_in_file(report_path, "C:/")
+    assert_not_in_file(report_path, str(run_dir).replace("\\", "/"))
+    assert_not_in_file(report_path, "rolling_sharpe_debug.png")
+    assert_not_in_file(report_path, "trade_return_distribution_debug.png")
+    assert_not_in_file(report_path, "win_loss_distribution_debug.png")
 
 
 def test_generate_strategy_plots_rejects_nonstandard_plot_directory(

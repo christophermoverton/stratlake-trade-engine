@@ -7,7 +7,13 @@ from typing import Any
 
 import pandas as pd
 
-from src.research.visualization.artifacts import get_plot_dir, get_plot_path, is_standard_plot_dir
+from src.research.visualization.artifacts import (
+    get_canonical_plot_name,
+    get_plot_dir,
+    get_plot_intent,
+    get_plot_path,
+    is_standard_plot_dir,
+)
 from src.research.visualization.diagnostics import (
     compute_trade_statistics,
     plot_drawdown,
@@ -56,6 +62,10 @@ _PERCENT_METRIC_KEYS = {
 }
 _DECIMAL_METRIC_KEYS = {"profit_factor", "sharpe_ratio", "turnover"}
 _COUNT_METRIC_KEYS = {"count", "win_count", "loss_count"}
+_REPORT_PLOT_ORDER: tuple[tuple[str, str | None, str], ...] = (
+    ("equity_curve", "### Performance Overview", "Equity Curve"),
+    ("drawdown", None, "Drawdown"),
+)
 
 
 def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> Path:
@@ -80,7 +90,7 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
     trades = _load_optional_parquet(resolved_run_dir / "trades.parquet")
     signals = _load_optional_parquet(resolved_run_dir / "signals.parquet")
 
-    plot_paths = generate_report_plots(
+    plot_paths = generate_plot_artifacts(
         run_dir=resolved_run_dir,
         equity_curve=equity_curve,
         trades=trades,
@@ -94,7 +104,7 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
         equity_curve=equity_curve,
         trades=trades,
         signals=signals,
-        plot_paths=plot_paths,
+        plot_paths=_select_plot_paths_by_intent(plot_paths, intent="report"),
     )
     resolved_output_path.write_text(markdown, encoding="utf-8")
     return resolved_output_path
@@ -120,13 +130,10 @@ def generate_strategy_plots(run_dir: Path, plots_dir: Path | None = None) -> dic
         )
     resolved_plots_dir.mkdir(parents=True, exist_ok=True)
 
-    equity_curve = _load_equity_curve(resolved_run_dir)
-    trades = _load_optional_parquet(resolved_run_dir / "trades.parquet")
-
-    plot_paths = generate_report_plots(
+    plot_paths = generate_plot_artifacts(
         run_dir=resolved_run_dir,
-        equity_curve=equity_curve,
-        trades=trades,
+        equity_curve=_load_equity_curve(resolved_run_dir),
+        trades=_load_optional_parquet(resolved_run_dir / "trades.parquet"),
     )
     if not plot_paths:
         raise ValueError(
@@ -209,13 +216,13 @@ def build_markdown_report(
     return "\n".join(sections).rstrip() + "\n"
 
 
-def generate_report_plots(
+def generate_plot_artifacts(
     *,
     run_dir: Path,
     equity_curve: pd.DataFrame | None,
     trades: pd.DataFrame | None,
 ) -> dict[str, Path]:
-    """Generate or reuse report plots derived from run artifacts."""
+    """Generate or reuse deterministic report and debug plots derived from run artifacts."""
 
     plot_paths: dict[str, Path] = {}
 
@@ -238,27 +245,27 @@ def generate_report_plots(
 
         returns_series = _select_returns_series(equity_curve)
         if returns_series is not None and len(returns_series) >= _ROLLING_SHARPE_WINDOW:
-            plot_paths["rolling_sharpe"] = generate_plot_if_needed(
-                output_path=get_plot_path(run_dir, "rolling_sharpe"),
+            plot_paths["rolling_sharpe_debug"] = generate_plot_if_needed(
+                output_path=get_plot_path(run_dir, "rolling_sharpe_debug"),
                 plotter=plot_rolling_sharpe,
                 returns=returns_series,
                 window=_ROLLING_SHARPE_WINDOW,
-                title=f"Rolling Sharpe ({_ROLLING_SHARPE_WINDOW}-period)",
+                title=f"Rolling Sharpe ({_ROLLING_SHARPE_WINDOW}-period, Debug)",
             )
 
     trade_returns = _select_trade_returns(trades)
     if trade_returns is not None:
-        plot_paths["trade_return_distribution"] = generate_plot_if_needed(
-            output_path=get_plot_path(run_dir, "trade_return_distribution"),
+        plot_paths["trade_return_distribution_debug"] = generate_plot_if_needed(
+            output_path=get_plot_path(run_dir, "trade_return_distribution_debug"),
             plotter=plot_trade_return_distribution,
             trade_returns=trade_returns,
-            title="Trade Return Distribution",
+            title="Trade Return Distribution (Debug)",
         )
-        plot_paths["win_loss_distribution"] = generate_plot_if_needed(
-            output_path=get_plot_path(run_dir, "win_loss_distribution"),
+        plot_paths["win_loss_distribution_debug"] = generate_plot_if_needed(
+            output_path=get_plot_path(run_dir, "win_loss_distribution_debug"),
             plotter=plot_win_loss_distribution,
             trade_returns=trade_returns,
-            title="Win/Loss Distribution",
+            title="Win/Loss Distribution (Debug)",
         )
 
     return plot_paths
@@ -316,23 +323,7 @@ def render_visualizations(
 ) -> list[str]:
     sections = ["## Visualizations"]
 
-    performance_blocks = _render_plot_blocks(
-        output_path=output_path,
-        plot_paths=plot_paths,
-        plot_order=(
-            ("equity_curve", "### Performance Overview", "Equity Curve"),
-            ("drawdown", None, "Drawdown"),
-            ("rolling_sharpe", "### Rolling Diagnostics", "Rolling Sharpe"),
-        ),
-    )
-    trade_blocks = _render_plot_blocks(
-        output_path=output_path,
-        plot_paths=plot_paths,
-        plot_order=(
-            ("trade_return_distribution", "### Trade Diagnostics", "Trade Return Distribution"),
-            ("win_loss_distribution", None, "Win Loss Distribution"),
-        ),
-    )
+    performance_blocks = _render_plot_blocks(output_path=output_path, plot_paths=plot_paths, plot_order=_REPORT_PLOT_ORDER)
 
     if performance_blocks:
         sections.extend(performance_blocks)
@@ -340,8 +331,6 @@ def render_visualizations(
         sections.extend(["_No visualization artifacts were available for this run._", ""])
 
     sections.extend(_render_trade_metrics_subsection(trades=trades))
-    if trade_blocks:
-        sections.extend(trade_blocks)
 
     return sections
 
@@ -560,6 +549,8 @@ def _ordered_artifact_links(*, run_dir: Path, plot_paths: dict[str, Path]) -> li
         if plots_dir.exists():
             ordered.append(("plots/", plots_dir))
         for plot_name in sorted(plot_paths):
+            if get_plot_intent(plot_name) != "report":
+                continue
             ordered.append((plot_paths[plot_name].name, plot_paths[plot_name]))
 
     return ordered
@@ -714,6 +705,15 @@ def _resolve_index(frame: pd.DataFrame) -> pd.Index:
 
 def _relative_markdown_path(report_path: Path, target_path: Path) -> str:
     return Path(os.path.relpath(target_path, start=report_path.parent)).as_posix()
+
+
+def _select_plot_paths_by_intent(plot_paths: dict[str, Path], *, intent: str) -> dict[str, Path]:
+    selected: dict[str, Path] = {}
+    for plot_name, plot_path in plot_paths.items():
+        canonical_name = get_canonical_plot_name(plot_name)
+        if get_plot_intent(canonical_name) == intent:
+            selected[canonical_name] = plot_path
+    return selected
 
 
 def _format_value(value: Any) -> str:

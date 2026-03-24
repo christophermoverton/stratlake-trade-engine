@@ -10,10 +10,14 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from src.research.visualization.artifacts import (
+    PlotIntent,
+    get_canonical_plot_name,
     get_plot_dir,
     get_plot_filename,
+    get_plot_intent,
     get_plot_path,
     is_standard_plot_dir,
+    list_plot_names,
 )
 from src.research.visualization.plot_utils import DEFAULT_DPI, DEFAULT_FIGSIZE
 from src.research.visualization.comparison import (
@@ -59,10 +63,14 @@ __all__ = [
     "compute_trade_statistics",
     "DEFAULT_DPI",
     "DEFAULT_FIGSIZE",
+    "get_canonical_plot_name",
     "get_plot_dir",
     "get_plot_filename",
+    "get_plot_intent",
     "get_plot_path",
     "is_standard_plot_dir",
+    "list_plot_names",
+    "PlotIntent",
     "plot_cumulative_returns",
     "plot_drawdown",
     "plot_equity_comparison",

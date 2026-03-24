@@ -156,26 +156,24 @@ def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
     assert "## Key Metrics" in report_text
     assert "## Visualizations" in report_text
     assert "### Performance Overview" in report_text
-    assert "### Rolling Diagnostics" in report_text
     assert "### Trade Summary" in report_text
-    assert "### Trade Diagnostics" in report_text
     assert "## Interpretation" in report_text
     assert "## Artifact References" in report_text
     assert "| Sharpe | 0.410 |" in report_text
     assert "| Total Return | 0.98% |" in report_text
     assert "![Equity Curve](plots/equity_curve.png)" in report_text
     assert "![Drawdown](plots/drawdown.png)" in report_text
-    assert "![Rolling Sharpe](plots/rolling_sharpe.png)" in report_text
-    assert "![Trade Return Distribution](plots/trade_return_distribution.png)" in report_text
-    assert "![Win Loss Distribution](plots/win_loss_distribution.png)" in report_text
+    assert "rolling_sharpe_debug.png" not in report_text
+    assert "trade_return_distribution_debug.png" not in report_text
+    assert "win_loss_distribution_debug.png" not in report_text
     assert "- [metrics.json](metrics.json)" in report_text
     assert "- [plots/](plots)" in report_text
 
     assert (run_dir / "plots" / "equity_curve.png").exists()
     assert (run_dir / "plots" / "drawdown.png").exists()
-    assert (run_dir / "plots" / "rolling_sharpe.png").exists()
-    assert (run_dir / "plots" / "trade_return_distribution.png").exists()
-    assert (run_dir / "plots" / "win_loss_distribution.png").exists()
+    assert (run_dir / "plots" / "rolling_sharpe_debug.png").exists()
+    assert (run_dir / "plots" / "trade_return_distribution_debug.png").exists()
+    assert (run_dir / "plots" / "win_loss_distribution_debug.png").exists()
 
 
 def test_strategy_plot_generation_and_reporting_share_standardized_plot_paths(
@@ -197,16 +195,16 @@ def test_strategy_plot_generation_and_reporting_share_standardized_plot_paths(
     assert get_plot_dir(run_dir) == run_dir / "plots"
     assert plot_paths["equity_curve"] == get_plot_path(run_dir, "equity_curve")
     assert plot_paths["drawdown"] == get_plot_path(run_dir, "drawdown")
-    assert plot_paths["rolling_sharpe"] == get_plot_path(run_dir, "rolling_sharpe")
-    assert plot_paths["trade_return_distribution"] == get_plot_path(run_dir, "trade_return_distribution")
-    assert plot_paths["win_loss_distribution"] == get_plot_path(run_dir, "win_loss_distribution")
+    assert plot_paths["rolling_sharpe_debug"] == get_plot_path(run_dir, "rolling_sharpe_debug")
+    assert plot_paths["trade_return_distribution_debug"] == get_plot_path(run_dir, "trade_return_distribution_debug")
+    assert plot_paths["win_loss_distribution_debug"] == get_plot_path(run_dir, "win_loss_distribution_debug")
     assert "![Equity Curve](plots/equity_curve.png)" in report_text
     assert sorted(path.name for path in get_plot_dir(run_dir).iterdir()) == [
         "drawdown.png",
         "equity_curve.png",
-        "rolling_sharpe.png",
-        "trade_return_distribution.png",
-        "win_loss_distribution.png",
+        "rolling_sharpe_debug.png",
+        "trade_return_distribution_debug.png",
+        "win_loss_distribution_debug.png",
     ]
 
 
@@ -244,7 +242,6 @@ def test_generate_strategy_report_skips_optional_sections_when_artifacts_are_mis
     assert "### Trade Summary" in report_text
     assert "_Trade data unavailable for this run._" in report_text
     assert "### Performance Overview" not in report_text
-    assert "### Rolling Diagnostics" not in report_text
 
 
 def test_generate_strategy_report_raises_when_metrics_are_missing(tmp_path: Path) -> None:

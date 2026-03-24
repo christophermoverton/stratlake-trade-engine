@@ -75,9 +75,9 @@ Representative per-run artifacts:
 
 * `artifacts/strategies/momentum_v1_single_5accf9137182/plots/equity_curve.png`
 * `artifacts/strategies/momentum_v1_single_5accf9137182/plots/drawdown.png`
-* `artifacts/strategies/momentum_v1_single_5accf9137182/plots/rolling_sharpe.png`
-* `artifacts/strategies/momentum_v1_single_5accf9137182/plots/trade_return_distribution.png`
-* `artifacts/strategies/momentum_v1_single_5accf9137182/plots/win_loss_distribution.png`
+* `artifacts/strategies/momentum_v1_single_5accf9137182/plots/rolling_sharpe_debug.png`
+* `artifacts/strategies/momentum_v1_single_5accf9137182/plots/trade_return_distribution_debug.png`
+* `artifacts/strategies/momentum_v1_single_5accf9137182/plots/win_loss_distribution_debug.png`
 * `artifacts/strategies/momentum_v1_single_5accf9137182/report.md`
 
 Comparison artifacts:
@@ -93,4 +93,7 @@ Comparison artifacts:
 This workflow stays reproducible because the selected strategies, parameters,
 dataset, and date range are fixed. The resulting single-run artifact directories
 are deterministic for the same saved inputs, and the report reuses plots from
-the standardized `<run_dir>/plots/` directory when they already exist.
+the standardized `<run_dir>/plots/` directory when they already exist. The
+single-run report embeds only the report-quality plots, while the `_debug`
+artifacts remain available in the same `plots/` directory for deeper
+inspection.

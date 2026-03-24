@@ -87,18 +87,25 @@ Behavior:
 * validates that `--run-dir` exists and contains `metrics.json`
 * writes supported plot artifacts under `<run_dir>/plots/`
 * generates only plots supported by the artifacts present in the run directory
+* keeps report-quality artifacts on their base names and appends `_debug` to
+  debug-oriented plot filenames
 * raises an error if the run has no usable plot inputs
 
 Plots currently generated from a supported single-run artifact set are:
 
+Report-quality:
+
 * `equity_curve.png`
 * `drawdown.png`
-* `rolling_sharpe.png` when `equity_curve.csv` contains enough
+
+Debug:
+
+* `rolling_sharpe_debug.png` when `equity_curve.csv` contains enough
   `strategy_return` history for the current 20-period window
-* `trade_return_distribution.png` when `trades.parquet` has a numeric
+* `trade_return_distribution_debug.png` when `trades.parquet` has a numeric
   `return` column
-* `win_loss_distribution.png` when `trades.parquet` has a numeric `return`
-  column
+* `win_loss_distribution_debug.png` when `trades.parquet` has a numeric
+  `return` column
 
 Only supported plots are emitted. For example:
 
@@ -141,6 +148,8 @@ Behavior:
 * accepts `--output-path <path>` to write the report somewhere else
 * reuses existing standardized plot artifacts when they already exist
 * generates missing supported plots as part of report generation when needed
+* embeds only report-quality plots in `report.md` while still generating debug
+  artifacts under `<run_dir>/plots/`
 * renders a fixed Markdown section order so reports stay easy to scan across runs
 
 The report generator always anchors plot artifacts under the standardized
@@ -152,7 +161,9 @@ Generated reports follow a lightweight, portable structure:
 * title and run header with strategy, run id, mode, timeframe, and date range
 * run configuration summary with dataset, parameters, and evaluation settings
 * key metrics table rendered in deterministic Markdown
-* visualizations grouped into performance, rolling diagnostics, and trade diagnostics
+* visualizations limited to clean performance and risk views
+* trade summary tables derived from saved artifacts without embedding dense
+  debug histograms
 * a short interpretation section derived from saved metrics and optional trade artifacts
 * artifact references linking back to `metrics.json`, `equity_curve.csv`,
   optional parquet artifacts, `metrics_by_split.csv` for walk-forward runs,
@@ -179,9 +190,9 @@ artifacts/strategies/<run_id>/
   plots/
     equity_curve.png
     drawdown.png
-    rolling_sharpe.png
-    trade_return_distribution.png
-    win_loss_distribution.png
+    rolling_sharpe_debug.png
+    trade_return_distribution_debug.png
+    win_loss_distribution_debug.png
   report.md
 ```
 
@@ -252,6 +263,15 @@ Comparison equity behavior is intentionally split by intent:
 * debug-oriented raw overlays can be emitted separately as
   `equity_comparison_debug.png`, where faint individual runs sit behind the
   highlighted strategy median
+
+Single-run artifacts now follow the same intent split:
+
+* report-quality plots are presentation-ready and safe to embed in `report.md`
+* debug plots preserve denser diagnostic detail and use the `_debug.png`
+  suffix
+* current single-run reports embed `equity_curve.png` and `drawdown.png`
+* rolling Sharpe and trade distribution plots remain available as debug
+  artifacts under their `_debug.png` names
 
 Metric comparison bar charts also sort strategies from best to worst for the
 selected metric so leaderboard-style questions are easier to answer quickly.

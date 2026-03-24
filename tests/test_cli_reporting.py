@@ -108,9 +108,9 @@ def test_plot_strategy_run_cli_generates_supported_plot_artifacts(
     assert set(plot_paths) == {
         "drawdown",
         "equity_curve",
-        "rolling_sharpe",
-        "trade_return_distribution",
-        "win_loss_distribution",
+        "rolling_sharpe_debug",
+        "trade_return_distribution_debug",
+        "win_loss_distribution_debug",
     }
     for path in plot_paths.values():
         assert path.exists()
@@ -142,7 +142,7 @@ def test_plot_strategy_run_cli_generates_only_supported_optional_plots(tmp_path:
     assert set(plot_paths) == {"drawdown", "equity_curve"}
     assert (run_dir / "plots" / "equity_curve.png").exists()
     assert (run_dir / "plots" / "drawdown.png").exists()
-    assert not (run_dir / "plots" / "trade_return_distribution.png").exists()
+    assert not (run_dir / "plots" / "trade_return_distribution_debug.png").exists()
 
 
 def test_plot_strategy_run_cli_raises_for_missing_run_dir() -> None:

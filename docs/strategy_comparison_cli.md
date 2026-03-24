@@ -35,7 +35,8 @@ Module execution:
 
 Required arguments:
 
-* `--strategies` -> comma-separated strategy names from `configs/strategies.yml`
+* `--strategies` -> strategy names from `configs/strategies.yml`; accepts
+  comma-separated and/or space-separated values
 
 Optional arguments:
 
@@ -217,3 +218,5 @@ Write the leaderboard to a custom location:
 * [docs/walk_forward_strategy_runner.md](walk_forward_strategy_runner.md)
 * [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
 * [docs/strategy_performance_metrics.md](strategy_performance_metrics.md)
+* [docs/research_visualization_workflow.md](research_visualization_workflow.md)
+* [docs/examples/strategy_comparison_example.md](examples/strategy_comparison_example.md)

@@ -3,7 +3,7 @@
 ## Overview
 
 StratLake's visualization and reporting layers sit after research execution.
-They extend the saved outputs of a strategy run; they do not replace the core
+They extend saved strategy-run artifacts; they do not replace the core
 artifacts, metrics, or evaluation flow.
 
 The purpose of these layers is to turn existing run artifacts into
@@ -18,10 +18,11 @@ logic.
 
 Use this guide alongside:
 
-* [docs/strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
-* [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
-* [docs/strategy_performance_metrics.md](strategy_performance_metrics.md)
-* [docs/visualization_reporting_audit.md](visualization_reporting_audit.md)
+* [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
+* [experiment_artifact_logging.md](experiment_artifact_logging.md)
+* [strategy_performance_metrics.md](strategy_performance_metrics.md)
+* [examples/strategy_comparison_example.md](examples/strategy_comparison_example.md)
+* [visualization_reporting_audit.md](visualization_reporting_audit.md)
 
 ## Workflow Integration
 
@@ -66,9 +67,8 @@ into one deterministic Markdown deliverable.
 
 ## How To Generate Plots
 
-The plot generation CLI is implemented by
-`src/cli/plot_strategy_run.py` and the underlying reporting helpers in
-`src/research/reporting/report_generator.py`.
+The plot generation CLI is implemented by `src/cli/plot_strategy_run.py` and
+uses the reporting helpers in `src/research/reporting/report_generator.py`.
 
 The run-scoped command is:
 
@@ -113,6 +113,14 @@ Only supported plots are emitted. For example:
   are skipped
 * if `trades.parquet` is absent, trade distribution plots are skipped
 
+The current report-vs-debug split is defined by the standardized plot artifact
+registry in `src/research/visualization/artifacts.py`:
+
+* report-quality plots keep their canonical names and are suitable for
+  `report.md`
+* debug plots use `_debug.png` filenames and stay available in `plots/` for
+  deeper inspection
+
 ## How To Generate Reports
 
 The report generation CLI is implemented by `src/cli/generate_report.py`.
@@ -156,18 +164,41 @@ The report generator always anchors plot artifacts under the standardized
 `<run_dir>/plots/` directory, even when the report itself is written to a
 custom output path.
 
+In the current implementation, `report.md` decides what to include by
+filtering generated plot artifacts by intent:
+
+* report-quality plots are selected from the standardized plot registry and
+  embedded with relative Markdown image links
+* debug plots are intentionally excluded from the rendered Markdown, even when
+  they were generated in the same run
+* artifact links still point readers back to the run directory and `plots/`
+  folder so the full saved output remains discoverable
+
 Generated reports follow a lightweight, portable structure:
 
 * title and run header with strategy, run id, mode, timeframe, and date range
 * run configuration summary with dataset, parameters, and evaluation settings
 * key metrics table rendered in deterministic Markdown
-* visualizations limited to clean performance and risk views
-* trade summary tables derived from saved artifacts without embedding dense
-  debug histograms
-* a short interpretation section derived from saved metrics and optional trade artifacts
+* visualizations limited to report-quality performance and risk views
+* trade summary tables derived from saved artifacts without embedding debug
+  histograms
+* a short interpretation section derived from saved metrics and optional trade
+  artifacts
 * artifact references linking back to `metrics.json`, `equity_curve.csv`,
   optional parquet artifacts, `metrics_by_split.csv` for walk-forward runs,
   and generated plots
+
+Current report-quality image embeds are:
+
+* `plots/equity_curve.png`
+* `plots/drawdown.png`
+
+Current debug-only plot artifacts remain available in `plots/` but are not
+embedded:
+
+* `plots/rolling_sharpe_debug.png`
+* `plots/trade_return_distribution_debug.png`
+* `plots/win_loss_distribution_debug.png`
 
 ## Artifact Structure
 
@@ -199,6 +230,11 @@ artifacts/strategies/<run_id>/
 Not every run will contain every optional artifact. The minimum contract for
 plot and report generation is `metrics.json`, with additional visual outputs
 included only when the supporting artifacts exist.
+
+Walk-forward runs use the same run-level `plots/` and `report.md` locations.
+They may also include `metrics_by_split.csv` and `splits/<split_id>/...`
+artifacts for fold-level inspection, but the current Markdown report keeps the
+embedded visualization set focused on the report-quality summary views.
 
 ## Visualization Coverage
 
@@ -273,12 +309,20 @@ Single-run artifacts now follow the same intent split:
 * rolling Sharpe and trade distribution plots remain available as debug
   artifacts under their `_debug.png` names
 
+The current comparison example follows the same naming rule under
+`artifacts/comparisons/<comparison_id>/plots/`:
+
+* `equity_comparison.png` is the report-quality comparison view
+* `equity_comparison_debug.png` is the raw overlay diagnostic
+* `metric_comparison_<metric_name>.png` is the report-quality metric bar chart
+
 Metric comparison bar charts also sort strategies from best to worst for the
 selected metric so leaderboard-style questions are easier to answer quickly.
 
 These modules exist as reusable visualization helpers. The current report
 generation flow automatically emits only the supported single-run plots derived
-from saved run artifacts.
+from saved run artifacts, while the bounded comparison example demonstrates how
+comparison plots fit on top of saved run outputs.
 
 ## Determinism And Reproducibility
 
@@ -305,8 +349,8 @@ The current scope is intentionally narrow:
 * report generation uses a fixed Markdown structure rather than a templating
   system
 * visualization helpers for walk-forward and comparison workflows exist, but
-  reports remain artifact-driven and lightweight rather than becoming
-  full narrative analysis documents
+  reports remain artifact-driven and lightweight rather than becoming full
+  narrative analysis documents
 
 This design keeps the workflow deterministic, reviewable, and aligned with the
 repository's artifact-first research model.

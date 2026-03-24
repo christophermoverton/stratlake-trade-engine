@@ -6,6 +6,11 @@ This example runs three existing daily strategies over one bounded date range,
 generates the standard per-run plot artifacts, produces a Markdown report for a
 representative run, and writes deterministic comparison artifacts in one place.
 
+Use it together with:
+
+* [../research_visualization_workflow.md](../research_visualization_workflow.md)
+* [../strategy_comparison_cli.md](../strategy_comparison_cli.md)
+
 Selected strategies:
 
 * `momentum_v1`
@@ -85,6 +90,7 @@ Comparison artifacts:
 * `artifacts/comparisons/strategy_comparison_example/leaderboard.csv`
 * `artifacts/comparisons/strategy_comparison_example/leaderboard.json`
 * `artifacts/comparisons/strategy_comparison_example/plots/equity_comparison.png`
+* `artifacts/comparisons/strategy_comparison_example/plots/equity_comparison_debug.png`
 * `artifacts/comparisons/strategy_comparison_example/plots/metric_comparison_sharpe_ratio.png`
 * `artifacts/comparisons/strategy_comparison_example/example_summary.json`
 
@@ -97,3 +103,12 @@ the standardized `<run_dir>/plots/` directory when they already exist. The
 single-run report embeds only the report-quality plots, while the `_debug`
 artifacts remain available in the same `plots/` directory for deeper
 inspection.
+
+For this example, that means:
+
+* per-run `report.md` embeds `equity_curve.png` and `drawdown.png`
+* per-run debug artifacts such as `rolling_sharpe_debug.png` stay in each
+  run's `plots/` directory
+* comparison outputs include both the presentation-ready
+  `equity_comparison.png` and the raw-overlay
+  `equity_comparison_debug.png`

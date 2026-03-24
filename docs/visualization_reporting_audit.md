@@ -8,6 +8,11 @@ The goal is to document what is already working well, what appears best suited
 for debug-oriented review, and what should be redesigned in later Milestone 7
 issues without changing research logic, artifact schemas, or CLI behavior.
 
+This document is preserved as a historical Milestone 7 audit snapshot. Some
+artifact names and report details below describe the pre-polish state reviewed
+during the audit rather than the latest implementation. For the current
+workflow and filenames, use [research_visualization_workflow.md](research_visualization_workflow.md).
+
 Sources reviewed:
 
 * workflow docs in `README.md` and `docs/`
@@ -52,7 +57,7 @@ Implemented helpers live under `src/research/visualization/`:
   `plot_walk_forward_splits()`, `plot_fold_level_metrics()`,
   `plot_walk_forward_results()`
 
-Actual auto-generated plots in the current single-run reporting flow are
+At audit time, auto-generated plots in the single-run reporting flow were
 limited to:
 
 * `equity_curve.png`
@@ -69,7 +74,7 @@ limited to:
 * `src/research/reporting/__init__.py`
   Convenience loading and quick-summary helpers around saved run artifacts.
 
-Current report section order is fixed:
+At audit time, report section order was:
 
 * `Run Metadata`
 * `Performance Summary`
@@ -82,7 +87,7 @@ Current report section order is fixed:
 
 ### Artifact Names And Locations
 
-Single-run visualization/report artifacts:
+Single-run visualization/report artifacts observed during the audit:
 
 * `<run_dir>/plots/equity_curve.png`
 * `<run_dir>/plots/drawdown.png`

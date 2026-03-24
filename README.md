@@ -235,6 +235,7 @@ Focused references:
 * [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
 * [docs/evaluation_split_configuration.md](docs/evaluation_split_configuration.md)
 * [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
+* [docs/examples/strategy_comparison_example.md](docs/examples/strategy_comparison_example.md)
 
 ### Research Flow
 
@@ -334,12 +335,23 @@ Standardized outputs:
 `generate_report` also supports `--output-path <path>` for a custom Markdown
 destination while still keeping plot artifacts under `<run_dir>/plots/`.
 
+Current single-run plot artifacts distinguish report-quality and debug outputs:
+
+* report-quality: `equity_curve.png`, `drawdown.png`
+* debug-only: `rolling_sharpe_debug.png`,
+  `trade_return_distribution_debug.png`,
+  `win_loss_distribution_debug.png`
+
 Generated reports use a consistent lightweight structure with a run header,
-configuration summary, key metrics table, grouped visualizations, a short
-interpretation section, and relative links back to saved artifacts.
+configuration summary, key metrics table, report-quality visualizations, a
+trade summary, a short interpretation section, and relative links back to saved
+artifacts.
 
 See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 for the workflow, supported plots, artifact layout, and reporting behavior.
+See [docs/examples/strategy_comparison_example.md](docs/examples/strategy_comparison_example.md)
+for the bounded comparison workflow that layers comparison plots on top of
+saved run artifacts.
 
 ### Strategy CLI Usage
 

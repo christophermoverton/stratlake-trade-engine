@@ -24,6 +24,7 @@ def test_plot_artifact_helpers_return_standardized_run_scoped_paths() -> None:
         run_dir / "plots" / "fold_metric_sharpe_ratio.png"
     )
     assert get_plot_path(run_dir, "equity_comparison") == run_dir / "plots" / "equity_comparison.png"
+    assert get_plot_path(run_dir, "equity_comparison_debug") == run_dir / "plots" / "equity_comparison_debug.png"
     assert get_plot_path(run_dir, "metric_comparison", metric_name="max_drawdown") == (
         run_dir / "plots" / "metric_comparison_max_drawdown.png"
     )

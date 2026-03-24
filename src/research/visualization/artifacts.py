@@ -9,6 +9,7 @@ _STATIC_PLOT_FILENAMES: dict[str, str] = {
     "cumulative_returns": "cumulative_returns.png",
     "drawdown": "drawdown.png",
     "equity_comparison": "equity_comparison.png",
+    "equity_comparison_debug": "equity_comparison_debug.png",
     "equity_curve": "equity_curve.png",
     "exposure_over_time": "exposure_over_time.png",
     "long_short_counts": "long_short_counts.png",

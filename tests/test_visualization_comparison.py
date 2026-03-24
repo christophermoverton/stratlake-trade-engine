@@ -64,6 +64,49 @@ def test_plot_equity_comparison_accepts_sequence_input_and_aligns_on_inner_join(
     result.clf()
 
 
+def test_plot_equity_comparison_aggregates_duplicate_strategy_labels_with_variability_band() -> None:
+    index = _date_index()
+
+    result = plot_equity_comparison(
+        [
+            ("Alpha", pd.Series([1.0, 1.04, 1.08, 1.12], index=index)),
+            ("Alpha", pd.Series([1.0, 1.02, 1.06, 1.09], index=index)),
+            ("Beta", pd.Series([1.0, 0.99, 1.01, 1.02], index=index)),
+        ],
+        input_type="equity",
+    )
+
+    assert isinstance(result, Figure)
+    axis = result.axes[0]
+    assert [line.get_label() for line in axis.lines] == ["Alpha median (n=2)", "Beta"]
+    assert len(axis.collections) == 1
+    assert any("interquartile equity range" in text.get_text() for text in axis.texts)
+    result.clf()
+
+
+def test_plot_equity_comparison_raw_view_preserves_individual_run_overlays() -> None:
+    index = _date_index()
+
+    result = plot_equity_comparison(
+        [
+            ("Alpha", pd.Series([1.0, 1.03, 1.07, 1.1], index=index)),
+            ("Alpha", pd.Series([1.0, 1.01, 1.05, 1.08], index=index)),
+            ("Beta", pd.Series([1.0, 1.0, 1.02, 1.04], index=index)),
+        ],
+        input_type="equity",
+        view="raw",
+    )
+
+    assert isinstance(result, Figure)
+    axis = result.axes[0]
+    assert len(axis.lines) == 4
+    assert [line.get_label() for line in axis.lines[-2:]] == ["Alpha median (n=2)", "Beta"]
+    legend = axis.get_legend()
+    assert legend is not None
+    assert [text.get_text() for text in legend.get_texts()] == ["Individual runs", "Alpha median (n=2)", "Beta"]
+    result.clf()
+
+
 def test_align_series_collection_raises_when_series_do_not_overlap() -> None:
     alpha = pd.Series([1.0, 1.1], index=pd.to_datetime(["2024-01-01", "2024-01-02"]))
     beta = pd.Series([1.0, 1.05], index=pd.to_datetime(["2024-01-03", "2024-01-04"]))
@@ -104,6 +147,23 @@ def test_plot_metric_comparison_returns_figure_for_dataframe_input() -> None:
     axis = result.axes[0]
     assert axis.get_ylabel() == "total_return"
     assert [tick.get_text() for tick in axis.get_xticklabels()] == ["run-alpha", "run-beta"]
+    assert axis.patches[0].get_facecolor() != axis.patches[1].get_facecolor()
+    result.clf()
+
+
+def test_plot_metric_comparison_sorts_best_strategy_first() -> None:
+    metrics = pd.DataFrame(
+        {
+            "strategy": ["Gamma", "Alpha", "Beta"],
+            "sharpe": [0.2, 1.1, 0.6],
+        }
+    )
+
+    result = plot_metric_comparison(metrics, metric_name="sharpe")
+
+    assert isinstance(result, Figure)
+    axis = result.axes[0]
+    assert [tick.get_text() for tick in axis.get_xticklabels()] == ["Alpha", "Beta", "Gamma"]
     result.clf()
 
 
@@ -145,5 +205,5 @@ def test_plot_strategy_overlays_accepts_legacy_sequence_and_labels() -> None:
     result = plot_strategy_overlays(strategy_frames, labels=["Alpha", "Beta"])
 
     assert isinstance(result, Figure)
-    assert [line.get_label() for line in result.axes[0].lines] == ["Alpha", "Beta"]
+    assert [line.get_label() for line in result.axes[0].lines[-2:]] == ["Alpha", "Beta"]
     result.clf()

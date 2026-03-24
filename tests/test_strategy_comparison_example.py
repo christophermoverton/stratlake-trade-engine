@@ -152,6 +152,8 @@ def test_run_cli_generates_summary_and_comparison_plots(tmp_path: Path, monkeypa
     assert report_calls == [artifacts_root / run_ids["momentum_v1"]]
     assert generated_plot_calls == [
         tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "equity_comparison.png",
+        tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "equity_comparison_debug.png",
         tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "metric_comparison_sharpe_ratio.png",
     ]
     assert summary["report_path"] == (artifacts_root / run_ids["momentum_v1"] / "report.md").as_posix()
+    assert summary["comparison_plots"]["equity_comparison_debug"].endswith("equity_comparison_debug.png")

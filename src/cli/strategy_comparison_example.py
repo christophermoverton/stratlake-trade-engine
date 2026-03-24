@@ -161,6 +161,14 @@ def _generate_comparison_plots(
         output_path=equity_plot_path,
         input_type="equity",
     )
+    equity_debug_plot_path = plots_dir / get_plot_filename("equity_comparison_debug")
+    plot_equity_comparison(
+        equity_inputs,
+        title="Strategy Equity Comparison (Debug Overlay)",
+        output_path=equity_debug_plot_path,
+        input_type="equity",
+        view="raw",
+    )
 
     metric_plot_path = plots_dir / get_plot_filename("metric_comparison", metric_name=metric_name)
     plot_metric_comparison(
@@ -172,6 +180,7 @@ def _generate_comparison_plots(
 
     return {
         "equity_comparison": equity_plot_path,
+        "equity_comparison_debug": equity_debug_plot_path,
         "metric_comparison": metric_plot_path,
     }
 

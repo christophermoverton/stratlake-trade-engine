@@ -6,11 +6,15 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
+import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
+from matplotlib.ticker import MaxNLocator
 import pandas as pd
 
 from src.research.visualization.equity import normalize_equity_input
 from src.research.visualization.plot_utils import (
     DEFAULT_BAR_ALPHA,
+    DEFAULT_FILL_ALPHA,
     DEFAULT_FIGSIZE,
     DEFAULT_LINEWIDTH,
     REFERENCE_LINEWIDTH,
@@ -28,11 +32,15 @@ else:
 PlotInput = pd.Series | pd.DataFrame
 PlotResult = Path | Figure
 InputType = Literal["returns", "equity"]
+ComparisonView = Literal["aggregate", "raw"]
 SeriesInput = Mapping[str, PlotInput] | Sequence[tuple[str, PlotInput]]
 MetricInput = pd.DataFrame | Sequence[Mapping[str, object]]
 
 _TIME_INDEX_TYPES = (pd.DatetimeIndex, pd.PeriodIndex, pd.TimedeltaIndex)
 _DEFAULT_LABEL_COLUMNS = ("strategy", "strategy_name", "run_id")
+_RAW_LINE_ALPHA = 0.16
+_RAW_LINEWIDTH = 1.0
+_SUMMARY_LINEWIDTH = DEFAULT_LINEWIDTH + 0.35
 
 
 def normalize_strategy_series_inputs(
@@ -91,6 +99,7 @@ def plot_equity_comparison(
     title: str = "Equity Comparison",
     output_path: Path | None = None,
     input_type: InputType = "equity",
+    view: ComparisonView = "aggregate",
 ) -> PlotResult:
     """Plot aligned equity curves for multiple strategy runs.
 
@@ -104,16 +113,101 @@ def plot_equity_comparison(
             saved as a PNG and the saved path is returned.
         input_type: Explicitly identifies whether the input values are periodic
             returns or cumulative equity values.
+        view: ``"aggregate"`` renders one summary line per strategy and adds an
+            interquartile band when multiple runs share the same strategy label.
+            ``"raw"`` keeps faint individual run overlays and a highlighted
+            median summary per strategy for dense diagnostic inspection.
     """
 
     normalized = normalize_strategy_series_inputs(strategy_data, input_type=input_type)
-    aligned = align_series_collection(normalized)
+    grouped = _group_strategy_series(normalized)
+    summaries = _summarize_grouped_series(grouped)
+    aligned = align_series_collection(
+        [(name, summary["median"]) for name, summary in summaries]
+    )
 
     figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
-    for name in aligned.columns:
-        axis.plot(aligned.index, aligned[name].values, label=name, linewidth=DEFAULT_LINEWIDTH)
 
-    apply_axis_style(axis, title=title, x_label="Date", y_label="Equity", legend=True)
+    cycle_colors = plt.rcParams["axes.prop_cycle"].by_key().get("color", [])
+    if not cycle_colors:
+        cycle_colors = ["tab:blue", "tab:orange", "tab:green", "tab:red", "tab:purple"]
+    legend_handles: list[Line2D] = []
+
+    if view == "aggregate":
+        for index, (name, summary) in enumerate(summaries):
+            color = cycle_colors[index % len(cycle_colors)]
+            median = aligned[name]
+            line = axis.plot(
+                median.index,
+                median.values,
+                color=color,
+                linewidth=_SUMMARY_LINEWIDTH,
+                label=_summary_label(name=name, run_count=int(summary["run_count"])),
+            )[0]
+            legend_handles.append(line)
+
+            lower = summary["lower"].reindex(median.index)
+            upper = summary["upper"].reindex(median.index)
+            if int(summary["run_count"]) > 1:
+                axis.fill_between(
+                    median.index,
+                    lower.values,
+                    upper.values,
+                    color=color,
+                    alpha=DEFAULT_FILL_ALPHA,
+                    linewidth=0.0,
+                )
+
+        if any(int(summary["run_count"]) > 1 for _, summary in summaries):
+            axis.text(
+                0.01,
+                0.02,
+                "Shaded bands show the interquartile equity range across runs.",
+                transform=axis.transAxes,
+                fontsize=9,
+                alpha=0.85,
+                va="bottom",
+            )
+    elif view == "raw":
+        include_raw_legend = any(int(summary["run_count"]) > 1 for _, summary in summaries)
+        if include_raw_legend:
+            legend_handles.append(
+                Line2D(
+                    [0.0],
+                    [0.0],
+                    color="0.5",
+                    linewidth=_RAW_LINEWIDTH,
+                    alpha=_RAW_LINE_ALPHA,
+                    label="Individual runs",
+                )
+            )
+        for index, (name, summary) in enumerate(summaries):
+            color = cycle_colors[index % len(cycle_colors)]
+            if int(summary["run_count"]) > 1:
+                for series in summary["runs"]:
+                    axis.plot(
+                        series.index,
+                        series.values,
+                        color=color,
+                        linewidth=_RAW_LINEWIDTH,
+                        alpha=_RAW_LINE_ALPHA,
+                        label="_nolegend_",
+                    )
+
+            median = aligned[name]
+            line = axis.plot(
+                median.index,
+                median.values,
+                color=color,
+                linewidth=_SUMMARY_LINEWIDTH,
+                label=_summary_label(name=name, run_count=int(summary["run_count"])),
+            )[0]
+            legend_handles.append(line)
+    else:
+        raise ValueError("view must be either 'aggregate' or 'raw'.")
+
+    axis.legend(handles=legend_handles, loc="best", frameon=False)
+    apply_axis_style(axis, title=title, x_label="Date", y_label="Equity")
     finalize_figure(figure, axis, use_date_axis=True)
 
     return save_or_return_figure(figure, output_path)
@@ -143,6 +237,7 @@ def plot_strategy_overlays(
         title=title,
         output_path=output_path,
         input_type="equity",
+        view="raw",
     )
 
 
@@ -179,8 +274,13 @@ def plot_metric_comparison(
 
     normalized = validate_metric_dataframe(metrics_frame, metric_name=metric_name)
     resolved_title = title or f"Strategy {metric_name} Comparison"
+    normalized = normalized.sort_values(by=metric_name, ascending=False, kind="mergesort").reset_index(drop=True)
     values = normalized[metric_name].astype("float64")
-    colors = ["tab:green" if value >= 0.0 else "tab:red" for value in values]
+    top_value = values.iloc[0]
+    colors = [
+        "tab:blue" if value == top_value else ("tab:green" if value >= 0.0 else "tab:red")
+        for value in values
+    ]
 
     figure, axis = create_figure(figsize=DEFAULT_FIGSIZE)
     axis.bar(
@@ -192,6 +292,7 @@ def plot_metric_comparison(
         alpha=DEFAULT_BAR_ALPHA,
     )
     axis.axhline(0.0, color="black", linewidth=REFERENCE_LINEWIDTH, linestyle="--", alpha=0.8)
+    axis.yaxis.set_major_locator(MaxNLocator(nbins="auto", min_n_ticks=4))
     apply_axis_style(
         axis,
         title=resolved_title,
@@ -284,6 +385,50 @@ def _coerce_named_series_inputs(strategy_data: SeriesInput) -> list[tuple[str, P
         name, data = item
         pairs.append((str(name), data))
     return pairs
+
+
+def _group_strategy_series(strategy_series: Sequence[tuple[str, pd.Series]]) -> list[tuple[str, list[pd.Series]]]:
+    """Group normalized series by strategy name while preserving first-seen order."""
+
+    grouped: dict[str, list[pd.Series]] = {}
+    for name, series in strategy_series:
+        grouped.setdefault(name, []).append(series.copy(deep=True))
+    return [(name, grouped[name]) for name in grouped]
+
+
+def _summarize_grouped_series(
+    grouped_series: Sequence[tuple[str, list[pd.Series]]],
+) -> list[tuple[str, dict[str, object]]]:
+    """Build deterministic median and variability summaries for each strategy."""
+
+    summaries: list[tuple[str, dict[str, object]]] = []
+    for name, runs in grouped_series:
+        combined = pd.concat(list(runs), axis=1, join="outer").sort_index()
+        combined.columns = [f"run_{index}" for index in range(len(runs))]
+        median = combined.median(axis=1, skipna=True).dropna().astype("float64")
+        lower = combined.quantile(0.25, axis=1, interpolation="linear").dropna().astype("float64")
+        upper = combined.quantile(0.75, axis=1, interpolation="linear").dropna().astype("float64")
+        summaries.append(
+            (
+                name,
+                {
+                    "median": median.rename(name),
+                    "lower": lower.rename(name),
+                    "upper": upper.rename(name),
+                    "run_count": len(runs),
+                    "runs": [run.copy(deep=True).rename(name) for run in runs],
+                },
+            )
+        )
+    return summaries
+
+
+def _summary_label(*, name: str, run_count: int) -> str:
+    """Return a legend label that matches the rendered summary encoding."""
+
+    if run_count > 1:
+        return f"{name} median (n={run_count})"
+    return name
 
 
 def _validate_time_index(index: pd.Index, *, strategy_name: str) -> None:

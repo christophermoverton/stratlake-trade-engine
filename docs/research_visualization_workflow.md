@@ -225,9 +225,24 @@ Multi-strategy comparison plots for shared review across runs.
 
 Current responsibilities include:
 
-* equity overlays across runs
+* strategy-level equity comparison summaries across runs
+* raw equity overlay diagnostics for dense multi-run inspection
 * single-metric comparisons
 * multi-metric comparison bars
+
+Comparison equity behavior is intentionally split by intent:
+
+* `equity_comparison.png` is the report-quality view
+* it renders one summary line per strategy
+* when multiple runs share a strategy label, the summary line uses the median
+  equity path and a shaded interquartile band to show variability
+* legends describe the rendered summary lines rather than every raw trace
+* debug-oriented raw overlays can be emitted separately as
+  `equity_comparison_debug.png`, where faint individual runs sit behind the
+  highlighted strategy median
+
+Metric comparison bar charts also sort strategies from best to worst for the
+selected metric so leaderboard-style questions are easier to answer quickly.
 
 These modules exist as reusable visualization helpers. The current report
 generation flow automatically emits only the supported single-run plots derived

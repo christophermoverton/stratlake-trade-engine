@@ -14,9 +14,13 @@ StratLake now spans multiple connected milestones across repository
 foundation, feature engineering, research execution, evaluation, and
 artifact-driven review workflows.
 
-The current release extends StratLake from a feature engineering and analytics
-platform into a reproducible strategy research and evaluation workflow. The
-repository now supports:
+Milestone 7 is now complete in
+`v0.7.0-visualization-reporting`: Visualization & Reporting Refinement.
+This release standardizes plotting and report generation on top of existing
+saved run artifacts, making research outputs easier to review without changing
+core strategy logic or artifact schemas.
+
+The repository now supports:
 
 * standardized strategy interfaces
 * YAML-backed strategy configuration registry
@@ -27,7 +31,27 @@ repository now supports:
 * append-only experiment registry tracking under `artifacts/strategies/registry.jsonl`
 * a CLI strategy runner for end-to-end research execution
 * a comparison CLI for multi-strategy leaderboards from fresh runs or registry-backed results
-* deterministic visualization and Markdown reporting layers for saved research artifacts
+* standardized plotting utilities for single-run and comparison visualizations
+* deterministic Markdown report generation from saved research artifacts
+* report-quality vs debug artifact separation for saved plots and reports
+* deterministic test coverage for visualization and reporting artifacts
+
+### Milestone 7: Visualization & Reporting Refinement
+
+Milestone 7 adds a lightweight presentation layer to the existing
+artifact-driven research workflow:
+
+* standardized plotting utilities for consistent saved figure output
+* improved strategy comparison and equity visualizations
+* structured Markdown report generation from saved run artifacts
+* clear separation between report-quality plots and debug-only artifacts
+* deterministic tests covering visualization and reporting outputs
+
+### Start Here
+
+* [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
+* [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
+* [docs/examples/strategy_comparison_example.md](docs/examples/strategy_comparison_example.md)
 
 ---
 
@@ -151,7 +175,8 @@ Current implementation includes:
 * Walk-forward evaluation across deterministic train/test splits
 * Baseline benchmark strategies for buy-and-hold, SMA crossover, and seeded random references
 * Strategy comparison and leaderboard generation from fresh runs or registry-backed selection
-* Deterministic plot and Markdown report generation from saved run artifacts
+* Artifact-driven plot and Markdown report generation from saved run artifacts
+* Standardized report-quality and debug visualization artifacts for review workflows
 
 ---
 
@@ -178,8 +203,8 @@ strategy return series.
 The research package now also includes artifact-driven visualization and
 reporting helpers. These layers consume saved run outputs such as
 `metrics.json`, `equity_curve.csv`, and optional trade artifacts to generate
-deterministic plot files and a Markdown `report.md` without changing the
-underlying research results.
+deterministic plot files and a structured Markdown `report.md` without
+changing the underlying research results.
 
 The research layer also includes a CLI entrypoint that runs the full experiment
 flow from a strategy name in `configs/strategies.yml`, including dataset load,
@@ -209,6 +234,7 @@ evaluation and comparison workflow:
 * file-based artifacts plus append-only registry tracking
 * multi-strategy comparison with leaderboard outputs
 * deterministic plots and Markdown reports derived from saved run artifacts
+* report-quality vs debug plot separation for saved review outputs
 
 The end-to-end flow is:
 
@@ -313,6 +339,11 @@ Saved strategy artifacts can be turned into deterministic plots and a Markdown
 report without rerunning the strategy itself. These layers extend the existing
 research outputs; they do not replace metrics, artifacts, or evaluation.
 
+The workflow is artifact-driven: saved run files remain the source of truth,
+plot generation is standardized, and reports embed only report-quality plots
+while leaving debug artifacts available in the same run directory for deeper
+inspection.
+
 High-level CLI commands:
 
 ```text
@@ -346,6 +377,9 @@ Generated reports use a consistent lightweight structure with a run header,
 configuration summary, key metrics table, report-quality visualizations, a
 trade summary, a short interpretation section, and relative links back to saved
 artifacts.
+
+Visualization and reporting behavior is covered by deterministic tests so plot
+and report outputs remain stable as the workflow evolves.
 
 See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 for the workflow, supported plots, artifact layout, and reporting behavior.

@@ -6,7 +6,7 @@ import pytest
 import pandas as pd
 
 from src.research import experiment_tracker
-from src.research.experiment_tracker import save_experiment
+from src.research.experiment_tracker import save_experiment, save_walk_forward_experiment
 from src.research.reporting import (
     generate_strategy_plots,
     generate_strategy_report,
@@ -152,19 +152,24 @@ def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
     assert output_path == run_dir / "report.md"
     assert output_path.exists()
     assert "# Strategy Report: momentum" in report_text
-    assert "## Run Metadata" in report_text
-    assert "## Performance Summary" in report_text
-    assert "## Equity Curve" in report_text
-    assert "## Drawdown" in report_text
-    assert "## Rolling Metrics" in report_text
-    assert "## Trade Analysis" in report_text
-    assert "## Observations" in report_text
-    assert "| Sharpe | 0.410000 |" in report_text
+    assert "## Run Configuration Summary" in report_text
+    assert "## Key Metrics" in report_text
+    assert "## Visualizations" in report_text
+    assert "### Performance Overview" in report_text
+    assert "### Rolling Diagnostics" in report_text
+    assert "### Trade Summary" in report_text
+    assert "### Trade Diagnostics" in report_text
+    assert "## Interpretation" in report_text
+    assert "## Artifact References" in report_text
+    assert "| Sharpe | 0.410 |" in report_text
+    assert "| Total Return | 0.98% |" in report_text
     assert "![Equity Curve](plots/equity_curve.png)" in report_text
     assert "![Drawdown](plots/drawdown.png)" in report_text
     assert "![Rolling Sharpe](plots/rolling_sharpe.png)" in report_text
     assert "![Trade Return Distribution](plots/trade_return_distribution.png)" in report_text
     assert "![Win Loss Distribution](plots/win_loss_distribution.png)" in report_text
+    assert "- [metrics.json](metrics.json)" in report_text
+    assert "- [plots/](plots)" in report_text
 
     assert (run_dir / "plots" / "equity_curve.png").exists()
     assert (run_dir / "plots" / "drawdown.png").exists()
@@ -233,13 +238,13 @@ def test_generate_strategy_report_skips_optional_sections_when_artifacts_are_mis
     report_text = output_path.read_text(encoding="utf-8")
 
     assert output_path.exists()
-    assert "## Performance Summary" in report_text
-    assert "## Rolling Metrics" in report_text
-    assert "_Rolling Sharpe unavailable for this run._" in report_text
-    assert "## Trade Analysis" in report_text
+    assert "## Key Metrics" in report_text
+    assert "## Visualizations" in report_text
+    assert "_No visualization artifacts were available for this run._" in report_text
+    assert "### Trade Summary" in report_text
     assert "_Trade data unavailable for this run._" in report_text
-    assert "## Equity Curve" not in report_text
-    assert "## Drawdown" not in report_text
+    assert "### Performance Overview" not in report_text
+    assert "### Rolling Diagnostics" not in report_text
 
 
 def test_generate_strategy_report_raises_when_metrics_are_missing(tmp_path: Path) -> None:
@@ -269,3 +274,87 @@ def test_generate_strategy_report_is_deterministic_for_identical_inputs(
 
     assert first_output == second_output
     assert first_text == second_text
+
+
+def test_generate_strategy_report_keeps_relative_paths_for_custom_output_location(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "relative_paths",
+        _report_results(),
+        _metrics(),
+        {"strategy_name": "relative_paths", "parameters": {"lookback": 20}},
+    )
+
+    output_path = tmp_path / "reports" / "custom_report.md"
+    generate_strategy_report(run_dir, output_path=output_path)
+    report_text = output_path.read_text(encoding="utf-8")
+
+    assert "](../artifacts/strategies/" in report_text
+    assert "![Equity Curve](../artifacts/strategies/" in report_text
+    assert "- [metrics.json](../artifacts/strategies/" in report_text
+
+
+def test_generate_strategy_report_includes_walk_forward_context(tmp_path: Path) -> None:
+    split_results = [
+        {
+            "split_id": "split_001",
+            "results_df": _report_results().iloc[:12].copy(),
+            "metrics": _metrics(),
+            "split_metadata": {
+                "split_id": "split_001",
+                "mode": "walk_forward",
+                "train_start": "2022-01-01",
+                "train_end": "2022-01-06",
+                "test_start": "2022-01-07",
+                "test_end": "2022-01-12",
+            },
+            "split_rows": 12,
+            "train_rows": 6,
+            "test_rows": 6,
+        },
+        {
+            "split_id": "split_002",
+            "results_df": _report_results().iloc[12:].copy(),
+            "metrics": _metrics(),
+            "split_metadata": {
+                "split_id": "split_002",
+                "mode": "walk_forward",
+                "train_start": "2022-01-13",
+                "train_end": "2022-01-18",
+                "test_start": "2022-01-19",
+                "test_end": "2022-01-25",
+            },
+            "split_rows": 13,
+            "train_rows": 6,
+            "test_rows": 7,
+        },
+    ]
+    config = {
+        "strategy_name": "walk_forward_momentum",
+        "dataset": "features_daily",
+        "evaluation": {
+            "timeframe": "1D",
+            "train_start": "2022-01-01",
+            "train_end": "2022-01-18",
+            "test_end": "2022-01-25",
+        },
+        "evaluation_config_path": "configs/walk_forward/example.json",
+    }
+
+    run_dir = save_walk_forward_experiment(
+        "walk_forward_momentum",
+        split_results,
+        _metrics(),
+        config,
+    )
+
+    report_text = generate_strategy_report(run_dir).read_text(encoding="utf-8")
+
+    assert "| Evaluation Mode | Walk Forward |" in report_text
+    assert "| Split Count | 2 |" in report_text
+    assert "| Evaluation Config Path | configs/walk_forward/example.json |" in report_text
+    assert "metrics_by_split.csv" in report_text
+    assert "Walk-forward artifacts summarize `2` saved split(s)" in report_text

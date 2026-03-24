@@ -141,10 +141,22 @@ Behavior:
 * accepts `--output-path <path>` to write the report somewhere else
 * reuses existing standardized plot artifacts when they already exist
 * generates missing supported plots as part of report generation when needed
+* renders a fixed Markdown section order so reports stay easy to scan across runs
 
 The report generator always anchors plot artifacts under the standardized
 `<run_dir>/plots/` directory, even when the report itself is written to a
 custom output path.
+
+Generated reports follow a lightweight, portable structure:
+
+* title and run header with strategy, run id, mode, timeframe, and date range
+* run configuration summary with dataset, parameters, and evaluation settings
+* key metrics table rendered in deterministic Markdown
+* visualizations grouped into performance, rolling diagnostics, and trade diagnostics
+* a short interpretation section derived from saved metrics and optional trade artifacts
+* artifact references linking back to `metrics.json`, `equity_curve.csv`,
+  optional parquet artifacts, `metrics_by_split.csv` for walk-forward runs,
+  and generated plots
 
 ## Artifact Structure
 
@@ -260,7 +272,8 @@ of StratLake:
 * relative plot links keep `report.md` portable within the artifact layout
 
 Given the same saved run artifacts, StratLake produces the same plot set and
-the same Markdown report content.
+the same Markdown report content, including section order, metric formatting,
+and relative artifact links.
 
 ## Limitations And Scope
 
@@ -272,7 +285,8 @@ The current scope is intentionally narrow:
 * report generation uses a fixed Markdown structure rather than a templating
   system
 * visualization helpers for walk-forward and comparison workflows exist, but
-  they are not automatically inserted into the generated single-run report
+  reports remain artifact-driven and lightweight rather than becoming
+  full narrative analysis documents
 
 This design keeps the workflow deterministic, reviewable, and aligned with the
 repository's artifact-first research model.

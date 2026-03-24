@@ -334,6 +334,10 @@ Standardized outputs:
 `generate_report` also supports `--output-path <path>` for a custom Markdown
 destination while still keeping plot artifacts under `<run_dir>/plots/`.
 
+Generated reports use a consistent lightweight structure with a run header,
+configuration summary, key metrics table, grouped visualizations, a short
+interpretation section, and relative links back to saved artifacts.
+
 See [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 for the workflow, supported plots, artifact layout, and reporting behavior.
 

@@ -1,0 +1,14 @@
+{
+  "annualized_return": 0.19,
+  "annualized_volatility": 0.21,
+  "cumulative_return": 0.0098,
+  "exposure_pct": 66.7,
+  "hit_rate": 0.5,
+  "max_drawdown": 0.05,
+  "profit_factor": 1.1,
+  "sharpe_ratio": 0.41,
+  "total_return": 0.0098,
+  "turnover": 0.33,
+  "volatility": 0.012,
+  "win_rate": 0.5
+}

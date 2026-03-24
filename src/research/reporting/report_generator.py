@@ -27,14 +27,8 @@ _KEY_METRICS: tuple[tuple[str, str], ...] = (
     ("annualized_volatility", "Annualized Volatility"),
     ("win_rate", "Win Rate"),
     ("profit_factor", "Profit Factor"),
-)
-_METADATA_KEYS: tuple[tuple[str, str], ...] = (
-    ("run_id", "Run ID"),
-    ("strategy_name", "Strategy"),
-    ("evaluation_mode", "Evaluation Mode"),
-    ("split_count", "Split Count"),
-    ("primary_metric", "Primary Metric"),
-    ("evaluation_config_path", "Evaluation Config Path"),
+    ("turnover", "Turnover"),
+    ("exposure_pct", "Exposure"),
 )
 _TRADE_METRICS: tuple[tuple[str, str], ...] = (
     ("count", "Trade Count"),
@@ -47,6 +41,21 @@ _TRADE_METRICS: tuple[tuple[str, str], ...] = (
     ("std_return", "Std Return"),
 )
 _ROLLING_SHARPE_WINDOW = 20
+_PERCENT_METRIC_KEYS = {
+    "annualized_return",
+    "annualized_volatility",
+    "cumulative_return",
+    "loss_rate",
+    "max_drawdown",
+    "mean_return",
+    "median_return",
+    "std_return",
+    "total_return",
+    "volatility",
+    "win_rate",
+}
+_DECIMAL_METRIC_KEYS = {"profit_factor", "sharpe_ratio", "turnover"}
+_COUNT_METRIC_KEYS = {"count", "win_count", "loss_count"}
 
 
 def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> Path:
@@ -142,7 +151,7 @@ def format_metrics_table(metrics: dict[str, Any]) -> str:
     for key, label in _KEY_METRICS:
         if key not in metrics:
             continue
-        rows.append(f"| {label} | {_format_value(metrics.get(key))} |")
+        rows.append(f"| {label} | {_format_metric_value(key, metrics.get(key))} |")
     if len(rows) == 2:
         rows.append("| No metrics available | NA |")
     return "\n".join(rows)
@@ -177,52 +186,26 @@ def build_markdown_report(
 ) -> str:
     """Assemble the final Markdown report contents."""
 
-    title = f"# Strategy Report: {_resolve_report_title(run_dir, manifest, config)}"
+    context = _build_report_context(
+        run_dir=run_dir,
+        manifest=manifest,
+        config=config,
+        equity_curve=equity_curve,
+        signals=signals,
+    )
     sections = [
-        title,
+        render_header(context),
         "",
-        "## Run Metadata",
-        _build_metadata_section(run_dir, manifest, config),
+        "## Run Configuration Summary",
+        render_configuration_summary(context),
         "",
-        "## Performance Summary",
+        "## Key Metrics",
         format_metrics_table(metrics),
         "",
     ]
-
-    if "equity_curve" in plot_paths:
-        sections.extend(
-            [
-                "## Equity Curve",
-                "![Equity Curve](%s)" % _relative_markdown_path(output_path, plot_paths["equity_curve"]),
-                "",
-            ]
-        )
-
-    if "drawdown" in plot_paths:
-        sections.extend(
-            [
-                "## Drawdown",
-                "![Drawdown](%s)" % _relative_markdown_path(output_path, plot_paths["drawdown"]),
-                "",
-            ]
-        )
-
-    sections.extend(_build_rolling_metrics_section(output_path=output_path, plot_paths=plot_paths))
-    sections.extend(
-        _build_trade_analysis_section(
-            output_path=output_path,
-            trades=trades,
-            plot_paths=plot_paths,
-        )
-    )
-    sections.extend(_build_optional_artifact_notes(equity_curve=equity_curve, signals=signals))
-    sections.extend(
-        [
-            "## Observations",
-            "_Add analysis notes here._",
-            "",
-        ]
-    )
+    sections.extend(render_visualizations(output_path=output_path, trades=trades, plot_paths=plot_paths))
+    sections.extend(render_interpretation(context=context, metrics=metrics, trades=trades, signals=signals))
+    sections.extend(render_artifact_links(run_dir=run_dir, output_path=output_path, plot_paths=plot_paths))
     return "\n".join(sections).rstrip() + "\n"
 
 
@@ -315,99 +298,90 @@ def _load_optional_parquet(path: Path) -> pd.DataFrame | None:
     return frame
 
 
-def _resolve_report_title(run_dir: Path, manifest: dict[str, Any], config: dict[str, Any]) -> str:
-    return str(
-        manifest.get("strategy_name")
-        or config.get("strategy_name")
-        or manifest.get("run_id")
-        or run_dir.name
-    )
-
-
-def _build_metadata_section(run_dir: Path, manifest: dict[str, Any], config: dict[str, Any]) -> str:
-    metadata = {**manifest}
-    if "strategy_name" not in metadata and "strategy_name" in config:
-        metadata["strategy_name"] = config["strategy_name"]
-
-    lines: list[str] = []
-    for key, label in _METADATA_KEYS:
-        value = metadata.get(key)
-        if value is None:
-            continue
-        lines.append(f"- {label}: `{value}`")
-
-    if "parameters" in config and isinstance(config["parameters"], dict) and config["parameters"]:
-        serialized_parameters = ", ".join(
-            f"{name}={config['parameters'][name]!r}"
-            for name in sorted(config["parameters"])
-        )
-        lines.append(f"- Parameters: `{serialized_parameters}`")
-
-    if not lines:
-        lines.append(f"- Run Directory: `{run_dir.name}`")
+def render_header(context: dict[str, Any]) -> str:
+    lines = [f"# Strategy Report: {context['title']}", ""]
+    lines.extend(_render_key_value_table(context["header_rows"]))
     return "\n".join(lines)
 
 
-def _build_rolling_metrics_section(*, output_path: Path, plot_paths: dict[str, Path]) -> list[str]:
-    section = ["## Rolling Metrics"]
-    if "rolling_sharpe" in plot_paths:
-        section.append(
-            "![Rolling Sharpe](%s)" % _relative_markdown_path(output_path, plot_paths["rolling_sharpe"])
-        )
-    else:
-        section.append("_Rolling Sharpe unavailable for this run._")
-    section.append("")
-    return section
+def render_configuration_summary(context: dict[str, Any]) -> str:
+    return "\n".join(_render_key_value_table(context["config_rows"]))
 
 
-def _build_trade_analysis_section(
+def render_visualizations(
     *,
     output_path: Path,
     trades: pd.DataFrame | None,
     plot_paths: dict[str, Path],
 ) -> list[str]:
-    section = ["## Trade Analysis"]
-    trade_returns = _select_trade_returns(trades)
-    if trade_returns is None:
-        section.extend(["_Trade data unavailable for this run._", ""])
-        return section
+    sections = ["## Visualizations"]
 
-    statistics = compute_trade_statistics(trade_returns)
-    section.extend(_format_statistics_table(statistics, _TRADE_METRICS))
+    performance_blocks = _render_plot_blocks(
+        output_path=output_path,
+        plot_paths=plot_paths,
+        plot_order=(
+            ("equity_curve", "### Performance Overview", "Equity Curve"),
+            ("drawdown", None, "Drawdown"),
+            ("rolling_sharpe", "### Rolling Diagnostics", "Rolling Sharpe"),
+        ),
+    )
+    trade_blocks = _render_plot_blocks(
+        output_path=output_path,
+        plot_paths=plot_paths,
+        plot_order=(
+            ("trade_return_distribution", "### Trade Diagnostics", "Trade Return Distribution"),
+            ("win_loss_distribution", None, "Win Loss Distribution"),
+        ),
+    )
 
-    if "trade_return_distribution" in plot_paths:
-        section.append(
-            "![Trade Return Distribution](%s)"
-            % _relative_markdown_path(output_path, plot_paths["trade_return_distribution"])
-        )
-    if "win_loss_distribution" in plot_paths:
-        section.append(
-            "![Win Loss Distribution](%s)"
-            % _relative_markdown_path(output_path, plot_paths["win_loss_distribution"])
-        )
-    section.append("")
-    return section
+    if performance_blocks:
+        sections.extend(performance_blocks)
+    else:
+        sections.extend(["_No visualization artifacts were available for this run._", ""])
+
+    sections.extend(_render_trade_metrics_subsection(trades=trades))
+    if trade_blocks:
+        sections.extend(trade_blocks)
+
+    return sections
 
 
-def _build_optional_artifact_notes(*, equity_curve: pd.DataFrame | None, signals: pd.DataFrame | None) -> list[str]:
-    notes: list[str] = []
-    if equity_curve is not None and "signal" in equity_curve.columns:
-        notes.extend(
-            [
-                "## Signal Summary",
-                f"- Signal observations: `{len(equity_curve)}` rows available in equity artifacts.",
-                "",
-            ]
-        )
-    elif signals is not None:
-        notes.extend(
-            [
-                "## Signal Summary",
-                f"- Signal observations: `{len(signals)}` rows available.",
-                "",
-            ]
-        )
+def render_interpretation(
+    *,
+    context: dict[str, Any],
+    metrics: dict[str, Any],
+    trades: pd.DataFrame | None,
+    signals: pd.DataFrame | None,
+) -> list[str]:
+    notes = ["## Interpretation"]
+    summary_points = _build_interpretation_points(
+        context=context,
+        metrics=metrics,
+        trades=trades,
+        signals=signals,
+    )
+    if not summary_points:
+        notes.extend(["- Interpretation unavailable from the saved artifacts.", ""])
+        return notes
+
+    notes.extend(f"- {point}" for point in summary_points)
+    notes.append("")
     return notes
+
+
+def render_artifact_links(
+    *,
+    run_dir: Path,
+    output_path: Path,
+    plot_paths: dict[str, Path],
+) -> list[str]:
+    rows: list[str] = ["## Artifact References"]
+
+    for label, artifact_path in _ordered_artifact_links(run_dir=run_dir, plot_paths=plot_paths):
+        rows.append(f"- [{label}]({_relative_markdown_path(output_path, artifact_path)})")
+
+    rows.append("")
+    return rows
 
 
 def _format_statistics_table(statistics: dict[str, float], ordered_keys: tuple[tuple[str, str], ...]) -> list[str]:
@@ -415,9 +389,284 @@ def _format_statistics_table(statistics: dict[str, float], ordered_keys: tuple[t
     for key, label in ordered_keys:
         if key not in statistics:
             continue
-        lines.append(f"| {label} | {_format_value(statistics[key])} |")
+        lines.append(f"| {label} | {_format_metric_value(key, statistics[key])} |")
     lines.append("")
     return lines
+
+
+def _build_report_context(
+    *,
+    run_dir: Path,
+    manifest: dict[str, Any],
+    config: dict[str, Any],
+    equity_curve: pd.DataFrame | None,
+    signals: pd.DataFrame | None,
+) -> dict[str, Any]:
+    strategy_name = str(
+        manifest.get("strategy_name")
+        or config.get("strategy_name")
+        or manifest.get("run_id")
+        or run_dir.name
+    )
+    run_id = str(manifest.get("run_id") or run_dir.name)
+    evaluation_mode = str(manifest.get("evaluation_mode") or "single")
+    timeframe = _resolve_timeframe(config=config, equity_curve=equity_curve, signals=signals)
+    date_range = _resolve_date_range(config=config, equity_curve=equity_curve, signals=signals)
+
+    header_rows = [
+        ("Strategy", strategy_name),
+        ("Run ID", run_id),
+        ("Evaluation Mode", _humanize_token(evaluation_mode)),
+    ]
+    if timeframe is not None:
+        header_rows.append(("Timeframe", timeframe))
+    if date_range is not None:
+        header_rows.append(("Date Range", date_range))
+    if manifest.get("split_count") is not None:
+        header_rows.append(("Split Count", str(manifest["split_count"])))
+
+    config_rows: list[tuple[str, str]] = []
+    dataset = config.get("dataset")
+    if dataset is not None:
+        config_rows.append(("Dataset", str(dataset)))
+
+    parameters = config.get("parameters")
+    if isinstance(parameters, dict) and parameters:
+        config_rows.append(
+            (
+                "Parameters",
+                ", ".join(f"{key}={parameters[key]!r}" for key in sorted(parameters)),
+            )
+        )
+
+    evaluation = config.get("evaluation")
+    if isinstance(evaluation, dict) and evaluation:
+        config_rows.append(("Evaluation Config", _serialize_mapping(evaluation)))
+
+    evaluation_config_path = manifest.get("evaluation_config_path") or config.get("evaluation_config_path")
+    if evaluation_config_path is not None:
+        config_rows.append(("Evaluation Config Path", str(evaluation_config_path)))
+
+    primary_metric = manifest.get("primary_metric")
+    if primary_metric is not None:
+        config_rows.append(("Primary Metric", _humanize_metric_name(str(primary_metric))))
+
+    if not config_rows:
+        config_rows.append(("Run Directory", run_dir.name))
+
+    return {
+        "title": strategy_name,
+        "strategy_name": strategy_name,
+        "run_id": run_id,
+        "evaluation_mode": evaluation_mode,
+        "header_rows": header_rows,
+        "config_rows": config_rows,
+        "timeframe": timeframe,
+        "date_range": date_range,
+        "split_count": manifest.get("split_count"),
+    }
+
+
+def _render_plot_blocks(
+    *,
+    output_path: Path,
+    plot_paths: dict[str, Path],
+    plot_order: tuple[tuple[str, str | None, str], ...],
+) -> list[str]:
+    rows: list[str] = []
+    current_heading: str | None = None
+    for key, heading, alt_text in plot_order:
+        if key not in plot_paths:
+            continue
+        if heading is not None and heading != current_heading:
+            rows.extend([heading, ""])
+            current_heading = heading
+        rows.append(f"![{alt_text}]({_relative_markdown_path(output_path, plot_paths[key])})")
+        rows.append("")
+    return rows
+
+
+def _render_trade_metrics_subsection(*, trades: pd.DataFrame | None) -> list[str]:
+    section = ["### Trade Summary", ""]
+    trade_returns = _select_trade_returns(trades)
+    if trade_returns is None:
+        section.extend(["_Trade data unavailable for this run._", ""])
+        return section
+
+    statistics = compute_trade_statistics(trade_returns)
+    section.extend(_format_statistics_table(statistics, _TRADE_METRICS))
+    return section
+
+
+def _build_interpretation_points(
+    *,
+    context: dict[str, Any],
+    metrics: dict[str, Any],
+    trades: pd.DataFrame | None,
+    signals: pd.DataFrame | None,
+) -> list[str]:
+    points: list[str] = []
+
+    total_return = _coerce_float(metrics.get("total_return"))
+    sharpe_ratio = _coerce_float(metrics.get("sharpe_ratio"))
+    max_drawdown = _coerce_float(metrics.get("max_drawdown"))
+    win_rate = _coerce_float(metrics.get("win_rate"))
+
+    if total_return is not None:
+        direction = "positive" if total_return >= 0 else "negative"
+        message = f"The run finished with a {direction} total return of {_format_metric_value('total_return', total_return)}."
+        if sharpe_ratio is not None:
+            message += f" Sharpe was {_format_metric_value('sharpe_ratio', sharpe_ratio)}."
+        points.append(message)
+
+    if max_drawdown is not None:
+        points.append(
+            f"Peak-to-trough drawdown reached {_format_metric_value('max_drawdown', max_drawdown)}, which frames the downside seen in the equity and drawdown plots."
+        )
+
+    trade_returns = _select_trade_returns(trades)
+    if trade_returns is not None:
+        trade_count = len(trade_returns)
+        trade_message = f"Trade diagnostics cover `{trade_count}` closed trades."
+        if win_rate is not None:
+            trade_message += f" Win rate was {_format_metric_value('win_rate', win_rate)}."
+        points.append(trade_message)
+    elif signals is not None:
+        points.append(f"Signal artifacts are available with `{len(signals)}` rows, but no trade summary artifact was present.")
+
+    if context.get("evaluation_mode") == "walk_forward" and context.get("split_count") is not None:
+        points.append(f"Walk-forward artifacts summarize `{context['split_count']}` saved split(s); use `metrics_by_split.csv` for fold-level detail.")
+
+    return points
+
+
+def _ordered_artifact_links(*, run_dir: Path, plot_paths: dict[str, Path]) -> list[tuple[str, Path]]:
+    ordered: list[tuple[str, Path]] = []
+    for name in (
+        "manifest.json",
+        "config.json",
+        "metrics.json",
+        "equity_curve.csv",
+        "signals.parquet",
+        "trades.parquet",
+        "metrics_by_split.csv",
+    ):
+        artifact_path = run_dir / name
+        if artifact_path.exists():
+            ordered.append((name, artifact_path))
+
+    if plot_paths:
+        plots_dir = get_plot_dir(run_dir)
+        if plots_dir.exists():
+            ordered.append(("plots/", plots_dir))
+        for plot_name in sorted(plot_paths):
+            ordered.append((plot_paths[plot_name].name, plot_paths[plot_name]))
+
+    return ordered
+
+
+def _render_key_value_table(rows: list[tuple[str, str]]) -> list[str]:
+    table = ["| Field | Value |", "| --- | --- |"]
+    for label, value in rows:
+        table.append(f"| {label} | {value} |")
+    return table
+
+
+def _serialize_mapping(mapping: dict[str, Any]) -> str:
+    return ", ".join(f"{key}={mapping[key]!r}" for key in sorted(mapping))
+
+
+def _resolve_timeframe(
+    *,
+    config: dict[str, Any],
+    equity_curve: pd.DataFrame | None,
+    signals: pd.DataFrame | None,
+) -> str | None:
+    for frame in (equity_curve, signals):
+        if frame is None or "timeframe" not in frame.columns:
+            continue
+        series = frame["timeframe"].dropna()
+        if not series.empty:
+            return str(series.iloc[0])
+
+    evaluation = config.get("evaluation")
+    if isinstance(evaluation, dict) and evaluation.get("timeframe") is not None:
+        return str(evaluation["timeframe"])
+
+    dataset = config.get("dataset")
+    if isinstance(dataset, str):
+        normalized = dataset.lower()
+        if normalized.endswith("daily"):
+            return "1D"
+        if normalized.endswith("1m"):
+            return "1Min"
+    return None
+
+
+def _resolve_date_range(
+    *,
+    config: dict[str, Any],
+    equity_curve: pd.DataFrame | None,
+    signals: pd.DataFrame | None,
+) -> str | None:
+    for frame in (equity_curve, signals):
+        resolved = _date_range_from_frame(frame)
+        if resolved is not None:
+            return resolved
+
+    evaluation = config.get("evaluation")
+    if isinstance(evaluation, dict):
+        start = evaluation.get("start") or evaluation.get("train_start")
+        end = evaluation.get("end") or evaluation.get("test_end")
+        if start is not None or end is not None:
+            return _format_date_range(start, end)
+
+    if config.get("start") is not None or config.get("end") is not None:
+        return _format_date_range(config.get("start"), config.get("end"))
+    return None
+
+
+def _date_range_from_frame(frame: pd.DataFrame | None) -> str | None:
+    if frame is None or frame.empty:
+        return None
+
+    for column in ("ts_utc", "date"):
+        if column not in frame.columns:
+            continue
+        parsed = pd.to_datetime(frame[column], utc=True, errors="coerce").dropna()
+        if parsed.empty:
+            continue
+        start = parsed.min()
+        end = parsed.max()
+        if column == "date":
+            return _format_date_range(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"))
+        return _format_date_range(
+            start.isoformat().replace("+00:00", "Z"),
+            end.isoformat().replace("+00:00", "Z"),
+        )
+    return None
+
+
+def _format_date_range(start: Any, end: Any) -> str:
+    start_text = "NA" if start is None else str(start)
+    end_text = "NA" if end is None else str(end)
+    return f"{start_text} to {end_text}"
+
+
+def _humanize_token(value: str) -> str:
+    return value.replace("_", " ").strip().title()
+
+
+def _humanize_metric_name(value: str) -> str:
+    return value.replace("_", " ").strip()
+
+
+def _coerce_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    if isinstance(value, int | float) and not pd.isna(value):
+        return float(value)
+    return None
 
 
 def _select_equity_series(equity_curve: pd.DataFrame) -> pd.Series:
@@ -479,5 +728,27 @@ def _format_value(value: Any) -> str:
     if isinstance(value, float):
         if pd.isna(value):
             return "NA"
+        return f"{value:.6f}"
+    return str(value)
+
+
+def _format_metric_value(metric_name: str, value: Any) -> str:
+    if value is None:
+        return "NA"
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if pd.isna(value):
+            return "NA"
+        if metric_name in _COUNT_METRIC_KEYS and float(value).is_integer():
+            return str(int(value))
+        if metric_name == "exposure_pct":
+            return f"{value:.2f}%"
+        if metric_name in _PERCENT_METRIC_KEYS:
+            return f"{value * 100:.2f}%"
+        if metric_name in _DECIMAL_METRIC_KEYS:
+            return f"{value:.3f}"
         return f"{value:.6f}"
     return str(value)

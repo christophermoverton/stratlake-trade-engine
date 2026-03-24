@@ -1,0 +1,8 @@
+{
+  "dataset": "features_daily",
+  "parameters": {
+    "lookback": 20,
+    "threshold": 0.5
+  },
+  "strategy_name": "momentum"
+}

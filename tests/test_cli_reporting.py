@@ -14,24 +14,12 @@ from src.cli.plot_strategy_run import parse_args as parse_plot_args
 from src.cli.plot_strategy_run import run_cli as run_plot_strategy_run_cli
 from src.research import experiment_tracker
 from src.research.experiment_tracker import save_experiment
+from src.research.metrics import compute_performance_metrics
 from src.research.visualization import get_plot_dir, get_plot_path
 
 
 def _metrics() -> dict[str, float | None]:
-    return {
-        "cumulative_return": 0.0098,
-        "total_return": 0.0098,
-        "volatility": 0.012,
-        "annualized_return": 0.19,
-        "annualized_volatility": 0.21,
-        "sharpe_ratio": 0.41,
-        "max_drawdown": 0.05,
-        "win_rate": 0.5,
-        "hit_rate": 0.5,
-        "profit_factor": 1.1,
-        "turnover": 0.33,
-        "exposure_pct": 66.7,
-    }
+    return compute_performance_metrics(_report_results())
 
 
 def _report_results() -> pd.DataFrame:

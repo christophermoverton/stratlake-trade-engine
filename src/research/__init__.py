@@ -1,6 +1,7 @@
 """Research layer interfaces and utilities."""
 
 from src.research.backtest_runner import run_backtest
+from src.research.consistency import ConsistencyError, validate_run_consistency
 from src.research.experiment_tracker import save_experiment
 from src.research.integrity import validate_research_integrity
 from src.research.metrics import (
@@ -49,6 +50,7 @@ __all__ = [
     "EvaluationSplitConfigError",
     "build_strategy",
     "compute_performance_metrics",
+    "ConsistencyError",
     "cumulative_return",
     "exposure_pct",
     "filter_by_metric_threshold",
@@ -71,6 +73,7 @@ __all__ = [
     "summarize_run",
     "total_return",
     "turnover",
+    "validate_run_consistency",
     "validate_research_integrity",
     "volatility",
     "win_rate",

@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.research import experiment_tracker
 from src.research.experiment_tracker import save_experiment, save_walk_forward_experiment
+from src.research.metrics import compute_performance_metrics
 from src.research.reporting import (
     generate_strategy_plots,
     generate_strategy_report,
@@ -35,21 +36,12 @@ def assert_not_in_file(path: Path, substring: str) -> None:
     assert substring not in text, f"Did not expect '{substring}' to appear in {path}"
 
 
-def _metrics() -> dict[str, float | None]:
-    return {
-        "cumulative_return": 0.0098,
-        "total_return": 0.0098,
-        "volatility": 0.012,
-        "annualized_return": 0.19,
-        "annualized_volatility": 0.21,
-        "sharpe_ratio": 0.41,
-        "max_drawdown": 0.05,
-        "win_rate": 0.5,
-        "hit_rate": 0.5,
-        "profit_factor": 1.1,
-        "turnover": 0.33,
-        "exposure_pct": 66.7,
-    }
+def _experiment_metrics() -> dict[str, float | None]:
+    return compute_performance_metrics(_experiment_results())
+
+
+def _report_metrics() -> dict[str, float | None]:
+    return compute_performance_metrics(_report_results())
 
 
 def _experiment_results() -> pd.DataFrame:
@@ -125,7 +117,7 @@ def test_reporting_helpers_load_and_summarize_run(
     run_dir = save_experiment(
         "mean_reversion",
         _experiment_results(),
-        _metrics(),
+        _experiment_metrics(),
         {"strategy_name": "mean_reversion"},
     )
 
@@ -134,7 +126,7 @@ def test_reporting_helpers_load_and_summarize_run(
     print_quick_report(run_dir)
 
     assert loaded["manifest"]["run_id"] == run_dir.name
-    assert loaded["metrics"]["sharpe_ratio"] == 0.41
+    assert loaded["metrics"]["sharpe_ratio"] == pytest.approx(_experiment_metrics()["sharpe_ratio"])
     assert loaded["equity_curve"] is not None
     assert loaded["signals"] is not None
     assert loaded["trades"] is not None
@@ -146,10 +138,10 @@ def test_reporting_helpers_load_and_summarize_run(
         "evaluation_mode": "single",
         "split_count": None,
         "primary_metric": "sharpe_ratio",
-        "primary_metric_value": 0.41,
-        "cumulative_return": 0.0098,
-        "sharpe_ratio": 0.41,
-        "max_drawdown": 0.05,
+        "primary_metric_value": _experiment_metrics()["sharpe_ratio"],
+        "cumulative_return": _experiment_metrics()["cumulative_return"],
+        "sharpe_ratio": _experiment_metrics()["sharpe_ratio"],
+        "max_drawdown": _experiment_metrics()["max_drawdown"],
         "trade_count": 1,
         "artifact_count": len(loaded["manifest"]["artifact_files"]),
         "split_metrics_rows": 0,
@@ -159,7 +151,7 @@ def test_reporting_helpers_load_and_summarize_run(
     assert f"run_id: {run_dir.name}" in stdout
     assert "strategy: mean_reversion" in stdout
     assert "mode: single" in stdout
-    assert "sharpe_ratio: 0.410000" in stdout
+    assert f"sharpe_ratio: {_experiment_metrics()['sharpe_ratio']:.6f}" in stdout
 
 
 def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
@@ -170,7 +162,7 @@ def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
     run_dir = save_experiment(
         "momentum",
         _report_results(),
-        _metrics(),
+        _report_metrics(),
         {"strategy_name": "momentum", "parameters": {"lookback": 20, "threshold": 0.5}},
     )
 
@@ -187,8 +179,8 @@ def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
     assert "### Trade Summary" in report_text
     assert "## Interpretation" in report_text
     assert "## Artifact References" in report_text
-    assert "| Sharpe | 0.410 |" in report_text
-    assert "| Total Return | 0.98% |" in report_text
+    assert "| Sharpe | 9.775 |" in report_text
+    assert "| Total Return | 5.84% |" in report_text
     assert "![Equity Curve](plots/equity_curve.png)" in report_text
     assert "![Drawdown](plots/drawdown.png)" in report_text
     assert "rolling_sharpe_debug.png" not in report_text
@@ -212,7 +204,7 @@ def test_strategy_plot_generation_and_reporting_share_standardized_plot_paths(
     run_dir = save_experiment(
         "shared_paths",
         _report_results(),
-        _metrics(),
+        _report_metrics(),
         {"strategy_name": "shared_paths"},
     )
 
@@ -244,7 +236,7 @@ def test_generate_strategy_report_preserves_expected_artifact_structure_and_rela
     run_dir = save_experiment(
         "artifact_contract",
         _report_results(),
-        _metrics(),
+        _report_metrics(),
         {"strategy_name": "artifact_contract", "parameters": {"lookback": 20}},
     )
     _trade_results().to_parquet(run_dir / "trades.parquet", index=False)
@@ -294,7 +286,7 @@ def test_generate_strategy_plots_rejects_nonstandard_plot_directory(
     run_dir = save_experiment(
         "nonstandard_plots",
         _report_results(),
-        _metrics(),
+        _report_metrics(),
         {"strategy_name": "nonstandard_plots"},
     )
 
@@ -338,7 +330,7 @@ def test_generate_strategy_report_is_deterministic_for_identical_inputs(
     run_dir = save_experiment(
         "deterministic",
         _report_results(),
-        _metrics(),
+        _report_metrics(),
         {"strategy_name": "deterministic", "parameters": {"lookback": 20}},
     )
 
@@ -359,7 +351,7 @@ def test_generate_strategy_report_keeps_relative_paths_for_custom_output_locatio
     run_dir = save_experiment(
         "relative_paths",
         _report_results(),
-        _metrics(),
+        _report_metrics(),
         {"strategy_name": "relative_paths", "parameters": {"lookback": 20}},
     )
 
@@ -377,7 +369,7 @@ def test_generate_strategy_report_includes_walk_forward_context(tmp_path: Path) 
         {
             "split_id": "split_001",
             "results_df": _report_results().iloc[:12].copy(),
-            "metrics": _metrics(),
+                "metrics": compute_performance_metrics(_report_results().iloc[:12].copy()),
             "split_metadata": {
                 "split_id": "split_001",
                 "mode": "walk_forward",
@@ -393,7 +385,7 @@ def test_generate_strategy_report_includes_walk_forward_context(tmp_path: Path) 
         {
             "split_id": "split_002",
             "results_df": _report_results().iloc[12:].copy(),
-            "metrics": _metrics(),
+                "metrics": compute_performance_metrics(_report_results().iloc[12:].copy()),
             "split_metadata": {
                 "split_id": "split_002",
                 "mode": "walk_forward",
@@ -422,7 +414,7 @@ def test_generate_strategy_report_includes_walk_forward_context(tmp_path: Path) 
     run_dir = save_walk_forward_experiment(
         "walk_forward_momentum",
         split_results,
-        _metrics(),
+        compute_performance_metrics(pd.concat([item["results_df"] for item in split_results], ignore_index=True)),
         config,
     )
 

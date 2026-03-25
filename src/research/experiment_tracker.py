@@ -8,6 +8,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.research.consistency import validate_run_consistency
 from src.research.metrics import infer_position_series
 from src.research.registry import default_registry_path, serialize_canonical_json, upsert_registry_entry
 from src.research.signal_diagnostics import compute_signal_diagnostics
@@ -601,20 +602,23 @@ def save_experiment_outputs(
     results_df: pd.DataFrame,
     metrics: dict[str, Any],
     config: dict[str, Any],
+    *,
+    strategy_name: str | None = None,
 ) -> None:
     """Write the standard single-run experiment artifacts into an existing directory."""
 
+    resolved_strategy_name = str(strategy_name or config.get("strategy_name") or experiment_dir.name)
     _write_run_outputs(
         experiment_dir,
         results_df,
         metrics,
         config,
         run_id=experiment_dir.name,
-        strategy_name=str(config.get("strategy_name") or experiment_dir.name),
+        strategy_name=resolved_strategy_name,
     )
     _write_manifest(
         experiment_dir,
-        str(config.get("strategy_name") or experiment_dir.name),
+        resolved_strategy_name,
         "single",
         config,
         metrics,
@@ -700,6 +704,7 @@ def save_walk_forward_experiment(
             split_count=len(split_results),
         )
     )
+    validate_run_consistency(experiment_dir)
     return experiment_dir
 
 
@@ -732,7 +737,13 @@ def save_experiment(
         config=config,
         results_df=results_df,
     )
-    save_experiment_outputs(experiment_dir, results_df, metrics, config)
+    save_experiment_outputs(
+        experiment_dir,
+        results_df,
+        metrics,
+        config,
+        strategy_name=strategy_name,
+    )
     _write_registry_entry(
         _build_registry_entry(
             experiment_dir,
@@ -745,4 +756,5 @@ def save_experiment(
             split_count=None,
         )
     )
+    validate_run_consistency(experiment_dir)
     return experiment_dir

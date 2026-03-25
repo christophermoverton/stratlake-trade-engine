@@ -18,7 +18,7 @@ def _metrics() -> dict[str, float | None]:
         "annualized_return": 0.19,
         "annualized_volatility": 0.21,
         "sharpe_ratio": 0.41,
-        "max_drawdown": 0.05,
+        "max_drawdown": 0.01,
         "win_rate": 0.5,
         "hit_rate": 0.5,
         "profit_factor": 1.1,
@@ -121,7 +121,7 @@ def test_save_experiment_writes_standardized_artifacts(
         "metrics": {
             "total_return": 0.0098,
             "sharpe": 0.41,
-            "max_drawdown": 0.05,
+            "max_drawdown": 0.01,
         },
         "flags": {
             "degenerate_signal": False,

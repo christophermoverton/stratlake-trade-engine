@@ -134,7 +134,7 @@ def test_save_experiment_appends_one_registry_entry_per_run(
 ) -> None:
     artifact_root = tmp_path / "artifacts" / "strategies"
     results_df = _single_run_results()
-    metrics = {"cumulative_return": 0.01, "total_return": 0.01, "sharpe_ratio": 1.0}
+    metrics = {"cumulative_return": 0.0098, "total_return": 0.0098, "sharpe_ratio": 1.0}
     config = {"dataset": "features_daily", "parameters": {"lookback": 10}}
 
     monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)

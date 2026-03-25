@@ -15,6 +15,7 @@ from src.research.experiment_tracker import save_experiment
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.strategies import build_strategy
+from src.research.strategy_qa import generate_strategy_qa_summary
 from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -31,6 +32,7 @@ class StrategyRunResult:
     experiment_dir: Path
     results_df: pd.DataFrame
     signal_diagnostics: dict[str, Any] = field(default_factory=dict)
+    qa_summary: dict[str, Any] = field(default_factory=dict)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -95,6 +97,7 @@ def run_strategy_experiment(
     dataset = load_features(strategy.dataset, start=start, end=end)
     signal_frame = generate_signals(dataset, strategy)
     results_df = run_backtest(signal_frame)
+    results_df.attrs["dataset"] = strategy.dataset
     metrics = compute_metrics(results_df)
     signal_diagnostics = compute_signal_diagnostics(results_df["signal"], results_df)
 
@@ -106,6 +109,14 @@ def run_strategy_experiment(
         "end": end,
     }
     experiment_dir = save_experiment(strategy_name, results_df, metrics, experiment_config)
+    qa_summary = generate_strategy_qa_summary(
+        results_df,
+        results_df["signal"],
+        signal_diagnostics,
+        metrics,
+        strategy_name=strategy_name,
+        run_id=experiment_dir.name,
+    )
 
     return StrategyRunResult(
         strategy_name=strategy_name,
@@ -114,6 +125,7 @@ def run_strategy_experiment(
         experiment_dir=experiment_dir,
         results_df=results_df,
         signal_diagnostics=signal_diagnostics,
+        qa_summary=qa_summary,
     )
 
 
@@ -139,6 +151,18 @@ def print_summary(result: StrategyRunResult | WalkForwardRunResult) -> None:
             f"turnover: {diagnostics['turnover']:.2f}"
         )
         print(f"- avg holding: {diagnostics['avg_holding_period']:.1f} bars")
+    qa_summary = getattr(result, "qa_summary", None)
+    if isinstance(qa_summary, dict) and qa_summary:
+        print("QA Summary:")
+        print(f"- status: {str(qa_summary['overall_status']).upper()}")
+        print(
+            f"- rows: {qa_summary['row_count']:,} | "
+            f"symbols: {qa_summary['symbols_present']}"
+        )
+        print(
+            f"- trades: {qa_summary['signal']['total_trades']} | "
+            f"turnover: {qa_summary['signal']['turnover']:.2f}"
+        )
 
 
 def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult:

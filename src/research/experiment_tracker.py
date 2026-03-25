@@ -11,6 +11,7 @@ import pandas as pd
 from src.research.metrics import infer_position_series
 from src.research.registry import default_registry_path, serialize_canonical_json, upsert_registry_entry
 from src.research.signal_diagnostics import compute_signal_diagnostics
+from src.research.strategy_qa import generate_strategy_qa_summary
 
 ARTIFACTS_ROOT = Path("artifacts") / "strategies"
 _BACKTEST_COLUMNS = ("strategy_return", "equity_curve")
@@ -472,20 +473,42 @@ def _write_run_outputs(
     metrics: dict[str, Any],
     config: dict[str, Any],
     *,
+    run_id: str,
+    strategy_name: str,
     split_metadata: dict[str, Any] | None = None,
 ) -> list[str]:
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    signals_frame = _signals_frame(results_df)
-    equity_curve_frame = _equity_curve_frame(results_df)
-    trades_frame = _trades_frame(results_df)
-    signal_diagnostics = _signal_diagnostics_payload(results_df)
+    annotated_results_df = results_df.copy()
+    if annotated_results_df.attrs.get("dataset") is None and config.get("dataset") is not None:
+        annotated_results_df.attrs["dataset"] = config["dataset"]
+    evaluation = config.get("evaluation")
+    if (
+        annotated_results_df.attrs.get("timeframe") is None
+        and isinstance(evaluation, dict)
+        and evaluation.get("timeframe") is not None
+    ):
+        annotated_results_df.attrs["timeframe"] = evaluation["timeframe"]
+
+    signals_frame = _signals_frame(annotated_results_df)
+    equity_curve_frame = _equity_curve_frame(annotated_results_df)
+    trades_frame = _trades_frame(annotated_results_df)
+    signal_diagnostics = _signal_diagnostics_payload(annotated_results_df)
+    qa_summary = generate_strategy_qa_summary(
+        annotated_results_df,
+        annotated_results_df["signal"] if "signal" in annotated_results_df.columns else pd.Series(dtype="float64"),
+        signal_diagnostics,
+        metrics,
+        strategy_name=strategy_name,
+        run_id=run_id,
+    )
 
     signals_frame.to_parquet(output_dir / "signals.parquet")
     equity_curve_frame.to_csv(output_dir / "equity_curve.csv", index=False)
-    _legacy_equity_curve_frame(results_df).to_parquet(output_dir / "equity_curve.parquet")
+    _legacy_equity_curve_frame(annotated_results_df).to_parquet(output_dir / "equity_curve.parquet")
     _write_json(output_dir / "metrics.json", metrics)
     _write_json(output_dir / "signal_diagnostics.json", signal_diagnostics)
+    _write_json(output_dir / "qa_summary.json", qa_summary)
 
     written = [
         "signals.parquet",
@@ -493,6 +516,7 @@ def _write_run_outputs(
         "equity_curve.parquet",
         "metrics.json",
         "signal_diagnostics.json",
+        "qa_summary.json",
     ]
 
     if split_metadata is None:
@@ -580,7 +604,14 @@ def save_experiment_outputs(
 ) -> None:
     """Write the standard single-run experiment artifacts into an existing directory."""
 
-    _write_run_outputs(experiment_dir, results_df, metrics, config)
+    _write_run_outputs(
+        experiment_dir,
+        results_df,
+        metrics,
+        config,
+        run_id=experiment_dir.name,
+        strategy_name=str(config.get("strategy_name") or experiment_dir.name),
+    )
     _write_manifest(
         experiment_dir,
         str(config.get("strategy_name") or experiment_dir.name),
@@ -610,7 +641,14 @@ def save_walk_forward_experiment(
         results_df=aggregate_results_df,
     )
 
-    _write_run_outputs(experiment_dir, aggregate_results_df, aggregate_summary, config)
+    _write_run_outputs(
+        experiment_dir,
+        aggregate_results_df,
+        aggregate_summary,
+        config,
+        run_id=experiment_dir.name,
+        strategy_name=strategy_name,
+    )
 
     metrics_rows: list[dict[str, Any]] = []
     splits_dir = experiment_dir / "splits"
@@ -626,6 +664,8 @@ def save_walk_forward_experiment(
             split_result["results_df"],
             split_result["metrics"],
             config,
+            run_id=split_id,
+            strategy_name=strategy_name,
             split_metadata=split_result["split_metadata"],
         )
 

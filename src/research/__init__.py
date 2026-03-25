@@ -31,6 +31,7 @@ from src.research.reporting import (
     summarize_run,
 )
 from src.research.signal_engine import generate_signals
+from src.research.strategy_qa import generate_strategy_qa_summary
 from src.research.splits import (
     EvaluationSplit,
     EvaluationSplitConfigError,
@@ -56,6 +57,7 @@ __all__ = [
     "generate_strategy_plots",
     "generate_strategy_report",
     "generate_signals",
+    "generate_strategy_qa_summary",
     "hit_rate",
     "load_registry",
     "load_and_generate_evaluation_splits",

@@ -58,6 +58,7 @@ def test_save_experiment_writes_standardized_artifacts(
         "config.json",
         "metrics.json",
         "signal_diagnostics.json",
+        "qa_summary.json",
         "equity_curve.csv",
         "equity_curve.parquet",
         "signals.parquet",
@@ -76,6 +77,7 @@ def test_save_experiment_writes_standardized_artifacts(
     assert "config.json" in manifest["artifact_files"]
     assert "equity_curve.csv" in manifest["artifact_files"]
     assert "signal_diagnostics.json" in manifest["artifact_files"]
+    assert "qa_summary.json" in manifest["artifact_files"]
     assert "trades.parquet" in manifest["artifact_files"]
 
     assert json.loads((experiment_dir / "metrics.json").read_text(encoding="utf-8")) == _metrics()
@@ -96,6 +98,38 @@ def test_save_experiment_writes_standardized_artifacts(
             "no_trades": False,
             "high_turnover": False,
         },
+    }
+    assert json.loads((experiment_dir / "qa_summary.json").read_text(encoding="utf-8")) == {
+        "run_id": experiment_dir.name,
+        "strategy_name": "mean_reversion",
+        "dataset": None,
+        "timeframe": None,
+        "row_count": 4,
+        "symbols_present": 1,
+        "date_range": ["2022-01-01", "2022-01-04"],
+        "signal": {
+            "pct_long": 0.5,
+            "pct_short": 0.0,
+            "pct_flat": 0.5,
+            "turnover": 0.25,
+            "total_trades": 1,
+        },
+        "execution": {
+            "valid_returns": True,
+            "equity_curve_present": True,
+        },
+        "metrics": {
+            "total_return": 0.0098,
+            "sharpe": 0.41,
+            "max_drawdown": 0.05,
+        },
+        "flags": {
+            "degenerate_signal": False,
+            "no_trades": False,
+            "high_turnover": False,
+            "low_data": True,
+        },
+        "overall_status": "warn",
     }
 
     signals_df = pd.read_parquet(experiment_dir / "signals.parquet")
@@ -149,10 +183,12 @@ def test_save_experiment_handles_empty_results_without_optional_trades(
     assert (experiment_dir / "equity_curve.csv").exists()
     assert (experiment_dir / "manifest.json").exists()
     assert (experiment_dir / "signal_diagnostics.json").exists()
+    assert (experiment_dir / "qa_summary.json").exists()
     assert not (experiment_dir / "trades.parquet").exists()
 
     manifest = json.loads((experiment_dir / "manifest.json").read_text(encoding="utf-8"))
     assert "signal_diagnostics.json" in manifest["artifact_files"]
+    assert "qa_summary.json" in manifest["artifact_files"]
     assert "trades.parquet" not in manifest["artifact_files"]
 
 

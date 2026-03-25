@@ -14,6 +14,7 @@ from src.research.metrics import compute_performance_metrics
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
+from src.research.strategy_qa import generate_strategy_qa_summary
 from src.research.strategy_base import BaseStrategy
 
 
@@ -65,6 +66,7 @@ class WalkForwardRunResult:
     aggregate_summary: dict[str, Any]
     splits: list[SplitExecutionResult]
     signal_diagnostics: dict[str, Any] = field(default_factory=dict)
+    qa_summary: dict[str, Any] = field(default_factory=dict)
 
 
 def compute_metrics(results_df: pd.DataFrame) -> dict[str, float | None]:
@@ -97,6 +99,8 @@ def run_walk_forward_experiment(
     split_results = [execute_split(strategy, dataset, split) for split in splits]
     aggregate_summary = build_aggregate_summary(split_results)
     aggregate_results = pd.concat([result.results_df for result in split_results], ignore_index=True)
+    aggregate_results.attrs["dataset"] = strategy.dataset
+    aggregate_results.attrs["timeframe"] = evaluation_config.timeframe
     signal_diagnostics = compute_signal_diagnostics(aggregate_results["signal"], aggregate_results)
 
     run_config = {
@@ -142,6 +146,14 @@ def run_walk_forward_experiment(
         aggregate_summary,
         run_config,
     )
+    qa_summary = generate_strategy_qa_summary(
+        aggregate_results,
+        aggregate_results["signal"],
+        signal_diagnostics,
+        aggregate_summary,
+        strategy_name=strategy_name,
+        run_id=experiment_dir.name,
+    )
 
     return WalkForwardRunResult(
         strategy_name=strategy_name,
@@ -151,6 +163,7 @@ def run_walk_forward_experiment(
         aggregate_summary=aggregate_summary,
         splits=split_results,
         signal_diagnostics=signal_diagnostics,
+        qa_summary=qa_summary,
     )
 
 

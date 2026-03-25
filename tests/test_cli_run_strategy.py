@@ -150,6 +150,11 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
     assert "- long: 50% | short: 0% | flat: 50%" in stdout
     assert "- trades: 1 | turnover: 0.50" in stdout
     assert "- avg holding: 1.0 bars" in stdout
+    assert "QA Summary:" in stdout
+    assert "- status: WARN" in stdout
+    assert "- rows: 2 | symbols: 0" in stdout
+    assert "- trades: 1 | turnover: 0.50" in stdout
+    assert result.qa_summary["overall_status"] == "warn"
 
 
 def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:

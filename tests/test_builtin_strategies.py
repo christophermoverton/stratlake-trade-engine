@@ -57,6 +57,7 @@ def _mean_reversion_frame() -> pd.DataFrame:
         {
             "symbol": pd.Series(["SPY"] * len(index), index=index, dtype="string"),
             "ts_utc": pd.Series(ts_utc, index=index),
+            "timeframe": pd.Series(["1d"] * len(index), index=index, dtype="string"),
             "close": [100.0, 100.0, 100.0, 100.0, 103.0, 97.0, 100.0],
         },
         index=index,
@@ -194,6 +195,12 @@ def test_momentum_runs_successfully_through_walk_forward_execution(
 
     assert first.aggregate_summary["split_count"] == 5
     assert len(first.splits) == 5
-    assert set(compute_metrics(first.splits[0].results_df)) == set(first.metrics)
+    assert set(compute_metrics(first.splits[0].results_df)).issubset(set(first.metrics))
+    assert {
+        "benchmark_total_return",
+        "excess_return",
+        "benchmark_correlation",
+        "relative_drawdown",
+    }.issubset(first.metrics)
     assert first.metrics == second.metrics
     assert first.aggregate_summary == second.aggregate_summary

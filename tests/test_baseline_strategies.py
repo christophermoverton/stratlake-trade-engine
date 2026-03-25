@@ -61,6 +61,16 @@ def _expected_metric_keys() -> set[str]:
     }
 
 
+def _expected_walk_forward_metric_keys() -> set[str]:
+    return {
+        *_expected_metric_keys(),
+        "benchmark_total_return",
+        "excess_return",
+        "benchmark_correlation",
+        "relative_drawdown",
+    }
+
+
 def test_buy_and_hold_enters_once_after_first_valid_bar() -> None:
     signals = BuyAndHoldStrategy().generate_signals(_daily_frame())
 
@@ -150,7 +160,7 @@ def test_baselines_run_successfully_through_walk_forward_execution(
 
     assert result.aggregate_summary["split_count"] == 4
     assert len(result.splits) == 4
-    assert set(result.metrics) == _expected_metric_keys()
+    assert set(result.metrics) == _expected_walk_forward_metric_keys()
 
 
 def test_sma_crossover_returns_flat_when_dataset_is_shorter_than_slow_window() -> None:
@@ -174,17 +184,16 @@ def test_baselines_handle_empty_datasets(strategy) -> None:
         {
             "symbol": pd.Series(dtype="string"),
             "ts_utc": pd.Series(dtype="datetime64[ns, UTC]"),
+            "timeframe": pd.Series(dtype="string"),
             "feature_ret_1d": pd.Series(dtype="float64"),
         }
     )
 
     signals = strategy.generate_signals(df)
-    results = run_backtest(df.assign(signal=signals))
-    metrics = compute_metrics(results)
 
     assert signals.empty
-    assert results.empty
-    assert metrics["cumulative_return"] == 0.0
+    with pytest.raises(ValueError, match="contains no usable values"):
+        run_backtest(df.assign(signal=signals))
 
 
 @pytest.mark.parametrize(

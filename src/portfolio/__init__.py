@@ -17,6 +17,7 @@ from .loaders import (
     load_strategy_run_returns,
     load_strategy_runs_returns,
 )
+from .metrics import compute_portfolio_metrics
 
 __all__ = [
     "PortfolioContractError",
@@ -25,6 +26,7 @@ __all__ = [
     "load_strategy_run_returns",
     "load_strategy_runs_returns",
     "build_aligned_return_matrix",
+    "compute_portfolio_metrics",
     "compute_portfolio_returns",
     "compute_portfolio_equity_curve",
     "construct_portfolio",

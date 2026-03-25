@@ -13,9 +13,14 @@ from src.research.registry import (
     RegistryError,
     append_registry_entry,
     default_registry_path,
+    filter_by_allocator_name,
     filter_by_metric_threshold,
+    filter_by_portfolio_name,
+    filter_by_run_type,
     filter_by_strategy_name,
+    generate_portfolio_run_id,
     load_registry,
+    register_portfolio_run,
     serialize_canonical_json,
 )
 from src.research.strategy_base import BaseStrategy
@@ -312,3 +317,234 @@ def test_registry_jsonl_lines_remain_valid_json_objects(tmp_path: Path) -> None:
 
     assert len(lines) == 1
     assert json.loads(lines[0])["run_id"] == "run-json"
+
+
+def test_generate_portfolio_run_id_is_deterministic_for_equivalent_inputs() -> None:
+    config_left = {
+        "portfolio_name": "Core Portfolio",
+        "allocator": "equal_weight",
+        "settings": {"rebalance": "daily", "long_only": True},
+    }
+    config_right = {
+        "allocator": "equal_weight",
+        "settings": {"long_only": True, "rebalance": "daily"},
+        "portfolio_name": "Core Portfolio",
+    }
+
+    left = generate_portfolio_run_id(
+        portfolio_name="Core Portfolio",
+        allocator_name="equal_weight",
+        component_run_ids=["run-b", "run-a"],
+        timeframe="1D",
+        start_ts="2025-01-01",
+        end_ts="2025-01-31",
+        config=config_left,
+        evaluation_config_path=Path("configs") / "portfolio.yml",
+    )
+    right = generate_portfolio_run_id(
+        portfolio_name="Core Portfolio",
+        allocator_name="equal_weight",
+        component_run_ids=["run-a", "run-b"],
+        timeframe="1D",
+        start_ts="2025-01-01",
+        end_ts="2025-01-31",
+        config=config_right,
+        evaluation_config_path="configs/portfolio.yml",
+    )
+
+    assert left == right
+    assert left.startswith("core_portfolio_portfolio_")
+
+
+def test_register_portfolio_run_appends_one_portfolio_entry_with_stable_schema(tmp_path: Path) -> None:
+    registry_path = tmp_path / "registry.jsonl"
+    config = {
+        "portfolio_name": "Core Portfolio",
+        "allocator": "equal_weight",
+        "timeframe": "1D",
+        "settings": {"rebalance": "daily"},
+    }
+    components = [
+        {"strategy_name": "beta", "run_id": "run-b", "artifact_path": "artifacts/strategies/run-b"},
+        {"strategy_name": "alpha", "run_id": "run-a", "artifact_path": "artifacts/strategies/run-a"},
+    ]
+    metrics = {"total_return": 0.12, "sharpe_ratio": 1.4}
+    run_id = generate_portfolio_run_id(
+        portfolio_name="Core Portfolio",
+        allocator_name="equal_weight",
+        component_run_ids=["run-b", "run-a"],
+        timeframe="1D",
+        start_ts="2025-01-01",
+        end_ts="2025-01-31",
+        config=config,
+        evaluation_config_path="configs/portfolio.yml",
+    )
+
+    register_portfolio_run(
+        registry_path=registry_path,
+        run_id=run_id,
+        config=config,
+        components=components,
+        metrics=metrics,
+        artifact_path="artifacts/portfolios/core_portfolio",
+        metadata={
+            "portfolio_name": "Core Portfolio",
+            "allocator_name": "equal_weight",
+            "timeframe": "1D",
+            "start_ts": "2025-01-01",
+            "end_ts": "2025-01-31",
+            "evaluation_config_path": "configs/portfolio.yml",
+        },
+    )
+
+    entries = load_registry(registry_path)
+
+    assert len(entries) == 1
+    entry = entries[0]
+    assert entry["run_id"] == run_id
+    assert entry["run_type"] == "portfolio"
+    assert entry["portfolio_name"] == "Core Portfolio"
+    assert entry["allocator_name"] == "equal_weight"
+    assert entry["component_run_ids"] == ["run-a", "run-b"]
+    assert entry["component_strategy_names"] == ["alpha", "beta"]
+    assert entry["timeframe"] == "1D"
+    assert entry["start_ts"] == "2025-01-01"
+    assert entry["end_ts"] == "2025-01-31"
+    assert entry["artifact_path"] == "artifacts/portfolios/core_portfolio"
+    assert entry["metrics"] == metrics
+    assert entry["evaluation_config_path"] == "configs/portfolio.yml"
+    assert entry["split_count"] is None
+
+
+def test_register_portfolio_run_skips_duplicate_identical_run_ids(tmp_path: Path) -> None:
+    registry_path = tmp_path / "registry.jsonl"
+    payload = {
+        "registry_path": registry_path,
+        "run_id": "core_portfolio_portfolio_123abc456def",
+        "config": {"portfolio_name": "Core Portfolio", "allocator": "equal_weight", "timeframe": "1D"},
+        "components": [
+            {"strategy_name": "alpha", "run_id": "run-a"},
+            {"strategy_name": "beta", "run_id": "run-b"},
+        ],
+        "metrics": {"total_return": 0.12},
+        "artifact_path": "artifacts/portfolios/core_portfolio",
+        "metadata": {
+            "portfolio_name": "Core Portfolio",
+            "allocator_name": "equal_weight",
+            "timeframe": "1D",
+            "start_ts": "2025-01-01",
+            "end_ts": "2025-01-31",
+        },
+    }
+
+    register_portfolio_run(**payload)
+    register_portfolio_run(**payload)
+
+    entries = load_registry(registry_path)
+    assert [entry["run_id"] for entry in entries] == ["core_portfolio_portfolio_123abc456def"]
+
+
+def test_registry_filters_support_mixed_strategy_and_portfolio_entries(tmp_path: Path) -> None:
+    registry_path = tmp_path / "registry.jsonl"
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "strategy-run",
+            "timestamp": "2026-03-19T00:00:00Z",
+            "strategy_name": "alpha_v1",
+            "strategy_params": {"lookback": 5},
+            "evaluation_mode": "single",
+            "evaluation_config": None,
+            "data_range": {"start": "2025-01-01", "end": "2025-01-02"},
+            "timeframe": "1D",
+            "metrics_summary": {"cumulative_return": 0.02, "sharpe_ratio": 0.9},
+            "artifact_path": "artifacts/strategies/strategy-run",
+            "split_count": None,
+            "dataset": "features_daily",
+            "evaluation_config_path": None,
+        },
+    )
+    register_portfolio_run(
+        registry_path=registry_path,
+        run_id="core_portfolio_portfolio_123abc456def",
+        config={"portfolio_name": "Core Portfolio", "allocator": "equal_weight", "timeframe": "1D"},
+        components=[
+            {"strategy_name": "alpha_v1", "run_id": "strategy-run"},
+            {"strategy_name": "beta_v1", "run_id": "strategy-run-2"},
+        ],
+        metrics={"total_return": 0.15, "sharpe_ratio": 1.3},
+        artifact_path="artifacts/portfolios/core_portfolio",
+        metadata={
+            "portfolio_name": "Core Portfolio",
+            "allocator_name": "equal_weight",
+            "timeframe": "1D",
+            "start_ts": "2025-01-01",
+            "end_ts": "2025-01-31",
+        },
+    )
+
+    entries = load_registry(registry_path)
+
+    assert [entry["run_id"] for entry in filter_by_run_type(entries, "strategy")] == ["strategy-run"]
+    assert [entry["run_id"] for entry in filter_by_run_type(entries, "portfolio")] == [
+        "core_portfolio_portfolio_123abc456def"
+    ]
+    assert [entry["run_id"] for entry in filter_by_portfolio_name(entries, "Core Portfolio")] == [
+        "core_portfolio_portfolio_123abc456def"
+    ]
+    assert [entry["run_id"] for entry in filter_by_allocator_name(entries, "equal_weight")] == [
+        "core_portfolio_portfolio_123abc456def"
+    ]
+    assert [entry["run_id"] for entry in filter_by_strategy_name(entries, "alpha_v1")] == ["strategy-run"]
+    assert [entry["run_id"] for entry in filter_by_metric_threshold(entries, "sharpe_ratio", min_value=1.0)] == [
+        "core_portfolio_portfolio_123abc456def"
+    ]
+
+
+def test_load_registry_defaults_missing_run_type_for_legacy_strategy_entries(tmp_path: Path) -> None:
+    registry_path = tmp_path / "registry.jsonl"
+    registry_path.write_text(
+        json.dumps(
+            {
+                "run_id": "legacy-run",
+                "timestamp": "2026-03-19T00:00:00Z",
+                "strategy_name": "alpha_v1",
+                "strategy_params": {},
+                "evaluation_mode": "single",
+                "evaluation_config": None,
+                "data_range": {"start": "2025-01-01", "end": "2025-01-02"},
+                "timeframe": "1D",
+                "metrics_summary": {"cumulative_return": 0.02},
+                "artifact_path": "artifacts/strategies/legacy-run",
+                "split_count": None,
+                "dataset": "features_daily",
+                "evaluation_config_path": None,
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    entries = load_registry(registry_path)
+
+    assert len(entries) == 1
+    assert entries[0]["run_type"] == "strategy"
+
+
+def test_register_portfolio_run_rejects_missing_component_run_ids(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="components must contain at least one portfolio component"):
+        register_portfolio_run(
+            registry_path=tmp_path / "registry.jsonl",
+            run_id="core_portfolio_portfolio_123abc456def",
+            config={"portfolio_name": "Core Portfolio", "allocator": "equal_weight", "timeframe": "1D"},
+            components=[],
+            metrics={"total_return": 0.12},
+            artifact_path="artifacts/portfolios/core_portfolio",
+            metadata={
+                "portfolio_name": "Core Portfolio",
+                "allocator_name": "equal_weight",
+                "timeframe": "1D",
+                "start_ts": "2025-01-01",
+                "end_ts": "2025-01-31",
+            },
+        )

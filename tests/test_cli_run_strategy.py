@@ -154,6 +154,8 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
     assert "- status: WARN" in stdout
     assert "- rows: 2 | symbols: 0" in stdout
     assert "- trades: 1 | turnover: 0.50" in stdout
+    assert "Warnings:" in stdout
+    assert "- insufficient data for a high-confidence analysis" in stdout
     assert result.qa_summary["overall_status"] == "warn"
 
 

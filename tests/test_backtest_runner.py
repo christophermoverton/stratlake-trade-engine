@@ -62,5 +62,13 @@ def test_run_backtest_raises_when_signal_column_is_missing() -> None:
 def test_run_backtest_raises_when_supported_return_column_is_missing() -> None:
     df = _backtest_frame().drop(columns=["feature_ret_1d"])
 
-    with pytest.raises(ValueError, match="Expected one of"):
+    with pytest.raises(ValueError, match="Run failed: missing returns"):
+        run_backtest(df)
+
+
+def test_run_backtest_raises_when_return_column_has_no_usable_values() -> None:
+    df = _backtest_frame()
+    df["feature_ret_1d"] = pd.Series([pd.NA] * len(df), dtype="Float64")
+
+    with pytest.raises(ValueError, match="contains no usable values"):
         run_backtest(df)

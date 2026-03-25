@@ -407,6 +407,8 @@ def _expected_qa_status(qa_summary: dict[str, Any]) -> str:
         low_data = row_count < LOW_DATA_THRESHOLD
 
     failure = (
+        bool(flags.get("no_data"))
+        or
         not bool(execution.get("valid_returns"))
         or not bool(execution.get("equity_curve_present"))
         or bool(qa_summary.get("integrity_failure", False))

@@ -16,6 +16,8 @@ class BaseStrategy(ABC):
 
     name: str
     dataset: str
+    required_input_columns: tuple[str, ...] = ()
+    requires_return_column: bool = False
 
     @abstractmethod
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:

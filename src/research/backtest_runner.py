@@ -24,8 +24,17 @@ def _resolve_return_column(df: pd.DataFrame) -> str:
             return column
 
     raise ValueError(
-        "Backtest input must include a 'signal' column and an asset return column. "
+        "Run failed: missing returns. Backtest input must include an asset return column. "
         f"Expected one of: {', '.join(RETURN_COLUMN_CANDIDATES)}."
+    )
+
+
+def _validate_return_column(df: pd.DataFrame, column: str) -> None:
+    usable_returns = pd.to_numeric(df[column], errors="coerce")
+    if usable_returns.notna().any():
+        return
+    raise ValueError(
+        f"Run failed: missing returns. Return column '{column}' is present but contains no usable values."
     )
 
 
@@ -52,6 +61,7 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError("Backtest input must include a 'signal' column.")
 
     return_column = _resolve_return_column(df)
+    _validate_return_column(df, return_column)
 
     result = df.copy()
     shifted_signal = result["signal"].shift(1).fillna(0.0)

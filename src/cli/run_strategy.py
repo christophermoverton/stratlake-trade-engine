@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Sequence
@@ -12,6 +13,7 @@ from src.config.evaluation import EVALUATION_CONFIG
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
+from src.research.input_validation import StrategyInputError
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.strategies import build_strategy
@@ -163,6 +165,24 @@ def print_summary(result: StrategyRunResult | WalkForwardRunResult) -> None:
             f"- trades: {qa_summary['signal']['total_trades']} | "
             f"turnover: {qa_summary['signal']['turnover']:.2f}"
         )
+        warnings_list = summarize_qa_warnings(qa_summary)
+        if warnings_list:
+            print("Warnings:")
+            for warning in warnings_list:
+                print(f"- {warning}")
+
+
+def summarize_qa_warnings(qa_summary: dict[str, Any]) -> list[str]:
+    flags = qa_summary.get("flags")
+    if not isinstance(flags, dict):
+        return []
+
+    warnings_list: list[str] = []
+    if bool(flags.get("low_data")):
+        warnings_list.append("insufficient data for a high-confidence analysis")
+    if bool(flags.get("no_trades")):
+        warnings_list.append("no trades were generated")
+    return warnings_list
 
 
 def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult:
@@ -190,7 +210,18 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
 def main() -> None:
     """CLI entrypoint used by direct module execution."""
 
-    run_cli()
+    try:
+        run_cli()
+    except (StrategyInputError, ValueError) as exc:
+        print(_format_run_failure(exc), file=sys.stderr)
+        raise SystemExit(1) from exc
+
+
+def _format_run_failure(exc: Exception) -> str:
+    message = str(exc).strip()
+    if message.startswith("Run failed:"):
+        return message
+    return f"Run failed: {message}"
 
 
 if __name__ == "__main__":

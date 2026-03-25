@@ -62,6 +62,7 @@ def test_generate_strategy_qa_summary_passes_for_valid_run() -> None:
         "row_count": 120,
         "symbols_present": 1,
         "date_range": ["2025-01-01T00:00:00Z", "2025-04-30T00:00:00Z"],
+        "input_validation": {},
         "signal": {
             "pct_long": 0.5,
             "pct_short": 0.0,
@@ -79,6 +80,7 @@ def test_generate_strategy_qa_summary_passes_for_valid_run() -> None:
             "max_drawdown": 0.15,
         },
         "flags": {
+            "no_data": False,
             "degenerate_signal": False,
             "no_trades": False,
             "high_turnover": False,

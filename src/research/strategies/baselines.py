@@ -13,6 +13,8 @@ class BuyAndHoldStrategy(BaseStrategy):
 
     name = "buy_and_hold_v1"
     dataset = "features_daily"
+    required_input_columns = ()
+    requires_return_column = True
 
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         signals = pd.Series(0, index=df.index, dtype="int64")
@@ -33,6 +35,8 @@ class SMACrossoverStrategy(BaseStrategy):
 
     name = "sma_crossover_v1"
     dataset = "features_daily"
+    required_input_columns = ()
+    requires_return_column = True
 
     def __init__(self, *, fast_window: int, slow_window: int) -> None:
         if fast_window <= 0 or slow_window <= 0:
@@ -66,6 +70,8 @@ class SeededRandomStrategy(BaseStrategy):
 
     name = "seeded_random_v1"
     dataset = "features_daily"
+    required_input_columns = ()
+    requires_return_column = True
 
     def __init__(self, *, seed: int) -> None:
         self.seed = int(seed)

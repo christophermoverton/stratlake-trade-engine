@@ -43,6 +43,7 @@ def _feature_frame() -> pd.DataFrame:
         {
             "symbol": pd.Series(["AAPL", "AAPL", "AAPL"], index=index, dtype="string"),
             "ts_utc": pd.Series(ts_utc, index=index),
+            "timeframe": pd.Series(["1D", "1D", "1D"], index=index, dtype="string"),
             "feature_alpha": [0.1, -0.2, 0.3],
         },
         index=index,
@@ -103,3 +104,10 @@ def test_generate_signals_requires_matching_index() -> None:
 
     with pytest.raises(ValueError, match="aligned exactly with the input DataFrame index"):
         generate_signals(df, MisalignedStrategy())
+
+
+def test_generate_signals_fails_for_missing_timeframe_column() -> None:
+    df = _feature_frame().drop(columns=["timeframe"])
+
+    with pytest.raises(ValueError, match="missing required strategy input columns"):
+        generate_signals(df, DummyStrategy())

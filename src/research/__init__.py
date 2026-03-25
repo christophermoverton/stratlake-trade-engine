@@ -3,6 +3,7 @@
 from src.research.backtest_runner import run_backtest
 from src.research.consistency import ConsistencyError, validate_run_consistency
 from src.research.experiment_tracker import save_experiment
+from src.research.input_validation import StrategyInputError, validate_strategy_input
 from src.research.integrity import validate_research_integrity
 from src.research.metrics import (
     annualized_return,
@@ -51,6 +52,7 @@ __all__ = [
     "build_strategy",
     "compute_performance_metrics",
     "ConsistencyError",
+    "StrategyInputError",
     "cumulative_return",
     "exposure_pct",
     "filter_by_metric_threshold",
@@ -73,6 +75,7 @@ __all__ = [
     "summarize_run",
     "total_return",
     "turnover",
+    "validate_strategy_input",
     "validate_run_consistency",
     "validate_research_integrity",
     "volatility",

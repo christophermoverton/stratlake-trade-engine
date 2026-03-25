@@ -13,7 +13,10 @@ def resolve_return_column(df: pd.DataFrame) -> str:
             return column
 
     expected = ", ".join(RETURN_COLUMN_CANDIDATES)
-    raise ValueError(f"Feature dataset must include one of the supported return columns: {expected}.")
+    raise ValueError(
+        "Run failed: missing returns. Feature dataset must include one of the supported return columns: "
+        f"{expected}."
+    )
 
 
 def valid_return_mask(df: pd.DataFrame) -> pd.Series:

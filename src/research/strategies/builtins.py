@@ -12,6 +12,8 @@ class MomentumStrategy(BaseStrategy):
 
     name = "momentum_v1"
     dataset = "features_daily"
+    required_input_columns = ()
+    requires_return_column = True
 
     def __init__(self, *, lookback_short: int, lookback_long: int) -> None:
         if lookback_short <= 0 or lookback_long <= 0:
@@ -46,6 +48,7 @@ class MeanReversionStrategy(BaseStrategy):
 
     name = "mean_reversion_v1"
     dataset = "features_daily"
+    required_input_columns = ("close",)
 
     def __init__(self, *, lookback: int, threshold: float) -> None:
         if lookback <= 1:

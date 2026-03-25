@@ -5,8 +5,9 @@ from typing import Any
 import pandas as pd
 
 from src.research.signal_diagnostics import compute_signal_diagnostics
+from src.research.input_validation import STRATEGY_INPUT_MIN_ROWS
 
-LOW_DATA_THRESHOLD = 100
+LOW_DATA_THRESHOLD = STRATEGY_INPUT_MIN_ROWS
 
 
 def generate_strategy_qa_summary(
@@ -31,7 +32,9 @@ def generate_strategy_qa_summary(
     execution = _execution_payload(normalized_df)
 
     row_count = int(len(normalized_df))
+    input_validation = _input_validation_payload(normalized_df)
     flags = {
+        "no_data": row_count == 0,
         "degenerate_signal": bool(
             signal_diagnostics["flags"]["always_flat"]
             or signal_diagnostics["flags"]["always_long"]
@@ -39,11 +42,11 @@ def generate_strategy_qa_summary(
         ),
         "no_trades": int(signal_diagnostics["total_trades"]) == 0,
         "high_turnover": bool(signal_diagnostics["flags"]["high_turnover"]),
-        "low_data": row_count < LOW_DATA_THRESHOLD,
+        "low_data": bool(input_validation.get("low_data", row_count < LOW_DATA_THRESHOLD)),
     }
 
     integrity_failure = _integrity_failure(normalized_df, signal_diagnostics)
-    if integrity_failure or not execution["valid_returns"] or not execution["equity_curve_present"]:
+    if flags["no_data"] or integrity_failure or not execution["valid_returns"] or not execution["equity_curve_present"]:
         overall_status = "fail"
     elif any(flags.values()):
         overall_status = "warn"
@@ -58,6 +61,7 @@ def generate_strategy_qa_summary(
         "row_count": row_count,
         "symbols_present": _symbols_present(normalized_df),
         "date_range": date_range,
+        "input_validation": input_validation,
         "signal": {
             "pct_long": _coerce_number(signal_diagnostics.get("pct_long")),
             "pct_short": _coerce_number(signal_diagnostics.get("pct_short")),
@@ -127,6 +131,13 @@ def _execution_payload(df: pd.DataFrame) -> dict[str, bool]:
         "valid_returns": valid_returns,
         "equity_curve_present": equity_curve_present,
     }
+
+
+def _input_validation_payload(df: pd.DataFrame) -> dict[str, Any]:
+    payload = df.attrs.get("input_validation")
+    if not isinstance(payload, dict):
+        return {}
+    return dict(payload)
 
 
 def _integrity_failure(df: pd.DataFrame, diagnostics: dict[str, Any]) -> bool:

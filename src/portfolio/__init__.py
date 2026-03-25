@@ -1,4 +1,5 @@
 from .allocators import BaseAllocator, EqualWeightAllocator
+from .artifacts import write_portfolio_artifacts
 from .contracts import (
     PortfolioContractError,
     validate_aligned_returns,
@@ -23,6 +24,7 @@ __all__ = [
     "PortfolioContractError",
     "BaseAllocator",
     "EqualWeightAllocator",
+    "write_portfolio_artifacts",
     "load_strategy_run_returns",
     "load_strategy_runs_returns",
     "build_aligned_return_matrix",

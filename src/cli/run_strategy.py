@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Sequence
 
@@ -12,6 +12,7 @@ from src.config.evaluation import EVALUATION_CONFIG
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
+from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.strategies import build_strategy
 from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment
@@ -29,6 +30,7 @@ class StrategyRunResult:
     metrics: dict[str, float | None]
     experiment_dir: Path
     results_df: pd.DataFrame
+    signal_diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -94,6 +96,7 @@ def run_strategy_experiment(
     signal_frame = generate_signals(dataset, strategy)
     results_df = run_backtest(signal_frame)
     metrics = compute_metrics(results_df)
+    signal_diagnostics = compute_signal_diagnostics(results_df["signal"], results_df)
 
     experiment_config = {
         "strategy_name": strategy_name,
@@ -110,6 +113,7 @@ def run_strategy_experiment(
         metrics=metrics,
         experiment_dir=experiment_dir,
         results_df=results_df,
+        signal_diagnostics=signal_diagnostics,
     )
 
 
@@ -122,6 +126,19 @@ def print_summary(result: StrategyRunResult | WalkForwardRunResult) -> None:
         print(f"split_count: {result.aggregate_summary['split_count']}")
     print(f"cumulative_return: {result.metrics['cumulative_return']:.6f}")
     print(f"sharpe_ratio: {result.metrics['sharpe_ratio']:.6f}")
+    diagnostics = getattr(result, "signal_diagnostics", None)
+    if isinstance(diagnostics, dict) and diagnostics:
+        print("Signal diagnostics:")
+        print(
+            f"- long: {diagnostics['pct_long']:.0%} | "
+            f"short: {diagnostics['pct_short']:.0%} | "
+            f"flat: {diagnostics['pct_flat']:.0%}"
+        )
+        print(
+            f"- trades: {diagnostics['total_trades']} | "
+            f"turnover: {diagnostics['turnover']:.2f}"
+        )
+        print(f"- avg holding: {diagnostics['avg_holding_period']:.1f} bars")
 
 
 def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult:

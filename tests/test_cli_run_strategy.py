@@ -146,6 +146,10 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
     assert "run_id: run-123" in stdout
     assert "cumulative_return: 0.020000" in stdout
     assert "sharpe_ratio: 1.250000" in stdout
+    assert "Signal diagnostics:" in stdout
+    assert "- long: 50% | short: 0% | flat: 50%" in stdout
+    assert "- trades: 1 | turnover: 0.50" in stdout
+    assert "- avg holding: 1.0 bars" in stdout
 
 
 def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:

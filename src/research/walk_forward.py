@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -11,6 +11,7 @@ from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_walk_forward_experiment
 from src.research.metrics import compute_performance_metrics
+from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 from src.research.strategy_base import BaseStrategy
@@ -63,6 +64,7 @@ class WalkForwardRunResult:
     metrics: dict[str, float | None]
     aggregate_summary: dict[str, Any]
     splits: list[SplitExecutionResult]
+    signal_diagnostics: dict[str, Any] = field(default_factory=dict)
 
 
 def compute_metrics(results_df: pd.DataFrame) -> dict[str, float | None]:
@@ -94,6 +96,8 @@ def run_walk_forward_experiment(
     dataset = _load_dataset_for_splits(strategy, splits)
     split_results = [execute_split(strategy, dataset, split) for split in splits]
     aggregate_summary = build_aggregate_summary(split_results)
+    aggregate_results = pd.concat([result.results_df for result in split_results], ignore_index=True)
+    signal_diagnostics = compute_signal_diagnostics(aggregate_results["signal"], aggregate_results)
 
     run_config = {
         "strategy_name": strategy_name,
@@ -146,6 +150,7 @@ def run_walk_forward_experiment(
         metrics=_coerce_metric_map(aggregate_summary),
         aggregate_summary=aggregate_summary,
         splits=split_results,
+        signal_diagnostics=signal_diagnostics,
     )
 
 

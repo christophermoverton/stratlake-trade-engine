@@ -67,6 +67,30 @@ def test_generate_signals_preserves_input_columns() -> None:
     assert result["feature_alpha"].tolist() == df["feature_alpha"].tolist()
 
 
+def test_generate_signals_attaches_signal_diagnostics() -> None:
+    df = _feature_frame()
+
+    result = generate_signals(df, DummyStrategy())
+
+    assert result.attrs["signal_diagnostics"] == {
+        "total_rows": 3,
+        "pct_long": pytest.approx(1 / 3),
+        "pct_short": pytest.approx(1 / 3),
+        "pct_flat": pytest.approx(1 / 3),
+        "total_trades": 2,
+        "turnover": pytest.approx(2 / 3),
+        "avg_holding_period": 1.0,
+        "exposure_pct": pytest.approx(2 / 3),
+        "flags": {
+            "always_flat": False,
+            "always_long": False,
+            "always_short": False,
+            "no_trades": False,
+            "high_turnover": True,
+        },
+    }
+
+
 def test_generate_signals_requires_series_output() -> None:
     df = _feature_frame()
 

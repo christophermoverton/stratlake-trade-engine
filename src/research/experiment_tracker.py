@@ -10,6 +10,7 @@ import pandas as pd
 
 from src.research.metrics import infer_position_series
 from src.research.registry import default_registry_path, serialize_canonical_json, upsert_registry_entry
+from src.research.signal_diagnostics import compute_signal_diagnostics
 
 ARTIFACTS_ROOT = Path("artifacts") / "strategies"
 _BACKTEST_COLUMNS = ("strategy_return", "equity_curve")
@@ -478,17 +479,20 @@ def _write_run_outputs(
     signals_frame = _signals_frame(results_df)
     equity_curve_frame = _equity_curve_frame(results_df)
     trades_frame = _trades_frame(results_df)
+    signal_diagnostics = _signal_diagnostics_payload(results_df)
 
     signals_frame.to_parquet(output_dir / "signals.parquet")
     equity_curve_frame.to_csv(output_dir / "equity_curve.csv", index=False)
     _legacy_equity_curve_frame(results_df).to_parquet(output_dir / "equity_curve.parquet")
     _write_json(output_dir / "metrics.json", metrics)
+    _write_json(output_dir / "signal_diagnostics.json", signal_diagnostics)
 
     written = [
         "signals.parquet",
         "equity_curve.csv",
         "equity_curve.parquet",
         "metrics.json",
+        "signal_diagnostics.json",
     ]
 
     if split_metadata is None:
@@ -503,6 +507,15 @@ def _write_run_outputs(
         written.append("trades.parquet")
 
     return written
+
+
+def _signal_diagnostics_payload(results_df: pd.DataFrame) -> dict[str, Any]:
+    diagnostics = results_df.attrs.get("signal_diagnostics")
+    if isinstance(diagnostics, dict):
+        return diagnostics
+    if "signal" not in results_df.columns:
+        return compute_signal_diagnostics(pd.Series(dtype="float64"), results_df)
+    return compute_signal_diagnostics(results_df["signal"], results_df)
 
 
 def _manifest_metric_summary(metrics: dict[str, Any]) -> dict[str, Any]:

@@ -57,6 +57,7 @@ def test_save_experiment_writes_standardized_artifacts(
     expected_files = {
         "config.json",
         "metrics.json",
+        "signal_diagnostics.json",
         "equity_curve.csv",
         "equity_curve.parquet",
         "signals.parquet",
@@ -74,10 +75,28 @@ def test_save_experiment_writes_standardized_artifacts(
     assert manifest["primary_metric"] == "sharpe_ratio"
     assert "config.json" in manifest["artifact_files"]
     assert "equity_curve.csv" in manifest["artifact_files"]
+    assert "signal_diagnostics.json" in manifest["artifact_files"]
     assert "trades.parquet" in manifest["artifact_files"]
 
     assert json.loads((experiment_dir / "metrics.json").read_text(encoding="utf-8")) == _metrics()
     assert json.loads((experiment_dir / "config.json").read_text(encoding="utf-8")) == config
+    assert json.loads((experiment_dir / "signal_diagnostics.json").read_text(encoding="utf-8")) == {
+        "total_rows": 4,
+        "pct_long": 0.5,
+        "pct_short": 0.0,
+        "pct_flat": 0.5,
+        "total_trades": 1,
+        "turnover": 0.25,
+        "avg_holding_period": 2.0,
+        "exposure_pct": 0.5,
+        "flags": {
+            "always_flat": False,
+            "always_long": False,
+            "always_short": False,
+            "no_trades": False,
+            "high_turnover": False,
+        },
+    }
 
     signals_df = pd.read_parquet(experiment_dir / "signals.parquet")
     equity_curve_df = pd.read_csv(experiment_dir / "equity_curve.csv")
@@ -129,9 +148,11 @@ def test_save_experiment_handles_empty_results_without_optional_trades(
     assert (experiment_dir / "signals.parquet").exists()
     assert (experiment_dir / "equity_curve.csv").exists()
     assert (experiment_dir / "manifest.json").exists()
+    assert (experiment_dir / "signal_diagnostics.json").exists()
     assert not (experiment_dir / "trades.parquet").exists()
 
     manifest = json.loads((experiment_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert "signal_diagnostics.json" in manifest["artifact_files"]
     assert "trades.parquet" not in manifest["artifact_files"]
 
 

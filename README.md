@@ -257,6 +257,7 @@ Focused references:
 * [docs/cli_strategy_runner.md](docs/cli_strategy_runner.md)
 * [docs/walk_forward_strategy_runner.md](docs/walk_forward_strategy_runner.md)
 * [docs/strategy_comparison_cli.md](docs/strategy_comparison_cli.md)
+* [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 * [docs/strategy_performance_metrics.md](docs/strategy_performance_metrics.md)
 * [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
 * [docs/evaluation_split_configuration.md](docs/evaluation_split_configuration.md)
@@ -332,6 +333,24 @@ See [docs/research_visualization_workflow.md](docs/research_visualization_workfl
 for how saved run artifacts become plots and a deterministic Markdown report.
 See [docs/strategy_comparison_cli.md](docs/strategy_comparison_cli.md)
 for comparison modes, leaderboard ordering, and output artifacts.
+
+### Research Integrity & QA
+
+The research stack includes dedicated trust layers for:
+
+* input-contract enforcement and fail-fast validation
+* research integrity checks for temporal ordering, signal alignment, and no lookahead execution
+* signal diagnostics and strategy QA summaries
+* post-write consistency validation across metrics, QA artifacts, manifests, and registry entries
+* deterministic rerun guarantees and benchmark-relative plausibility warnings
+
+The workflow remains artifact-driven: saved files are the source of truth, QA
+artifacts summarize trust signals, and consistency validation confirms that the
+persisted outputs agree with each other.
+
+See [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
+for the end-to-end validation model, artifact roles, and warning vs failure
+semantics.
 
 ### Visualization And Reporting
 

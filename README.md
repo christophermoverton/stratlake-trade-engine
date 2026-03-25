@@ -14,11 +14,12 @@ StratLake now spans multiple connected milestones across repository
 foundation, feature engineering, research execution, evaluation, and
 artifact-driven review workflows.
 
-Milestone 7 is now complete in
-`v0.7.0-visualization-reporting`: Visualization & Reporting Refinement.
-This release standardizes plotting and report generation on top of existing
-saved run artifacts, making research outputs easier to review without changing
-core strategy logic or artifact schemas.
+Milestone 8 is now complete in
+`v0.8.0-research-integrity`: Research Integrity & Strategy QA Hardening.
+This release adds formal validation and QA layers around the existing
+artifact-driven research workflow, making saved strategy results easier to
+trust, reproduce, and review without changing core strategy logic or artifact
+schemas.
 
 The repository now supports:
 
@@ -33,23 +34,31 @@ The repository now supports:
 * a comparison CLI for multi-strategy leaderboards from fresh runs or registry-backed results
 * standardized plotting utilities for single-run and comparison visualizations
 * deterministic Markdown report generation from saved research artifacts
+* fail-fast strategy input contract enforcement before signal generation
+* research integrity validation for anti-leakage, temporal ordering, and signal alignment
+* structured signal diagnostics and `qa_summary.json` trust summaries
+* cross-artifact consistency validation and deterministic rerun regression coverage
+* benchmark-relative metrics and plausibility warnings for result interpretation
 * report-quality vs debug artifact separation for saved plots and reports
-* deterministic test coverage for visualization and reporting artifacts
+* deterministic test coverage for research execution, QA, visualization, and reporting artifacts
 
-### Milestone 7: Visualization & Reporting Refinement
+### Milestone 8: Research Integrity & Strategy QA Hardening
 
-Milestone 7 adds a lightweight presentation layer to the existing
-artifact-driven research workflow:
+Milestone 8 hardens the artifact-driven research workflow with dedicated trust
+and validation layers:
 
-* standardized plotting utilities for consistent saved figure output
-* improved strategy comparison and equity visualizations
-* structured Markdown report generation from saved run artifacts
-* clear separation between report-quality plots and debug-only artifacts
-* deterministic tests covering visualization and reporting outputs
+* research integrity validation for anti-leakage, ordering, and alignment checks
+* fail-fast input contract enforcement before strategies run
+* deterministic signal diagnostics and strategy QA summaries
+* cross-artifact consistency checks across metrics, manifests, QA, and registry records
+* deterministic rerun guarantees and regression coverage
+* benchmark-relative evaluation metrics with warning-only plausibility flags
 
 ### Start Here
 
+* [docs/getting_started.md](docs/getting_started.md)
 * [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
+* [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 * [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 * [docs/examples/strategy_comparison_example.md](docs/examples/strategy_comparison_example.md)
 
@@ -77,6 +86,7 @@ StratLake owns:
 - Feature engineering
 - Research experimentation
 - Backtesting logic
+- Artifact-driven QA and validation layers
 - Reproducible research artifacts
 
 ---
@@ -175,6 +185,10 @@ Current implementation includes:
 * Walk-forward evaluation across deterministic train/test splits
 * Baseline benchmark strategies for buy-and-hold, SMA crossover, and seeded random references
 * Strategy comparison and leaderboard generation from fresh runs or registry-backed selection
+* Fail-fast strategy input validation and research integrity enforcement
+* Signal diagnostics, strategy QA summaries, and post-write consistency validation
+* Deterministic rerun behavior with regression coverage for reproducibility
+* Benchmark-relative metrics and plausibility warnings for review workflows
 * Artifact-driven plot and Markdown report generation from saved run artifacts
 * Standardized report-quality and debug visualization artifacts for review workflows
 
@@ -233,6 +247,8 @@ evaluation and comparison workflow:
 * baseline benchmarks through the same runner and metric stack
 * file-based artifacts plus append-only registry tracking
 * multi-strategy comparison with leaderboard outputs
+* QA summaries and consistency validation built from saved artifacts
+* benchmark-relative evaluation for contextualized result review
 * deterministic plots and Markdown reports derived from saved run artifacts
 * report-quality vs debug plot separation for saved review outputs
 
@@ -497,7 +513,8 @@ for the benchmark intent, parameter definitions, and config examples.
 Current release outcome:
 
 * StratLake can now execute single-run and walk-forward strategy evaluations,
-  benchmark against deterministic baselines, persist registry-backed artifacts,
+  benchmark against deterministic baselines, enforce research integrity and
+  fail-fast input validation, persist QA-checked registry-backed artifacts,
   compare strategies through a shared leaderboard workflow, and generate
   deterministic visual and Markdown summaries from saved run outputs.
 

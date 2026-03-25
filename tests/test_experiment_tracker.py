@@ -107,6 +107,7 @@ def test_save_experiment_writes_standardized_artifacts(
         "row_count": 4,
         "symbols_present": 1,
         "date_range": ["2022-01-01", "2022-01-04"],
+        "input_validation": {},
         "signal": {
             "pct_long": 0.5,
             "pct_short": 0.0,
@@ -123,11 +124,22 @@ def test_save_experiment_writes_standardized_artifacts(
             "sharpe": 0.41,
             "max_drawdown": 0.01,
         },
+        "relative": {
+            "benchmark_return": None,
+            "excess_return": None,
+            "correlation": None,
+            "relative_drawdown": None,
+        },
         "flags": {
+            "no_data": False,
             "degenerate_signal": False,
             "no_trades": False,
             "high_turnover": False,
             "low_data": True,
+            "high_benchmark_correlation": False,
+            "low_excess_return": False,
+            "high_turnover_low_edge": False,
+            "beta_dominated_strategy": False,
         },
         "overall_status": "warn",
     }

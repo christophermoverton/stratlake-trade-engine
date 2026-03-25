@@ -29,7 +29,14 @@ def generate_strategy_qa_summary(
         "sharpe": _coerce_number(metrics.get("sharpe_ratio")),
         "max_drawdown": _coerce_number(metrics.get("max_drawdown")),
     }
+    relative_payload = {
+        "benchmark_return": _coerce_number(metrics.get("benchmark_total_return")),
+        "excess_return": _coerce_number(metrics.get("excess_return")),
+        "correlation": _coerce_number(metrics.get("benchmark_correlation")),
+        "relative_drawdown": _coerce_number(metrics.get("relative_drawdown")),
+    }
     execution = _execution_payload(normalized_df)
+    plausibility_flags = _plausibility_flags(metrics)
 
     row_count = int(len(normalized_df))
     input_validation = _input_validation_payload(normalized_df)
@@ -43,6 +50,7 @@ def generate_strategy_qa_summary(
         "no_trades": int(signal_diagnostics["total_trades"]) == 0,
         "high_turnover": bool(signal_diagnostics["flags"]["high_turnover"]),
         "low_data": bool(input_validation.get("low_data", row_count < LOW_DATA_THRESHOLD)),
+        **plausibility_flags,
     }
 
     integrity_failure = _integrity_failure(normalized_df, signal_diagnostics)
@@ -71,6 +79,7 @@ def generate_strategy_qa_summary(
         },
         "execution": execution,
         "metrics": metrics_payload,
+        "relative": relative_payload,
         "flags": flags,
         "overall_status": overall_status,
     }
@@ -175,3 +184,21 @@ def _coerce_number(value: Any) -> float | None:
     if value is None or pd.isna(value):
         return None
     return float(value)
+
+
+def _plausibility_flags(metrics: dict[str, Any]) -> dict[str, bool]:
+    payload = metrics.get("plausibility_flags")
+    if not isinstance(payload, dict):
+        return {
+            "high_benchmark_correlation": False,
+            "low_excess_return": False,
+            "high_turnover_low_edge": False,
+            "beta_dominated_strategy": False,
+        }
+
+    return {
+        "high_benchmark_correlation": bool(payload.get("high_benchmark_correlation")),
+        "low_excess_return": bool(payload.get("low_excess_return")),
+        "high_turnover_low_edge": bool(payload.get("high_turnover_low_edge")),
+        "beta_dominated_strategy": bool(payload.get("beta_dominated_strategy")),
+    }

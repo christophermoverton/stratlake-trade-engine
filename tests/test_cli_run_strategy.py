@@ -88,7 +88,7 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
         return feature_df
 
     def fake_generate_signals(dataset, strategy):
-        calls["generate_signals"] = {"dataset": dataset, "strategy_name": strategy.name}
+        calls.setdefault("generate_signals", []).append({"dataset": dataset, "strategy_name": strategy.name})
         return dataset.assign(signal=[1, 0])
 
     def fake_run_backtest(signal_frame):
@@ -125,14 +125,16 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
         "start": "2025-01-01",
         "end": "2025-02-01",
     }
-    assert calls["generate_signals"]["dataset"].equals(feature_df)
-    assert calls["generate_signals"]["strategy_name"] == "momentum_v1"
+    assert calls["generate_signals"][0]["dataset"].equals(feature_df)
+    assert calls["generate_signals"][0]["strategy_name"] == "momentum_v1"
+    assert calls["generate_signals"][1]["strategy_name"] == "buy_and_hold_v1"
     assert calls["run_backtest"]["signal"].tolist() == [1, 0]
     assert calls["save_experiment"]["strategy_name"] == "momentum_v1"
-    assert calls["save_experiment"]["metrics"] == {
-        "cumulative_return": 0.02,
-        "sharpe_ratio": 1.25,
-    }
+    assert calls["save_experiment"]["metrics"]["cumulative_return"] == 0.02
+    assert calls["save_experiment"]["metrics"]["sharpe_ratio"] == 1.25
+    assert calls["save_experiment"]["metrics"]["benchmark_total_return"] == pytest.approx(0.02)
+    assert calls["save_experiment"]["metrics"]["excess_return"] == pytest.approx(0.0)
+    assert calls["save_experiment"]["metrics"]["benchmark_correlation"] == pytest.approx(1.0)
     assert calls["save_experiment"]["config"] == {
         "strategy_name": "momentum_v1",
         "dataset": "features_daily",
@@ -154,8 +156,14 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
     assert "- status: WARN" in stdout
     assert "- rows: 2 | symbols: 0" in stdout
     assert "- trades: 1 | turnover: 0.50" in stdout
+    assert "Benchmark comparison:" in stdout
+    assert "- benchmark return: 2%" in stdout
+    assert "- excess return: +0%" in stdout
+    assert "- correlation: 1.00" in stdout
     assert "Warnings:" in stdout
     assert "- insufficient data for a high-confidence analysis" in stdout
+    assert "- strategy is highly correlated with the benchmark (1.00)" in stdout
+    assert "- strategy delivered little excess return versus buy and hold" in stdout
     assert result.qa_summary["overall_status"] == "warn"
 
 

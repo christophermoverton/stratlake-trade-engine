@@ -10,6 +10,10 @@ TRADING_DAYS_PER_YEAR = 252
 TRADING_MINUTES_PER_DAY = 390
 MINUTE_PERIODS_PER_YEAR = TRADING_DAYS_PER_YEAR * TRADING_MINUTES_PER_DAY
 DEFAULT_PERIODS_PER_YEAR = TRADING_DAYS_PER_YEAR
+HIGH_BENCHMARK_CORRELATION_THRESHOLD = 0.9
+LOW_EXCESS_RETURN_THRESHOLD = 0.02
+HIGH_TURNOVER_THRESHOLD = 0.5
+BETA_DOMINATED_RETURN_THRESHOLD = 0.2
 
 
 def _normalized_returns(strategy_return: pd.Series) -> pd.Series:
@@ -305,6 +309,82 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
     }
 
 
+def compute_benchmark_relative_metrics(
+    results_df: pd.DataFrame,
+    benchmark_results_df: pd.DataFrame,
+) -> dict[str, float | dict[str, bool]]:
+    """
+    Compute lightweight benchmark-relative diagnostics for a strategy result frame.
+
+    The strategy and benchmark are aligned on shared symbol/time columns when
+    available so the correlation is based on comparable observations.
+    """
+
+    strategy_returns = results_df["strategy_return"] if "strategy_return" in results_df.columns else pd.Series(dtype="float64")
+    benchmark_returns = (
+        benchmark_results_df["strategy_return"]
+        if "strategy_return" in benchmark_results_df.columns
+        else pd.Series(dtype="float64")
+    )
+    aligned = _align_return_frames(results_df, benchmark_results_df)
+    strategy_total = total_return(strategy_returns)
+    benchmark_total = total_return(benchmark_returns)
+    excess = float(strategy_total - benchmark_total)
+    correlation = benchmark_correlation(aligned["strategy_return"], aligned["benchmark_return"])
+    relative_dd = float(max_drawdown(strategy_returns) - max_drawdown(benchmark_returns))
+    plausibility_flags = evaluate_strategy_plausibility(
+        total_return_value=strategy_total,
+        excess_return=excess,
+        benchmark_correlation_value=correlation,
+        turnover_value=turnover(infer_position_series(results_df)),
+    )
+
+    return {
+        "benchmark_total_return": benchmark_total,
+        "excess_return": excess,
+        "benchmark_correlation": correlation,
+        "relative_drawdown": relative_dd,
+        "plausibility_flags": plausibility_flags,
+    }
+
+
+def benchmark_correlation(strategy_return: pd.Series, benchmark_return: pd.Series) -> float:
+    """Compute a deterministic correlation between aligned strategy and benchmark returns."""
+
+    strategy_returns = _normalized_returns(strategy_return)
+    benchmark_returns = _normalized_returns(benchmark_return)
+    if len(strategy_returns) < 2 or len(benchmark_returns) < 2:
+        return 0.0
+
+    aligned = pd.concat([strategy_returns, benchmark_returns], axis=1, join="inner").dropna()
+    if len(aligned) < 2:
+        return 0.0
+
+    correlation = aligned.iloc[:, 0].corr(aligned.iloc[:, 1])
+    if pd.isna(correlation):
+        return 0.0
+    return float(correlation)
+
+
+def evaluate_strategy_plausibility(
+    *,
+    total_return_value: float,
+    excess_return: float,
+    benchmark_correlation_value: float,
+    turnover_value: float,
+) -> dict[str, bool]:
+    """Return deterministic warning-only plausibility flags for relative performance interpretation."""
+
+    low_excess = abs(excess_return) <= LOW_EXCESS_RETURN_THRESHOLD
+    high_correlation = benchmark_correlation_value > HIGH_BENCHMARK_CORRELATION_THRESHOLD
+    return {
+        "high_benchmark_correlation": high_correlation,
+        "low_excess_return": low_excess,
+        "high_turnover_low_edge": turnover_value >= HIGH_TURNOVER_THRESHOLD and low_excess,
+        "beta_dominated_strategy": total_return_value >= BETA_DOMINATED_RETURN_THRESHOLD and high_correlation,
+    }
+
+
 def infer_periods_per_year(results_df: pd.DataFrame) -> int:
     """
     Infer the annualization factor from the backtest result frame.
@@ -410,3 +490,38 @@ def _infer_periods_per_year_from_columns(columns: Iterable[str]) -> int | None:
     if any("1d" in column for column in normalized_columns):
         return TRADING_DAYS_PER_YEAR
     return None
+
+
+def _align_return_frames(results_df: pd.DataFrame, benchmark_results_df: pd.DataFrame) -> pd.DataFrame:
+    strategy_frame = _return_alignment_frame(results_df, "strategy_return")
+    benchmark_frame = _return_alignment_frame(benchmark_results_df, "benchmark_return")
+    join_keys = [column for column in ("symbol", "ts_utc", "date") if column in strategy_frame.columns and column in benchmark_frame.columns]
+
+    if join_keys:
+        return strategy_frame.merge(benchmark_frame, on=join_keys, how="inner", sort=False)
+
+    return pd.concat(
+        [
+            strategy_frame["strategy_return"].reset_index(drop=True),
+            benchmark_frame["benchmark_return"].reset_index(drop=True),
+        ],
+        axis=1,
+    ).dropna()
+
+
+def _return_alignment_frame(results_df: pd.DataFrame, return_column_name: str) -> pd.DataFrame:
+    if "strategy_return" not in results_df.columns:
+        return pd.DataFrame(columns=["strategy_return" if return_column_name == "strategy_return" else return_column_name])
+
+    frame = pd.DataFrame(index=results_df.index)
+    for column in ("symbol", "ts_utc", "date"):
+        if column in results_df.columns:
+            frame[column] = results_df[column]
+
+    if "ts_utc" in frame.columns:
+        frame["ts_utc"] = pd.to_datetime(frame["ts_utc"], utc=True, errors="coerce")
+    if "date" in frame.columns:
+        frame["date"] = pd.to_datetime(frame["date"], utc=True, errors="coerce").dt.strftime("%Y-%m-%d")
+
+    frame[return_column_name] = pd.to_numeric(results_df["strategy_return"], errors="coerce")
+    return frame.dropna(subset=[return_column_name]).reset_index(drop=True)

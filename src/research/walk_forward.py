@@ -284,5 +284,9 @@ def _coerce_metric_map(summary: dict[str, Any]) -> dict[str, float | None]:
         "profit_factor",
         "turnover",
         "exposure_pct",
+        "benchmark_total_return",
+        "excess_return",
+        "benchmark_correlation",
+        "relative_drawdown",
     )
-    return {key: (None if summary[key] is None else float(summary[key])) for key in metric_keys}
+    return {key: (None if summary.get(key) is None else float(summary[key])) for key in metric_keys}

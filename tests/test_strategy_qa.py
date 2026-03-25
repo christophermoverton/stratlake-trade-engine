@@ -79,12 +79,22 @@ def test_generate_strategy_qa_summary_passes_for_valid_run() -> None:
             "sharpe": 1.2,
             "max_drawdown": 0.15,
         },
+        "relative": {
+            "benchmark_return": None,
+            "excess_return": None,
+            "correlation": None,
+            "relative_drawdown": None,
+        },
         "flags": {
             "no_data": False,
             "degenerate_signal": False,
             "no_trades": False,
             "high_turnover": False,
             "low_data": False,
+            "high_benchmark_correlation": False,
+            "low_excess_return": False,
+            "high_turnover_low_edge": False,
+            "beta_dominated_strategy": False,
         },
         "overall_status": "pass",
     }
@@ -194,6 +204,12 @@ def test_generate_strategy_qa_summary_aggregates_diagnostics_and_metrics() -> No
         "total_return": 0.12,
         "sharpe": 0.8,
         "max_drawdown": 0.2,
+    }
+    assert result["relative"] == {
+        "benchmark_return": None,
+        "excess_return": None,
+        "correlation": None,
+        "relative_drawdown": None,
     }
     assert result["flags"]["high_turnover"] is True
     assert result["overall_status"] == "warn"

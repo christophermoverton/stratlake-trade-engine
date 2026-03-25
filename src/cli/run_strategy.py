@@ -14,6 +14,7 @@ from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.input_validation import StrategyInputError
+from src.research.metrics import compute_benchmark_relative_metrics
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.strategies import build_strategy
@@ -30,7 +31,7 @@ class StrategyRunResult:
 
     strategy_name: str
     run_id: str
-    metrics: dict[str, float | None]
+    metrics: dict[str, Any]
     experiment_dir: Path
     results_df: pd.DataFrame
     signal_diagnostics: dict[str, Any] = field(default_factory=dict)
@@ -101,6 +102,7 @@ def run_strategy_experiment(
     results_df = run_backtest(signal_frame)
     results_df.attrs["dataset"] = strategy.dataset
     metrics = compute_metrics(results_df)
+    metrics.update(_compute_benchmark_metrics(results_df, dataset, strategy.dataset))
     signal_diagnostics = compute_signal_diagnostics(results_df["signal"], results_df)
 
     experiment_config = {
@@ -165,6 +167,7 @@ def print_summary(result: StrategyRunResult | WalkForwardRunResult) -> None:
             f"- trades: {qa_summary['signal']['total_trades']} | "
             f"turnover: {qa_summary['signal']['turnover']:.2f}"
         )
+        _print_benchmark_summary(result.metrics)
         warnings_list = summarize_qa_warnings(qa_summary)
         if warnings_list:
             print("Warnings:")
@@ -182,7 +185,61 @@ def summarize_qa_warnings(qa_summary: dict[str, Any]) -> list[str]:
         warnings_list.append("insufficient data for a high-confidence analysis")
     if bool(flags.get("no_trades")):
         warnings_list.append("no trades were generated")
+    if bool(flags.get("high_benchmark_correlation")):
+        correlation = qa_summary.get("relative", {}).get("correlation")
+        if correlation is None:
+            warnings_list.append("strategy is highly correlated with the benchmark")
+        else:
+            warnings_list.append(f"strategy is highly correlated with the benchmark ({float(correlation):.2f})")
+    if bool(flags.get("low_excess_return")):
+        warnings_list.append("strategy delivered little excess return versus buy and hold")
+    if bool(flags.get("high_turnover_low_edge")):
+        warnings_list.append("strategy turnover is high relative to its excess return")
+    if bool(flags.get("beta_dominated_strategy")):
+        warnings_list.append("strategy returns appear largely benchmark-driven")
     return warnings_list
+
+
+def _compute_benchmark_metrics(
+    results_df: pd.DataFrame,
+    dataset: pd.DataFrame,
+    strategy_dataset: str,
+) -> dict[str, float | dict[str, bool]]:
+    benchmark_strategy = build_strategy("buy_and_hold_v1", {"dataset": strategy_dataset, "parameters": {}})
+    benchmark_signal_frame = generate_signals(dataset, benchmark_strategy)
+    benchmark_results = run_backtest(benchmark_signal_frame)
+    return compute_benchmark_relative_metrics(results_df, benchmark_results)
+
+
+def _print_benchmark_summary(metrics: dict[str, Any]) -> None:
+    benchmark_return = metrics.get("benchmark_total_return")
+    excess_return = metrics.get("excess_return")
+    correlation = metrics.get("benchmark_correlation")
+    if benchmark_return is None and excess_return is None and correlation is None:
+        return
+
+    print("Benchmark comparison:")
+    print(f"- benchmark return: {_format_pct(benchmark_return)}")
+    print(f"- excess return: {_format_signed_pct(excess_return)}")
+    print(f"- correlation: {_format_decimal(correlation)}")
+
+
+def _format_pct(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):.0%}"
+
+
+def _format_signed_pct(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):+.0%}"
+
+
+def _format_decimal(value: Any) -> str:
+    if value is None:
+        return "n/a"
+    return f"{float(value):.2f}"
 
 
 def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult:

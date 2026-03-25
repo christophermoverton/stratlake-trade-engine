@@ -29,6 +29,10 @@ _METRIC_KEYS = (
     "profit_factor",
     "turnover",
     "exposure_pct",
+    "benchmark_total_return",
+    "excess_return",
+    "benchmark_correlation",
+    "relative_drawdown",
 )
 _METRICS_SUMMARY_KEYS = _METRIC_KEYS
 _SIGNAL_PRIORITY_COLUMNS = (

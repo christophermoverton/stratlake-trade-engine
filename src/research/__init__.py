@@ -2,6 +2,7 @@
 
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
+from src.research.integrity import validate_research_integrity
 from src.research.metrics import (
     annualized_return,
     annualized_volatility,
@@ -68,6 +69,7 @@ __all__ = [
     "summarize_run",
     "total_return",
     "turnover",
+    "validate_research_integrity",
     "volatility",
     "win_rate",
 ]

@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+from pathlib import Path
+import sys
+
 import pandas as pd
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.research.signal_engine import generate_signals
 from src.research.strategy_base import BaseStrategy
@@ -32,9 +37,15 @@ class MisalignedStrategy(BaseStrategy):
 
 
 def _feature_frame() -> pd.DataFrame:
+    index = pd.Index(["row_a", "row_b", "row_c"], name="row_id")
+    ts_utc = pd.date_range("2025-01-01", periods=3, freq="D", tz="UTC")
     return pd.DataFrame(
-        {"feature_alpha": [0.1, -0.2, 0.3]},
-        index=pd.Index(["row_a", "row_b", "row_c"], name="row_id"),
+        {
+            "symbol": pd.Series(["AAPL", "AAPL", "AAPL"], index=index, dtype="string"),
+            "ts_utc": pd.Series(ts_utc, index=index),
+            "feature_alpha": [0.1, -0.2, 0.3],
+        },
+        index=index,
     )
 
 
@@ -66,5 +77,5 @@ def test_generate_signals_requires_series_output() -> None:
 def test_generate_signals_requires_matching_index() -> None:
     df = _feature_frame()
 
-    with pytest.raises(ValueError, match="aligned with the input DataFrame index"):
+    with pytest.raises(ValueError, match="aligned exactly with the input DataFrame index"):
         generate_signals(df, MisalignedStrategy())

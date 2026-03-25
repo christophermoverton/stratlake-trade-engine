@@ -170,7 +170,13 @@ def test_sma_crossover_returns_flat_when_dataset_is_shorter_than_slow_window() -
     ],
 )
 def test_baselines_handle_empty_datasets(strategy) -> None:
-    df = pd.DataFrame({"feature_ret_1d": pd.Series(dtype="float64")})
+    df = pd.DataFrame(
+        {
+            "symbol": pd.Series(dtype="string"),
+            "ts_utc": pd.Series(dtype="datetime64[ns, UTC]"),
+            "feature_ret_1d": pd.Series(dtype="float64"),
+        }
+    )
 
     signals = strategy.generate_signals(df)
     results = run_backtest(df.assign(signal=signals))

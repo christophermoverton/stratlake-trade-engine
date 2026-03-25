@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.research.integrity import validate_research_integrity
+
 RETURN_COLUMN_CANDIDATES: tuple[str, ...] = (
     "ret_1",
     "ret_1m",
@@ -53,6 +55,7 @@ def run_backtest(df: pd.DataFrame) -> pd.DataFrame:
 
     result = df.copy()
     shifted_signal = result["signal"].shift(1).fillna(0.0)
+    validate_research_integrity(result, result["signal"], positions=shifted_signal)
     result["strategy_return"] = shifted_signal * result[return_column]
     result["equity_curve"] = (1.0 + result["strategy_return"]).cumprod()
     return result

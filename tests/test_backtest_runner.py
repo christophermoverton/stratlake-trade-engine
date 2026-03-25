@@ -1,19 +1,28 @@
 from __future__ import annotations
 
+from pathlib import Path
+import sys
+
 import pandas as pd
 import pytest
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.research.backtest_runner import run_backtest
 
 
 def _backtest_frame() -> pd.DataFrame:
+    index = pd.Index(["row_a", "row_b", "row_c", "row_d"], name="row_id")
+    ts_utc = pd.date_range("2025-01-01", periods=4, freq="D", tz="UTC")
     return pd.DataFrame(
         {
+            "symbol": pd.Series(["AAPL", "AAPL", "AAPL", "AAPL"], index=index, dtype="string"),
+            "ts_utc": pd.Series(ts_utc, index=index),
             "signal": [1, 1, -1, 0],
             "feature_ret_1d": [0.01, -0.02, 0.03, -0.01],
             "feature_alpha": [0.5, 0.6, 0.4, 0.7],
         },
-        index=pd.Index(["row_a", "row_b", "row_c", "row_d"], name="row_id"),
+        index=index,
     )
 
 

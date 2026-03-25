@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.research.integrity import validate_research_integrity
 from src.research.strategy_base import BaseStrategy
 
 
@@ -29,12 +30,7 @@ def generate_signals(df: pd.DataFrame, strategy: BaseStrategy) -> pd.DataFrame:
             f"Strategy {strategy.__class__.__name__}.generate_signals() must return a pandas Series."
         )
 
-    if not signals.index.equals(df.index):
-        raise ValueError("Strategy signals must be aligned with the input DataFrame index.")
-
-    invalid_signals = signals[~signals.isin((-1, 0, 1))]
-    if not invalid_signals.empty:
-        raise ValueError("Strategy signals must only contain the values -1, 0, and 1.")
+    validate_research_integrity(df, signals)
 
     result = df.copy()
     result["signal"] = signals.rename("signal")

@@ -51,11 +51,15 @@ def _walk_forward_frame() -> pd.DataFrame:
 
 
 def _mean_reversion_frame() -> pd.DataFrame:
+    index = pd.Index([20, 21, 22, 23, 24, 25, 26], name="row_id")
+    ts_utc = pd.date_range("2022-01-01", periods=len(index), freq="D", tz="UTC")
     return pd.DataFrame(
         {
+            "symbol": pd.Series(["SPY"] * len(index), index=index, dtype="string"),
+            "ts_utc": pd.Series(ts_utc, index=index),
             "close": [100.0, 100.0, 100.0, 100.0, 103.0, 97.0, 100.0],
         },
-        index=pd.Index([20, 21, 22, 23, 24, 25, 26], name="row_id"),
+        index=index,
     )
 
 

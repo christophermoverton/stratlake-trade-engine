@@ -10,6 +10,7 @@ import pandas as pd
 
 from src.portfolio.contracts import PortfolioContractError, validate_portfolio_output
 from src.portfolio.qa import run_portfolio_qa
+from src.research.consistency import validate_portfolio_artifact_payload_consistency
 from src.research.registry import canonicalize_value
 
 _CONFIG_FILENAME = "config.json"
@@ -50,24 +51,12 @@ def write_portfolio_artifacts(
     weights_frame = _weights_frame(normalized_portfolio_output)
     returns_frame = _portfolio_returns_frame(normalized_portfolio_output)
     equity_frame = _portfolio_equity_curve_frame(normalized_portfolio_output)
-
-    resolved_output_dir.mkdir(parents=True, exist_ok=True)
-
-    _write_json(resolved_output_dir / _CONFIG_FILENAME, normalized_config)
-    _write_json(resolved_output_dir / _COMPONENTS_FILENAME, {"components": normalized_components})
-    _write_csv(resolved_output_dir / _WEIGHTS_FILENAME, weights_frame)
-    _write_csv(resolved_output_dir / _PORTFOLIO_RETURNS_FILENAME, returns_frame)
-    _write_csv(resolved_output_dir / _PORTFOLIO_EQUITY_FILENAME, equity_frame)
-    _write_json(resolved_output_dir / _METRICS_FILENAME, normalized_metrics)
     qa_summary = run_portfolio_qa(
         normalized_portfolio_output,
         normalized_metrics,
         normalized_config,
-        artifacts_dir=resolved_output_dir,
-        run_id=resolved_output_dir.name,
         strict=True,
     )
-
     manifest = _build_manifest(
         output_dir=resolved_output_dir,
         config=normalized_config,
@@ -78,6 +67,26 @@ def write_portfolio_artifacts(
         returns_frame=returns_frame,
         equity_frame=equity_frame,
     )
+    validate_portfolio_artifact_payload_consistency(
+        portfolio_output=normalized_portfolio_output,
+        weights_frame=weights_frame,
+        returns_frame=returns_frame,
+        equity_frame=equity_frame,
+        metrics=normalized_metrics,
+        qa_summary=qa_summary,
+        config=normalized_config,
+        components=normalized_components,
+    )
+
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_json(resolved_output_dir / _CONFIG_FILENAME, normalized_config)
+    _write_json(resolved_output_dir / _COMPONENTS_FILENAME, {"components": normalized_components})
+    _write_csv(resolved_output_dir / _WEIGHTS_FILENAME, weights_frame)
+    _write_csv(resolved_output_dir / _PORTFOLIO_RETURNS_FILENAME, returns_frame)
+    _write_csv(resolved_output_dir / _PORTFOLIO_EQUITY_FILENAME, equity_frame)
+    _write_json(resolved_output_dir / _METRICS_FILENAME, normalized_metrics)
+    _write_json(resolved_output_dir / _QA_SUMMARY_FILENAME, qa_summary)
     _write_json(resolved_output_dir / _MANIFEST_FILENAME, manifest)
     return manifest
 

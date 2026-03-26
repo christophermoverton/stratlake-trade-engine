@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.portfolio import EqualWeightAllocator, run_portfolio_walk_forward
 from src.portfolio.walk_forward import PortfolioWalkForwardError
+from src.research.consistency import ConsistencyError, validate_portfolio_walk_forward_consistency
 from src.research import experiment_tracker
 from src.research.registry import default_registry_path, load_registry
 
@@ -250,6 +251,43 @@ def test_run_portfolio_walk_forward_rejects_missing_split_component_data(
             timeframe="1D",
             output_dir=portfolio_root,
             portfolio_name="core_portfolio",
+        )
+
+
+def test_validate_portfolio_walk_forward_consistency_rejects_duplicate_split_ids() -> None:
+    split_result = {
+        "split_id": "rolling_0000",
+        "split_metadata": {
+            "split_id": "rolling_0000",
+            "mode": "rolling",
+            "train_start": "2025-01-01",
+            "train_end": "2025-01-03",
+            "test_start": "2025-01-03",
+            "test_end": "2025-01-04",
+            "start": "2025-01-03",
+            "end": "2025-01-04",
+            "row_count": 1,
+        },
+        "row_count": 1,
+        "metrics": {"total_return": 0.01},
+    }
+    metrics_by_split = pd.DataFrame(
+        [
+            {"split_id": "rolling_0000", "row_count": 1, "total_return": 0.01},
+            {"split_id": "rolling_0000", "row_count": 1, "total_return": 0.01},
+        ]
+    )
+    aggregate_metrics = {
+        "split_count": 2,
+        "split_ids": ["rolling_0000", "rolling_0000"],
+        "metric_summary": {"total_return": 0.01},
+    }
+
+    with pytest.raises(ConsistencyError, match="split ids must be unique"):
+        validate_portfolio_walk_forward_consistency(
+            [split_result, dict(split_result)],
+            metrics_by_split,
+            aggregate_metrics,
         )
 
 

@@ -139,3 +139,17 @@ def test_run_backtest_rejects_same_bar_execution_if_positions_are_not_shifted() 
 
     with pytest.raises(ValueError, match="same_bar_execution"):
         validate_research_integrity(df, df["signal"], positions=df["signal"].astype("float64"))
+
+
+def test_run_backtest_rejects_duplicate_signal_keys() -> None:
+    df = pd.DataFrame(
+        {
+            "symbol": ["AAPL", "AAPL"],
+            "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z"], utc=True),
+            "signal": [1, 0],
+            "feature_ret_1d": [0.01, 0.02],
+        }
+    )
+
+    with pytest.raises(ValueError, match="duplicate"):
+        run_backtest(df)

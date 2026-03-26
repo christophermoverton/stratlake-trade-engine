@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
+from src.research.consistency import validate_signals_to_backtest_consistency
 from src.research.integrity import validate_research_integrity
 from src.research.turnover import compute_position_change_frame, validate_position_change_frame
 
@@ -103,6 +104,7 @@ def run_backtest(
     result["strategy_return"] = result["net_strategy_return"]
     result["equity_curve"] = (1.0 + result["strategy_return"]).cumprod()
     result.attrs["execution_config"] = config.to_dict()
+    validate_signals_to_backtest_consistency(df, result, return_column=return_column)
     return result
 
 

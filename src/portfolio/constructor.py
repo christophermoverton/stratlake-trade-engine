@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
+from src.research.consistency import validate_portfolio_sleeve_aggregation_consistency
 from src.research.turnover import compute_weight_change_frame, validate_weight_change_frame
 from .allocators import BaseAllocator
 from .contracts import (
@@ -85,6 +86,11 @@ def compute_portfolio_returns(
         "execution": config.to_dict(),
         "validation": config_validation.to_dict(),
     }
+    validate_portfolio_sleeve_aggregation_consistency(
+        normalized_returns,
+        normalized_weights,
+        validated,
+    )
     return validated
 
 

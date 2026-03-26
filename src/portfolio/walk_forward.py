@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.config.evaluation import EvaluationConfig, load_evaluation_config
+from src.research.consistency import validate_portfolio_artifact_payload_consistency, validate_portfolio_walk_forward_consistency
 from src.research import experiment_tracker
 from src.research.registry import (
     STRATEGY_RUN_TYPE,
@@ -149,6 +150,7 @@ def run_portfolio_walk_forward(
     ]
     aggregate_metrics = _build_aggregate_metrics(split_results, timeframe=normalized_timeframe)
     metrics_by_split = _metrics_by_split_frame(split_results)
+    validate_portfolio_walk_forward_consistency(split_results, metrics_by_split, aggregate_metrics)
 
     experiment_dir = Path(output_dir) / run_id
     if experiment_dir.exists():
@@ -407,6 +409,7 @@ def _build_aggregate_metrics(
 
 def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) -> None:
     portfolio_output = split_result["portfolio_output"]
+    normalized_metrics = _normalize_mapping(dict(split_result["metrics"]), owner="metrics")
     split_config = {
         "portfolio_name": split_result["portfolio_name"],
         "allocator": split_result["allocator_name"],
@@ -415,19 +418,39 @@ def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) 
         "timeframe": split_result["timeframe"],
         "validation": dict(split_result.get("validation", {})),
     }
-    _write_json(split_dir / "split.json", dict(split_result["split_metadata"]))
-    _write_csv(split_dir / "weights.csv", _weights_frame(portfolio_output))
-    _write_csv(split_dir / "portfolio_returns.csv", _portfolio_returns_frame(portfolio_output))
-    _write_csv(split_dir / "portfolio_equity_curve.csv", _portfolio_equity_curve_frame(portfolio_output))
-    _write_json(split_dir / "metrics.json", _normalize_mapping(dict(split_result["metrics"]), owner="metrics"))
-    run_portfolio_qa(
+    weights_frame = _weights_frame(portfolio_output)
+    returns_frame = _portfolio_returns_frame(portfolio_output)
+    equity_frame = _portfolio_equity_curve_frame(portfolio_output)
+    qa_summary = run_portfolio_qa(
         portfolio_output,
         dict(split_result["metrics"]),
         split_config,
-        artifacts_dir=split_dir,
         run_id=split_dir.name,
         strict=True,
     )
+    validate_portfolio_artifact_payload_consistency(
+        portfolio_output=portfolio_output,
+        weights_frame=weights_frame,
+        returns_frame=returns_frame,
+        equity_frame=equity_frame,
+        metrics=normalized_metrics,
+        qa_summary=qa_summary,
+        config=split_config,
+        components=[
+            {
+                "strategy_name": column.removeprefix("weight__"),
+                "run_id": column.removeprefix("weight__"),
+            }
+            for column in weights_frame.columns
+            if column.startswith("weight__")
+        ],
+    )
+    _write_json(split_dir / "split.json", dict(split_result["split_metadata"]))
+    _write_csv(split_dir / "weights.csv", weights_frame)
+    _write_csv(split_dir / "portfolio_returns.csv", returns_frame)
+    _write_csv(split_dir / "portfolio_equity_curve.csv", equity_frame)
+    _write_json(split_dir / "metrics.json", normalized_metrics)
+    _write_json(split_dir / "qa_summary.json", qa_summary)
 
 
 def _build_manifest(

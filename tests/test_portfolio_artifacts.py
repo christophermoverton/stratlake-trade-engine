@@ -305,3 +305,20 @@ def test_write_portfolio_artifacts_does_not_persist_invalid_portfolio(tmp_path: 
         )
 
     assert not output_dir.exists()
+
+
+def test_write_portfolio_artifacts_blocks_write_on_metrics_mismatch(tmp_path: Path) -> None:
+    output_dir = tmp_path / "portfolio_invalid_metrics_abcd1234"
+    metrics = _metrics()
+    metrics["total_return"] = 99.0
+
+    with pytest.raises(ValueError, match="portfolio.metrics.total_return mismatch"):
+        write_portfolio_artifacts(
+            output_dir,
+            _portfolio_output(),
+            metrics,
+            _config(),
+            _components(),
+        )
+
+    assert not output_dir.exists()

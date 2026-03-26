@@ -215,6 +215,33 @@ def test_compute_portfolio_returns_rejects_mismatched_columns() -> None:
         compute_portfolio_returns(returns_wide, weights_wide)
 
 
+def test_compute_portfolio_returns_rejects_leverage_violation() -> None:
+    returns_wide = _returns_two_strategies()
+    weights_wide = pd.DataFrame(
+        {
+            "alpha": [1.2, 1.2, 1.2],
+            "beta": [-0.2, -0.2, -0.2],
+        },
+        index=returns_wide.index,
+        dtype="float64",
+    )
+
+    with pytest.raises(ValueError, match="gross exposure exceeds configured maximum"):
+        compute_portfolio_returns(returns_wide, weights_wide)
+
+
+def test_compute_portfolio_returns_rejects_single_sleeve_cap_violation() -> None:
+    returns_wide = _returns_two_strategies()
+    weights_wide = EqualWeightAllocator().allocate(returns_wide)
+
+    with pytest.raises(ValueError, match="sleeve weight exceeds configured maximum"):
+        compute_portfolio_returns(
+            returns_wide,
+            weights_wide,
+            validation_config={"max_single_sleeve_weight": 0.4},
+        )
+
+
 def test_equal_weight_allocator_rejects_empty_input() -> None:
     empty_returns = _returns_two_strategies().iloc[0:0]
 

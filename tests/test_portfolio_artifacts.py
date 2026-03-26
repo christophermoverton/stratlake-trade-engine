@@ -277,3 +277,31 @@ def test_write_portfolio_artifacts_rejects_duplicate_components(tmp_path: Path) 
             _config(),
             components,
         )
+
+
+def test_write_portfolio_artifacts_does_not_persist_invalid_portfolio(tmp_path: Path) -> None:
+    output_dir = tmp_path / "portfolio_invalid_abcd1234"
+    invalid_output = _portfolio_output().sort_values("ts_utc").reset_index(drop=True)
+    invalid_output.loc[1, "weight__alpha"] = 0.9
+    invalid_output.loc[1, "weight__beta"] = 0.1
+    recomputed_return = (
+        invalid_output.loc[1, "strategy_return__alpha"] * invalid_output.loc[1, "weight__alpha"]
+        + invalid_output.loc[1, "strategy_return__beta"] * invalid_output.loc[1, "weight__beta"]
+    )
+    invalid_output.loc[1, "gross_portfolio_return"] = recomputed_return
+    invalid_output.loc[1, "net_portfolio_return"] = recomputed_return
+    invalid_output.loc[1, "portfolio_return"] = recomputed_return
+    invalid_output.loc[1, "portfolio_equity_curve"] = invalid_output.loc[0, "portfolio_equity_curve"] * (
+        1.0 + recomputed_return
+    )
+
+    with pytest.raises(ValueError, match="equal_weight allocator should produce constant weights"):
+        write_portfolio_artifacts(
+            output_dir,
+            invalid_output,
+            _metrics(),
+            _config(),
+            _components(),
+        )
+
+    assert not output_dir.exists()

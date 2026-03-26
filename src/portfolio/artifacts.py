@@ -8,10 +8,7 @@ from typing import Any
 
 import pandas as pd
 
-from src.portfolio.contracts import (
-    PortfolioContractError,
-    validate_portfolio_output,
-)
+from src.portfolio.contracts import PortfolioContractError, validate_portfolio_output
 from src.portfolio.qa import run_portfolio_qa
 from src.research.registry import canonicalize_value
 
@@ -43,6 +40,12 @@ def write_portfolio_artifacts(
     normalized_config = _normalize_portfolio_config(config, components=components)
     normalized_components = _normalize_components(components)
     normalized_metrics = _normalize_mapping(metrics, owner="metrics")
+    run_portfolio_qa(
+        normalized_portfolio_output,
+        normalized_metrics,
+        normalized_config,
+        strict=True,
+    )
 
     weights_frame = _weights_frame(normalized_portfolio_output)
     returns_frame = _portfolio_returns_frame(normalized_portfolio_output)
@@ -110,6 +113,7 @@ def _normalize_components(components: list[dict[str, object]]) -> list[dict[str,
 
     normalized_components: list[dict[str, object]] = []
     seen_keys: set[tuple[str, str]] = set()
+    seen_strategy_names: set[str] = set()
     for index, component in enumerate(components):
         if not isinstance(component, dict):
             raise TypeError(f"components[{index}] must be a dictionary.")
@@ -136,6 +140,12 @@ def _normalize_components(components: list[dict[str, object]]) -> list[dict[str,
                 f"Duplicate component: ({strategy_name!r}, {run_id!r})."
             )
         seen_keys.add(component_key)
+        if strategy_name in seen_strategy_names:
+            raise ValueError(
+                "components must be unique by strategy_name. "
+                f"Duplicate strategy_name: {strategy_name!r}."
+            )
+        seen_strategy_names.add(strategy_name)
 
         normalized_component = _normalize_mapping(component, owner=f"components[{index}]")
         normalized_component["strategy_name"] = strategy_name

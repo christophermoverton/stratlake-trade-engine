@@ -7,16 +7,19 @@ from src.research.turnover import compute_weight_change_frame, validate_weight_c
 from .allocators import BaseAllocator
 from .contracts import (
     PortfolioContractError,
+    PortfolioValidationConfig,
+    resolve_portfolio_validation_config,
     validate_aligned_returns,
     validate_portfolio_output,
-    validate_weights,
 )
+from .validation import validate_portfolio_output_constraints, validate_portfolio_weights
 
 
 def compute_portfolio_returns(
     returns_wide: pd.DataFrame,
     weights_wide: pd.DataFrame,
     execution_config: ExecutionConfig | None = None,
+    validation_config: PortfolioValidationConfig | dict[str, object] | None = None,
 ) -> pd.DataFrame:
     """Compute a deterministic portfolio return stream from aligned returns and weights."""
 
@@ -25,9 +28,10 @@ def compute_portfolio_returns(
     except PortfolioContractError as exc:
         raise ValueError(f"returns_wide must be a valid aligned return matrix: {exc}") from exc
 
+    config_validation = resolve_portfolio_validation_config(validation_config)
     try:
-        normalized_weights = validate_weights(weights_wide)
-    except PortfolioContractError as exc:
+        normalized_weights = validate_portfolio_weights(weights_wide, config_validation)
+    except (PortfolioContractError, ValueError) as exc:
         raise ValueError(f"weights_wide must be a valid weights matrix: {exc}") from exc
 
     if normalized_returns.empty:
@@ -66,8 +70,12 @@ def compute_portfolio_returns(
     output["portfolio_return"] = output["net_portfolio_return"]
 
     try:
-        validated = validate_portfolio_output(output)
-    except PortfolioContractError as exc:
+        validated = validate_portfolio_output_constraints(
+            output,
+            validation_config=config_validation,
+            require_traceability=True,
+        )
+    except (PortfolioContractError, ValueError) as exc:
         raise ValueError(f"Portfolio return aggregation produced invalid output: {exc}") from exc
 
     validated.attrs["portfolio_constructor"] = {
@@ -75,6 +83,7 @@ def compute_portfolio_returns(
         "strategy_count": len(normalized_returns.columns),
         "timestamp_count": len(normalized_returns.index),
         "execution": config.to_dict(),
+        "validation": config_validation.to_dict(),
     }
     return validated
 
@@ -82,12 +91,14 @@ def compute_portfolio_returns(
 def compute_portfolio_equity_curve(
     portfolio_returns: pd.DataFrame,
     initial_capital: float = 1.0,
+    validation_config: PortfolioValidationConfig | dict[str, object] | None = None,
 ) -> pd.DataFrame:
     """Append a compounded portfolio equity curve to validated portfolio return output."""
 
     if initial_capital <= 0:
         raise ValueError("initial_capital must be positive.")
 
+    config_validation = resolve_portfolio_validation_config(validation_config)
     try:
         normalized_portfolio = validate_portfolio_output(portfolio_returns)
     except PortfolioContractError as exc:
@@ -104,14 +115,20 @@ def compute_portfolio_equity_curve(
     ).astype("float64")
 
     try:
-        validated = validate_portfolio_output(output)
-    except PortfolioContractError as exc:
+        validated = validate_portfolio_output_constraints(
+            output,
+            validation_config=config_validation,
+            initial_capital=float(initial_capital),
+            require_traceability=True,
+        )
+    except (PortfolioContractError, ValueError) as exc:
         raise ValueError(f"Portfolio equity curve construction produced invalid output: {exc}") from exc
 
     validated.attrs["portfolio_constructor"] = {
         "stage": "equity_curve",
         "initial_capital": float(initial_capital),
         "timestamp_count": len(validated),
+        "validation": config_validation.to_dict(),
     }
     return validated
 
@@ -121,6 +138,7 @@ def construct_portfolio(
     allocator: BaseAllocator,
     initial_capital: float = 1.0,
     execution_config: ExecutionConfig | None = None,
+    validation_config: PortfolioValidationConfig | dict[str, object] | None = None,
 ) -> pd.DataFrame:
     """Construct a complete in-memory portfolio output from aligned strategy returns."""
 
@@ -132,15 +150,18 @@ def construct_portfolio(
     except PortfolioContractError as exc:
         raise ValueError(f"returns_wide must be a valid aligned return matrix: {exc}") from exc
 
+    config_validation = resolve_portfolio_validation_config(validation_config)
     weights = allocator.allocate(normalized_returns)
     portfolio_returns = compute_portfolio_returns(
         normalized_returns,
         weights,
         execution_config=execution_config,
+        validation_config=config_validation,
     )
     portfolio_output = compute_portfolio_equity_curve(
         portfolio_returns,
         initial_capital=initial_capital,
+        validation_config=config_validation,
     )
     portfolio_output.attrs["portfolio_constructor"] = {
         "stage": "complete",
@@ -149,6 +170,7 @@ def construct_portfolio(
         "timestamp_count": len(normalized_returns.index),
         "initial_capital": float(initial_capital),
         "execution": (execution_config or resolve_execution_config()).to_dict(),
+        "validation": config_validation.to_dict(),
     }
     return portfolio_output
 

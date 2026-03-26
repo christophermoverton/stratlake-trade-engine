@@ -20,6 +20,7 @@ from src.research.registry import (
 )
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 
+from .contracts import resolve_portfolio_validation_config
 from .allocators import BaseAllocator
 from .artifacts import (
     _normalize_components,
@@ -60,6 +61,16 @@ PORTFOLIO_WALK_FORWARD_METRIC_KEYS: tuple[str, ...] = (
     "total_execution_friction",
     "average_execution_friction_per_trade",
     "exposure_pct",
+    "average_gross_exposure",
+    "max_gross_exposure",
+    "average_net_exposure",
+    "min_net_exposure",
+    "max_net_exposure",
+    "average_leverage",
+    "max_leverage",
+    "max_single_weight",
+    "max_weight_sum_deviation",
+    "validation_issue_count",
 )
 _SPLIT_METADATA_COLUMNS: tuple[str, ...] = (
     "split_id",
@@ -123,11 +134,6 @@ def run_portfolio_walk_forward(
         config=root_config,
         evaluation_config_path=evaluation_path,
     )
-    experiment_dir = Path(output_dir) / run_id
-    if experiment_dir.exists():
-        shutil.rmtree(experiment_dir)
-    experiment_dir.mkdir(parents=True, exist_ok=False)
-
     split_results = [
         _execute_portfolio_split(
             strategy_returns=strategy_returns,
@@ -137,11 +143,17 @@ def run_portfolio_walk_forward(
             initial_capital=float(initial_capital),
             portfolio_name=normalized_portfolio_name,
             execution_config=execution_config,
+            validation_config=root_config.get("validation"),
         )
         for split in splits
     ]
     aggregate_metrics = _build_aggregate_metrics(split_results, timeframe=normalized_timeframe)
     metrics_by_split = _metrics_by_split_frame(split_results)
+
+    experiment_dir = Path(output_dir) / run_id
+    if experiment_dir.exists():
+        shutil.rmtree(experiment_dir)
+    experiment_dir.mkdir(parents=True, exist_ok=False)
 
     _write_json(experiment_dir / "config.json", _normalize_portfolio_config(root_config, components=components))
     _write_json(experiment_dir / "components.json", {"components": _normalize_components(components)})
@@ -257,6 +269,7 @@ def _execute_portfolio_split(
     initial_capital: float,
     portfolio_name: str,
     execution_config: ExecutionConfig | None,
+    validation_config: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     split_returns = _slice_strategy_returns_for_split(strategy_returns, split)
     aligned_returns = build_aligned_return_matrix(split_returns)
@@ -270,8 +283,13 @@ def _execute_portfolio_split(
         allocator,
         initial_capital=initial_capital,
         execution_config=execution_config,
+        validation_config=validation_config,
     )
-    metrics = compute_portfolio_metrics(portfolio_output, timeframe)
+    metrics = compute_portfolio_metrics(
+        portfolio_output,
+        timeframe,
+        validation_config=validation_config,
+    )
     split_metadata = _split_metadata(split, row_count=len(portfolio_output))
     return {
         "split_id": split.split_id,
@@ -288,6 +306,7 @@ def _execute_portfolio_split(
             if execution_config is None
             else execution_config.to_dict()
         ),
+        "validation": dict(validation_config or {}),
     }
 
 
@@ -394,6 +413,7 @@ def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) 
         "initial_capital": float(split_result["initial_capital"]),
         "execution": dict(split_result.get("execution", {})),
         "timeframe": split_result["timeframe"],
+        "validation": dict(split_result.get("validation", {})),
     }
     _write_json(split_dir / "split.json", dict(split_result["split_metadata"]))
     _write_csv(split_dir / "weights.csv", _weights_frame(portfolio_output))
@@ -466,6 +486,7 @@ def _build_root_config(
         ),
         "timeframe": timeframe,
         "evaluation_config_path": evaluation_path.as_posix(),
+        "validation": resolve_portfolio_validation_config(None).to_dict(),
     }
 
 

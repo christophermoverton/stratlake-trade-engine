@@ -2,7 +2,13 @@ from __future__ import annotations
 
 import pandas as pd
 
-from src.portfolio.contracts import PortfolioContractError, validate_portfolio_output
+from src.portfolio.contracts import (
+    PortfolioContractError,
+    PortfolioValidationConfig,
+    resolve_portfolio_validation_config,
+    validate_portfolio_output,
+)
+from src.portfolio.validation import summarize_weight_diagnostics, validate_portfolio_output_constraints
 from src.research.metrics import (
     MINUTE_PERIODS_PER_YEAR,
     TRADING_DAYS_PER_YEAR,
@@ -25,6 +31,7 @@ _MINUTE_TIMEFRAMES = frozenset({"1m", "1min", "1minute", "minute", "minutes"})
 def compute_portfolio_metrics(
     portfolio_output: pd.DataFrame,
     timeframe: str,
+    validation_config: PortfolioValidationConfig | dict[str, object] | None = None,
 ) -> dict[str, float | None]:
     """
     Compute deterministic standardized metrics for validated portfolio output.
@@ -45,7 +52,7 @@ def compute_portfolio_metrics(
     are returned as ``None`` explicitly rather than inferred heuristically.
     """
 
-    normalized = _validate_portfolio_metrics_input(portfolio_output)
+    normalized = _validate_portfolio_metrics_input(portfolio_output, validation_config=validation_config)
     periods_per_year = _resolve_periods_per_year(timeframe)
     portfolio_returns = normalized["portfolio_return"]
 
@@ -56,6 +63,14 @@ def compute_portfolio_metrics(
     transaction_cost = _optional_numeric_series(normalized, "portfolio_transaction_cost")
     slippage_cost = _optional_numeric_series(normalized, "portfolio_slippage_cost")
     execution_friction = _optional_numeric_series(normalized, "portfolio_execution_friction")
+    weight_diagnostics = (
+        summarize_weight_diagnostics(weight_frame)
+        if weight_frame is not None
+        else summarize_weight_diagnostics(pd.DataFrame(dtype="float64"))
+    )
+    sanity_issue_count = float(
+        len(normalized.attrs.get("portfolio_validation", {}).get("sanity_issues", []))
+    )
 
     return {
         "cumulative_return": total,
@@ -83,13 +98,33 @@ def compute_portfolio_metrics(
         "total_execution_friction": float(execution_friction.sum()),
         "average_execution_friction_per_trade": float(execution_friction.sum() / trade_count) if trade_count else 0.0,
         "exposure_pct": _portfolio_exposure_pct(weight_frame),
+        "average_gross_exposure": float(weight_diagnostics["average_gross_exposure"]),
+        "max_gross_exposure": float(weight_diagnostics["max_gross_exposure"]),
+        "average_net_exposure": float(weight_diagnostics["average_net_exposure"]),
+        "min_net_exposure": float(weight_diagnostics["min_net_exposure"]),
+        "max_net_exposure": float(weight_diagnostics["max_net_exposure"]),
+        "average_leverage": float(weight_diagnostics["average_leverage"]),
+        "max_leverage": float(weight_diagnostics["max_leverage"]),
+        "max_single_weight": float(weight_diagnostics["max_single_weight"]),
+        "max_weight_sum_deviation": float(weight_diagnostics["max_weight_sum_deviation"]),
+        "validation_issue_count": sanity_issue_count,
     }
 
 
-def _validate_portfolio_metrics_input(portfolio_output: pd.DataFrame) -> pd.DataFrame:
+def _validate_portfolio_metrics_input(
+    portfolio_output: pd.DataFrame,
+    *,
+    validation_config: PortfolioValidationConfig | dict[str, object] | None,
+) -> pd.DataFrame:
+    resolved_validation = resolve_portfolio_validation_config(validation_config)
     try:
-        normalized = validate_portfolio_output(portfolio_output)
-    except PortfolioContractError as exc:
+        normalized = validate_portfolio_output_constraints(
+            portfolio_output,
+            validation_config=resolved_validation,
+            require_traceability=False,
+            strict_sanity_checks=False,
+        )
+    except (PortfolioContractError, ValueError) as exc:
         raise ValueError(f"portfolio_output must be valid portfolio output: {exc}") from exc
 
     if normalized.empty:

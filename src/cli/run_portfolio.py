@@ -205,8 +205,13 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             allocator,
             initial_capital=float(resolved_config["initial_capital"]),
             execution_config=_portfolio_execution_config(resolved_config),
+            validation_config=resolved_config.get("validation"),
         )
-        metrics = compute_portfolio_metrics(portfolio_output, timeframe)
+        metrics = compute_portfolio_metrics(
+            portfolio_output,
+            timeframe,
+            validation_config=resolved_config.get("validation"),
+        )
 
         start_ts = _format_timestamp(aligned_returns.index.min())
         end_ts = _format_timestamp(aligned_returns.index.max())
@@ -373,6 +378,7 @@ def _resolve_portfolio_inputs(
             field_name="alignment_policy",
         ),
         "execution": execution_config.to_dict(),
+        "validation": base_definition.get("validation"),
         "timeframe": timeframe,
         "evaluation_config_path": None if evaluation_path is None else evaluation_path.as_posix(),
     }
@@ -533,6 +539,7 @@ def _normalize_portfolio_definition(
         "initial_capital": definition.get("initial_capital", DEFAULT_INITIAL_CAPITAL),
         "alignment_policy": definition.get("alignment_policy", DEFAULT_ALIGNMENT_POLICY),
         "execution": definition.get("execution"),
+        "validation": definition.get("validation"),
     }
 
 

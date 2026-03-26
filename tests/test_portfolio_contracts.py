@@ -252,6 +252,19 @@ def test_validate_portfolio_config_accepts_and_normalizes_defaults() -> None:
         ],
         "initial_capital": 1.0,
         "alignment_policy": "intersection",
+        "validation": {
+            "target_weight_sum": 1.0,
+            "weight_sum_tolerance": 1e-08,
+            "target_net_exposure": 1.0,
+            "net_exposure_tolerance": 1e-08,
+            "max_gross_exposure": 1.0,
+            "max_leverage": 1.0,
+            "max_single_sleeve_weight": None,
+            "min_single_sleeve_weight": None,
+            "max_abs_period_return": 1.0,
+            "max_equity_multiple": 1000000.0,
+            "strict_sanity_checks": True,
+        },
     }
 
 
@@ -271,6 +284,17 @@ def test_validate_portfolio_config_rejects_duplicate_components() -> None:
     ]
 
     with pytest.raises(PortfolioContractError, match="must be unique by \\(strategy_name, run_id\\)"):
+        validate_portfolio_config(config)
+
+
+def test_validate_portfolio_config_rejects_duplicate_strategy_names() -> None:
+    config = _portfolio_config()
+    config["components"] = [
+        {"strategy_name": "alpha", "run_id": "run-a"},
+        {"strategy_name": "alpha", "run_id": "run-b"},
+    ]
+
+    with pytest.raises(PortfolioContractError, match="must be unique by strategy_name"):
         validate_portfolio_config(config)
 
 

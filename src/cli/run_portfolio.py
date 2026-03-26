@@ -11,6 +11,7 @@ import pandas as pd
 import yaml
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
+from src.config.sanity import resolve_sanity_check_config
 from src.portfolio import (
     EqualWeightAllocator,
     build_aligned_return_matrix,
@@ -29,6 +30,7 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
+from src.research.sanity import validate_portfolio_output_sanity
 
 DEFAULT_PORTFOLIO_ARTIFACTS_ROOT = Path("artifacts") / "portfolios"
 SUPPORTED_TIMEFRAMES = ("1D", "1Min")
@@ -183,6 +185,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             initial_capital=float(resolved_config["initial_capital"]),
             alignment_policy=str(resolved_config["alignment_policy"]),
             execution_config=_portfolio_execution_config(resolved_config),
+            sanity_config=resolved_config.get("sanity"),
         )
         result = PortfolioWalkForwardRunResult(
             portfolio_name=str(walk_forward_result["portfolio_name"]),
@@ -212,6 +215,14 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             timeframe,
             validation_config=resolved_config.get("validation"),
         )
+        sanity_report = validate_portfolio_output_sanity(
+            portfolio_output,
+            metrics,
+            resolved_config.get("sanity"),
+            initial_capital=float(resolved_config["initial_capital"]),
+        )
+        metrics = sanity_report.apply_to_metrics(metrics)
+        portfolio_output.attrs["sanity_check"] = sanity_report.to_dict()
 
         start_ts = _format_timestamp(aligned_returns.index.min())
         end_ts = _format_timestamp(aligned_returns.index.max())
@@ -379,11 +390,13 @@ def _resolve_portfolio_inputs(
         ),
         "execution": execution_config.to_dict(),
         "validation": base_definition.get("validation"),
+        "sanity": resolve_sanity_check_config(base_definition.get("sanity")).to_dict(),
         "timeframe": timeframe,
         "evaluation_config_path": None if evaluation_path is None else evaluation_path.as_posix(),
     }
     validated_config = validate_portfolio_config(resolved_config)
     validated_config["execution"] = execution_config.to_dict()
+    validated_config["sanity"] = resolve_sanity_check_config(base_definition.get("sanity")).to_dict()
     validated_config["timeframe"] = timeframe
     validated_config["evaluation_config_path"] = (
         None if evaluation_path is None else evaluation_path.as_posix()
@@ -540,6 +553,7 @@ def _normalize_portfolio_definition(
         "alignment_policy": definition.get("alignment_policy", DEFAULT_ALIGNMENT_POLICY),
         "execution": definition.get("execution"),
         "validation": definition.get("validation"),
+        "sanity": definition.get("sanity"),
     }
 
 

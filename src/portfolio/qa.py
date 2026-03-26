@@ -329,6 +329,7 @@ def generate_portfolio_qa_summary(
     normalized = _normalize_portfolio_output(portfolio_df, owner="portfolio_df")
     weight_columns = [column for column in normalized.columns if column.startswith("weight__")]
     issue_list = sorted(str(issue) for issue in (issues or []))
+    sanity = _portfolio_sanity_payload(normalized, metrics)
     diagnostics = (
         summarize_weight_diagnostics(_weight_frame(normalized))
         if weight_columns
@@ -340,7 +341,7 @@ def generate_portfolio_qa_summary(
     else:
         ending_equity = None
 
-    status = "pass" if not issue_list else "fail"
+    status = "fail" if issue_list else ("warn" if sanity["issue_count"] > 0 else "pass")
     return {
         "run_id": run_id,
         "portfolio_name": None if portfolio_name is None else str(portfolio_name),
@@ -373,6 +374,7 @@ def generate_portfolio_qa_summary(
             "max_weight_sum_deviation": _coerce_number(diagnostics.get("max_weight_sum_deviation")),
             "validation_issue_count": _coerce_number(metrics.get("validation_issue_count", len(issue_list))),
         },
+        "sanity": sanity,
         "issues": issue_list,
         "validation_status": status,
     }
@@ -657,8 +659,12 @@ def _assert_numeric_match(name: str, expected: Any, actual: Any, *, tolerance: f
     left = _coerce_number(expected)
     right = _coerce_number(actual)
     if left is None and right is None:
-        return
+        if expected == actual:
+            return
+        raise PortfolioQAError(f"Portfolio QA failed: {name} mismatch (expected={expected!r} vs actual={actual!r}).")
     if left is None or right is None:
+        if expected == actual:
+            return
         raise PortfolioQAError(f"Portfolio QA failed: {name} mismatch (expected={expected!r} vs actual={actual!r}).")
     if abs(left - right) > tolerance:
         raise PortfolioQAError(f"Portfolio QA failed: {name} mismatch (expected={left} vs actual={right}).")
@@ -689,13 +695,46 @@ def _date_range(portfolio_df: pd.DataFrame) -> list[str | None]:
 
 
 def _coerce_number(value: Any) -> float | None:
-    if value is None or pd.isna(value):
+    if value is None:
         return None
-    return float(value)
+    try:
+        if pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _write_qa_summary(path: Path, summary: dict[str, Any]) -> None:
     path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _portfolio_sanity_payload(portfolio_df: pd.DataFrame, metrics: dict[str, Any]) -> dict[str, Any]:
+    payload = portfolio_df.attrs.get("sanity_check")
+    if not isinstance(payload, dict):
+        payload = metrics.get("sanity")
+    if not isinstance(payload, dict):
+        return {
+            "status": "pass",
+            "issue_count": 0,
+            "warning_count": 0,
+            "strict_sanity_checks": False,
+            "issues": [],
+        }
+
+    issues = payload.get("issues", [])
+    if not isinstance(issues, list):
+        issues = []
+    return {
+        "status": str(payload.get("status", "pass")),
+        "issue_count": int(payload.get("issue_count", len(issues))),
+        "warning_count": int(payload.get("warning_count", 0)),
+        "strict_sanity_checks": bool(payload.get("strict_sanity_checks", False)),
+        "issues": [dict(issue) for issue in issues if isinstance(issue, dict)],
+    }
 
 
 __all__ = [

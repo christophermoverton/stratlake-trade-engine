@@ -11,6 +11,7 @@ import yaml
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.config.evaluation import EVALUATION_CONFIG
+from src.config.sanity import resolve_sanity_check_config
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
@@ -18,6 +19,7 @@ from src.research.input_validation import StrategyInputError
 from src.research.metrics import compute_benchmark_relative_metrics
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
+from src.research.sanity import validate_strategy_backtest_sanity
 from src.research.strategies import build_strategy
 from src.research.strategy_qa import generate_strategy_qa_summary
 from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment
@@ -131,6 +133,10 @@ def run_strategy_experiment(
     results_df.attrs["dataset"] = strategy.dataset
     metrics = compute_metrics(results_df)
     metrics.update(_compute_benchmark_metrics(results_df, dataset, strategy.dataset, resolved_execution))
+    sanity_config = resolve_sanity_check_config(config.get("sanity"))
+    sanity_report = validate_strategy_backtest_sanity(results_df, metrics, sanity_config)
+    metrics = sanity_report.apply_to_metrics(metrics)
+    results_df.attrs["sanity_check"] = sanity_report.to_dict()
     signal_diagnostics = compute_signal_diagnostics(results_df["signal"], results_df)
 
     experiment_config = {
@@ -140,6 +146,7 @@ def run_strategy_experiment(
         "start": start,
         "end": end,
         "execution": resolved_execution.to_dict(),
+        "sanity": sanity_config.to_dict(),
     }
     experiment_dir = save_experiment(strategy_name, results_df, metrics, experiment_config)
     qa_summary = generate_strategy_qa_summary(
@@ -226,6 +233,11 @@ def summarize_qa_warnings(qa_summary: dict[str, Any]) -> list[str]:
         warnings_list.append("strategy turnover is high relative to its excess return")
     if bool(flags.get("beta_dominated_strategy")):
         warnings_list.append("strategy returns appear largely benchmark-driven")
+    sanity = qa_summary.get("sanity")
+    if isinstance(sanity, dict):
+        for issue in sanity.get("issues", []):
+            if isinstance(issue, dict) and issue.get("message"):
+                warnings_list.append(str(issue["message"]))
     return warnings_list
 
 

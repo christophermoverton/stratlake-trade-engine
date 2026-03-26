@@ -95,7 +95,8 @@ def test_execute_split_scores_only_test_window_and_preserves_metadata() -> None:
     assert result.results_df["date"].tolist() == ["2022-01-04", "2022-01-05"]
     assert result.results_df["split_id"].tolist() == ["fixed_0000", "fixed_0000"]
     assert result.results_df["train_start"].tolist() == ["2022-01-01", "2022-01-01"]
-    assert set(result.metrics) == _expected_metric_keys()
+    assert _expected_metric_keys().issubset(result.metrics)
+    assert result.metrics["sanity_issue_count"] == 0.0
     assert result.metrics["cumulative_return"] == pytest.approx(-0.0298)
 
 
@@ -274,3 +275,47 @@ def test_run_walk_forward_experiment_rejects_empty_split_data(
 
     with pytest.raises(WalkForwardExecutionError, match="produced no training rows"):
         run_walk_forward_experiment("sign_v1", SignStrategy(), evaluation_path=config_path)
+
+
+def test_run_walk_forward_experiment_reports_flagged_splits_in_non_strict_sanity_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    config_path = tmp_path / "evaluation.yml"
+    _write_evaluation_config(
+        config_path,
+        {
+            "mode": "rolling",
+            "timeframe": "1d",
+            "start": "2022-01-01",
+            "end": "2022-01-07",
+            "train_window": "2D",
+            "test_window": "1D",
+            "step": "1D",
+        },
+    )
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    monkeypatch.setattr("src.research.walk_forward.load_features", lambda dataset, start=None, end=None: _feature_frame())
+
+    result = run_walk_forward_experiment(
+        "sign_v1",
+        SignStrategy(),
+        evaluation_path=config_path,
+        strategy_config={
+            "parameters": {"lookback": 2},
+            "sanity": {
+                "strict_sanity_checks": False,
+                "max_abs_period_return": 0.005,
+            },
+        },
+    )
+
+    assert result.aggregate_summary["flagged_split_count"] >= 1
+    assert result.sanity_summary["flagged_split_count"] >= 1
+    assert any(split.sanity["issue_count"] > 0 for split in result.splits)
+
+    metrics_payload = json.loads((result.experiment_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics_payload["flagged_split_count"] >= 1
+    assert metrics_payload["sanity_status"] in {"pass", "warn"}

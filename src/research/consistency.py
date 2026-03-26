@@ -963,8 +963,15 @@ def _compare_numeric(
     left = _coerce_float(expected)
     right = _coerce_float(actual)
     if left is None and right is None:
+        if _is_empty_like(expected) and _is_empty_like(actual):
+            return
+        if expected == actual:
+            return
+        errors.append(f"ConsistencyError: {name} mismatch (expected={expected!r} vs actual={actual!r})")
         return
     if left is None or right is None:
+        if expected == actual:
+            return
         errors.append(f"ConsistencyError: {name} mismatch (expected={expected!r} vs actual={actual!r})")
         return
     if abs(left - right) > _TOLERANCE:
@@ -972,6 +979,18 @@ def _compare_numeric(
 
 
 def _coerce_float(value: Any) -> float | None:
-    if value is None or pd.isna(value):
+    if value is None or _is_empty_like(value):
         return None
-    return float(value)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _is_empty_like(value: Any) -> bool:
+    if value is None:
+        return True
+    try:
+        return bool(pd.isna(value))
+    except TypeError:
+        return False

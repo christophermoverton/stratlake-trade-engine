@@ -322,3 +322,38 @@ def test_write_portfolio_artifacts_blocks_write_on_metrics_mismatch(tmp_path: Pa
         )
 
     assert not output_dir.exists()
+
+
+def test_write_portfolio_artifacts_surfaces_non_strict_sanity_in_qa_summary(tmp_path: Path) -> None:
+    output_dir = tmp_path / "portfolio_sanity_warn_abcd1234"
+    portfolio_output = _portfolio_output().sort_values("ts_utc").reset_index(drop=True)
+    portfolio_output.attrs["sanity_check"] = {
+        "status": "warn",
+        "issue_count": 1,
+        "warning_count": 1,
+        "strict_sanity_checks": False,
+        "issues": [
+            {
+                "code": "portfolio_return_max_abs_period_return",
+                "message": "Sanity check flagged: absolute portfolio_return exceeds configured maximum 0.01 at row index 1.",
+                "severity": "warning",
+            }
+        ],
+    }
+    metrics = _metrics()
+    metrics["sanity_status"] = "warn"
+    metrics["sanity_issue_count"] = 1.0
+    metrics["sanity_warning_count"] = 1.0
+
+    write_portfolio_artifacts(
+        output_dir=output_dir,
+        portfolio_output=portfolio_output,
+        metrics=metrics,
+        config=_config(),
+        components=_components(),
+    )
+
+    qa_summary = _load_json(output_dir / "qa_summary.json")
+    assert qa_summary["validation_status"] == "warn"
+    assert qa_summary["sanity"]["status"] == "warn"
+    assert qa_summary["sanity"]["issue_count"] == 1

@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.config.evaluation import EvaluationConfig, load_evaluation_config
+from src.config.sanity import SanityCheckConfig, resolve_sanity_check_config
 from src.research.consistency import validate_portfolio_artifact_payload_consistency, validate_portfolio_walk_forward_consistency
 from src.research import experiment_tracker
 from src.research.registry import (
@@ -19,6 +20,7 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
+from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 
 from .contracts import resolve_portfolio_validation_config
@@ -72,6 +74,9 @@ PORTFOLIO_WALK_FORWARD_METRIC_KEYS: tuple[str, ...] = (
     "max_single_weight",
     "max_weight_sum_deviation",
     "validation_issue_count",
+    "sanity_issue_count",
+    "sanity_warning_count",
+    "flagged_split_count",
 )
 _SPLIT_METADATA_COLUMNS: tuple[str, ...] = (
     "split_id",
@@ -101,6 +106,7 @@ def run_portfolio_walk_forward(
     initial_capital: float = 1.0,
     alignment_policy: str = "intersection",
     execution_config: ExecutionConfig | None = None,
+    sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Construct and score one portfolio independently for each evaluation split."""
 
@@ -124,6 +130,7 @@ def run_portfolio_walk_forward(
         alignment_policy=alignment_policy,
         evaluation_path=evaluation_path,
         execution_config=execution_config,
+        sanity_config=sanity_config,
     )
     run_id = generate_portfolio_run_id(
         portfolio_name=normalized_portfolio_name,
@@ -145,6 +152,7 @@ def run_portfolio_walk_forward(
             portfolio_name=normalized_portfolio_name,
             execution_config=execution_config,
             validation_config=root_config.get("validation"),
+            sanity_config=root_config.get("sanity"),
         )
         for split in splits
     ]
@@ -272,6 +280,7 @@ def _execute_portfolio_split(
     portfolio_name: str,
     execution_config: ExecutionConfig | None,
     validation_config: Mapping[str, Any] | None,
+    sanity_config: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     split_returns = _slice_strategy_returns_for_split(strategy_returns, split)
     aligned_returns = build_aligned_return_matrix(split_returns)
@@ -292,6 +301,18 @@ def _execute_portfolio_split(
         timeframe,
         validation_config=validation_config,
     )
+    try:
+        sanity_report = validate_portfolio_output_sanity(
+            portfolio_output,
+            metrics,
+            sanity_config,
+            initial_capital=initial_capital,
+            scope=f"portfolio_walk_forward_split:{split.split_id}",
+        )
+    except SanityCheckError as exc:
+        raise PortfolioWalkForwardError(str(exc)) from exc
+    metrics = sanity_report.apply_to_metrics(metrics)
+    portfolio_output.attrs["sanity_check"] = sanity_report.to_dict()
     split_metadata = _split_metadata(split, row_count=len(portfolio_output))
     return {
         "split_id": split.split_id,
@@ -309,6 +330,7 @@ def _execute_portfolio_split(
             else execution_config.to_dict()
         ),
         "validation": dict(validation_config or {}),
+        "sanity": dict(resolve_sanity_check_config(sanity_config).to_dict()),
     }
 
 
@@ -394,6 +416,25 @@ def _build_aggregate_metrics(
         metric_statistics[metric_name] = stats
         metric_summary[metric_name] = stats["mean"]
 
+    flagged_splits = [
+        str(split_result["split_id"])
+        for split_result in split_results
+        if float(split_result["metrics"].get("sanity_issue_count", 0.0) or 0.0) > 0.0
+    ]
+    failed_splits = [
+        str(split_result["split_id"])
+        for split_result in split_results
+        if split_result["metrics"].get("sanity_status") == "fail"
+    ]
+    metric_summary["flagged_split_count"] = float(len(flagged_splits))
+    metric_statistics["flagged_split_count"] = {
+        "mean": float(len(flagged_splits)),
+        "median": float(len(flagged_splits)),
+        "std": 0.0,
+        "min": float(len(flagged_splits)),
+        "max": float(len(flagged_splits)),
+    }
+
     return {
         "aggregation_method": "descriptive statistics computed across split-level portfolio metrics in split order",
         "mode": first_split["mode"],
@@ -402,6 +443,13 @@ def _build_aggregate_metrics(
         "first_train_start": first_split["train_start"],
         "last_test_end": last_split["test_end"],
         "split_ids": [str(split_result["split_id"]) for split_result in split_results],
+        "sanity": {
+            "status": "fail" if failed_splits else ("warn" if flagged_splits else "pass"),
+            "flagged_split_count": len(flagged_splits),
+            "failed_split_count": len(failed_splits),
+            "flagged_splits": flagged_splits,
+            "failed_splits": failed_splits,
+        },
         "metric_summary": metric_summary,
         "metric_statistics": metric_statistics,
     }
@@ -496,6 +544,7 @@ def _build_root_config(
     alignment_policy: str,
     evaluation_path: Path,
     execution_config: ExecutionConfig | None,
+    sanity_config: SanityCheckConfig | dict[str, Any] | None,
 ) -> dict[str, Any]:
     return {
         "portfolio_name": portfolio_name,
@@ -510,6 +559,7 @@ def _build_root_config(
         "timeframe": timeframe,
         "evaluation_config_path": evaluation_path.as_posix(),
         "validation": resolve_portfolio_validation_config(None).to_dict(),
+        "sanity": resolve_sanity_check_config(sanity_config).to_dict(),
     }
 
 

@@ -47,6 +47,9 @@ _METRIC_KEYS = (
     "excess_return",
     "benchmark_correlation",
     "relative_drawdown",
+    "sanity_issue_count",
+    "sanity_warning_count",
+    "flagged_split_count",
 )
 _METRICS_SUMMARY_KEYS = _METRIC_KEYS
 _SIGNAL_PRIORITY_COLUMNS = (

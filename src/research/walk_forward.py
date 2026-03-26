@@ -8,12 +8,14 @@ import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.config.evaluation import EVALUATION_CONFIG, EvaluationConfig, load_evaluation_config
+from src.config.sanity import SanityCheckConfig, resolve_sanity_check_config
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_walk_forward_experiment
 from src.research.metrics import compute_performance_metrics
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
+from src.research.sanity import SanityCheckError, validate_strategy_backtest_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 from src.research.strategy_qa import generate_strategy_qa_summary
 from src.research.strategy_base import BaseStrategy
@@ -38,6 +40,7 @@ class SplitExecutionResult:
     test_rows: int
     metrics: dict[str, float | None]
     results_df: pd.DataFrame
+    sanity: dict[str, Any] = field(default_factory=dict)
 
     def to_record(self) -> dict[str, Any]:
         """Return serializable split metadata and metrics for tabular logging."""
@@ -68,6 +71,7 @@ class WalkForwardRunResult:
     splits: list[SplitExecutionResult]
     signal_diagnostics: dict[str, Any] = field(default_factory=dict)
     qa_summary: dict[str, Any] = field(default_factory=dict)
+    sanity_summary: dict[str, Any] = field(default_factory=dict)
 
 
 def compute_metrics(results_df: pd.DataFrame) -> dict[str, float | None]:
@@ -94,16 +98,44 @@ def run_walk_forward_experiment(
 
     evaluation_config = load_walk_forward_config(evaluation_path)
     resolved_execution = execution_config or resolve_execution_config((strategy_config or {}).get("execution"))
+    resolved_sanity = resolve_sanity_check_config((strategy_config or {}).get("sanity"))
     splits = generate_evaluation_splits(evaluation_config)
     if not splits:
         raise WalkForwardExecutionError("Walk-forward evaluation did not produce any splits.")
 
     dataset = _load_dataset_for_splits(strategy, splits)
-    split_results = [execute_split(strategy, dataset, split, execution_config=resolved_execution) for split in splits]
+    split_results = [
+        execute_split(
+            strategy,
+            dataset,
+            split,
+            execution_config=resolved_execution,
+            sanity_config=resolved_sanity,
+        )
+        for split in splits
+    ]
     aggregate_summary = build_aggregate_summary(split_results)
     aggregate_results = pd.concat([result.results_df for result in split_results], ignore_index=True)
     aggregate_results.attrs["dataset"] = strategy.dataset
     aggregate_results.attrs["timeframe"] = evaluation_config.timeframe
+    try:
+        aggregate_report = validate_strategy_backtest_sanity(
+            aggregate_results,
+            aggregate_summary,
+            resolved_sanity,
+            scope="strategy_walk_forward_aggregate",
+        )
+    except SanityCheckError as exc:
+        raise WalkForwardExecutionError(str(exc)) from exc
+    aggregate_summary = aggregate_report.apply_to_metrics(aggregate_summary)
+    aggregate_summary["sanity"] = {
+        "aggregate": aggregate_report.to_dict(),
+        "flagged_split_count": int(sum(result.sanity.get("issue_count", 0) > 0 for result in split_results)),
+        "failed_split_count": int(sum(result.sanity.get("status") == "fail" for result in split_results)),
+        "flagged_splits": [result.split_id for result in split_results if result.sanity.get("issue_count", 0) > 0],
+    }
+    aggregate_summary["flagged_split_count"] = float(aggregate_summary["sanity"]["flagged_split_count"])
+    aggregate_results.attrs["sanity_check"] = aggregate_report.to_dict()
     signal_diagnostics = compute_signal_diagnostics(aggregate_results["signal"], aggregate_results)
 
     run_config = {
@@ -125,6 +157,7 @@ def run_walk_forward_experiment(
             "test_end": evaluation_config.test_end,
         },
         "execution": resolved_execution.to_dict(),
+        "sanity": resolved_sanity.to_dict(),
     }
     experiment_dir = save_walk_forward_experiment(
         strategy_name,
@@ -168,6 +201,7 @@ def run_walk_forward_experiment(
         splits=split_results,
         signal_diagnostics=signal_diagnostics,
         qa_summary=qa_summary,
+        sanity_summary=dict(aggregate_summary.get("sanity", {})),
     )
 
 
@@ -177,6 +211,7 @@ def execute_split(
     split: EvaluationSplit,
     *,
     execution_config: ExecutionConfig | None = None,
+    sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
 ) -> SplitExecutionResult:
     """Run the research pipeline for one split and score only the test window."""
 
@@ -197,6 +232,19 @@ def execute_split(
         raise WalkForwardExecutionError(f"Split '{split.split_id}' produced no test rows.")
 
     split_results = _attach_split_metadata(test_frame, split)
+    split_results.attrs = {}
+    metrics = compute_metrics(split_results)
+    try:
+        sanity_report = validate_strategy_backtest_sanity(
+            split_results,
+            metrics,
+            sanity_config,
+            scope=f"strategy_walk_forward_split:{split.split_id}",
+        )
+    except SanityCheckError as exc:
+        raise WalkForwardExecutionError(str(exc)) from exc
+    split_results.attrs["sanity_check"] = sanity_report.to_dict()
+    metrics = sanity_report.apply_to_metrics(metrics)
     return SplitExecutionResult(
         split_id=split.split_id,
         mode=split.mode,
@@ -207,8 +255,9 @@ def execute_split(
         split_rows=len(split_frame),
         train_rows=len(train_frame),
         test_rows=len(test_frame),
-        metrics=compute_metrics(split_results),
+        metrics=metrics,
         results_df=split_results,
+        sanity=sanity_report.to_dict(),
     )
 
 
@@ -304,5 +353,8 @@ def _coerce_metric_map(summary: dict[str, Any]) -> dict[str, float | None]:
         "excess_return",
         "benchmark_correlation",
         "relative_drawdown",
+        "sanity_issue_count",
+        "sanity_warning_count",
+        "flagged_split_count",
     )
     return {key: (None if summary.get(key) is None else float(summary[key])) for key in metric_keys}

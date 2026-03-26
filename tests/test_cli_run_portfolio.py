@@ -542,6 +542,111 @@ def test_run_cli_rejects_non_overlapping_component_runs(
         )
 
 
+def test_run_cli_strict_sanity_failure_prevents_portfolio_write(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-alpha",
+        strategy_name="alpha_v1",
+        rows=[{"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.01}],
+    )
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-beta",
+        strategy_name="beta_v1",
+        rows=[{"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.01}],
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_portfolio.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+
+    portfolio_output = pd.DataFrame(
+        {
+            "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z"], utc=True),
+            "strategy_return__alpha_v1": [0.6],
+            "strategy_return__beta_v1": [0.6],
+            "weight__alpha_v1": [0.5],
+            "weight__beta_v1": [0.5],
+            "gross_portfolio_return": [0.6],
+            "portfolio_weight_change": [1.0],
+            "portfolio_abs_weight_change": [1.0],
+            "portfolio_turnover": [1.0],
+            "portfolio_rebalance_event": [1],
+            "portfolio_transaction_cost": [0.0],
+            "portfolio_slippage_cost": [0.0],
+            "portfolio_execution_friction": [0.0],
+            "net_portfolio_return": [0.6],
+            "portfolio_return": [0.6],
+            "portfolio_equity_curve": [1.6],
+        }
+    )
+    write_calls = {"count": 0}
+
+    monkeypatch.setattr("src.cli.run_portfolio.construct_portfolio", lambda *args, **kwargs: portfolio_output)
+    monkeypatch.setattr(
+        "src.cli.run_portfolio.load_strategy_runs_returns",
+        lambda run_dirs: pd.DataFrame({"ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z"], utc=True)}),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_portfolio.build_aligned_return_matrix",
+        lambda strategy_returns: pd.DataFrame({"alpha_v1": [0.6], "beta_v1": [0.6]}, index=pd.DatetimeIndex(pd.to_datetime(["2025-01-01T00:00:00Z"], utc=True), name="ts_utc")),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_portfolio._resolve_portfolio_inputs",
+        lambda **kwargs: (
+            {
+                "portfolio_name": "core_portfolio",
+                "allocator": "equal_weight",
+                "components": [
+                    {"strategy_name": "alpha_v1", "run_id": "run-alpha", "source_artifact_path": "a"},
+                    {"strategy_name": "beta_v1", "run_id": "run-beta", "source_artifact_path": "b"},
+                ],
+                "initial_capital": 1.0,
+                "alignment_policy": "intersection",
+                "execution": {
+                    "enabled": False,
+                    "execution_delay": 1,
+                    "transaction_cost_bps": 0.0,
+                    "slippage_bps": 0.0,
+                },
+                "validation": None,
+                "sanity": {
+                    "strict_sanity_checks": True,
+                    "max_abs_period_return": 0.1,
+                },
+                "timeframe": "1D",
+                "evaluation_config_path": None,
+            },
+            [Path("a"), Path("b")],
+            [
+                {"strategy_name": "alpha_v1", "run_id": "run-alpha", "source_artifact_path": "a"},
+                {"strategy_name": "beta_v1", "run_id": "run-beta", "source_artifact_path": "b"},
+            ],
+        ),
+    )
+    monkeypatch.setattr(
+        "src.portfolio.write_portfolio_artifacts",
+        lambda *args, **kwargs: write_calls.__setitem__("count", write_calls["count"] + 1),
+    )
+
+    with pytest.raises(ValueError, match="absolute portfolio_return exceeds configured maximum"):
+        run_cli(
+            [
+                "--portfolio-name",
+                "core_portfolio",
+                "--run-ids",
+                "run-alpha",
+                "run-beta",
+                "--timeframe",
+                "1D",
+            ]
+        )
+
+    assert write_calls["count"] == 0
+
+
 def _write_strategy_run(
     root: Path,
     *,

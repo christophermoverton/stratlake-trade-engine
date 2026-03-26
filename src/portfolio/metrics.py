@@ -71,6 +71,11 @@ def compute_portfolio_metrics(
     sanity_issue_count = float(
         len(normalized.attrs.get("portfolio_validation", {}).get("sanity_issues", []))
     )
+    research_sanity = normalized.attrs.get("sanity_check", {})
+    research_sanity_issue_count = float(research_sanity.get("issue_count", 0.0)) if isinstance(research_sanity, dict) else 0.0
+    research_sanity_warning_count = float(research_sanity.get("warning_count", 0.0)) if isinstance(research_sanity, dict) else 0.0
+    research_sanity_status = str(research_sanity.get("status", "pass")) if isinstance(research_sanity, dict) else "pass"
+    research_sanity_strict_mode = bool(research_sanity.get("strict_sanity_checks", False)) if isinstance(research_sanity, dict) else False
 
     return {
         "cumulative_return": total,
@@ -108,6 +113,10 @@ def compute_portfolio_metrics(
         "max_single_weight": float(weight_diagnostics["max_single_weight"]),
         "max_weight_sum_deviation": float(weight_diagnostics["max_weight_sum_deviation"]),
         "validation_issue_count": sanity_issue_count,
+        "sanity_issue_count": research_sanity_issue_count,
+        "sanity_warning_count": research_sanity_warning_count,
+        "sanity_status": research_sanity_status,
+        "sanity_strict_mode": research_sanity_strict_mode,
     }
 
 

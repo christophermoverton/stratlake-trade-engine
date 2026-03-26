@@ -147,6 +147,20 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
             "transaction_cost_bps": 0.0,
             "slippage_bps": 0.0,
         },
+        "sanity": {
+            "max_abs_period_return": 1.0,
+            "max_annualized_return": 25.0,
+            "max_equity_multiple": 1000000.0,
+            "max_sharpe_ratio": 10.0,
+            "min_annualized_volatility_floor": 0.02,
+            "min_volatility_trigger_annualized_return": 1.0,
+            "min_volatility_trigger_sharpe": 4.0,
+            "smoothness_max_drawdown": 0.02,
+            "smoothness_min_annualized_return": 0.75,
+            "smoothness_min_positive_return_fraction": 0.95,
+            "smoothness_min_sharpe": 3.0,
+            "strict_sanity_checks": False,
+        },
     }
 
     stdout = capsys.readouterr().out
@@ -316,3 +330,79 @@ def test_run_strategy_experiment_does_not_write_artifacts_when_temporal_validati
         run_strategy_experiment("buy_and_hold_v1")
 
     assert calls["save_experiment"] == 0
+
+
+def test_run_strategy_experiment_strict_sanity_failure_prevents_artifact_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    feature_frame = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL", "AAPL"], dtype="string"),
+            "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"], utc=True),
+            "timeframe": pd.Series(["1D", "1D"], dtype="string"),
+            "date": pd.Series(["2025-01-01", "2025-01-02"], dtype="string"),
+            "feature_ret_1d": [0.0, 1.0],
+        }
+    )
+    calls = {"save_experiment": 0}
+
+    monkeypatch.setattr(
+        "src.cli.run_strategy.get_strategy_config",
+        lambda strategy_name: {
+            "dataset": "features_daily",
+            "parameters": {},
+            "sanity": {
+                "strict_sanity_checks": True,
+                "max_abs_period_return": 0.5,
+            },
+        },
+    )
+    monkeypatch.setattr("src.cli.run_strategy.load_features", lambda dataset, start=None, end=None: feature_frame)
+    def fake_save_experiment(*args, **kwargs):
+        calls["save_experiment"] += 1
+        return Path("artifacts/strategies/should-not-exist")
+
+    monkeypatch.setattr("src.cli.run_strategy.save_experiment", fake_save_experiment)
+
+    with pytest.raises(ValueError, match="absolute strategy_return exceeds configured maximum"):
+        run_strategy_experiment("buy_and_hold_v1")
+
+    assert calls["save_experiment"] == 0
+
+
+def test_run_strategy_experiment_non_strict_sanity_records_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    feature_frame = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL", "AAPL"], dtype="string"),
+            "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"], utc=True),
+            "timeframe": pd.Series(["1D", "1D"], dtype="string"),
+            "date": pd.Series(["2025-01-01", "2025-01-02"], dtype="string"),
+            "feature_ret_1d": [0.0, 1.0],
+        }
+    )
+
+    monkeypatch.setattr(
+        "src.cli.run_strategy.get_strategy_config",
+        lambda strategy_name: {
+            "dataset": "features_daily",
+            "parameters": {},
+            "sanity": {
+                "strict_sanity_checks": False,
+                "max_abs_period_return": 0.5,
+            },
+        },
+    )
+    monkeypatch.setattr("src.cli.run_strategy.load_features", lambda dataset, start=None, end=None: feature_frame)
+    monkeypatch.setattr(
+        "src.cli.run_strategy.save_experiment",
+        lambda *args, **kwargs: Path("artifacts/strategies/non-strict-sanity"),
+    )
+
+    result = run_strategy_experiment("buy_and_hold_v1")
+
+    assert result.metrics["sanity_status"] == "warn"
+    assert result.metrics["sanity_issue_count"] >= 1
+    assert result.qa_summary["sanity"]["status"] == "warn"
+    assert result.qa_summary["overall_status"] == "warn"

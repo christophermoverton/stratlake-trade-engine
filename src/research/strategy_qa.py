@@ -37,6 +37,7 @@ def generate_strategy_qa_summary(
     }
     execution = _execution_payload(normalized_df)
     plausibility_flags = _plausibility_flags(metrics)
+    sanity_payload = _sanity_payload(normalized_df, metrics)
 
     row_count = int(len(normalized_df))
     input_validation = _input_validation_payload(normalized_df)
@@ -50,11 +51,18 @@ def generate_strategy_qa_summary(
         "no_trades": int(signal_diagnostics["total_trades"]) == 0,
         "high_turnover": bool(signal_diagnostics["flags"]["high_turnover"]),
         "low_data": bool(input_validation.get("low_data", row_count < LOW_DATA_THRESHOLD)),
+        "sanity_warning": sanity_payload["issue_count"] > 0,
         **plausibility_flags,
     }
 
     integrity_failure = _integrity_failure(normalized_df, signal_diagnostics)
-    if flags["no_data"] or integrity_failure or not execution["valid_returns"] or not execution["equity_curve_present"]:
+    if (
+        flags["no_data"]
+        or integrity_failure
+        or sanity_payload["status"] == "fail"
+        or not execution["valid_returns"]
+        or not execution["equity_curve_present"]
+    ):
         overall_status = "fail"
     elif any(flags.values()):
         overall_status = "warn"
@@ -80,6 +88,7 @@ def generate_strategy_qa_summary(
         "execution": execution,
         "metrics": metrics_payload,
         "relative": relative_payload,
+        "sanity": sanity_payload,
         "flags": flags,
         "overall_status": overall_status,
     }
@@ -201,4 +210,29 @@ def _plausibility_flags(metrics: dict[str, Any]) -> dict[str, bool]:
         "low_excess_return": bool(payload.get("low_excess_return")),
         "high_turnover_low_edge": bool(payload.get("high_turnover_low_edge")),
         "beta_dominated_strategy": bool(payload.get("beta_dominated_strategy")),
+    }
+
+
+def _sanity_payload(df: pd.DataFrame, metrics: dict[str, Any]) -> dict[str, Any]:
+    payload = df.attrs.get("sanity_check")
+    if not isinstance(payload, dict):
+        payload = metrics.get("sanity")
+    if not isinstance(payload, dict):
+        return {
+            "status": "pass",
+            "issue_count": 0,
+            "warning_count": 0,
+            "strict_sanity_checks": False,
+            "issues": [],
+        }
+
+    issues = payload.get("issues", [])
+    if not isinstance(issues, list):
+        issues = []
+    return {
+        "status": str(payload.get("status", "pass")),
+        "issue_count": int(payload.get("issue_count", len(issues))),
+        "warning_count": int(payload.get("warning_count", 0)),
+        "strict_sanity_checks": bool(payload.get("strict_sanity_checks", False)),
+        "issues": [dict(issue) for issue in issues if isinstance(issue, dict)],
     }

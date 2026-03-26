@@ -41,7 +41,7 @@ def load_strategy_run_returns(run_dir: str | Path) -> pd.DataFrame:
             f"Strategy run artifact {returns_artifact} is missing required return columns: {formatted}."
         )
 
-    normalized = artifact_frame.loc[:, ["ts_utc", "strategy_return"]].copy()
+    normalized = _collapse_strategy_return_rows(artifact_frame.loc[:, ["ts_utc", "strategy_return"]].copy())
     normalized["strategy_name"] = strategy_name
     normalized["run_id"] = run_id
     normalized = normalized.loc[:, ["ts_utc", "strategy_name", "strategy_return", "run_id"]]
@@ -59,6 +59,37 @@ def load_strategy_run_returns(run_dir: str | Path) -> pd.DataFrame:
         "alignment_policy": _ALIGNMENT_POLICY_INTERSECTION,
     }
     return validated
+
+
+def _collapse_strategy_return_rows(returns_frame: pd.DataFrame) -> pd.DataFrame:
+    """
+    Normalize one strategy artifact into one return row per timestamp.
+
+    Strategy artifacts may contain multiple rows for the same timestamp when the
+    originating research run spans multiple symbols. The portfolio layer needs a
+    single strategy-level return stream, so same-timestamp rows are compounded
+    into one effective return for that timestamp.
+    """
+
+    collapsed = returns_frame.reset_index(drop=True).copy()
+    collapsed["_row_order"] = range(len(collapsed))
+    collapsed["_ts_sort"] = pd.to_datetime(collapsed["ts_utc"], utc=True, errors="coerce")
+    collapsed = collapsed.sort_values(["_ts_sort", "_row_order"], kind="stable")
+
+    duplicate_mask = collapsed.duplicated(subset=["ts_utc"], keep=False)
+    if not duplicate_mask.any():
+        return collapsed.loc[:, ["ts_utc", "strategy_return"]].reset_index(drop=True)
+
+    grouped = (
+        collapsed.groupby("ts_utc", sort=False, as_index=False)
+        .agg(strategy_return=("strategy_return", _compound_return_series))
+    )
+    return grouped.loc[:, ["ts_utc", "strategy_return"]].reset_index(drop=True)
+
+
+def _compound_return_series(series: pd.Series) -> float:
+    returns = pd.to_numeric(series, errors="raise").astype("float64")
+    return float((1.0 + returns).prod() - 1.0)
 
 
 def load_strategy_runs_returns(run_dirs: Sequence[str | Path]) -> pd.DataFrame:

@@ -91,6 +91,7 @@ Current behavior:
 * reads root-level `equity_curve.csv` from each component strategy run
 * requires `ts_utc` and `strategy_return`
 * resolves `strategy_name` from `config.json` or `manifest.json`
+* compounds same-timestamp rows into one strategy-level return when a strategy artifact contains multiple symbol rows for the same timestamp
 * builds one long-form return table across component strategies
 * aligns returns with `intersection` semantics only
 

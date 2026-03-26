@@ -11,15 +11,16 @@ It consumes validated, QA-enforced OHLCV data from an external marketlake.
 ## Milestone Summary
 
 StratLake now spans multiple connected milestones across repository
-foundation, feature engineering, research execution, evaluation, and
-artifact-driven review workflows.
+foundation, feature engineering, research execution, evaluation, portfolio
+construction, and artifact-driven review workflows.
 
-Milestone 8 is now complete in
-`v0.8.0-research-integrity`: Research Integrity & Strategy QA Hardening.
-This release adds formal validation and QA layers around the existing
-artifact-driven research workflow, making saved strategy results easier to
-trust, reproduce, and review without changing core strategy logic or artifact
-schemas.
+Milestone 9 is now complete in
+`v0.9.0-portfolio-construction`: Portfolio Construction Layer.
+This release extends the deterministic strategy research workflow with a
+first-class portfolio construction system, including config-backed component
+selection, allocator-driven portfolio assembly, portfolio metrics, artifact
+logging, registry integration, walk-forward portfolio evaluation, and
+deterministic QA validation.
 
 The repository now supports:
 
@@ -41,18 +42,25 @@ The repository now supports:
 * benchmark-relative metrics and plausibility warnings for result interpretation
 * report-quality vs debug artifact separation for saved plots and reports
 * deterministic test coverage for research execution, QA, visualization, and reporting artifacts
+* deterministic portfolio construction from completed strategy runs
+* a portfolio CLI runner for explicit run-id or registry-backed component selection
+* portfolio artifact logging under `artifacts/portfolios/`
+* shared portfolio registry tracking under `artifacts/portfolios/registry.jsonl`
+* walk-forward portfolio evaluation across deterministic split definitions
+* portfolio QA summaries and artifact consistency validation
 
-### Milestone 8: Research Integrity & Strategy QA Hardening
+### Milestone 9: Portfolio Construction Layer
 
-Milestone 8 hardens the artifact-driven research workflow with dedicated trust
-and validation layers:
+Milestone 9 extends the artifact-driven strategy workflow with dedicated
+portfolio construction and validation layers:
 
-* research integrity validation for anti-leakage, ordering, and alignment checks
-* fail-fast input contract enforcement before strategies run
-* deterministic signal diagnostics and strategy QA summaries
-* cross-artifact consistency checks across metrics, manifests, QA, and registry records
-* deterministic rerun guarantees and regression coverage
-* benchmark-relative evaluation metrics with warning-only plausibility flags
+* portfolio contracts for config normalization and fail-fast validation
+* deterministic strategy-run loaders and intersection-only return alignment
+* allocator-backed portfolio construction with component traceability columns
+* portfolio-level return, risk, and activity metrics
+* deterministic portfolio artifact logging and QA summaries
+* portfolio registry integration for reusable, queryable saved runs
+* CLI-driven single-run and walk-forward portfolio execution
 
 ### Start Here
 
@@ -89,6 +97,7 @@ StratLake owns:
 - Feature engineering
 - Research experimentation
 - Backtesting logic
+- Portfolio construction
 - Artifact-driven QA and validation layers
 - Reproducible research artifacts
 
@@ -151,12 +160,14 @@ src/
   features/      # Feature engineering
   pipeline/      # Load -> compute -> write orchestration
   cli/           # Research CLI modules
+  portfolio/     # Portfolio construction, metrics, QA, and artifact writers
   research/      # Strategy interfaces, signals, and backtest execution
 
 cli/             # Command-line entrypoints
 
 configs/
   strategies.yml # Strategy registry for research experiments
+  portfolios.yml # Example portfolio definitions for portfolio CLI workflows
   evaluation.yml # Evaluation split definitions for walk-forward validation
   paths.yml
   universe.yml
@@ -165,6 +176,7 @@ configs/
 tests/           # Unit tests
 
 artifacts/
+  portfolios/    # Portfolio run outputs and registry tracking (not versioned)
   strategies/    # Strategy experiment outputs (not versioned)
   feature_runs/  # Feature pipeline run summaries (not versioned)
 data/            # Locally generated data (not versioned)
@@ -194,6 +206,9 @@ Current implementation includes:
 * Benchmark-relative metrics and plausibility warnings for review workflows
 * Artifact-driven plot and Markdown report generation from saved run artifacts
 * Standardized report-quality and debug visualization artifacts for review workflows
+* Portfolio construction from completed strategy runs with allocator-backed weights
+* Portfolio metrics, QA summaries, manifest files, and portfolio registry entries
+* Walk-forward portfolio evaluation using the same deterministic split model as strategies
 
 ---
 
@@ -274,6 +289,22 @@ Visualization and reporting extend that artifact flow rather than replacing it:
 feature datasets -> signals -> backtest -> metrics -> artifacts -> plots -> report.md
 ```
 
+An end-to-end repository view now looks like:
+
+```text
+curated market data
+        ->
+feature engineering
+        ->
+strategy research + QA
+        ->
+strategy artifacts + registry
+        ->
+portfolio construction + QA
+        ->
+portfolio artifacts + registry
+```
+
 Start with the central workflow guide:
 
 * [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
@@ -304,6 +335,14 @@ Start here:
 * [docs/portfolio_construction_workflow.md](docs/portfolio_construction_workflow.md)
 * [docs/portfolio_configuration.md](docs/portfolio_configuration.md)
 * [docs/portfolio_artifact_logging.md](docs/portfolio_artifact_logging.md)
+
+Key capabilities:
+
+* config-backed portfolio definitions under [configs/portfolios.yml](configs/portfolios.yml)
+* CLI execution with explicit `--run-ids` or `--from-registry`
+* artifact outputs under `artifacts/portfolios/<run_id>/`
+* portfolio registry tracking in `artifacts/portfolios/registry.jsonl`
+* walk-forward portfolio evaluation through `configs/evaluation.yml`
 
 ### Research Flow
 
@@ -542,6 +581,76 @@ Current release outcome:
   fail-fast input validation, persist QA-checked registry-backed artifacts,
   compare strategies through a shared leaderboard workflow, and generate
   deterministic visual and Markdown summaries from saved run outputs.
+
+### Portfolio CLI Usage
+
+Run a configured portfolio from saved strategy runs:
+
+```powershell
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name momentum_meanrev_equal --from-registry --timeframe 1D
+```
+
+Run the same portfolio with explicit run ids instead of registry lookup:
+
+```powershell
+python -m src.cli.run_portfolio --portfolio-name momentum_meanrev_equal --run-ids <run_id_1> <run_id_2> --timeframe 1D
+```
+
+Walk-forward portfolio evaluation:
+
+```powershell
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name momentum_meanrev_equal --from-registry --evaluation configs/evaluation.yml --timeframe 1D
+```
+
+Console summary output includes:
+
+* portfolio name
+* portfolio run identifier
+* allocator name
+* component count
+* timeframe
+* total return, Sharpe ratio, and max drawdown for single runs
+* split count plus aggregate statistics for walk-forward runs
+
+Saved portfolio artifacts include:
+
+* `config.json`
+* `components.json`
+* `weights.csv`
+* `portfolio_returns.csv`
+* `portfolio_equity_curve.csv`
+* `metrics.json`
+* `qa_summary.json`
+* `manifest.json`
+
+Walk-forward portfolio runs also write:
+
+* `aggregate_metrics.json`
+* `metrics_by_split.csv`
+* `splits/<split_id>/...`
+
+Current portfolio release outcome:
+
+* StratLake can now turn completed strategy runs into deterministic,
+  allocator-backed portfolios, score them with portfolio metrics, validate
+  them with artifact-driven QA, persist them under `artifacts/portfolios/`,
+  and query them later through a portfolio registry workflow.
+
+### Documentation Links
+
+Portfolio construction and release-facing workflow docs:
+
+* [docs/portfolio_construction_workflow.md](docs/portfolio_construction_workflow.md)
+* [docs/portfolio_configuration.md](docs/portfolio_configuration.md)
+* [docs/portfolio_artifact_logging.md](docs/portfolio_artifact_logging.md)
+
+Strategy and QA references:
+
+* [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
+* [docs/cli_strategy_runner.md](docs/cli_strategy_runner.md)
+* [docs/walk_forward_strategy_runner.md](docs/walk_forward_strategy_runner.md)
+* [docs/strategy_comparison_cli.md](docs/strategy_comparison_cli.md)
+* [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 
 ---
 

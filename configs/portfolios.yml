@@ -1,0 +1,8 @@
+portfolios:
+  momentum_meanrev_equal:
+    allocator: equal_weight
+    initial_capital: 1.0
+    alignment_policy: intersection
+    components:
+      - strategy_name: momentum_v1
+      - strategy_name: mean_reversion_v1

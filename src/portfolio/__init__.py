@@ -19,6 +19,11 @@ from .loaders import (
     load_strategy_runs_returns,
 )
 from .metrics import compute_portfolio_metrics
+from .walk_forward import (
+    PORTFOLIO_WALK_FORWARD_METRIC_KEYS,
+    PortfolioWalkForwardError,
+    run_portfolio_walk_forward,
+)
 
 __all__ = [
     "PortfolioContractError",
@@ -32,6 +37,9 @@ __all__ = [
     "compute_portfolio_returns",
     "compute_portfolio_equity_curve",
     "construct_portfolio",
+    "PORTFOLIO_WALK_FORWARD_METRIC_KEYS",
+    "PortfolioWalkForwardError",
+    "run_portfolio_walk_forward",
     "validate_strategy_returns",
     "validate_aligned_returns",
     "validate_weights",

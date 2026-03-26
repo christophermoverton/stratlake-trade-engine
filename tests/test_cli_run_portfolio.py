@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.cli.run_portfolio import (
     PortfolioRunResult,
+    PortfolioWalkForwardRunResult,
     parse_args,
     parse_run_ids,
     run_cli,
@@ -369,6 +370,94 @@ def test_run_cli_is_deterministic_for_identical_inputs(
     assert first.run_id == second.run_id
     assert first.metrics == second.metrics
     assert first_artifacts == second_artifacts
+
+
+def test_run_cli_supports_walk_forward_portfolios(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-alpha",
+        strategy_name="alpha_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.01},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.02},
+            {"ts_utc": "2025-01-03T00:00:00Z", "strategy_return": 0.03},
+            {"ts_utc": "2025-01-04T00:00:00Z", "strategy_return": 0.04},
+        ],
+    )
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-beta",
+        strategy_name="beta_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.02},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.00},
+            {"ts_utc": "2025-01-03T00:00:00Z", "strategy_return": -0.01},
+            {"ts_utc": "2025-01-04T00:00:00Z", "strategy_return": 0.01},
+        ],
+    )
+    evaluation_path = tmp_path / "evaluation.yml"
+    evaluation_path.write_text(
+        yaml.safe_dump(
+            {
+                "evaluation": {
+                    "mode": "rolling",
+                    "timeframe": "1d",
+                    "start": "2025-01-01",
+                    "end": "2025-01-05",
+                    "train_window": "2D",
+                    "test_window": "1D",
+                    "step": "1D",
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_portfolio.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.portfolio.walk_forward.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.cli.run_portfolio.DEFAULT_PORTFOLIO_ARTIFACTS_ROOT", portfolio_root)
+
+    result = run_cli(
+        [
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-alpha",
+            "run-beta",
+            "--evaluation",
+            str(evaluation_path),
+            "--timeframe",
+            "1D",
+        ]
+    )
+
+    assert isinstance(result, PortfolioWalkForwardRunResult)
+    assert result.split_count == 2
+    assert result.experiment_dir == portfolio_root / result.run_id
+    assert (result.experiment_dir / "aggregate_metrics.json").exists()
+    assert (result.experiment_dir / "metrics_by_split.csv").exists()
+    assert result.aggregate_metrics["metric_summary"]["total_return"] == pytest.approx(0.0175)
+
+    registry_entries = _read_registry(portfolio_root / "registry.jsonl")
+    assert [entry["run_id"] for entry in registry_entries] == [result.run_id]
+    assert registry_entries[0]["split_count"] == 2
+    assert registry_entries[0]["evaluation_config_path"] == evaluation_path.as_posix()
+
+    stdout = capsys.readouterr().out
+    assert "Portfolio: core_portfolio" in stdout
+    assert f"Run ID: {result.run_id}" in stdout
+    assert "Splits: 2" in stdout
+    assert "Mean Total Return:" in stdout
+    assert "Mean Sharpe Ratio:" in stdout
+    assert "Worst Max Drawdown:" in stdout
 
 
 def test_run_cli_rejects_missing_run_ids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:

@@ -16,6 +16,7 @@ from src.portfolio import (
     compute_portfolio_metrics,
     construct_portfolio,
     load_strategy_runs_returns,
+    run_portfolio_walk_forward,
     validate_portfolio_config,
 )
 from src.research import experiment_tracker
@@ -49,6 +50,21 @@ class PortfolioRunResult:
     components: list[dict[str, Any]]
 
 
+@dataclass(frozen=True)
+class PortfolioWalkForwardRunResult:
+    portfolio_name: str
+    run_id: str
+    allocator_name: str
+    timeframe: str
+    component_count: int
+    split_count: int
+    metrics: dict[str, float | None]
+    aggregate_metrics: dict[str, Any]
+    experiment_dir: Path
+    config: dict[str, Any]
+    components: list[dict[str, Any]]
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments for a portfolio construction run."""
 
@@ -75,7 +91,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument(
         "--evaluation",
-        help="Optional evaluation config path reserved for future portfolio workflows.",
+        help="Optional evaluation config path. When provided, runs portfolio walk-forward evaluation.",
     )
     parser.add_argument(
         "--output-dir",
@@ -107,7 +123,7 @@ def parse_run_ids(raw_values: Sequence[str] | None) -> list[str]:
     return run_ids
 
 
-def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult:
+def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | PortfolioWalkForwardRunResult:
     """Execute the portfolio runner CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
@@ -125,80 +141,104 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult:
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
     )
 
-    strategy_returns = load_strategy_runs_returns(run_dirs)
-    aligned_returns = build_aligned_return_matrix(strategy_returns)
     allocator = _build_allocator(resolved_config["allocator"])
-    portfolio_output = construct_portfolio(
-        aligned_returns,
-        allocator,
-        initial_capital=float(resolved_config["initial_capital"]),
-    )
-    metrics = compute_portfolio_metrics(portfolio_output, timeframe)
+    output_root = DEFAULT_PORTFOLIO_ARTIFACTS_ROOT if args.output_dir is None else Path(args.output_dir)
 
-    start_ts = _format_timestamp(aligned_returns.index.min())
-    end_ts = _format_timestamp(aligned_returns.index.max())
-    run_id = generate_portfolio_run_id(
-        portfolio_name=str(resolved_config["portfolio_name"]),
-        allocator_name=allocator.name,
-        component_run_ids=[str(component["run_id"]) for component in components],
-        timeframe=timeframe,
-        start_ts=start_ts,
-        end_ts=end_ts,
-        config=resolved_config,
-        evaluation_config_path=None if args.evaluation is None else Path(args.evaluation),
-    )
-    output_root = (
-        DEFAULT_PORTFOLIO_ARTIFACTS_ROOT if args.output_dir is None else Path(args.output_dir)
-    )
-    experiment_dir = output_root / run_id
+    if args.evaluation is not None:
+        walk_forward_result = run_portfolio_walk_forward(
+            component_run_ids=[str(component["run_id"]) for component in components],
+            evaluation_config_path=Path(args.evaluation),
+            allocator=allocator,
+            timeframe=timeframe,
+            output_dir=output_root,
+            portfolio_name=str(resolved_config["portfolio_name"]),
+            initial_capital=float(resolved_config["initial_capital"]),
+            alignment_policy=str(resolved_config["alignment_policy"]),
+        )
+        result = PortfolioWalkForwardRunResult(
+            portfolio_name=str(walk_forward_result["portfolio_name"]),
+            run_id=str(walk_forward_result["run_id"]),
+            allocator_name=str(walk_forward_result["allocator_name"]),
+            timeframe=str(walk_forward_result["timeframe"]),
+            component_count=int(walk_forward_result["component_count"]),
+            split_count=int(walk_forward_result["split_count"]),
+            metrics=dict(walk_forward_result["metrics"]),
+            aggregate_metrics=dict(walk_forward_result["aggregate_metrics"]),
+            experiment_dir=Path(walk_forward_result["experiment_dir"]),
+            config=dict(walk_forward_result["config"]),
+            components=[dict(component) for component in walk_forward_result["components"]],
+        )
+    else:
+        strategy_returns = load_strategy_runs_returns(run_dirs)
+        aligned_returns = build_aligned_return_matrix(strategy_returns)
+        portfolio_output = construct_portfolio(
+            aligned_returns,
+            allocator,
+            initial_capital=float(resolved_config["initial_capital"]),
+        )
+        metrics = compute_portfolio_metrics(portfolio_output, timeframe)
 
-    from src.portfolio import write_portfolio_artifacts
+        start_ts = _format_timestamp(aligned_returns.index.min())
+        end_ts = _format_timestamp(aligned_returns.index.max())
+        run_id = generate_portfolio_run_id(
+            portfolio_name=str(resolved_config["portfolio_name"]),
+            allocator_name=allocator.name,
+            component_run_ids=[str(component["run_id"]) for component in components],
+            timeframe=timeframe,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            config=resolved_config,
+            evaluation_config_path=None if args.evaluation is None else Path(args.evaluation),
+        )
+        experiment_dir = output_root / run_id
 
-    write_portfolio_artifacts(
-        output_dir=experiment_dir,
-        portfolio_output=portfolio_output,
-        metrics=metrics,
-        config=resolved_config,
-        components=components,
-    )
+        from src.portfolio import write_portfolio_artifacts
 
-    registry_path = default_registry_path(output_root)
-    register_portfolio_run(
-        registry_path=registry_path,
-        run_id=run_id,
-        config=resolved_config,
-        components=components,
-        metrics=metrics,
-        artifact_path=experiment_dir.as_posix(),
-        metadata={
-            "portfolio_name": resolved_config["portfolio_name"],
-            "allocator_name": allocator.name,
-            "timeframe": timeframe,
-            "start_ts": start_ts,
-            "end_ts": end_ts,
-            "evaluation_config_path": (
-                None if args.evaluation is None else str(Path(args.evaluation))
-            ),
-        },
-    )
+        write_portfolio_artifacts(
+            output_dir=experiment_dir,
+            portfolio_output=portfolio_output,
+            metrics=metrics,
+            config=resolved_config,
+            components=components,
+        )
 
-    result = PortfolioRunResult(
-        portfolio_name=str(resolved_config["portfolio_name"]),
-        run_id=run_id,
-        allocator_name=allocator.name,
-        timeframe=timeframe,
-        component_count=len(components),
-        metrics=metrics,
-        experiment_dir=experiment_dir,
-        portfolio_output=portfolio_output,
-        config=resolved_config,
-        components=components,
-    )
+        registry_path = default_registry_path(output_root)
+        register_portfolio_run(
+            registry_path=registry_path,
+            run_id=run_id,
+            config=resolved_config,
+            components=components,
+            metrics=metrics,
+            artifact_path=experiment_dir.as_posix(),
+            metadata={
+                "portfolio_name": resolved_config["portfolio_name"],
+                "allocator_name": allocator.name,
+                "timeframe": timeframe,
+                "start_ts": start_ts,
+                "end_ts": end_ts,
+                "evaluation_config_path": (
+                    None if args.evaluation is None else str(Path(args.evaluation))
+                ),
+            },
+        )
+
+        result = PortfolioRunResult(
+            portfolio_name=str(resolved_config["portfolio_name"]),
+            run_id=run_id,
+            allocator_name=allocator.name,
+            timeframe=timeframe,
+            component_count=len(components),
+            metrics=metrics,
+            experiment_dir=experiment_dir,
+            portfolio_output=portfolio_output,
+            config=resolved_config,
+            components=components,
+        )
     print_summary(result)
     return result
 
 
-def print_summary(result: PortfolioRunResult) -> None:
+def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) -> None:
     """Print a concise deterministic portfolio run summary."""
 
     print(f"Portfolio: {result.portfolio_name}")
@@ -206,6 +246,14 @@ def print_summary(result: PortfolioRunResult) -> None:
     print(f"Allocator: {result.allocator_name}")
     print(f"Components: {result.component_count} strategies")
     print(f"Timeframe: {result.timeframe}")
+    if isinstance(result, PortfolioWalkForwardRunResult):
+        stats = result.aggregate_metrics["metric_statistics"]
+        print(f"Splits: {result.split_count}")
+        print()
+        print(f"Mean Total Return: {_format_pct(stats['total_return']['mean'])}")
+        print(f"Mean Sharpe Ratio: {_format_decimal(stats['sharpe_ratio']['mean'])}")
+        print(f"Worst Max Drawdown: {_format_pct(stats['max_drawdown']['min'])}")
+        return
     print()
     print(f"Total Return: {_format_pct(result.metrics.get('total_return'))}")
     print(f"Sharpe Ratio: {_format_decimal(result.metrics.get('sharpe_ratio'))}")

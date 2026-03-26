@@ -58,6 +58,9 @@ and validation layers:
 
 * [docs/getting_started.md](docs/getting_started.md)
 * [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
+* [docs/portfolio_construction_workflow.md](docs/portfolio_construction_workflow.md)
+* [docs/portfolio_configuration.md](docs/portfolio_configuration.md)
+* [docs/portfolio_artifact_logging.md](docs/portfolio_artifact_logging.md)
 * [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 * [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 * [docs/examples/strategy_comparison_example.md](docs/examples/strategy_comparison_example.md)
@@ -258,6 +261,13 @@ The end-to-end flow is:
 feature datasets -> signals -> backtest -> metrics -> artifacts -> registry -> comparison
 ```
 
+The portfolio layer extends that strategy flow with component selection,
+allocation, portfolio metrics, and portfolio artifacts:
+
+```text
+features -> signals -> backtest -> strategy metrics -> portfolio construction -> portfolio metrics -> artifacts -> registry
+```
+
 Visualization and reporting extend that artifact flow rather than replacing it:
 
 ```text
@@ -273,12 +283,27 @@ Focused references:
 * [docs/cli_strategy_runner.md](docs/cli_strategy_runner.md)
 * [docs/walk_forward_strategy_runner.md](docs/walk_forward_strategy_runner.md)
 * [docs/strategy_comparison_cli.md](docs/strategy_comparison_cli.md)
+* [docs/portfolio_construction_workflow.md](docs/portfolio_construction_workflow.md)
+* [docs/portfolio_configuration.md](docs/portfolio_configuration.md)
+* [docs/portfolio_artifact_logging.md](docs/portfolio_artifact_logging.md)
 * [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 * [docs/strategy_performance_metrics.md](docs/strategy_performance_metrics.md)
 * [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
 * [docs/evaluation_split_configuration.md](docs/evaluation_split_configuration.md)
 * [docs/research_visualization_workflow.md](docs/research_visualization_workflow.md)
 * [docs/examples/strategy_comparison_example.md](docs/examples/strategy_comparison_example.md)
+
+### Portfolio Construction
+
+The completed portfolio layer combines saved strategy runs into deterministic
+portfolio outputs with allocator-backed weights, portfolio metrics, QA
+summaries, artifact logging, and registry tracking.
+
+Start here:
+
+* [docs/portfolio_construction_workflow.md](docs/portfolio_construction_workflow.md)
+* [docs/portfolio_configuration.md](docs/portfolio_configuration.md)
+* [docs/portfolio_artifact_logging.md](docs/portfolio_artifact_logging.md)
 
 ### Research Flow
 

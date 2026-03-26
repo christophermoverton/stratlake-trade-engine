@@ -9,19 +9,15 @@ from typing import Any, Sequence
 import pandas as pd
 import yaml
 
-from src.config.execution import ExecutionConfig, resolve_execution_config
+from src.config.execution import ExecutionConfig
 from src.config.evaluation import EVALUATION_CONFIG
+from src.config.runtime import RuntimeConfig, resolve_runtime_config
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.input_validation import StrategyInputError
 from src.research.metrics import compute_benchmark_relative_metrics
-from src.research.strict_mode import (
-    ResearchStrictModeError,
-    apply_strict_mode_to_sanity_config,
-    raise_research_validation_error,
-    resolve_strict_mode_policy,
-)
+from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.sanity import SanityCheckError, validate_strategy_backtest_sanity
@@ -130,6 +126,7 @@ def run_strategy_experiment(
     *,
     start: str | None = None,
     end: str | None = None,
+    runtime_config: RuntimeConfig | None = None,
     execution_config: ExecutionConfig | None = None,
     strict: bool = False,
 ) -> StrategyRunResult:
@@ -139,36 +136,39 @@ def run_strategy_experiment(
     strategy = build_strategy(strategy_name, config)
     dataset = load_features(strategy.dataset, start=start, end=end)
     signal_frame = generate_signals(dataset, strategy)
-    resolved_execution = execution_config or resolve_execution_config(config.get("execution"))
-    results_df = run_backtest(signal_frame, resolved_execution)
+    resolved_runtime = runtime_config or resolve_runtime_config(
+        config,
+        cli_overrides=None if execution_config is None else {"execution": execution_config.to_dict()},
+        cli_strict=strict,
+    )
+    results_df = run_backtest(signal_frame, resolved_runtime.execution)
     results_df.attrs["dataset"] = strategy.dataset
     metrics = compute_metrics(results_df)
-    metrics.update(_compute_benchmark_metrics(results_df, dataset, strategy.dataset, resolved_execution))
-    strict_policy = resolve_strict_mode_policy(cli_strict=strict, sanity_config=config.get("sanity"))
-    sanity_config = apply_strict_mode_to_sanity_config(config.get("sanity"), strict_policy)
+    metrics.update(_compute_benchmark_metrics(results_df, dataset, strategy.dataset, resolved_runtime.execution))
     try:
-        sanity_report = validate_strategy_backtest_sanity(results_df, metrics, sanity_config)
+        sanity_report = validate_strategy_backtest_sanity(results_df, metrics, resolved_runtime.sanity)
     except SanityCheckError as exc:
         raise_research_validation_error(
             validator="sanity",
             scope=f"strategy:{strategy_name}",
             exc=exc,
-            strict_mode=strict_policy.enabled,
+            strict_mode=resolved_runtime.strict_mode.enabled,
         )
     metrics = sanity_report.apply_to_metrics(metrics)
     results_df.attrs["sanity_check"] = sanity_report.to_dict()
+    results_df.attrs["runtime_config"] = resolved_runtime.to_dict()
     signal_diagnostics = compute_signal_diagnostics(results_df["signal"], results_df)
 
-    experiment_config = {
+    experiment_config = resolved_runtime.apply_to_payload(
+        {
         "strategy_name": strategy_name,
         "dataset": strategy.dataset,
         "parameters": dict(config.get("parameters", {})),
         "start": start,
         "end": end,
-        "execution": resolved_execution.to_dict(),
-        "sanity": sanity_config.to_dict(),
-        "strict_mode": strict_policy.to_dict(),
-    }
+        },
+        include_validation_section=False,
+    )
     experiment_dir = save_experiment(strategy_name, results_df, metrics, experiment_config)
     qa_summary = generate_strategy_qa_summary(
         results_df,
@@ -310,29 +310,31 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
 
     args = parse_args(argv)
     execution_override = _execution_override_from_args(args)
+    config = get_strategy_config(args.strategy)
+    runtime_config = resolve_runtime_config(
+        config,
+        cli_overrides=None if execution_override is None else {"execution": execution_override},
+        cli_strict=args.strict,
+    )
     if args.evaluation:
         if args.start or args.end:
             raise ValueError("The --start and --end arguments cannot be combined with --evaluation.")
 
-        config = get_strategy_config(args.strategy)
         strategy = build_strategy(args.strategy, config)
-        execution_config = resolve_execution_config(config.get("execution"), execution_override)
         result = run_walk_forward_experiment(
             args.strategy,
             strategy,
             evaluation_path=Path(args.evaluation),
             strategy_config=config,
-            execution_config=execution_config,
+            execution_config=runtime_config.execution,
             strict=args.strict,
         )
     else:
-        config = get_strategy_config(args.strategy)
-        execution_config = resolve_execution_config(config.get("execution"), execution_override)
         result = run_strategy_experiment(
             args.strategy,
             start=args.start,
             end=args.end,
-            execution_config=execution_config,
+            execution_config=runtime_config.execution,
             strict=args.strict,
         )
     print_summary(result)

@@ -6,8 +6,9 @@ from typing import Any, Mapping, Sequence
 
 import pandas as pd
 
-from src.config.execution import ExecutionConfig, resolve_execution_config
+from src.config.execution import ExecutionConfig
 from src.config.evaluation import EvaluationConfig, load_evaluation_config
+from src.config.runtime import RuntimeConfig, resolve_runtime_config
 from src.config.sanity import SanityCheckConfig, resolve_sanity_check_config
 from src.research.consistency import validate_portfolio_artifact_payload_consistency, validate_portfolio_walk_forward_consistency
 from src.research import experiment_tracker
@@ -20,13 +21,7 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
-from src.research.strict_mode import (
-    ResearchStrictModeError,
-    apply_strict_mode_to_sanity_config,
-    apply_strict_mode_to_validation_config,
-    raise_research_validation_error,
-    resolve_strict_mode_policy,
-)
+from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 
@@ -112,6 +107,7 @@ def run_portfolio_walk_forward(
     portfolio_name: str,
     initial_capital: float = 1.0,
     alignment_policy: str = "intersection",
+    runtime_config: RuntimeConfig | None = None,
     execution_config: ExecutionConfig | None = None,
     validation_config: Mapping[str, Any] | None = None,
     sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
@@ -125,13 +121,14 @@ def run_portfolio_walk_forward(
     evaluation_path = Path(evaluation_config_path)
     evaluation_config = load_evaluation_config(evaluation_path)
     _validate_timeframe_compatibility(normalized_timeframe, evaluation_config)
-    strict_policy = resolve_strict_mode_policy(
+    resolved_runtime = runtime_config or resolve_runtime_config(
+        {
+            "execution": None if execution_config is None else execution_config.to_dict(),
+            "validation": validation_config,
+            "sanity": None if sanity_config is None else resolve_sanity_check_config(sanity_config).to_dict(),
+        },
         cli_strict=strict_mode,
-        sanity_config=sanity_config,
-        validation_config=validation_config,
     )
-    resolved_validation = apply_strict_mode_to_validation_config(validation_config, strict_policy)
-    resolved_sanity = apply_strict_mode_to_sanity_config(sanity_config, strict_policy)
 
     splits = generate_evaluation_splits(evaluation_config)
     if not splits:
@@ -145,10 +142,7 @@ def run_portfolio_walk_forward(
         initial_capital=initial_capital,
         alignment_policy=alignment_policy,
         evaluation_path=evaluation_path,
-        execution_config=execution_config,
-        validation_config=resolved_validation,
-        sanity_config=resolved_sanity,
-        strict_policy=strict_policy,
+        runtime_config=resolved_runtime,
     )
     run_id = generate_portfolio_run_id(
         portfolio_name=normalized_portfolio_name,
@@ -168,10 +162,10 @@ def run_portfolio_walk_forward(
             timeframe=normalized_timeframe,
             initial_capital=float(initial_capital),
             portfolio_name=normalized_portfolio_name,
-            execution_config=execution_config,
-            validation_config=resolved_validation.to_dict(),
-            sanity_config=resolved_sanity.to_dict(),
-            strict_mode=strict_policy.enabled,
+            execution_config=resolved_runtime.execution,
+            validation_config=resolved_runtime.portfolio_validation.to_dict(),
+            sanity_config=resolved_runtime.sanity.to_dict(),
+            strict_mode=resolved_runtime.strict_mode.enabled,
         )
         for split in splits
     ]
@@ -364,7 +358,7 @@ def _execute_portfolio_split(
         "timeframe": timeframe,
         "initial_capital": float(initial_capital),
         "execution": (
-            resolve_execution_config().to_dict()
+            resolve_runtime_config().execution.to_dict()
             if execution_config is None
             else execution_config.to_dict()
         ),
@@ -583,26 +577,20 @@ def _build_root_config(
     initial_capital: float,
     alignment_policy: str,
     evaluation_path: Path,
-    execution_config: ExecutionConfig | None,
-    validation_config: Mapping[str, Any] | None,
-    sanity_config: SanityCheckConfig | dict[str, Any] | None,
-    strict_policy: Any,
+    runtime_config: RuntimeConfig,
 ) -> dict[str, Any]:
     return {
         "portfolio_name": portfolio_name,
         "allocator": allocator_name,
         "initial_capital": float(initial_capital),
         "alignment_policy": _normalize_required_string(alignment_policy, field_name="alignment_policy"),
-        "execution": (
-            resolve_execution_config().to_dict()
-            if execution_config is None
-            else execution_config.to_dict()
-        ),
+        "execution": runtime_config.execution.to_dict(),
         "timeframe": timeframe,
         "evaluation_config_path": evaluation_path.as_posix(),
-        "validation": resolve_portfolio_validation_config(validation_config).to_dict(),
-        "sanity": resolve_sanity_check_config(sanity_config).to_dict(),
-        "strict_mode": strict_policy.to_dict(),
+        "validation": runtime_config.portfolio_validation.to_dict(),
+        "sanity": runtime_config.sanity.to_dict(),
+        "strict_mode": runtime_config.strict_mode.to_dict(),
+        "runtime": runtime_config.to_dict(),
     }
 
 

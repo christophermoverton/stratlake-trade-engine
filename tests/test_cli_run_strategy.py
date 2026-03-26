@@ -172,6 +172,45 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
             "enabled": False,
             "source": "default",
         },
+        "runtime": {
+            "execution": {
+                "enabled": False,
+                "execution_delay": 1,
+                "transaction_cost_bps": 0.0,
+                "slippage_bps": 0.0,
+            },
+            "sanity": {
+                "max_abs_period_return": 1.0,
+                "max_annualized_return": 25.0,
+                "max_equity_multiple": 1000000.0,
+                "max_sharpe_ratio": 10.0,
+                "min_annualized_volatility_floor": 0.02,
+                "min_volatility_trigger_annualized_return": 1.0,
+                "min_volatility_trigger_sharpe": 4.0,
+                "smoothness_max_drawdown": 0.02,
+                "smoothness_min_annualized_return": 0.75,
+                "smoothness_min_positive_return_fraction": 0.95,
+                "smoothness_min_sharpe": 3.0,
+                "strict_sanity_checks": False,
+            },
+            "portfolio_validation": {
+                "target_weight_sum": 1.0,
+                "weight_sum_tolerance": 1e-08,
+                "target_net_exposure": 1.0,
+                "net_exposure_tolerance": 1e-08,
+                "max_gross_exposure": 1.0,
+                "max_leverage": 1.0,
+                "max_single_sleeve_weight": None,
+                "min_single_sleeve_weight": None,
+                "max_abs_period_return": 1.0,
+                "max_equity_multiple": 1000000.0,
+                "strict_sanity_checks": False,
+            },
+            "strict_mode": {
+                "enabled": False,
+                "source": "default",
+            },
+        },
     }
 
     stdout = capsys.readouterr().out

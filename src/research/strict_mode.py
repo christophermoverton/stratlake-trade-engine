@@ -28,12 +28,26 @@ class StrictModePolicy:
 def resolve_strict_mode_policy(
     *,
     cli_strict: bool = False,
+    strict_mode_config: Mapping[str, Any] | None = None,
     sanity_config: SanityCheckConfig | Mapping[str, Any] | None = None,
     validation_config: "PortfolioValidationConfig | Mapping[str, Any] | None" = None,
 ) -> StrictModePolicy:
     from src.portfolio.contracts import resolve_portfolio_validation_config
 
     config_enabled = False
+    if strict_mode_config is not None:
+        if not isinstance(strict_mode_config, Mapping):
+            raise ValueError("Strict mode configuration must be a mapping when provided.")
+        unknown_keys = sorted(set(strict_mode_config) - {"enabled", "source"})
+        if unknown_keys:
+            raise ValueError(f"Strict mode configuration contains unsupported keys: {unknown_keys}.")
+        enabled_value = strict_mode_config.get("enabled", False)
+        if not isinstance(enabled_value, bool):
+            raise ValueError("Strict mode configuration field 'enabled' must be a boolean.")
+        source_value = strict_mode_config.get("source")
+        if source_value is not None and not isinstance(source_value, str):
+            raise ValueError("Strict mode configuration field 'source' must be a string when provided.")
+        config_enabled = config_enabled or enabled_value
     if sanity_config is not None:
         config_enabled = config_enabled or resolve_sanity_check_config(sanity_config).strict_sanity_checks
     if validation_config is not None:

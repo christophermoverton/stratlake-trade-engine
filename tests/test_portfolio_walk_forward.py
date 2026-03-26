@@ -112,6 +112,8 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
         "enabled": False,
         "source": "default",
     }
+    assert config_payload["runtime"]["execution"]["execution_delay"] == 1
+    assert config_payload["runtime"]["portfolio_validation"]["max_leverage"] == pytest.approx(1.0)
 
     split_metadata = json.loads(
         (experiment_dir / "splits" / "rolling_0000" / "split.json").read_text(encoding="utf-8")

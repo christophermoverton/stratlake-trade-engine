@@ -6,19 +6,15 @@ from typing import Any
 
 import pandas as pd
 
-from src.config.execution import ExecutionConfig, resolve_execution_config
+from src.config.execution import ExecutionConfig
 from src.config.evaluation import EVALUATION_CONFIG, EvaluationConfig, load_evaluation_config
+from src.config.runtime import RuntimeConfig, resolve_runtime_config
 from src.config.sanity import SanityCheckConfig
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_walk_forward_experiment
 from src.research.metrics import compute_performance_metrics
-from src.research.strict_mode import (
-    ResearchStrictModeError,
-    apply_strict_mode_to_sanity_config,
-    raise_research_validation_error,
-    resolve_strict_mode_policy,
-)
+from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.sanity import SanityCheckError, validate_strategy_backtest_sanity
@@ -98,18 +94,18 @@ def run_walk_forward_experiment(
     *,
     evaluation_path: Path | None = None,
     strategy_config: dict[str, Any] | None = None,
+    runtime_config: RuntimeConfig | None = None,
     execution_config: ExecutionConfig | None = None,
     strict: bool = False,
 ) -> WalkForwardRunResult:
     """Execute one strategy across deterministic evaluation splits and persist artifacts."""
 
     evaluation_config = load_walk_forward_config(evaluation_path)
-    resolved_execution = execution_config or resolve_execution_config((strategy_config or {}).get("execution"))
-    strict_policy = resolve_strict_mode_policy(
+    resolved_runtime = runtime_config or resolve_runtime_config(
+        strategy_config or {},
+        cli_overrides=None if execution_config is None else {"execution": execution_config.to_dict()},
         cli_strict=strict,
-        sanity_config=(strategy_config or {}).get("sanity"),
     )
-    resolved_sanity = apply_strict_mode_to_sanity_config((strategy_config or {}).get("sanity"), strict_policy)
     splits = generate_evaluation_splits(evaluation_config)
     if not splits:
         raise WalkForwardExecutionError("Walk-forward evaluation did not produce any splits.")
@@ -120,9 +116,9 @@ def run_walk_forward_experiment(
             strategy,
             dataset,
             split,
-            execution_config=resolved_execution,
-            sanity_config=resolved_sanity,
-            strict_mode=strict_policy.enabled,
+            execution_config=resolved_runtime.execution,
+            sanity_config=resolved_runtime.sanity,
+            strict_mode=resolved_runtime.strict_mode.enabled,
         )
         for split in splits
     ]
@@ -134,7 +130,7 @@ def run_walk_forward_experiment(
         aggregate_report = validate_strategy_backtest_sanity(
             aggregate_results,
             aggregate_summary,
-            resolved_sanity,
+            resolved_runtime.sanity,
             scope="strategy_walk_forward_aggregate",
         )
     except SanityCheckError as exc:
@@ -143,7 +139,7 @@ def run_walk_forward_experiment(
                 validator="sanity",
                 scope=f"strategy_walk_forward:{strategy_name}:aggregate",
                 exc=exc,
-                strict_mode=strict_policy.enabled,
+                strict_mode=resolved_runtime.strict_mode.enabled,
             )
         except ResearchStrictModeError as strict_exc:
             raise WalkForwardExecutionError(str(strict_exc)) from strict_exc
@@ -158,7 +154,8 @@ def run_walk_forward_experiment(
     aggregate_results.attrs["sanity_check"] = aggregate_report.to_dict()
     signal_diagnostics = compute_signal_diagnostics(aggregate_results["signal"], aggregate_results)
 
-    run_config = {
+    run_config = resolved_runtime.apply_to_payload(
+        {
         "strategy_name": strategy_name,
         "dataset": strategy.dataset,
         "parameters": dict((strategy_config or {}).get("parameters", {})),
@@ -176,10 +173,9 @@ def run_walk_forward_experiment(
             "test_start": evaluation_config.test_start,
             "test_end": evaluation_config.test_end,
         },
-        "execution": resolved_execution.to_dict(),
-        "sanity": resolved_sanity.to_dict(),
-        "strict_mode": strict_policy.to_dict(),
-    }
+        },
+        include_validation_section=False,
+    )
     experiment_dir = save_walk_forward_experiment(
         strategy_name,
         [

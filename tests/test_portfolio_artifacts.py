@@ -357,3 +357,60 @@ def test_write_portfolio_artifacts_surfaces_non_strict_sanity_in_qa_summary(tmp_
     assert qa_summary["validation_status"] == "warn"
     assert qa_summary["sanity"]["status"] == "warn"
     assert qa_summary["sanity"]["issue_count"] == 1
+
+
+def test_write_portfolio_artifacts_persists_effective_runtime_config(tmp_path: Path) -> None:
+    output_dir = tmp_path / "portfolio_runtime_abcd1234"
+    config = _config() | {
+        "runtime": {
+            "execution": {
+                "enabled": True,
+                "execution_delay": 1,
+                "transaction_cost_bps": 10.0,
+                "slippage_bps": 5.0,
+            },
+            "sanity": {
+                "max_abs_period_return": 1.0,
+                "max_annualized_return": 25.0,
+                "max_sharpe_ratio": 10.0,
+                "max_equity_multiple": 1000000.0,
+                "strict_sanity_checks": False,
+                "min_annualized_volatility_floor": 0.02,
+                "min_volatility_trigger_sharpe": 4.0,
+                "min_volatility_trigger_annualized_return": 1.0,
+                "smoothness_min_sharpe": 3.0,
+                "smoothness_min_annualized_return": 0.75,
+                "smoothness_max_drawdown": 0.02,
+                "smoothness_min_positive_return_fraction": 0.95,
+            },
+            "portfolio_validation": {
+                "target_weight_sum": 1.0,
+                "weight_sum_tolerance": 1e-8,
+                "target_net_exposure": 1.0,
+                "net_exposure_tolerance": 1e-8,
+                "max_gross_exposure": 1.0,
+                "max_leverage": 1.0,
+                "max_single_sleeve_weight": None,
+                "min_single_sleeve_weight": None,
+                "max_abs_period_return": 1.0,
+                "max_equity_multiple": 1000000.0,
+                "strict_sanity_checks": False,
+            },
+            "strict_mode": {
+                "enabled": False,
+                "source": "default",
+            },
+        }
+    }
+
+    write_portfolio_artifacts(
+        output_dir=output_dir,
+        portfolio_output=_portfolio_output(),
+        metrics=_metrics(),
+        config=config,
+        components=_components(),
+    )
+
+    config_payload = _load_json(output_dir / "config.json")
+    assert config_payload["runtime"]["execution"]["transaction_cost_bps"] == pytest.approx(10.0)
+    assert config_payload["runtime"]["portfolio_validation"]["max_leverage"] == pytest.approx(1.0)

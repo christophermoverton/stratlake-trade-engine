@@ -10,8 +10,8 @@ from typing import Any, Mapping, Sequence
 import pandas as pd
 import yaml
 
-from src.config.execution import ExecutionConfig, resolve_execution_config
-from src.config.sanity import resolve_sanity_check_config
+from src.config.execution import ExecutionConfig
+from src.config.runtime import resolve_runtime_config
 from src.portfolio import (
     EqualWeightAllocator,
     build_aligned_return_matrix,
@@ -30,13 +30,7 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
-from src.research.strict_mode import (
-    ResearchStrictModeError,
-    apply_strict_mode_to_sanity_config,
-    apply_strict_mode_to_validation_config,
-    raise_research_validation_error,
-    resolve_strict_mode_policy,
-)
+from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.sanity import validate_portfolio_output_sanity
 
 DEFAULT_PORTFOLIO_ARTIFACTS_ROOT = Path("artifacts") / "portfolios"
@@ -182,21 +176,11 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
         execution_override=execution_override,
     )
-    strict_policy = resolve_strict_mode_policy(
+    runtime_config = resolve_runtime_config(
+        resolved_config,
         cli_strict=args.strict,
-        sanity_config=resolved_config.get("sanity"),
-        validation_config=resolved_config.get("validation"),
     )
-    resolved_config = dict(resolved_config)
-    resolved_config["sanity"] = apply_strict_mode_to_sanity_config(
-        resolved_config.get("sanity"),
-        strict_policy,
-    ).to_dict()
-    resolved_config["validation"] = apply_strict_mode_to_validation_config(
-        resolved_config.get("validation"),
-        strict_policy,
-    ).to_dict()
-    resolved_config["strict_mode"] = strict_policy.to_dict()
+    resolved_config = runtime_config.apply_to_payload(dict(resolved_config), validation_key="validation")
 
     allocator = _build_allocator(resolved_config["allocator"])
     output_root = DEFAULT_PORTFOLIO_ARTIFACTS_ROOT if args.output_dir is None else Path(args.output_dir)
@@ -211,10 +195,10 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             portfolio_name=str(resolved_config["portfolio_name"]),
             initial_capital=float(resolved_config["initial_capital"]),
             alignment_policy=str(resolved_config["alignment_policy"]),
-            execution_config=_portfolio_execution_config(resolved_config),
-            validation_config=resolved_config.get("validation"),
-            sanity_config=resolved_config.get("sanity"),
-            strict_mode=strict_policy.enabled,
+            execution_config=runtime_config.execution,
+            validation_config=runtime_config.portfolio_validation.to_dict(),
+            sanity_config=runtime_config.sanity.to_dict(),
+            strict_mode=runtime_config.strict_mode.enabled,
         )
         result = PortfolioWalkForwardRunResult(
             portfolio_name=str(walk_forward_result["portfolio_name"]),
@@ -237,26 +221,26 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
                 aligned_returns,
                 allocator,
                 initial_capital=float(resolved_config["initial_capital"]),
-                execution_config=_portfolio_execution_config(resolved_config),
-                validation_config=resolved_config.get("validation"),
+                execution_config=runtime_config.execution,
+                validation_config=runtime_config.portfolio_validation,
             )
         except ValueError as exc:
             raise_research_validation_error(
                 validator="portfolio_validation",
                 scope=f"portfolio:{resolved_config['portfolio_name']}",
                 exc=exc,
-                strict_mode=strict_policy.enabled,
+                strict_mode=runtime_config.strict_mode.enabled,
             )
         metrics = compute_portfolio_metrics(
             portfolio_output,
             timeframe,
-            validation_config=resolved_config.get("validation"),
+            validation_config=runtime_config.portfolio_validation,
         )
         try:
             sanity_report = validate_portfolio_output_sanity(
                 portfolio_output,
                 metrics,
-                resolved_config.get("sanity"),
+                runtime_config.sanity,
                 initial_capital=float(resolved_config["initial_capital"]),
             )
         except ValueError as exc:
@@ -264,7 +248,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
                 validator="sanity",
                 scope=f"portfolio:{resolved_config['portfolio_name']}",
                 exc=exc,
-                strict_mode=strict_policy.enabled,
+                strict_mode=runtime_config.strict_mode.enabled,
             )
         metrics = sanity_report.apply_to_metrics(metrics)
         portfolio_output.attrs["sanity_check"] = sanity_report.to_dict()
@@ -416,8 +400,10 @@ def _resolve_portfolio_inputs(
             "alignment_policy": DEFAULT_ALIGNMENT_POLICY,
         }
 
-    execution_config = resolve_execution_config(base_definition.get("execution"), execution_override)
-    resolved_config = {
+    runtime_override = None if execution_override is None else {"execution": execution_override}
+    runtime_config = resolve_runtime_config(base_definition, cli_overrides=runtime_override)
+    resolved_config = runtime_config.apply_to_payload(
+        {
         **base_definition,
         "portfolio_name": _normalize_required_string(
             base_definition.get("portfolio_name"),
@@ -433,15 +419,13 @@ def _resolve_portfolio_inputs(
             base_definition.get("alignment_policy", DEFAULT_ALIGNMENT_POLICY),
             field_name="alignment_policy",
         ),
-        "execution": execution_config.to_dict(),
-        "validation": base_definition.get("validation"),
-        "sanity": resolve_sanity_check_config(base_definition.get("sanity")).to_dict(),
         "timeframe": timeframe,
         "evaluation_config_path": None if evaluation_path is None else evaluation_path.as_posix(),
-    }
+        },
+        validation_key="validation",
+    )
     validated_config = validate_portfolio_config(resolved_config)
-    validated_config["execution"] = execution_config.to_dict()
-    validated_config["sanity"] = resolve_sanity_check_config(base_definition.get("sanity")).to_dict()
+    validated_config = runtime_config.apply_to_payload(validated_config, validation_key="validation")
     validated_config["timeframe"] = timeframe
     validated_config["evaluation_config_path"] = (
         None if evaluation_path is None else evaluation_path.as_posix()
@@ -789,7 +773,7 @@ def _format_run_failure(exc: Exception) -> str:
 
 
 def _portfolio_execution_config(config: Mapping[str, Any]) -> ExecutionConfig:
-    return resolve_execution_config(config.get("execution"))
+    return resolve_runtime_config(config).execution
 
 
 def _execution_override_from_args(args: argparse.Namespace) -> dict[str, Any] | None:

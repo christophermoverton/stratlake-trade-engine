@@ -102,6 +102,7 @@ def test_save_experiment_writes_standardized_artifacts(
 
     assert json.loads((experiment_dir / "metrics.json").read_text(encoding="utf-8")) == _metrics()
     assert json.loads((experiment_dir / "config.json").read_text(encoding="utf-8")) == config
+    assert "runtime" not in json.loads((experiment_dir / "config.json").read_text(encoding="utf-8"))
     assert json.loads((experiment_dir / "signal_diagnostics.json").read_text(encoding="utf-8")) == {
         "total_rows": 4,
         "pct_long": 0.5,
@@ -308,3 +309,72 @@ def test_save_experiment_is_reproducible_across_repeated_runs(
     assert first_dir == second_dir
     assert first_snapshot == second_snapshot
     assert first_registry == second_registry
+
+
+def test_save_experiment_persists_effective_runtime_config(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    config = {
+        "strategy_name": "mean_reversion",
+        "execution": {
+            "enabled": True,
+            "execution_delay": 2,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 1.0,
+        },
+        "sanity": {
+            "max_abs_period_return": 0.9,
+            "strict_sanity_checks": True,
+        },
+        "strict_mode": {
+            "enabled": True,
+            "source": "config",
+        },
+        "runtime": {
+            "execution": {
+                "enabled": True,
+                "execution_delay": 2,
+                "transaction_cost_bps": 5.0,
+                "slippage_bps": 1.0,
+            },
+            "sanity": {
+                "max_abs_period_return": 0.9,
+                "max_annualized_return": 25.0,
+                "max_sharpe_ratio": 10.0,
+                "max_equity_multiple": 1000000.0,
+                "strict_sanity_checks": True,
+                "min_annualized_volatility_floor": 0.02,
+                "min_volatility_trigger_sharpe": 4.0,
+                "min_volatility_trigger_annualized_return": 1.0,
+                "smoothness_min_sharpe": 3.0,
+                "smoothness_min_annualized_return": 0.75,
+                "smoothness_max_drawdown": 0.02,
+                "smoothness_min_positive_return_fraction": 0.95,
+            },
+            "portfolio_validation": {
+                "target_weight_sum": 1.0,
+                "weight_sum_tolerance": 1e-8,
+                "target_net_exposure": 1.0,
+                "net_exposure_tolerance": 1e-8,
+                "max_gross_exposure": 1.0,
+                "max_leverage": 1.0,
+                "max_single_sleeve_weight": None,
+                "min_single_sleeve_weight": None,
+                "max_abs_period_return": 1.0,
+                "max_equity_multiple": 1000000.0,
+                "strict_sanity_checks": True,
+            },
+            "strict_mode": {
+                "enabled": True,
+                "source": "config",
+            },
+        },
+    }
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    experiment_dir = save_experiment("mean_reversion", _experiment_results(), _metrics(), config)
+
+    persisted = json.loads((experiment_dir / "config.json").read_text(encoding="utf-8"))
+    assert persisted["runtime"]["execution"]["execution_delay"] == 2
+    assert persisted["runtime"]["execution"]["transaction_cost_bps"] == pytest.approx(5.0)
+    assert persisted["runtime"]["sanity"]["strict_sanity_checks"] is True
+    assert persisted["runtime"]["strict_mode"] == {"enabled": True, "source": "config"}

@@ -6,6 +6,7 @@ from typing import Any, Mapping, Sequence
 
 import pandas as pd
 
+from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.config.evaluation import EvaluationConfig, load_evaluation_config
 from src.research import experiment_tracker
 from src.research.registry import (
@@ -77,6 +78,7 @@ def run_portfolio_walk_forward(
     portfolio_name: str,
     initial_capital: float = 1.0,
     alignment_policy: str = "intersection",
+    execution_config: ExecutionConfig | None = None,
 ) -> dict[str, Any]:
     """Construct and score one portfolio independently for each evaluation split."""
 
@@ -99,6 +101,7 @@ def run_portfolio_walk_forward(
         initial_capital=initial_capital,
         alignment_policy=alignment_policy,
         evaluation_path=evaluation_path,
+        execution_config=execution_config,
     )
     run_id = generate_portfolio_run_id(
         portfolio_name=normalized_portfolio_name,
@@ -123,6 +126,7 @@ def run_portfolio_walk_forward(
             timeframe=normalized_timeframe,
             initial_capital=float(initial_capital),
             portfolio_name=normalized_portfolio_name,
+            execution_config=execution_config,
         )
         for split in splits
     ]
@@ -242,6 +246,7 @@ def _execute_portfolio_split(
     timeframe: str,
     initial_capital: float,
     portfolio_name: str,
+    execution_config: ExecutionConfig | None,
 ) -> dict[str, Any]:
     split_returns = _slice_strategy_returns_for_split(strategy_returns, split)
     aligned_returns = build_aligned_return_matrix(split_returns)
@@ -254,6 +259,7 @@ def _execute_portfolio_split(
         aligned_returns,
         allocator,
         initial_capital=initial_capital,
+        execution_config=execution_config,
     )
     metrics = compute_portfolio_metrics(portfolio_output, timeframe)
     split_metadata = _split_metadata(split, row_count=len(portfolio_output))
@@ -267,6 +273,11 @@ def _execute_portfolio_split(
         "allocator_name": allocator.name,
         "timeframe": timeframe,
         "initial_capital": float(initial_capital),
+        "execution": (
+            resolve_execution_config().to_dict()
+            if execution_config is None
+            else execution_config.to_dict()
+        ),
     }
 
 
@@ -371,6 +382,7 @@ def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) 
         "portfolio_name": split_result["portfolio_name"],
         "allocator": split_result["allocator_name"],
         "initial_capital": float(split_result["initial_capital"]),
+        "execution": dict(split_result.get("execution", {})),
         "timeframe": split_result["timeframe"],
     }
     _write_json(split_dir / "split.json", dict(split_result["split_metadata"]))
@@ -430,12 +442,18 @@ def _build_root_config(
     initial_capital: float,
     alignment_policy: str,
     evaluation_path: Path,
+    execution_config: ExecutionConfig | None,
 ) -> dict[str, Any]:
     return {
         "portfolio_name": portfolio_name,
         "allocator": allocator_name,
         "initial_capital": float(initial_capital),
         "alignment_policy": _normalize_required_string(alignment_policy, field_name="alignment_policy"),
+        "execution": (
+            resolve_execution_config().to_dict()
+            if execution_config is None
+            else execution_config.to_dict()
+        ),
         "timeframe": timeframe,
         "evaluation_config_path": evaluation_path.as_posix(),
     }

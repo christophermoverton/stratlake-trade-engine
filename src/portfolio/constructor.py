@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pandas as pd
 
+from src.config.execution import ExecutionConfig, resolve_execution_config
 from .allocators import BaseAllocator
 from .contracts import (
     PortfolioContractError,
@@ -14,6 +15,7 @@ from .contracts import (
 def compute_portfolio_returns(
     returns_wide: pd.DataFrame,
     weights_wide: pd.DataFrame,
+    execution_config: ExecutionConfig | None = None,
 ) -> pd.DataFrame:
     """Compute a deterministic portfolio return stream from aligned returns and weights."""
 
@@ -36,12 +38,25 @@ def compute_portfolio_returns(
     if not normalized_returns.columns.equals(normalized_weights.columns):
         raise ValueError("returns_wide and weights_wide must have exactly matching columns.")
 
+    config = execution_config or resolve_execution_config()
+
     output = pd.DataFrame({"ts_utc": normalized_returns.index}, copy=False)
     for strategy_name in normalized_returns.columns:
         output[f"strategy_return__{strategy_name}"] = normalized_returns[strategy_name].to_numpy(copy=True)
     for strategy_name in normalized_weights.columns:
         output[f"weight__{strategy_name}"] = normalized_weights[strategy_name].to_numpy(copy=True)
-    output["portfolio_return"] = (normalized_returns * normalized_weights).sum(axis=1).to_numpy(copy=True)
+
+    gross_returns = (normalized_returns * normalized_weights).sum(axis=1).astype("float64")
+    weight_turnover = normalized_weights.diff().fillna(normalized_weights).abs().sum(axis=1).astype("float64")
+    transaction_cost = _weight_execution_cost(weight_turnover, config.transaction_cost_bps, enabled=config.enabled)
+    slippage_cost = _weight_execution_cost(weight_turnover, config.slippage_bps, enabled=config.enabled)
+    output["gross_portfolio_return"] = gross_returns.to_numpy(copy=True)
+    output["portfolio_transaction_cost"] = transaction_cost.to_numpy(copy=True)
+    output["portfolio_slippage_cost"] = slippage_cost.to_numpy(copy=True)
+    output["net_portfolio_return"] = (
+        gross_returns - transaction_cost - slippage_cost
+    ).to_numpy(copy=True)
+    output["portfolio_return"] = output["net_portfolio_return"]
 
     try:
         validated = validate_portfolio_output(output)
@@ -52,6 +67,7 @@ def compute_portfolio_returns(
         "stage": "returns",
         "strategy_count": len(normalized_returns.columns),
         "timestamp_count": len(normalized_returns.index),
+        "execution": config.to_dict(),
     }
     return validated
 
@@ -97,6 +113,7 @@ def construct_portfolio(
     returns_wide: pd.DataFrame,
     allocator: BaseAllocator,
     initial_capital: float = 1.0,
+    execution_config: ExecutionConfig | None = None,
 ) -> pd.DataFrame:
     """Construct a complete in-memory portfolio output from aligned strategy returns."""
 
@@ -109,7 +126,11 @@ def construct_portfolio(
         raise ValueError(f"returns_wide must be a valid aligned return matrix: {exc}") from exc
 
     weights = allocator.allocate(normalized_returns)
-    portfolio_returns = compute_portfolio_returns(normalized_returns, weights)
+    portfolio_returns = compute_portfolio_returns(
+        normalized_returns,
+        weights,
+        execution_config=execution_config,
+    )
     portfolio_output = compute_portfolio_equity_curve(
         portfolio_returns,
         initial_capital=initial_capital,
@@ -120,8 +141,15 @@ def construct_portfolio(
         "strategy_count": len(normalized_returns.columns),
         "timestamp_count": len(normalized_returns.index),
         "initial_capital": float(initial_capital),
+        "execution": (execution_config or resolve_execution_config()).to_dict(),
     }
     return portfolio_output
+
+
+def _weight_execution_cost(weight_turnover: pd.Series, bps: float, *, enabled: bool) -> pd.Series:
+    if not enabled or bps == 0.0:
+        return pd.Series(0.0, index=weight_turnover.index, dtype="float64")
+    return (weight_turnover * (float(bps) / 10_000.0)).astype("float64")
 
 
 __all__ = [

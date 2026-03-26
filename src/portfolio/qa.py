@@ -58,12 +58,30 @@ def validate_portfolio_return_consistency(
             f"{tolerance}. First failing row index={failing_index}, row_sum={row_sums.iloc[failing_index]}."
         )
 
-    recomputed_returns = (_strategy_return_frame(normalized) * weight_frame).sum(axis=1)
+    recomputed_gross_returns = (_strategy_return_frame(normalized) * weight_frame).sum(axis=1)
+    if "gross_portfolio_return" in normalized.columns:
+        mismatched_gross_returns = (
+            recomputed_gross_returns - normalized["gross_portfolio_return"]
+        ).abs() > tolerance
+        if mismatched_gross_returns.any():
+            failing_index = recomputed_gross_returns.index[mismatched_gross_returns][0]
+            raise PortfolioQAError(
+                "Portfolio QA failed: gross_portfolio_return does not equal the weighted sum of component returns "
+                f"at row index {failing_index}."
+            )
+
+    recomputed_returns = recomputed_gross_returns.copy()
+    if "portfolio_transaction_cost" in normalized.columns:
+        recomputed_returns = recomputed_returns - normalized["portfolio_transaction_cost"]
+    if "portfolio_slippage_cost" in normalized.columns:
+        recomputed_returns = recomputed_returns - normalized["portfolio_slippage_cost"]
+
     mismatched_returns = (recomputed_returns - normalized["portfolio_return"]).abs() > tolerance
     if mismatched_returns.any():
         failing_index = recomputed_returns.index[mismatched_returns][0]
         raise PortfolioQAError(
             "Portfolio QA failed: portfolio_return does not equal the weighted sum of component returns "
+            "after execution frictions "
             f"at row index {failing_index}."
         )
 
@@ -429,6 +447,16 @@ def _resolve_initial_capital(
 
 
 def _portfolio_returns_artifact_frame(portfolio_df: pd.DataFrame) -> pd.DataFrame:
+    execution_columns = [
+        column
+        for column in (
+            "gross_portfolio_return",
+            "portfolio_transaction_cost",
+            "portfolio_slippage_cost",
+            "net_portfolio_return",
+        )
+        if column in portfolio_df.columns
+    ]
     return _csv_ready(
         portfolio_df.loc[
             :,
@@ -436,6 +464,7 @@ def _portfolio_returns_artifact_frame(portfolio_df: pd.DataFrame) -> pd.DataFram
                 "ts_utc",
                 *sorted(column for column in portfolio_df.columns if column.startswith("strategy_return__")),
                 *sorted(column for column in portfolio_df.columns if column.startswith("weight__")),
+                *execution_columns,
                 "portfolio_return",
             ],
         ].copy()

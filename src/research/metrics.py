@@ -424,6 +424,16 @@ def infer_position_series(results_df: pd.DataFrame) -> pd.Series:
     return, so the executed position is ``signal.shift(1).fillna(0.0)``.
     """
 
+    if "position" in results_df.columns:
+        position = pd.to_numeric(results_df["position"], errors="coerce").fillna(0.0).astype("float64")
+        position.name = "position"
+        return position
+
+    if "executed_signal" in results_df.columns:
+        position = pd.to_numeric(results_df["executed_signal"], errors="coerce").fillna(0.0).astype("float64")
+        position.name = "position"
+        return position
+
     if "signal" not in results_df.columns:
         return pd.Series(0.0, index=results_df.index, dtype="float64", name="position")
 

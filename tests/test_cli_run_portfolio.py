@@ -184,6 +184,12 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
     assert result.config["portfolio_name"] == "core_portfolio"
     assert result.config["initial_capital"] == pytest.approx(100.0)
     assert result.config["alignment_policy"] == "intersection"
+    assert result.config["execution"] == {
+        "enabled": False,
+        "execution_delay": 1,
+        "transaction_cost_bps": 0.0,
+        "slippage_bps": 0.0,
+    }
     assert result.config["timeframe"] == "1D"
 
 

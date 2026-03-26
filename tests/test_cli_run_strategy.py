@@ -111,7 +111,7 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
     monkeypatch.setattr("src.cli.run_strategy.load_strategies_config", fake_load_strategies_config)
     monkeypatch.setattr("src.cli.run_strategy.load_features", fake_load_features)
     monkeypatch.setattr("src.cli.run_strategy.generate_signals", fake_generate_signals)
-    monkeypatch.setattr("src.cli.run_strategy.run_backtest", fake_run_backtest)
+    monkeypatch.setattr("src.cli.run_strategy.run_backtest", lambda signal_frame, execution_config=None: fake_run_backtest(signal_frame))
     monkeypatch.setattr("src.cli.run_strategy.compute_metrics", fake_compute_metrics)
     monkeypatch.setattr("src.cli.run_strategy.save_experiment", fake_save_experiment)
 
@@ -141,6 +141,12 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
         "parameters": {"lookback_short": 5, "lookback_long": 20},
         "start": "2025-01-01",
         "end": "2025-02-01",
+        "execution": {
+            "enabled": False,
+            "execution_delay": 1,
+            "transaction_cost_bps": 0.0,
+            "slippage_bps": 0.0,
+        },
     }
 
     stdout = capsys.readouterr().out
@@ -192,13 +198,14 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr("src.cli.run_strategy.load_strategies_config", lambda path=None: strategy_config)
 
-    def fake_run_walk_forward_experiment(strategy_name, strategy, evaluation_path, strategy_config):
+    def fake_run_walk_forward_experiment(strategy_name, strategy, evaluation_path, strategy_config, execution_config):
         calls["walk_forward"] = {
             "strategy_name": strategy_name,
             "strategy_name_attr": strategy.name,
             "dataset": strategy.dataset,
             "evaluation_path": evaluation_path,
             "strategy_config": strategy_config,
+            "execution_config": execution_config.to_dict(),
         }
         return walk_forward_result
 
@@ -212,6 +219,12 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
     assert calls["walk_forward"]["dataset"] == "features_daily"
     assert calls["walk_forward"]["evaluation_path"] == Path("configs/evaluation.yml")
     assert calls["walk_forward"]["strategy_config"] == strategy_config["momentum_v1"]
+    assert calls["walk_forward"]["execution_config"] == {
+        "enabled": False,
+        "execution_delay": 1,
+        "transaction_cost_bps": 0.0,
+        "slippage_bps": 0.0,
+    }
 
     stdout = capsys.readouterr().out
     assert "strategy: momentum_v1" in stdout
@@ -236,7 +249,9 @@ def test_run_strategy_experiment_loads_curated_daily_features_and_supports_mean_
     assert isinstance(result, StrategyRunResult)
     assert result.strategy_name == "mean_reversion_v1"
     assert result.run_id == "run-mean-reversion"
-    assert list(result.results_df.columns[-3:]) == ["signal", "strategy_return", "equity_curve"]
+    assert {"executed_signal", "delta_position", "gross_strategy_return", "net_strategy_return"}.issubset(
+        result.results_df.columns
+    )
     assert result.results_df["close"].tolist() == pytest.approx(feature_df["close"].tolist())
     assert result.results_df["feature_ret_1d"].notna().sum() == len(feature_df) - 1
 

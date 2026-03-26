@@ -52,6 +52,7 @@ def validate_research_integrity(
     signals: pd.Series | None = None,
     *,
     positions: pd.Series | None = None,
+    execution_delay: int = 1,
     warmup_rows: int = 3,
 ) -> None:
     """
@@ -62,7 +63,9 @@ def validate_research_integrity(
         signals: Optional signal series that must align exactly to ``df.index`` and
             only contain ``-1``, ``0``, or ``1``.
         positions: Optional executed position series. When provided, it must equal
-            ``signals.shift(1).fillna(0.0)`` to enforce lagged execution.
+            ``signals.shift(execution_delay).fillna(0.0)`` to enforce lagged execution.
+        execution_delay: Explicit deterministic bar delay required between signal
+            generation and executed positions.
         warmup_rows: Number of earliest rows per symbol inspected by the warm-up
             leakage heuristic.
 
@@ -86,7 +89,7 @@ def validate_research_integrity(
         if signals is None:
             raise TemporalIntegrityError("Lagged execution validation requires a signal series.")
         _validate_signal_alignment(df, positions.rename("position"))
-        _validate_lagged_execution(df, signals, positions)
+        _validate_lagged_execution(df, signals, positions, execution_delay=execution_delay)
 
     _validate_warmup_population(df, ts_utc, warmup_rows=warmup_rows)
 
@@ -186,10 +189,16 @@ def _validate_signal_values(signals: pd.Series) -> None:
     )
 
 
-def _validate_lagged_execution(df: pd.DataFrame, signals: pd.Series, positions: pd.Series) -> None:
+def _validate_lagged_execution(
+    df: pd.DataFrame,
+    signals: pd.Series,
+    positions: pd.Series,
+    *,
+    execution_delay: int,
+) -> None:
     normalized_signals = signals.astype("float64")
     normalized_positions = positions.astype("float64")
-    expected_positions = normalized_signals.shift(1).fillna(0.0)
+    expected_positions = normalized_signals.shift(execution_delay).fillna(0.0)
 
     if normalized_positions.equals(expected_positions):
         return
@@ -207,7 +216,8 @@ def _validate_lagged_execution(df: pd.DataFrame, signals: pd.Series, positions: 
         raise TemporalIntegrityError(
             "Temporal integrity violation [same_bar_execution]: "
             f"symbol={context['symbol']}, ts_utc={context['ts_utc']}. "
-            "Backtests must use lagged positions computed as signals.shift(1).fillna(0.0)."
+            "Backtests must use lagged positions computed as "
+            f"signals.shift({execution_delay}).fillna(0.0)."
         )
 
     mismatched = normalized_positions.ne(expected_positions)

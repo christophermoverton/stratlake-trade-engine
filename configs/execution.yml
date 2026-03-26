@@ -1,0 +1,5 @@
+execution:
+  enabled: false
+  execution_delay: 1
+  transaction_cost_bps: 0.0
+  slippage_bps: 0.0

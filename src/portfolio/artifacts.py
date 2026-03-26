@@ -217,10 +217,21 @@ def _portfolio_returns_frame(portfolio_output: pd.DataFrame) -> pd.DataFrame:
     if not weight_columns:
         raise ValueError("portfolio_output must include at least one weight__<strategy> column.")
 
+    execution_columns = [
+        column
+        for column in (
+            "gross_portfolio_return",
+            "portfolio_transaction_cost",
+            "portfolio_slippage_cost",
+            "net_portfolio_return",
+        )
+        if column in portfolio_output.columns
+    ]
     ordered_columns = [
         "ts_utc",
         *sorted(return_columns),
         *sorted(weight_columns),
+        *execution_columns,
         "portfolio_return",
     ]
     return _csv_ready_frame(portfolio_output.loc[:, ordered_columns].copy())

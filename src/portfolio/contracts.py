@@ -150,6 +150,17 @@ def validate_portfolio_output(df: pd.DataFrame) -> pd.DataFrame:
             normalized["portfolio_equity_curve"],
             column_name="portfolio_equity_curve",
         )
+    for execution_column in (
+        "gross_portfolio_return",
+        "portfolio_transaction_cost",
+        "portfolio_slippage_cost",
+        "net_portfolio_return",
+    ):
+        if execution_column in normalized.columns:
+            normalized[execution_column] = _normalize_float_series(
+                normalized[execution_column],
+                column_name=execution_column,
+            )
 
     if normalized["ts_utc"].duplicated().any():
         duplicate_ts = normalized.loc[normalized["ts_utc"].duplicated(keep=False), "ts_utc"].iloc[0]
@@ -180,6 +191,16 @@ def validate_portfolio_output(df: pd.DataFrame) -> pd.DataFrame:
     ordered_columns = ["ts_utc"]
     ordered_columns.extend(sorted(return_columns))
     ordered_columns.extend(sorted(weight_columns))
+    ordered_columns.extend(
+        column
+        for column in (
+            "gross_portfolio_return",
+            "portfolio_transaction_cost",
+            "portfolio_slippage_cost",
+            "net_portfolio_return",
+        )
+        if column in normalized.columns
+    )
     ordered_columns.append("portfolio_return")
     if "portfolio_equity_curve" in normalized.columns:
         ordered_columns.append("portfolio_equity_curve")

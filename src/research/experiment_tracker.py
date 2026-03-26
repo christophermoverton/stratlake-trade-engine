@@ -40,7 +40,13 @@ _SIGNAL_PRIORITY_COLUMNS = (
     "date",
     "symbol",
     "signal",
+    "executed_signal",
     "position",
+    "delta_position",
+    "gross_strategy_return",
+    "transaction_cost",
+    "slippage_cost",
+    "net_strategy_return",
 )
 _SPLIT_METADATA_COLUMNS = (
     "split_id",
@@ -194,6 +200,7 @@ def _build_registry_entry(
         "strategy_params": dict(config.get("parameters") or {}),
         "evaluation_mode": evaluation_mode,
         "evaluation_config": _drop_none_values(evaluation_config),
+        "execution": _drop_none_values(config.get("execution")),
         "data_range": _resolve_data_range(results_df, config, evaluation_mode=evaluation_mode),
         "timeframe": _infer_timeframe(results_df, config),
         "metrics_summary": _metrics_summary(metrics_summary),

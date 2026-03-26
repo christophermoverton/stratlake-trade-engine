@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.config.execution import ExecutionConfig
 from src.research.backtest_runner import run_backtest
 
 
@@ -31,6 +32,7 @@ def test_run_backtest_computes_strategy_returns_from_shifted_signals() -> None:
 
     result = run_backtest(df)
 
+    assert result["executed_signal"].tolist() == [0.0, 1.0, 1.0, -1.0]
     assert result["strategy_return"].tolist() == [0.0, -0.02, 0.03, 0.01]
 
 
@@ -50,6 +52,40 @@ def test_run_backtest_preserves_input_columns() -> None:
 
     assert result.index.equals(df.index)
     assert result["feature_alpha"].tolist() == df["feature_alpha"].tolist()
+
+
+def test_run_backtest_applies_execution_costs_and_slippage_on_position_changes() -> None:
+    df = _backtest_frame()
+    config = ExecutionConfig(
+        enabled=True,
+        execution_delay=1,
+        transaction_cost_bps=10.0,
+        slippage_bps=5.0,
+    )
+
+    result = run_backtest(df, config)
+
+    assert result["delta_position"].tolist() == [0.0, 1.0, 0.0, -2.0]
+    assert result["transaction_cost"].tolist() == pytest.approx([0.0, 0.001, 0.0, 0.002])
+    assert result["slippage_cost"].tolist() == pytest.approx([0.0, 0.0005, 0.0, 0.001])
+    assert result["gross_strategy_return"].tolist() == pytest.approx([0.0, -0.02, 0.03, 0.01])
+    assert result["net_strategy_return"].tolist() == pytest.approx([0.0, -0.0215, 0.03, 0.007])
+    assert result["strategy_return"].tolist() == pytest.approx(result["net_strategy_return"].tolist())
+
+
+def test_run_backtest_supports_longer_execution_delay_deterministically() -> None:
+    df = _backtest_frame()
+    config = ExecutionConfig(
+        enabled=False,
+        execution_delay=2,
+        transaction_cost_bps=0.0,
+        slippage_bps=0.0,
+    )
+
+    result = run_backtest(df, config)
+
+    assert result["executed_signal"].tolist() == [0.0, 0.0, 1.0, 1.0]
+    assert result["strategy_return"].tolist() == pytest.approx([0.0, 0.0, 0.03, -0.01])
 
 
 def test_run_backtest_raises_when_signal_column_is_missing() -> None:

@@ -8,6 +8,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.config.execution import ExecutionConfig
 from src.portfolio import (
     EqualWeightAllocator,
     compute_portfolio_equity_curve,
@@ -102,6 +103,10 @@ def test_compute_portfolio_returns_aggregates_weighted_component_returns() -> No
         "strategy_return__beta",
         "weight__alpha",
         "weight__beta",
+        "gross_portfolio_return",
+        "portfolio_transaction_cost",
+        "portfolio_slippage_cost",
+        "net_portfolio_return",
         "portfolio_return",
     ]
     assert portfolio_returns["portfolio_return"].tolist() == pytest.approx([0.02, 0.005, -0.005])
@@ -138,11 +143,44 @@ def test_construct_portfolio_builds_end_to_end_validated_output() -> None:
         "strategy_return__beta",
         "weight__alpha",
         "weight__beta",
+        "gross_portfolio_return",
+        "portfolio_transaction_cost",
+        "portfolio_slippage_cost",
+        "net_portfolio_return",
         "portfolio_return",
         "portfolio_equity_curve",
     ]
     assert output["portfolio_return"].tolist() == pytest.approx([0.02, 0.005, -0.005])
     assert output["portfolio_equity_curve"].tolist() == pytest.approx([10.2, 10.251, 10.199745])
+
+
+def test_compute_portfolio_returns_applies_turnover_aware_execution_costs() -> None:
+    returns_wide = _returns_two_strategies()
+    weights_wide = pd.DataFrame(
+        {
+            "alpha": [1.0, 0.0, 1.0],
+            "beta": [0.0, 1.0, 0.0],
+        },
+        index=returns_wide.index,
+        dtype="float64",
+    )
+    config = ExecutionConfig(
+        enabled=True,
+        execution_delay=1,
+        transaction_cost_bps=10.0,
+        slippage_bps=5.0,
+    )
+
+    portfolio_returns = compute_portfolio_returns(
+        returns_wide,
+        weights_wide,
+        execution_config=config,
+    )
+
+    assert portfolio_returns["gross_portfolio_return"].tolist() == pytest.approx([0.01, -0.01, -0.03])
+    assert portfolio_returns["portfolio_transaction_cost"].tolist() == pytest.approx([0.001, 0.002, 0.002])
+    assert portfolio_returns["portfolio_slippage_cost"].tolist() == pytest.approx([0.0005, 0.001, 0.001])
+    assert portfolio_returns["portfolio_return"].tolist() == pytest.approx([0.0085, -0.013, -0.033])
 
 
 def test_compute_portfolio_returns_rejects_mismatched_index() -> None:

@@ -18,6 +18,10 @@ def _portfolio_output() -> pd.DataFrame:
         {
             "weight__beta": [0.5, 0.5],
             "strategy_return__beta": [0.03, 0.02],
+            "gross_portfolio_return": [0.02, 0.01],
+            "portfolio_transaction_cost": [0.0, 0.0],
+            "portfolio_slippage_cost": [0.0, 0.0],
+            "net_portfolio_return": [0.02, 0.01],
             "portfolio_return": [0.02, 0.01],
             "ts_utc": pd.Series(
                 [
@@ -43,6 +47,12 @@ def _config() -> dict[str, object]:
         "settings": {
             "rebalance": "daily",
             "long_only": True,
+        },
+        "execution": {
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 10.0,
+            "slippage_bps": 5.0,
         },
     }
 
@@ -97,6 +107,12 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     assert config_payload == {
         "alignment_policy": "intersection",
         "allocator": "equal_weight",
+        "execution": {
+            "enabled": True,
+            "execution_delay": 1,
+            "slippage_bps": 5.0,
+            "transaction_cost_bps": 10.0,
+        },
         "initial_capital": 100.0,
         "portfolio_name": "Core Portfolio",
         "settings": {"long_only": True, "rebalance": "daily"},
@@ -133,6 +149,10 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "strategy_return__beta",
         "weight__alpha",
         "weight__beta",
+        "gross_portfolio_return",
+        "portfolio_transaction_cost",
+        "portfolio_slippage_cost",
+        "net_portfolio_return",
         "portfolio_return",
     ]
     assert len(returns_frame) == 2
@@ -166,6 +186,10 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "strategy_return__beta",
         "weight__alpha",
         "weight__beta",
+        "gross_portfolio_return",
+        "portfolio_transaction_cost",
+        "portfolio_slippage_cost",
+        "net_portfolio_return",
         "portfolio_return",
     ]
 

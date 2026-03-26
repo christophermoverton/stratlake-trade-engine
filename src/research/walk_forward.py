@@ -6,6 +6,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.config.evaluation import EVALUATION_CONFIG, EvaluationConfig, load_evaluation_config
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
@@ -87,16 +88,18 @@ def run_walk_forward_experiment(
     *,
     evaluation_path: Path | None = None,
     strategy_config: dict[str, Any] | None = None,
+    execution_config: ExecutionConfig | None = None,
 ) -> WalkForwardRunResult:
     """Execute one strategy across deterministic evaluation splits and persist artifacts."""
 
     evaluation_config = load_walk_forward_config(evaluation_path)
+    resolved_execution = execution_config or resolve_execution_config((strategy_config or {}).get("execution"))
     splits = generate_evaluation_splits(evaluation_config)
     if not splits:
         raise WalkForwardExecutionError("Walk-forward evaluation did not produce any splits.")
 
     dataset = _load_dataset_for_splits(strategy, splits)
-    split_results = [execute_split(strategy, dataset, split) for split in splits]
+    split_results = [execute_split(strategy, dataset, split, execution_config=resolved_execution) for split in splits]
     aggregate_summary = build_aggregate_summary(split_results)
     aggregate_results = pd.concat([result.results_df for result in split_results], ignore_index=True)
     aggregate_results.attrs["dataset"] = strategy.dataset
@@ -121,6 +124,7 @@ def run_walk_forward_experiment(
             "test_start": evaluation_config.test_start,
             "test_end": evaluation_config.test_end,
         },
+        "execution": resolved_execution.to_dict(),
     }
     experiment_dir = save_walk_forward_experiment(
         strategy_name,
@@ -171,6 +175,8 @@ def execute_split(
     strategy: BaseStrategy,
     dataset: pd.DataFrame,
     split: EvaluationSplit,
+    *,
+    execution_config: ExecutionConfig | None = None,
 ) -> SplitExecutionResult:
     """Run the research pipeline for one split and score only the test window."""
 
@@ -185,7 +191,7 @@ def execute_split(
         raise WalkForwardExecutionError(f"Split '{split.split_id}' produced no training rows.")
 
     signal_frame = generate_signals(split_frame, strategy)
-    backtest_frame = run_backtest(signal_frame)
+    backtest_frame = run_backtest(signal_frame, execution_config)
     test_frame = slice_dataset_by_date(backtest_frame, start=split.test_start, end=split.test_end)
     if test_frame.empty:
         raise WalkForwardExecutionError(f"Split '{split.split_id}' produced no test rows.")

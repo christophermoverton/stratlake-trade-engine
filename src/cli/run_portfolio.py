@@ -10,6 +10,7 @@ from typing import Any, Mapping, Sequence
 import pandas as pd
 import yaml
 
+from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.portfolio import (
     EqualWeightAllocator,
     build_aligned_return_matrix,
@@ -105,6 +106,31 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         required=True,
         help="Portfolio metrics timeframe. Supported values: 1D, 1Min.",
     )
+    parser.add_argument(
+        "--execution-delay",
+        type=int,
+        help="Override execution delay in bars for strategy/portfolio execution settings.",
+    )
+    parser.add_argument(
+        "--transaction-cost-bps",
+        type=float,
+        help="Override deterministic execution transaction cost in basis points.",
+    )
+    parser.add_argument(
+        "--slippage-bps",
+        type=float,
+        help="Override deterministic execution slippage in basis points.",
+    )
+    parser.add_argument(
+        "--execution-enabled",
+        action="store_true",
+        help="Enable execution frictions even when config defaults are disabled.",
+    )
+    parser.add_argument(
+        "--disable-execution-model",
+        action="store_true",
+        help="Disable transaction-cost and slippage frictions for this run.",
+    )
     return parser.parse_args(argv)
 
 
@@ -128,6 +154,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
 
     args = parse_args(argv)
     timeframe = _normalize_timeframe(args.timeframe)
+    execution_override = _execution_override_from_args(args)
     _validate_cli_args(args, timeframe=timeframe)
 
     resolved_config, run_dirs, components = _resolve_portfolio_inputs(
@@ -139,6 +166,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
         from_registry=bool(args.from_registry),
         timeframe=timeframe,
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
+        execution_override=execution_override,
     )
 
     allocator = _build_allocator(resolved_config["allocator"])
@@ -154,6 +182,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             portfolio_name=str(resolved_config["portfolio_name"]),
             initial_capital=float(resolved_config["initial_capital"]),
             alignment_policy=str(resolved_config["alignment_policy"]),
+            execution_config=_portfolio_execution_config(resolved_config),
         )
         result = PortfolioWalkForwardRunResult(
             portfolio_name=str(walk_forward_result["portfolio_name"]),
@@ -175,6 +204,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             aligned_returns,
             allocator,
             initial_capital=float(resolved_config["initial_capital"]),
+            execution_config=_portfolio_execution_config(resolved_config),
         )
         metrics = compute_portfolio_metrics(portfolio_output, timeframe)
 
@@ -296,6 +326,7 @@ def _resolve_portfolio_inputs(
     from_registry: bool,
     timeframe: str,
     evaluation_path: Path | None,
+    execution_override: Mapping[str, Any] | None,
 ) -> tuple[dict[str, Any], list[Path], list[dict[str, Any]]]:
     if portfolio_config_path is not None:
         raw_payload = load_portfolio_config(portfolio_config_path)
@@ -324,6 +355,7 @@ def _resolve_portfolio_inputs(
             "alignment_policy": DEFAULT_ALIGNMENT_POLICY,
         }
 
+    execution_config = resolve_execution_config(base_definition.get("execution"), execution_override)
     resolved_config = {
         **base_definition,
         "portfolio_name": _normalize_required_string(
@@ -340,10 +372,12 @@ def _resolve_portfolio_inputs(
             base_definition.get("alignment_policy", DEFAULT_ALIGNMENT_POLICY),
             field_name="alignment_policy",
         ),
+        "execution": execution_config.to_dict(),
         "timeframe": timeframe,
         "evaluation_config_path": None if evaluation_path is None else evaluation_path.as_posix(),
     }
     validated_config = validate_portfolio_config(resolved_config)
+    validated_config["execution"] = execution_config.to_dict()
     validated_config["timeframe"] = timeframe
     validated_config["evaluation_config_path"] = (
         None if evaluation_path is None else evaluation_path.as_posix()
@@ -498,6 +532,7 @@ def _normalize_portfolio_definition(
         "components": normalized_components,
         "initial_capital": definition.get("initial_capital", DEFAULT_INITIAL_CAPITAL),
         "alignment_policy": definition.get("alignment_policy", DEFAULT_ALIGNMENT_POLICY),
+        "execution": definition.get("execution"),
     }
 
 
@@ -685,6 +720,25 @@ def _format_run_failure(exc: Exception) -> str:
     if message.startswith("Run failed:"):
         return message
     return f"Run failed: {message}"
+
+
+def _portfolio_execution_config(config: Mapping[str, Any]) -> ExecutionConfig:
+    return resolve_execution_config(config.get("execution"))
+
+
+def _execution_override_from_args(args: argparse.Namespace) -> dict[str, Any] | None:
+    override: dict[str, Any] = {}
+    if args.execution_delay is not None:
+        override["execution_delay"] = args.execution_delay
+    if args.transaction_cost_bps is not None:
+        override["transaction_cost_bps"] = args.transaction_cost_bps
+    if args.slippage_bps is not None:
+        override["slippage_bps"] = args.slippage_bps
+    if args.execution_enabled:
+        override["enabled"] = True
+    if args.disable_execution_model:
+        override["enabled"] = False
+    return override or None
 
 
 if __name__ == "__main__":

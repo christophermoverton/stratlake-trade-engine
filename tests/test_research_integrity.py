@@ -73,13 +73,27 @@ def test_validate_research_integrity_rejects_same_bar_execution() -> None:
     df = _research_frame()
     signals = pd.Series([1, 0, -1, 0], index=df.index, dtype="int64")
 
-    with pytest.raises(ValueError, match="Same-bar execution detected"):
+    with pytest.raises(ValueError, match="same_bar_execution"):
         validate_research_integrity(df, signals, positions=signals.astype("float64"))
 
 
-def test_validate_research_integrity_warns_when_warmup_rows_have_no_nans() -> None:
+def test_validate_research_integrity_rejects_forward_filled_warmup_rows() -> None:
     df = _research_frame(include_warmup_features=True, warmup_nan=False)
     signals = pd.Series([1, 0, -1, 0], index=df.index, dtype="int64")
 
-    with pytest.warns(UserWarning, match="Warm-up leakage heuristic"):
+    with pytest.raises(ValueError, match="forward_filled_warmup"):
+        validate_research_integrity(df, signals)
+
+
+def test_validate_research_integrity_rejects_future_feature_timestamp() -> None:
+    df = _research_frame()
+    df["feature_source_ts_utc"] = [
+        pd.Timestamp("2025-01-01T00:00:00Z"),
+        pd.Timestamp("2025-01-02T00:00:00Z"),
+        pd.Timestamp("2025-01-04T00:00:00Z"),
+        pd.Timestamp("2025-01-04T00:00:00Z"),
+    ]
+    signals = pd.Series([1, 0, -1, 0], index=df.index, dtype="int64")
+
+    with pytest.raises(ValueError, match="future_feature_timestamp"):
         validate_research_integrity(df, signals)

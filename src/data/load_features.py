@@ -10,6 +10,7 @@ import pandas as pd
 
 from src.data.catalog import build_where_clause, parquet_scan_sql
 from src.data.loaders import _ensure_duckdb_con
+from src.research.integrity import validate_research_integrity
 
 SUPPORTED_FEATURE_DATASETS = {"features_daily", "features_1m"}
 FEATURE_CORE_COLUMNS = ["symbol", "ts_utc", "timeframe", "date"]
@@ -164,4 +165,6 @@ def _postprocess(df: pd.DataFrame) -> pd.DataFrame:
     if sort_columns:
         df = df.sort_values(sort_columns, kind="mergesort", na_position="last")
 
-    return df.reset_index(drop=True)
+    df = df.reset_index(drop=True)
+    validate_research_integrity(df)
+    return df

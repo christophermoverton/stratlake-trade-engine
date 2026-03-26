@@ -72,3 +72,12 @@ def test_run_backtest_raises_when_return_column_has_no_usable_values() -> None:
 
     with pytest.raises(ValueError, match="contains no usable values"):
         run_backtest(df)
+
+
+def test_run_backtest_rejects_same_bar_execution_if_positions_are_not_shifted() -> None:
+    df = _backtest_frame()
+
+    from src.research.integrity import validate_research_integrity
+
+    with pytest.raises(ValueError, match="same_bar_execution"):
+        validate_research_integrity(df, df["signal"], positions=df["signal"].astype("float64"))

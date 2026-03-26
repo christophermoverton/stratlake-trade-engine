@@ -111,3 +111,18 @@ def test_generate_signals_fails_for_missing_timeframe_column() -> None:
 
     with pytest.raises(ValueError, match="missing required strategy input columns"):
         generate_signals(df, DummyStrategy())
+
+
+def test_generate_signals_rejects_future_feature_timestamps() -> None:
+    df = _feature_frame()
+    df["feature_source_ts_utc"] = pd.Series(
+        [
+            pd.Timestamp("2025-01-01T00:00:00Z"),
+            pd.Timestamp("2025-01-04T00:00:00Z"),
+            pd.Timestamp("2025-01-03T00:00:00Z"),
+        ],
+        index=df.index,
+    )
+
+    with pytest.raises(ValueError, match="future_feature_timestamp"):
+        generate_signals(df, DummyStrategy())

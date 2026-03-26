@@ -4,6 +4,7 @@ from pathlib import Path
 
 import duckdb
 import pandas as pd
+import pytest
 
 from src.data.load_features import (
     FEATURE_CORE_COLUMNS,
@@ -293,3 +294,27 @@ def test_create_feature_views_supports_sql_analytics_and_partition_discovery(tmp
         assert aggregates == [("AAPL", 0.20), ("MSFT", 0.20)]
     finally:
         con.close()
+
+
+def test_load_features_rejects_future_feature_timestamps(tmp_path: Path) -> None:
+    paths = FeaturePaths(root=tmp_path / "data")
+    dataset_root = paths.dataset_root("features_daily")
+
+    _write_parquet(
+        dataset_root / "symbol=AAPL" / "year=2025" / "part-0.parquet",
+        pd.DataFrame(
+            [
+                {
+                    "symbol": "AAPL",
+                    "ts_utc": pd.Timestamp("2025-03-15T00:00:00Z"),
+                    "timeframe": "1D",
+                    "date": "2025-03-15",
+                    "feature_alpha": 5.0,
+                    "feature_source_ts_utc": pd.Timestamp("2025-03-16T00:00:00Z"),
+                }
+            ]
+        ),
+    )
+
+    with pytest.raises(ValueError, match="future_feature_timestamp"):
+        load_features("features_daily", start="2025-01-01", end="2026-01-01", paths=paths)

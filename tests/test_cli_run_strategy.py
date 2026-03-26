@@ -272,3 +272,32 @@ def test_run_strategy_experiment_is_reproducible_for_repeated_runs(
     assert first.run_id == second.run_id
     assert first_metrics == second.metrics
     assert first_artifacts == second_artifacts
+
+
+def test_run_strategy_experiment_does_not_write_artifacts_when_temporal_validation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invalid_frame = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL", "AAPL"], dtype="string"),
+            "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"], utc=True),
+            "timeframe": pd.Series(["1D", "1D"], dtype="string"),
+            "date": pd.Series(["2025-01-01", "2025-01-02"], dtype="string"),
+            "feature_ret_1d": [0.01, 0.02],
+            "feature_source_ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-03T00:00:00Z"], utc=True),
+        }
+    )
+    calls: dict[str, int] = {"save_experiment": 0}
+
+    monkeypatch.setattr("src.cli.run_strategy.load_features", lambda dataset, start=None, end=None: invalid_frame)
+
+    def fake_save_experiment(*args, **kwargs):
+        calls["save_experiment"] += 1
+        return Path("artifacts/strategies/should-not-exist")
+
+    monkeypatch.setattr("src.cli.run_strategy.save_experiment", fake_save_experiment)
+
+    with pytest.raises(ValueError, match="future_feature_timestamp"):
+        run_strategy_experiment("buy_and_hold_v1")
+
+    assert calls["save_experiment"] == 0

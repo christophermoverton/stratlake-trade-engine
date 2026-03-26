@@ -23,6 +23,16 @@ def _metrics() -> dict[str, float | None]:
         "hit_rate": 0.5,
         "profit_factor": 1.1,
         "turnover": 0.33,
+        "total_turnover": 1.32,
+        "average_turnover": 0.33,
+        "trade_count": 1.0,
+        "rebalance_count": 1.0,
+        "percent_periods_traded": 25.0,
+        "average_trade_size": 1.32,
+        "total_transaction_cost": 0.0,
+        "total_slippage_cost": 0.0,
+        "total_execution_friction": 0.0,
+        "average_execution_friction_per_trade": 0.0,
         "exposure_pct": 66.7,
     }
 
@@ -34,6 +44,16 @@ def _experiment_results() -> pd.DataFrame:
             "date": ["2022-01-01", "2022-01-02", "2022-01-03", "2022-01-04"],
             "feature_alpha": [0.15, -0.10, 0.25, 0.05],
             "signal": [1, 1, 0, 0],
+            "executed_signal": [0.0, 1.0, 1.0, 0.0],
+            "position": [0.0, 1.0, 1.0, 0.0],
+            "delta_position": [0.0, 1.0, 0.0, -1.0],
+            "abs_delta_position": [0.0, 1.0, 0.0, 1.0],
+            "turnover": [0.0, 1.0, 0.0, 1.0],
+            "trade_event": [False, True, False, True],
+            "gross_strategy_return": [0.0, 0.02, -0.01, 0.0],
+            "transaction_cost": [0.0, 0.0, 0.0, 0.0],
+            "slippage_cost": [0.0, 0.0, 0.0, 0.0],
+            "execution_friction": [0.0, 0.0, 0.0, 0.0],
             "strategy_return": [0.0, 0.02, -0.01, 0.0],
             "equity_curve": [1.0, 1.02, 1.0098, 1.0098],
         },
@@ -149,7 +169,17 @@ def test_save_experiment_writes_standardized_artifacts(
     legacy_equity_curve_df = pd.read_parquet(experiment_dir / "equity_curve.parquet")
     trades_df = pd.read_parquet(experiment_dir / "trades.parquet")
 
-    assert list(signals_df.columns[:5]) == ["ts_utc", "date", "symbol", "signal", "position"]
+    assert list(signals_df.columns[:9]) == [
+        "ts_utc",
+        "date",
+        "symbol",
+        "signal",
+        "executed_signal",
+        "position",
+        "delta_position",
+        "abs_delta_position",
+        "turnover",
+    ]
     assert signals_df["ts_utc"].tolist() == [
         "2022-01-01T00:00:00Z",
         "2022-01-02T00:00:00Z",

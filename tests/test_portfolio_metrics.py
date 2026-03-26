@@ -67,6 +67,16 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "hit_rate",
         "profit_factor",
         "turnover",
+        "total_turnover",
+        "average_turnover",
+        "trade_count",
+        "rebalance_count",
+        "percent_periods_traded",
+        "average_trade_size",
+        "total_transaction_cost",
+        "total_slippage_cost",
+        "total_execution_friction",
+        "average_execution_friction_per_trade",
         "exposure_pct",
     ]
     assert metrics["cumulative_return"] == pytest.approx(metrics["total_return"])
@@ -78,7 +88,14 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["win_rate"] == pytest.approx(0.5)
     assert metrics["hit_rate"] == pytest.approx(0.5)
     assert metrics["profit_factor"] == pytest.approx((0.02 + 0.03) / (0.005 + 0.014))
-    assert metrics["turnover"] == pytest.approx(0.2)
+    assert metrics["turnover"] == pytest.approx(0.45)
+    assert metrics["total_turnover"] == pytest.approx(1.8)
+    assert metrics["average_turnover"] == pytest.approx(0.45)
+    assert metrics["trade_count"] == pytest.approx(3.0)
+    assert metrics["rebalance_count"] == pytest.approx(3.0)
+    assert metrics["percent_periods_traded"] == pytest.approx(75.0)
+    assert metrics["average_trade_size"] == pytest.approx(0.6)
+    assert metrics["total_execution_friction"] == pytest.approx(0.0)
     assert metrics["exposure_pct"] == pytest.approx(100.0)
 
 
@@ -117,6 +134,7 @@ def test_compute_portfolio_metrics_omits_weight_based_metrics_without_traceabili
     metrics = compute_portfolio_metrics(portfolio_output, timeframe="1d")
 
     assert metrics["turnover"] is None
+    assert metrics["trade_count"] is None
     assert metrics["exposure_pct"] is None
 
 
@@ -142,7 +160,7 @@ def test_compute_portfolio_metrics_handles_all_zero_return_streams() -> None:
     assert metrics["sharpe_ratio"] == 0.0
     assert metrics["max_drawdown"] == 0.0
     assert metrics["profit_factor"] == 0.0
-    assert metrics["turnover"] == 0.0
+    assert metrics["turnover"] == pytest.approx(1.0 / 3.0)
     assert metrics["exposure_pct"] == pytest.approx(100.0)
 
 

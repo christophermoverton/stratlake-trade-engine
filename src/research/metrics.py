@@ -6,6 +6,8 @@ from typing import Any
 
 import pandas as pd
 
+from src.research.turnover import compute_position_change_frame
+
 TRADING_DAYS_PER_YEAR = 252
 TRADING_MINUTES_PER_DAY = 390
 MINUTE_PERIODS_PER_YEAR = TRADING_DAYS_PER_YEAR * TRADING_MINUTES_PER_DAY
@@ -242,8 +244,7 @@ def turnover(position: pd.Series) -> float:
     if positions.empty:
         return 0.0
 
-    position_change = positions.diff().fillna(positions)
-    return float(position_change.abs().mean())
+    return float(compute_position_change_frame(positions)["turnover"].mean())
 
 
 def exposure_pct(position: pd.Series) -> float:
@@ -285,13 +286,20 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
     strategy_return = results_df["strategy_return"] if "strategy_return" in results_df.columns else pd.Series(dtype="float64")
     periods_per_year = infer_periods_per_year(results_df)
     position = infer_position_series(results_df)
+    position_change = compute_position_change_frame(position)
     closed_trade_returns = extract_closed_trade_returns(results_df)
+    transaction_cost = _optional_numeric_series(results_df, "transaction_cost")
+    slippage_cost = _optional_numeric_series(results_df, "slippage_cost")
+    execution_friction = _optional_numeric_series(results_df, "execution_friction")
 
     total = total_return(strategy_return)
     annual_return = annualized_return(strategy_return, periods_per_year=periods_per_year)
     annual_vol = annualized_volatility(strategy_return, periods_per_year=periods_per_year)
     period_vol = volatility(strategy_return)
     period_win_rate = win_rate(strategy_return)
+    trade_count = int(position_change["trade_event"].sum())
+    total_turnover = float(position_change["turnover"].sum())
+    average_turnover = float(position_change["turnover"].mean()) if not position_change.empty else 0.0
 
     return {
         "cumulative_return": total,
@@ -304,7 +312,17 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         "win_rate": period_win_rate,
         "hit_rate": hit_rate(closed_trade_returns),
         "profit_factor": profit_factor(closed_trade_returns),
-        "turnover": turnover(position),
+        "turnover": average_turnover,
+        "total_turnover": total_turnover,
+        "average_turnover": average_turnover,
+        "trade_count": float(trade_count),
+        "rebalance_count": float(trade_count),
+        "percent_periods_traded": float(position_change["trade_event"].mean() * 100.0) if not position_change.empty else 0.0,
+        "average_trade_size": (total_turnover / trade_count) if trade_count else 0.0,
+        "total_transaction_cost": float(transaction_cost.sum()),
+        "total_slippage_cost": float(slippage_cost.sum()),
+        "total_execution_friction": float(execution_friction.sum()),
+        "average_execution_friction_per_trade": float(execution_friction.sum() / trade_count) if trade_count else 0.0,
         "exposure_pct": exposure_pct(position),
     }
 
@@ -440,6 +458,12 @@ def infer_position_series(results_df: pd.DataFrame) -> pd.Series:
     position = results_df["signal"].shift(1).fillna(0.0).astype("float64")
     position.name = "position"
     return position
+
+
+def _optional_numeric_series(results_df: pd.DataFrame, column: str) -> pd.Series:
+    if column not in results_df.columns:
+        return pd.Series(0.0, index=results_df.index, dtype="float64")
+    return pd.to_numeric(results_df[column], errors="coerce").fillna(0.0).astype("float64")
 
 
 def extract_closed_trade_returns(results_df: pd.DataFrame) -> pd.Series:

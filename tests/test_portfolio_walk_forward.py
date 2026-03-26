@@ -91,6 +91,8 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
     assert metrics_by_split["end"].tolist() == ["2025-01-04", "2025-01-05"]
     assert metrics_by_split["row_count"].tolist() == [1, 1]
     assert metrics_by_split["total_return"].tolist() == pytest.approx([0.01, 0.025])
+    assert "total_turnover" in metrics_by_split.columns
+    assert "trade_count" in metrics_by_split.columns
 
     aggregate_metrics = json.loads((experiment_dir / "aggregate_metrics.json").read_text(encoding="utf-8"))
     assert aggregate_metrics["split_count"] == 2

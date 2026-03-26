@@ -35,6 +35,16 @@ _REGISTRY_METRIC_KEYS = (
     "hit_rate",
     "profit_factor",
     "turnover",
+    "total_turnover",
+    "average_turnover",
+    "trade_count",
+    "rebalance_count",
+    "percent_periods_traded",
+    "average_trade_size",
+    "total_transaction_cost",
+    "total_slippage_cost",
+    "total_execution_friction",
+    "average_execution_friction_per_trade",
     "exposure_pct",
 )
 

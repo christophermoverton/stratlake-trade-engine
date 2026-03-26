@@ -71,6 +71,19 @@ def validate_portfolio_return_consistency(
             )
 
     recomputed_returns = recomputed_gross_returns.copy()
+    if "portfolio_execution_friction" in normalized.columns:
+        friction_match = (
+            normalized["portfolio_execution_friction"]
+            - normalized.get("portfolio_transaction_cost", 0.0)
+            - normalized.get("portfolio_slippage_cost", 0.0)
+        ).abs() > tolerance
+        if friction_match.any():
+            failing_index = normalized.index[friction_match][0]
+            raise PortfolioQAError(
+                "Portfolio QA failed: portfolio_execution_friction must equal "
+                "portfolio_transaction_cost + portfolio_slippage_cost "
+                f"at row index {failing_index}."
+            )
     if "portfolio_transaction_cost" in normalized.columns:
         recomputed_returns = recomputed_returns - normalized["portfolio_transaction_cost"]
     if "portfolio_slippage_cost" in normalized.columns:
@@ -290,6 +303,8 @@ def generate_portfolio_qa_summary(
             "sharpe_ratio": _coerce_number(metrics.get("sharpe_ratio")),
             "max_drawdown": _coerce_number(metrics.get("max_drawdown")),
             "turnover": _coerce_number(metrics.get("turnover")),
+            "trade_count": _coerce_number(metrics.get("trade_count")),
+            "total_execution_friction": _coerce_number(metrics.get("total_execution_friction")),
             "exposure_pct": _coerce_number(metrics.get("exposure_pct")),
         },
         "issues": issue_list,
@@ -451,8 +466,13 @@ def _portfolio_returns_artifact_frame(portfolio_df: pd.DataFrame) -> pd.DataFram
         column
         for column in (
             "gross_portfolio_return",
+            "portfolio_weight_change",
+            "portfolio_abs_weight_change",
+            "portfolio_turnover",
+            "portfolio_rebalance_event",
             "portfolio_transaction_cost",
             "portfolio_slippage_cost",
+            "portfolio_execution_friction",
             "net_portfolio_return",
         )
         if column in portfolio_df.columns

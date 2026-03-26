@@ -80,6 +80,16 @@ def _expected_metric_keys() -> set[str]:
         "hit_rate",
         "profit_factor",
         "turnover",
+        "total_turnover",
+        "average_turnover",
+        "trade_count",
+        "rebalance_count",
+        "percent_periods_traded",
+        "average_trade_size",
+        "total_transaction_cost",
+        "total_slippage_cost",
+        "total_execution_friction",
+        "average_execution_friction_per_trade",
         "exposure_pct",
     }
 
@@ -102,6 +112,16 @@ def test_save_experiment_writes_registry_entry_with_stable_schema(
         "hit_rate": 0.5,
         "profit_factor": 2.0,
         "turnover": 0.6667,
+        "total_turnover": 2.0,
+        "average_turnover": 0.6667,
+        "trade_count": 2.0,
+        "rebalance_count": 2.0,
+        "percent_periods_traded": 66.6667,
+        "average_trade_size": 1.0,
+        "total_transaction_cost": 0.0,
+        "total_slippage_cost": 0.0,
+        "total_execution_friction": 0.0,
+        "average_execution_friction_per_trade": 0.0,
         "exposure_pct": 66.6667,
     }
     config = {

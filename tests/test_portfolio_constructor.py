@@ -104,8 +104,13 @@ def test_compute_portfolio_returns_aggregates_weighted_component_returns() -> No
         "weight__alpha",
         "weight__beta",
         "gross_portfolio_return",
+        "portfolio_weight_change",
+        "portfolio_abs_weight_change",
+        "portfolio_turnover",
+        "portfolio_rebalance_event",
         "portfolio_transaction_cost",
         "portfolio_slippage_cost",
+        "portfolio_execution_friction",
         "net_portfolio_return",
         "portfolio_return",
     ]
@@ -144,8 +149,13 @@ def test_construct_portfolio_builds_end_to_end_validated_output() -> None:
         "weight__alpha",
         "weight__beta",
         "gross_portfolio_return",
+        "portfolio_weight_change",
+        "portfolio_abs_weight_change",
+        "portfolio_turnover",
+        "portfolio_rebalance_event",
         "portfolio_transaction_cost",
         "portfolio_slippage_cost",
+        "portfolio_execution_friction",
         "net_portfolio_return",
         "portfolio_return",
         "portfolio_equity_curve",
@@ -178,8 +188,11 @@ def test_compute_portfolio_returns_applies_turnover_aware_execution_costs() -> N
     )
 
     assert portfolio_returns["gross_portfolio_return"].tolist() == pytest.approx([0.01, -0.01, -0.03])
+    assert portfolio_returns["portfolio_turnover"].tolist() == pytest.approx([1.0, 2.0, 2.0])
+    assert portfolio_returns["portfolio_rebalance_event"].tolist() == [1, 1, 1]
     assert portfolio_returns["portfolio_transaction_cost"].tolist() == pytest.approx([0.001, 0.002, 0.002])
     assert portfolio_returns["portfolio_slippage_cost"].tolist() == pytest.approx([0.0005, 0.001, 0.001])
+    assert portfolio_returns["portfolio_execution_friction"].tolist() == pytest.approx([0.0015, 0.003, 0.003])
     assert portfolio_returns["portfolio_return"].tolist() == pytest.approx([0.0085, -0.013, -0.033])
 
 

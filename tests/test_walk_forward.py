@@ -61,6 +61,16 @@ def _expected_metric_keys() -> set[str]:
         "hit_rate",
         "profit_factor",
         "turnover",
+        "total_turnover",
+        "average_turnover",
+        "trade_count",
+        "rebalance_count",
+        "percent_periods_traded",
+        "average_trade_size",
+        "total_transaction_cost",
+        "total_slippage_cost",
+        "total_execution_friction",
+        "average_execution_friction_per_trade",
         "exposure_pct",
     }
 
@@ -224,7 +234,7 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     ]
     assert aggregate_equity_curve["ts_utc"].tolist() == sorted(aggregate_equity_curve["ts_utc"].tolist())
     assert split_equity_curve.columns.tolist() == aggregate_equity_curve.columns.tolist()
-    assert split_signals.columns.tolist()[:5] == ["ts_utc", "date", "symbol", "signal", "position"]
+    assert split_signals.columns.tolist()[:6] == ["ts_utc", "date", "symbol", "signal", "executed_signal", "position"]
     assert split_signals["split_id"].tolist() == ["rolling_0000"]
     assert split_metadata == {
         "split_id": "rolling_0000",

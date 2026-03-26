@@ -147,7 +147,33 @@ def test_compute_performance_metrics_includes_expanded_fields_with_known_trade_v
     assert metrics["hit_rate"] == pytest.approx(2.0 / 3.0)
     assert metrics["profit_factor"] == pytest.approx((0.045 + 0.0192) / 0.03)
     assert metrics["turnover"] == pytest.approx(0.75)
+    assert metrics["total_turnover"] == pytest.approx(6.0)
+    assert metrics["average_turnover"] == pytest.approx(0.75)
+    assert metrics["trade_count"] == pytest.approx(5.0)
+    assert metrics["rebalance_count"] == pytest.approx(5.0)
+    assert metrics["percent_periods_traded"] == pytest.approx(62.5)
+    assert metrics["average_trade_size"] == pytest.approx(1.2)
     assert metrics["exposure_pct"] == pytest.approx(62.5)
+
+
+def test_compute_performance_metrics_aggregates_execution_cost_attribution() -> None:
+    results_df = pd.DataFrame(
+        {
+            "timeframe": ["1d"] * 4,
+            "executed_signal": [0.0, 1.0, 1.0, -1.0],
+            "strategy_return": [0.0, 0.01, 0.02, -0.03],
+            "transaction_cost": [0.0, 0.001, 0.0, 0.002],
+            "slippage_cost": [0.0, 0.0005, 0.0, 0.001],
+            "execution_friction": [0.0, 0.0015, 0.0, 0.003],
+        }
+    )
+
+    metrics = compute_performance_metrics(results_df)
+
+    assert metrics["total_transaction_cost"] == pytest.approx(0.003)
+    assert metrics["total_slippage_cost"] == pytest.approx(0.0015)
+    assert metrics["total_execution_friction"] == pytest.approx(0.0045)
+    assert metrics["average_execution_friction_per_trade"] == pytest.approx(0.00225)
 
 
 def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:

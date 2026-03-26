@@ -152,8 +152,12 @@ def validate_portfolio_output(df: pd.DataFrame) -> pd.DataFrame:
         )
     for execution_column in (
         "gross_portfolio_return",
+        "portfolio_weight_change",
+        "portfolio_abs_weight_change",
+        "portfolio_turnover",
         "portfolio_transaction_cost",
         "portfolio_slippage_cost",
+        "portfolio_execution_friction",
         "net_portfolio_return",
     ):
         if execution_column in normalized.columns:
@@ -188,6 +192,20 @@ def validate_portfolio_output(df: pd.DataFrame) -> pd.DataFrame:
             "portfolio output traceability columns are inconsistent: " + "; ".join(details) + "."
         )
 
+    if "portfolio_turnover" in normalized.columns and (normalized["portfolio_turnover"] < 0.0).any():
+        raise PortfolioContractError("portfolio output column 'portfolio_turnover' must be non-negative.")
+    if "portfolio_abs_weight_change" in normalized.columns and "portfolio_turnover" in normalized.columns:
+        if not normalized["portfolio_abs_weight_change"].equals(normalized["portfolio_turnover"]):
+            raise PortfolioContractError(
+                "portfolio output columns 'portfolio_abs_weight_change' and 'portfolio_turnover' must match."
+            )
+    if "portfolio_rebalance_event" in normalized.columns:
+        rebalance_event = normalized["portfolio_rebalance_event"].astype("bool")
+        if "portfolio_turnover" in normalized.columns and not rebalance_event.equals(normalized["portfolio_turnover"].gt(0.0)):
+            raise PortfolioContractError(
+                "portfolio output column 'portfolio_rebalance_event' must match non-zero portfolio_turnover rows."
+            )
+
     ordered_columns = ["ts_utc"]
     ordered_columns.extend(sorted(return_columns))
     ordered_columns.extend(sorted(weight_columns))
@@ -195,8 +213,13 @@ def validate_portfolio_output(df: pd.DataFrame) -> pd.DataFrame:
         column
         for column in (
             "gross_portfolio_return",
+            "portfolio_weight_change",
+            "portfolio_abs_weight_change",
+            "portfolio_turnover",
+            "portfolio_rebalance_event",
             "portfolio_transaction_cost",
             "portfolio_slippage_cost",
+            "portfolio_execution_friction",
             "net_portfolio_return",
         )
         if column in normalized.columns

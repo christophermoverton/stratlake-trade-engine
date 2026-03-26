@@ -221,8 +221,13 @@ def _portfolio_returns_frame(portfolio_output: pd.DataFrame) -> pd.DataFrame:
         column
         for column in (
             "gross_portfolio_return",
+            "portfolio_weight_change",
+            "portfolio_abs_weight_change",
+            "portfolio_turnover",
+            "portfolio_rebalance_event",
             "portfolio_transaction_cost",
             "portfolio_slippage_cost",
+            "portfolio_execution_friction",
             "net_portfolio_return",
         )
         if column in portfolio_output.columns

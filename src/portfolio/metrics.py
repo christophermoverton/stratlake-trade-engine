@@ -16,6 +16,7 @@ from src.research.metrics import (
     volatility,
     win_rate,
 )
+from src.research.turnover import compute_weight_change_frame
 
 _DAILY_TIMEFRAMES = frozenset({"1d", "1day", "day", "daily"})
 _MINUTE_TIMEFRAMES = frozenset({"1m", "1min", "1minute", "minute", "minutes"})
@@ -50,6 +51,11 @@ def compute_portfolio_metrics(
 
     total = total_return(portfolio_returns)
     weight_frame = _extract_weight_frame(normalized)
+    weight_change = None if weight_frame is None else compute_weight_change_frame(weight_frame)
+    trade_count = 0 if weight_change is None else int(weight_change["portfolio_rebalance_event"].sum())
+    transaction_cost = _optional_numeric_series(normalized, "portfolio_transaction_cost")
+    slippage_cost = _optional_numeric_series(normalized, "portfolio_slippage_cost")
+    execution_friction = _optional_numeric_series(normalized, "portfolio_execution_friction")
 
     return {
         "cumulative_return": total,
@@ -66,6 +72,16 @@ def compute_portfolio_metrics(
         "hit_rate": hit_rate(portfolio_returns),
         "profit_factor": profit_factor(portfolio_returns),
         "turnover": _portfolio_turnover(weight_frame),
+        "total_turnover": None if weight_change is None else float(weight_change["portfolio_turnover"].sum()),
+        "average_turnover": _portfolio_turnover(weight_frame),
+        "trade_count": None if weight_change is None else float(trade_count),
+        "rebalance_count": None if weight_change is None else float(trade_count),
+        "percent_periods_traded": None if weight_change is None else float(weight_change["portfolio_rebalance_event"].mean() * 100.0),
+        "average_trade_size": None if weight_change is None else (float(weight_change["portfolio_turnover"].sum()) / trade_count if trade_count else 0.0),
+        "total_transaction_cost": float(transaction_cost.sum()),
+        "total_slippage_cost": float(slippage_cost.sum()),
+        "total_execution_friction": float(execution_friction.sum()),
+        "average_execution_friction_per_trade": float(execution_friction.sum() / trade_count) if trade_count else 0.0,
         "exposure_pct": _portfolio_exposure_pct(weight_frame),
     }
 
@@ -113,8 +129,7 @@ def _portfolio_turnover(weight_frame: pd.DataFrame | None) -> float | None:
     if weight_frame.empty:
         return 0.0
 
-    weight_changes = weight_frame.diff().fillna(0.0)
-    return float(weight_changes.abs().sum(axis=1).mean())
+    return float(compute_weight_change_frame(weight_frame)["portfolio_turnover"].mean())
 
 
 def _portfolio_exposure_pct(weight_frame: pd.DataFrame | None) -> float | None:
@@ -125,6 +140,12 @@ def _portfolio_exposure_pct(weight_frame: pd.DataFrame | None) -> float | None:
 
     gross_exposure = weight_frame.abs().sum(axis=1)
     return float((gross_exposure.gt(0.0).mean()) * 100.0)
+
+
+def _optional_numeric_series(portfolio_output: pd.DataFrame, column: str) -> pd.Series:
+    if column not in portfolio_output.columns:
+        return pd.Series(0.0, index=portfolio_output.index, dtype="float64")
+    return pd.to_numeric(portfolio_output[column], errors="coerce").fillna(0.0).astype("float64")
 
 
 __all__ = ["compute_portfolio_metrics"]

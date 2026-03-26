@@ -249,7 +249,7 @@ def test_run_strategy_experiment_loads_curated_daily_features_and_supports_mean_
     assert isinstance(result, StrategyRunResult)
     assert result.strategy_name == "mean_reversion_v1"
     assert result.run_id == "run-mean-reversion"
-    assert {"executed_signal", "delta_position", "gross_strategy_return", "net_strategy_return"}.issubset(
+    assert {"executed_signal", "delta_position", "abs_delta_position", "turnover", "trade_event", "gross_strategy_return", "net_strategy_return", "execution_friction"}.issubset(
         result.results_df.columns
     )
     assert result.results_df["close"].tolist() == pytest.approx(feature_df["close"].tolist())

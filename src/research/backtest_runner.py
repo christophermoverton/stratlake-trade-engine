@@ -4,6 +4,7 @@ import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.research.integrity import validate_research_integrity
+from src.research.turnover import compute_position_change_frame, validate_position_change_frame
 
 RETURN_COLUMN_CANDIDATES: tuple[str, ...] = (
     "ret_1",
@@ -80,19 +81,24 @@ def run_backtest(
         execution_delay=config.execution_delay,
     )
 
-    delta_position = executed_signal.diff().fillna(executed_signal).astype("float64")
+    position_change_frame = compute_position_change_frame(executed_signal)
+    validate_position_change_frame(position_change_frame)
     gross_strategy_return = (executed_signal * result[return_column]).astype("float64")
-    transaction_cost = _execution_cost(delta_position, config.transaction_cost_bps, enabled=config.enabled)
-    slippage_cost = _execution_cost(delta_position, config.slippage_bps, enabled=config.enabled)
+    transaction_cost = _execution_cost(position_change_frame["delta_position"], config.transaction_cost_bps, enabled=config.enabled)
+    slippage_cost = _execution_cost(position_change_frame["delta_position"], config.slippage_bps, enabled=config.enabled)
 
     result["executed_signal"] = executed_signal
-    result["position"] = executed_signal
-    result["delta_position"] = delta_position
+    result["position"] = position_change_frame["position"]
+    result["delta_position"] = position_change_frame["delta_position"]
+    result["abs_delta_position"] = position_change_frame["abs_delta_position"]
+    result["turnover"] = position_change_frame["turnover"]
+    result["trade_event"] = position_change_frame["trade_event"]
     result["gross_strategy_return"] = gross_strategy_return
     result["transaction_cost"] = transaction_cost
     result["slippage_cost"] = slippage_cost
+    result["execution_friction"] = (transaction_cost + slippage_cost).astype("float64")
     result["net_strategy_return"] = (
-        gross_strategy_return - transaction_cost - slippage_cost
+        gross_strategy_return - result["execution_friction"]
     ).astype("float64")
     result["strategy_return"] = result["net_strategy_return"]
     result["equity_curve"] = (1.0 + result["strategy_return"]).cumprod()

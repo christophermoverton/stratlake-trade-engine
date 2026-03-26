@@ -3,6 +3,7 @@ from __future__ import annotations
 import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
+from src.research.turnover import compute_weight_change_frame, validate_weight_change_frame
 from .allocators import BaseAllocator
 from .contracts import (
     PortfolioContractError,
@@ -47,12 +48,18 @@ def compute_portfolio_returns(
         output[f"weight__{strategy_name}"] = normalized_weights[strategy_name].to_numpy(copy=True)
 
     gross_returns = (normalized_returns * normalized_weights).sum(axis=1).astype("float64")
-    weight_turnover = normalized_weights.diff().fillna(normalized_weights).abs().sum(axis=1).astype("float64")
-    transaction_cost = _weight_execution_cost(weight_turnover, config.transaction_cost_bps, enabled=config.enabled)
-    slippage_cost = _weight_execution_cost(weight_turnover, config.slippage_bps, enabled=config.enabled)
+    weight_change = compute_weight_change_frame(normalized_weights)
+    validate_weight_change_frame(weight_change)
+    transaction_cost = _weight_execution_cost(weight_change["portfolio_turnover"], config.transaction_cost_bps, enabled=config.enabled)
+    slippage_cost = _weight_execution_cost(weight_change["portfolio_turnover"], config.slippage_bps, enabled=config.enabled)
     output["gross_portfolio_return"] = gross_returns.to_numpy(copy=True)
+    output["portfolio_weight_change"] = weight_change["portfolio_weight_change"].to_numpy(copy=True)
+    output["portfolio_abs_weight_change"] = weight_change["portfolio_abs_weight_change"].to_numpy(copy=True)
+    output["portfolio_turnover"] = weight_change["portfolio_turnover"].to_numpy(copy=True)
+    output["portfolio_rebalance_event"] = weight_change["portfolio_rebalance_event"].astype("int64").to_numpy(copy=True)
     output["portfolio_transaction_cost"] = transaction_cost.to_numpy(copy=True)
     output["portfolio_slippage_cost"] = slippage_cost.to_numpy(copy=True)
+    output["portfolio_execution_friction"] = (transaction_cost + slippage_cost).to_numpy(copy=True)
     output["net_portfolio_return"] = (
         gross_returns - transaction_cost - slippage_cost
     ).to_numpy(copy=True)

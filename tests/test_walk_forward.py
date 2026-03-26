@@ -208,11 +208,21 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     assert _expected_metric_keys().issubset(aggregate_metrics)
     assert aggregate_metrics["cumulative_return"] == pytest.approx(result.metrics["cumulative_return"])
 
+    config_payload = json.loads((result.experiment_dir / "config.json").read_text(encoding="utf-8"))
+    assert config_payload["strict_mode"] == {
+        "enabled": False,
+        "source": "default",
+    }
+
     manifest = json.loads((result.experiment_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["run_id"] == result.run_id
     assert manifest["strategy_name"] == "sign_v1"
     assert manifest["evaluation_mode"] == "walk_forward"
     assert manifest["evaluation_config_path"] == str(config_path)
+    assert manifest["strict_mode"] == {
+        "enabled": False,
+        "source": "default",
+    }
     assert manifest["split_count"] == 4
     assert "metrics_by_split.csv" in manifest["artifact_files"]
     assert "splits/rolling_0000/equity_curve.csv" in manifest["artifact_files"]
@@ -319,3 +329,38 @@ def test_run_walk_forward_experiment_reports_flagged_splits_in_non_strict_sanity
     metrics_payload = json.loads((result.experiment_dir / "metrics.json").read_text(encoding="utf-8"))
     assert metrics_payload["flagged_split_count"] >= 1
     assert metrics_payload["sanity_status"] in {"pass", "warn"}
+
+
+def test_run_walk_forward_experiment_records_enabled_strict_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    config_path = tmp_path / "evaluation.yml"
+    _write_evaluation_config(
+        config_path,
+        {
+            "mode": "fixed",
+            "timeframe": "1d",
+            "train_start": "2022-01-01",
+            "train_end": "2022-01-05",
+            "test_start": "2022-01-05",
+            "test_end": "2022-01-07",
+        },
+    )
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    monkeypatch.setattr("src.research.walk_forward.load_features", lambda dataset, start=None, end=None: _feature_frame())
+
+    result = run_walk_forward_experiment(
+        "sign_v1",
+        SignStrategy(),
+        evaluation_path=config_path,
+        strict=True,
+    )
+
+    config_payload = json.loads((result.experiment_dir / "config.json").read_text(encoding="utf-8"))
+    assert config_payload["strict_mode"] == {
+        "enabled": True,
+        "source": "cli",
+    }

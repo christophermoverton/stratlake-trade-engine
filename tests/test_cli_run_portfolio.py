@@ -42,6 +42,23 @@ def test_parse_args_accepts_portfolio_runner_flags() -> None:
     assert args.evaluation == "configs/evaluation.yml"
     assert args.output_dir == "artifacts/custom-portfolios"
     assert args.timeframe == "1D"
+    assert args.strict is False
+
+
+def test_parse_args_accepts_portfolio_strict_flag() -> None:
+    args = parse_args(
+        [
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-a",
+            "--timeframe",
+            "1D",
+            "--strict",
+        ]
+    )
+
+    assert args.strict is True
 
 
 def test_parse_run_ids_supports_mixed_cli_formats() -> None:
@@ -189,6 +206,10 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
         "execution_delay": 1,
         "transaction_cost_bps": 0.0,
         "slippage_bps": 0.0,
+    }
+    assert result.config["strict_mode"] == {
+        "enabled": False,
+        "source": "default",
     }
     assert result.config["timeframe"] == "1D"
 
@@ -583,6 +604,7 @@ def test_run_cli_strict_sanity_failure_prevents_portfolio_write(
         }
     )
     write_calls = {"count": 0}
+    registry_calls = {"count": 0}
 
     monkeypatch.setattr("src.cli.run_portfolio.construct_portfolio", lambda *args, **kwargs: portfolio_output)
     monkeypatch.setattr(
@@ -630,6 +652,10 @@ def test_run_cli_strict_sanity_failure_prevents_portfolio_write(
         "src.portfolio.write_portfolio_artifacts",
         lambda *args, **kwargs: write_calls.__setitem__("count", write_calls["count"] + 1),
     )
+    monkeypatch.setattr(
+        "src.cli.run_portfolio.register_portfolio_run",
+        lambda *args, **kwargs: registry_calls.__setitem__("count", registry_calls["count"] + 1),
+    )
 
     with pytest.raises(ValueError, match="absolute portfolio_return exceeds configured maximum"):
         run_cli(
@@ -645,6 +671,83 @@ def test_run_cli_strict_sanity_failure_prevents_portfolio_write(
         )
 
     assert write_calls["count"] == 0
+    assert registry_calls["count"] == 0
+
+
+def test_run_cli_passes_strict_flag_to_portfolio_walk_forward(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        "src.cli.run_portfolio._resolve_portfolio_inputs",
+        lambda **kwargs: (
+            {
+                "portfolio_name": "core_portfolio",
+                "allocator": "equal_weight",
+                "components": [
+                    {"strategy_name": "alpha_v1", "run_id": "run-alpha", "source_artifact_path": "a"},
+                ],
+                "initial_capital": 1.0,
+                "alignment_policy": "intersection",
+                "execution": {
+                    "enabled": False,
+                    "execution_delay": 1,
+                    "transaction_cost_bps": 0.0,
+                    "slippage_bps": 0.0,
+                },
+                "validation": None,
+                "sanity": None,
+                "timeframe": "1D",
+                "evaluation_config_path": "configs/evaluation.yml",
+            },
+            [Path("a")],
+            [
+                {"strategy_name": "alpha_v1", "run_id": "run-alpha", "source_artifact_path": "a"},
+            ],
+        ),
+    )
+    calls: dict[str, object] = {}
+
+    def fake_run_portfolio_walk_forward(**kwargs):
+        calls.update(kwargs)
+        return {
+            "portfolio_name": "core_portfolio",
+            "run_id": "wf-portfolio",
+            "allocator_name": "equal_weight",
+            "timeframe": "1D",
+            "component_count": 1,
+            "split_count": 1,
+            "metrics": {"total_return": 0.0, "sharpe_ratio": 0.0, "max_drawdown": 0.0},
+            "aggregate_metrics": {
+                "metric_statistics": {
+                    "total_return": {"mean": 0.0},
+                    "sharpe_ratio": {"mean": 0.0},
+                    "max_drawdown": {"min": 0.0},
+                }
+            },
+            "experiment_dir": Path("artifacts/portfolios/wf-portfolio"),
+            "config": {"strict_mode": {"enabled": True, "source": "cli"}},
+            "components": [{"strategy_name": "alpha_v1", "run_id": "run-alpha"}],
+        }
+
+    monkeypatch.setattr("src.cli.run_portfolio.run_portfolio_walk_forward", fake_run_portfolio_walk_forward)
+
+    run_cli(
+        [
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-alpha",
+            "--evaluation",
+            "configs/evaluation.yml",
+            "--timeframe",
+            "1D",
+            "--strict",
+        ]
+    )
+
+    assert calls["strict_mode"] is True
+    assert calls["validation_config"]["strict_sanity_checks"] is True
+    assert calls["sanity_config"]["strict_sanity_checks"] is True
 
 
 def _write_strategy_run(

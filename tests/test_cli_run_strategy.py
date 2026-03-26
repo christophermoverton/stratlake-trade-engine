@@ -55,6 +55,7 @@ def test_parse_args_accepts_strategy_and_date_filters() -> None:
     assert args.start == "2025-01-01"
     assert args.end == "2025-02-01"
     assert args.evaluation is None
+    assert args.strict is False
 
 
 def test_parse_args_accepts_evaluation_flag_without_path() -> None:
@@ -62,6 +63,12 @@ def test_parse_args_accepts_evaluation_flag_without_path() -> None:
 
     assert args.strategy == "momentum_v1"
     assert args.evaluation.endswith("configs\\evaluation.yml")
+
+
+def test_parse_args_accepts_strict_flag() -> None:
+    args = parse_args(["--strategy", "momentum_v1", "--strict"])
+
+    assert args.strict is True
 
 
 def test_get_strategy_config_raises_for_unknown_strategy() -> None:
@@ -161,6 +168,10 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
             "smoothness_min_sharpe": 3.0,
             "strict_sanity_checks": False,
         },
+        "strict_mode": {
+            "enabled": False,
+            "source": "default",
+        },
     }
 
     stdout = capsys.readouterr().out
@@ -212,7 +223,7 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr("src.cli.run_strategy.load_strategies_config", lambda path=None: strategy_config)
 
-    def fake_run_walk_forward_experiment(strategy_name, strategy, evaluation_path, strategy_config, execution_config):
+    def fake_run_walk_forward_experiment(strategy_name, strategy, evaluation_path, strategy_config, execution_config, strict):
         calls["walk_forward"] = {
             "strategy_name": strategy_name,
             "strategy_name_attr": strategy.name,
@@ -220,6 +231,7 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
             "evaluation_path": evaluation_path,
             "strategy_config": strategy_config,
             "execution_config": execution_config.to_dict(),
+            "strict": strict,
         }
         return walk_forward_result
 
@@ -239,6 +251,7 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
         "transaction_cost_bps": 0.0,
         "slippage_bps": 0.0,
     }
+    assert calls["walk_forward"]["strict"] is False
 
     stdout = capsys.readouterr().out
     assert "strategy: momentum_v1" in stdout
@@ -406,3 +419,26 @@ def test_run_strategy_experiment_non_strict_sanity_records_warning(
     assert result.metrics["sanity_issue_count"] >= 1
     assert result.qa_summary["sanity"]["status"] == "warn"
     assert result.qa_summary["overall_status"] == "warn"
+
+
+def test_run_cli_passes_strict_flag_to_single_strategy_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("src.cli.run_strategy.get_strategy_config", lambda strategy_name: {"dataset": "features_daily"})
+    calls: dict[str, object] = {}
+
+    def fake_run_strategy_experiment(strategy_name, **kwargs):
+        calls["strategy_name"] = strategy_name
+        calls["kwargs"] = kwargs
+        return StrategyRunResult(
+            strategy_name=strategy_name,
+            run_id="strict-run",
+            metrics={"cumulative_return": 0.0, "sharpe_ratio": 0.0},
+            experiment_dir=Path("artifacts/strategies/strict-run"),
+            results_df=pd.DataFrame({"signal": [], "strategy_return": [], "equity_curve": []}),
+        )
+
+    monkeypatch.setattr("src.cli.run_strategy.run_strategy_experiment", fake_run_strategy_experiment)
+
+    run_cli(["--strategy", "momentum_v1", "--strict"])
+
+    assert calls["strategy_name"] == "momentum_v1"
+    assert calls["kwargs"]["strict"] is True

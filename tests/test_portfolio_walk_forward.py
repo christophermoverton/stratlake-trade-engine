@@ -107,6 +107,12 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
         "max": pytest.approx(0.025),
     }
 
+    config_payload = json.loads((experiment_dir / "config.json").read_text(encoding="utf-8"))
+    assert config_payload["strict_mode"] == {
+        "enabled": False,
+        "source": "default",
+    }
+
     split_metadata = json.loads(
         (experiment_dir / "splits" / "rolling_0000" / "split.json").read_text(encoding="utf-8")
     )
@@ -124,6 +130,10 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
 
     manifest = json.loads((experiment_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["split_count"] == 2
+    assert manifest["strict_mode"] == {
+        "enabled": False,
+        "source": "default",
+    }
     assert manifest["split_artifact_dirs"] == ["splits/rolling_0000", "splits/rolling_0001"]
     assert manifest["aggregate_metric_summary"]["total_return"] == pytest.approx(0.0175)
     assert "aggregate_metrics.json" in manifest["artifact_files"]
@@ -347,6 +357,66 @@ def test_run_portfolio_walk_forward_strict_sanity_failure_prevents_artifact_writ
         )
 
     assert not portfolio_root.exists() or not any(portfolio_root.iterdir())
+
+
+def test_run_portfolio_walk_forward_records_enabled_strict_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-alpha",
+        strategy_name="alpha_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.01},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.02},
+        ],
+    )
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-beta",
+        strategy_name="beta_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.02},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.01},
+        ],
+    )
+    evaluation_path = tmp_path / "evaluation.yml"
+    _write_evaluation_config(
+        evaluation_path,
+        {
+            "mode": "fixed",
+            "timeframe": "1d",
+            "train_start": "2025-01-01",
+            "train_end": "2025-01-02",
+            "test_start": "2025-01-02",
+            "test_end": "2025-01-03",
+        },
+    )
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", strategy_root)
+
+    result = run_portfolio_walk_forward(
+        component_run_ids=["run-alpha", "run-beta"],
+        evaluation_config_path=evaluation_path,
+        allocator=EqualWeightAllocator(),
+        timeframe="1D",
+        output_dir=portfolio_root,
+        portfolio_name="core_portfolio",
+        strict_mode=True,
+        sanity_config={
+            "max_annualized_return": 1_000.0,
+            "min_annualized_volatility_floor": 0.0,
+        },
+    )
+
+    config_payload = json.loads((Path(result["experiment_dir"]) / "config.json").read_text(encoding="utf-8"))
+    assert config_payload["strict_mode"] == {
+        "enabled": True,
+        "source": "cli",
+    }
 
 
 def _write_strategy_run(

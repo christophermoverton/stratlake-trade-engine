@@ -150,6 +150,13 @@ def test_save_experiment_writes_standardized_artifacts(
             "correlation": None,
             "relative_drawdown": None,
         },
+        "sanity": {
+            "issue_count": 0,
+            "issues": [],
+            "status": "pass",
+            "strict_sanity_checks": False,
+            "warning_count": 0,
+        },
         "flags": {
             "no_data": False,
             "degenerate_signal": False,
@@ -160,6 +167,7 @@ def test_save_experiment_writes_standardized_artifacts(
             "low_excess_return": False,
             "high_turnover_low_edge": False,
             "beta_dominated_strategy": False,
+            "sanity_warning": False,
         },
         "overall_status": "warn",
     }

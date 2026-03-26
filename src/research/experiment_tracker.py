@@ -228,6 +228,7 @@ def _build_registry_entry(
         "artifact_path": experiment_dir.as_posix(),
         "split_count": split_count,
         "evaluation_config_path": config.get("evaluation_config_path"),
+        "strict_mode": config.get("strict_mode"),
     }
 
 
@@ -648,6 +649,7 @@ def _build_manifest(
         "strategy_name": strategy_name,
         "evaluation_mode": evaluation_mode,
         "evaluation_config_path": config.get("evaluation_config_path"),
+        "strict_mode": config.get("strict_mode"),
         "artifact_files": artifact_files,
         "split_count": split_count,
         "primary_metric": "sharpe_ratio",

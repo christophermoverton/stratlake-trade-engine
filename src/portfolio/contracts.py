@@ -39,7 +39,7 @@ class PortfolioValidationConfig:
     min_single_sleeve_weight: float | None = None
     max_abs_period_return: float | None = _DEFAULT_VALIDATION_MAX_ABS_PERIOD_RETURN
     max_equity_multiple: float | None = _DEFAULT_VALIDATION_MAX_EQUITY_MULTIPLE
-    strict_sanity_checks: bool = True
+    strict_sanity_checks: bool = False
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -593,7 +593,7 @@ def resolve_portfolio_validation_config(
         payload.get("max_equity_multiple", _DEFAULT_VALIDATION_MAX_EQUITY_MULTIPLE),
         field_name="validation.max_equity_multiple",
     )
-    strict_sanity_checks = payload.get("strict_sanity_checks", True)
+    strict_sanity_checks = payload.get("strict_sanity_checks", False)
     if not isinstance(strict_sanity_checks, bool):
         raise PortfolioContractError(
             "portfolio validation field 'strict_sanity_checks' must be a boolean."

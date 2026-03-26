@@ -20,6 +20,13 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
+from src.research.strict_mode import (
+    ResearchStrictModeError,
+    apply_strict_mode_to_sanity_config,
+    apply_strict_mode_to_validation_config,
+    raise_research_validation_error,
+    resolve_strict_mode_policy,
+)
 from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 
@@ -106,7 +113,9 @@ def run_portfolio_walk_forward(
     initial_capital: float = 1.0,
     alignment_policy: str = "intersection",
     execution_config: ExecutionConfig | None = None,
+    validation_config: Mapping[str, Any] | None = None,
     sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
+    strict_mode: bool = False,
 ) -> dict[str, Any]:
     """Construct and score one portfolio independently for each evaluation split."""
 
@@ -116,6 +125,13 @@ def run_portfolio_walk_forward(
     evaluation_path = Path(evaluation_config_path)
     evaluation_config = load_evaluation_config(evaluation_path)
     _validate_timeframe_compatibility(normalized_timeframe, evaluation_config)
+    strict_policy = resolve_strict_mode_policy(
+        cli_strict=strict_mode,
+        sanity_config=sanity_config,
+        validation_config=validation_config,
+    )
+    resolved_validation = apply_strict_mode_to_validation_config(validation_config, strict_policy)
+    resolved_sanity = apply_strict_mode_to_sanity_config(sanity_config, strict_policy)
 
     splits = generate_evaluation_splits(evaluation_config)
     if not splits:
@@ -130,7 +146,9 @@ def run_portfolio_walk_forward(
         alignment_policy=alignment_policy,
         evaluation_path=evaluation_path,
         execution_config=execution_config,
-        sanity_config=sanity_config,
+        validation_config=resolved_validation,
+        sanity_config=resolved_sanity,
+        strict_policy=strict_policy,
     )
     run_id = generate_portfolio_run_id(
         portfolio_name=normalized_portfolio_name,
@@ -151,8 +169,9 @@ def run_portfolio_walk_forward(
             initial_capital=float(initial_capital),
             portfolio_name=normalized_portfolio_name,
             execution_config=execution_config,
-            validation_config=root_config.get("validation"),
-            sanity_config=root_config.get("sanity"),
+            validation_config=resolved_validation.to_dict(),
+            sanity_config=resolved_sanity.to_dict(),
+            strict_mode=strict_policy.enabled,
         )
         for split in splits
     ]
@@ -281,6 +300,7 @@ def _execute_portfolio_split(
     execution_config: ExecutionConfig | None,
     validation_config: Mapping[str, Any] | None,
     sanity_config: Mapping[str, Any] | None,
+    strict_mode: bool,
 ) -> dict[str, Any]:
     split_returns = _slice_strategy_returns_for_split(strategy_returns, split)
     aligned_returns = build_aligned_return_matrix(split_returns)
@@ -289,13 +309,24 @@ def _execute_portfolio_split(
             f"Split '{split.split_id}' produced an empty aligned return matrix after intersection alignment."
         )
 
-    portfolio_output = construct_portfolio(
-        aligned_returns,
-        allocator,
-        initial_capital=initial_capital,
-        execution_config=execution_config,
-        validation_config=validation_config,
-    )
+    try:
+        portfolio_output = construct_portfolio(
+            aligned_returns,
+            allocator,
+            initial_capital=initial_capital,
+            execution_config=execution_config,
+            validation_config=validation_config,
+        )
+    except ValueError as exc:
+        try:
+            raise_research_validation_error(
+                validator="portfolio_validation",
+                scope=f"portfolio_walk_forward_split:{split.split_id}",
+                exc=exc,
+                strict_mode=strict_mode,
+            )
+        except ResearchStrictModeError as strict_exc:
+            raise PortfolioWalkForwardError(str(strict_exc)) from strict_exc
     metrics = compute_portfolio_metrics(
         portfolio_output,
         timeframe,
@@ -310,7 +341,15 @@ def _execute_portfolio_split(
             scope=f"portfolio_walk_forward_split:{split.split_id}",
         )
     except SanityCheckError as exc:
-        raise PortfolioWalkForwardError(str(exc)) from exc
+        try:
+            raise_research_validation_error(
+                validator="sanity",
+                scope=f"portfolio_walk_forward_split:{split.split_id}",
+                exc=exc,
+                strict_mode=strict_mode,
+            )
+        except ResearchStrictModeError as strict_exc:
+            raise PortfolioWalkForwardError(str(strict_exc)) from strict_exc
     metrics = sanity_report.apply_to_metrics(metrics)
     portfolio_output.attrs["sanity_check"] = sanity_report.to_dict()
     split_metadata = _split_metadata(split, row_count=len(portfolio_output))
@@ -525,6 +564,7 @@ def _build_manifest(
         "allocator": config["allocator"],
         "evaluation_mode": "walk_forward",
         "evaluation_config_path": config["evaluation_config_path"],
+        "strict_mode": config.get("strict_mode"),
         "component_count": len(components),
         "split_count": len(split_results),
         "split_artifact_dirs": list(split_artifact_dirs),
@@ -544,7 +584,9 @@ def _build_root_config(
     alignment_policy: str,
     evaluation_path: Path,
     execution_config: ExecutionConfig | None,
+    validation_config: Mapping[str, Any] | None,
     sanity_config: SanityCheckConfig | dict[str, Any] | None,
+    strict_policy: Any,
 ) -> dict[str, Any]:
     return {
         "portfolio_name": portfolio_name,
@@ -558,8 +600,9 @@ def _build_root_config(
         ),
         "timeframe": timeframe,
         "evaluation_config_path": evaluation_path.as_posix(),
-        "validation": resolve_portfolio_validation_config(None).to_dict(),
+        "validation": resolve_portfolio_validation_config(validation_config).to_dict(),
         "sanity": resolve_sanity_check_config(sanity_config).to_dict(),
+        "strict_mode": strict_policy.to_dict(),
     }
 
 

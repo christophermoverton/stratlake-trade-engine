@@ -30,6 +30,13 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
+from src.research.strict_mode import (
+    ResearchStrictModeError,
+    apply_strict_mode_to_sanity_config,
+    apply_strict_mode_to_validation_config,
+    raise_research_validation_error,
+    resolve_strict_mode_policy,
+)
 from src.research.sanity import validate_portfolio_output_sanity
 
 DEFAULT_PORTFOLIO_ARTIFACTS_ROOT = Path("artifacts") / "portfolios"
@@ -133,6 +140,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Disable transaction-cost and slippage frictions for this run.",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enable strict research-validity enforcement and block artifact or registry writes on flagged runs.",
+    )
     return parser.parse_args(argv)
 
 
@@ -170,6 +182,21 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
         execution_override=execution_override,
     )
+    strict_policy = resolve_strict_mode_policy(
+        cli_strict=args.strict,
+        sanity_config=resolved_config.get("sanity"),
+        validation_config=resolved_config.get("validation"),
+    )
+    resolved_config = dict(resolved_config)
+    resolved_config["sanity"] = apply_strict_mode_to_sanity_config(
+        resolved_config.get("sanity"),
+        strict_policy,
+    ).to_dict()
+    resolved_config["validation"] = apply_strict_mode_to_validation_config(
+        resolved_config.get("validation"),
+        strict_policy,
+    ).to_dict()
+    resolved_config["strict_mode"] = strict_policy.to_dict()
 
     allocator = _build_allocator(resolved_config["allocator"])
     output_root = DEFAULT_PORTFOLIO_ARTIFACTS_ROOT if args.output_dir is None else Path(args.output_dir)
@@ -185,7 +212,9 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             initial_capital=float(resolved_config["initial_capital"]),
             alignment_policy=str(resolved_config["alignment_policy"]),
             execution_config=_portfolio_execution_config(resolved_config),
+            validation_config=resolved_config.get("validation"),
             sanity_config=resolved_config.get("sanity"),
+            strict_mode=strict_policy.enabled,
         )
         result = PortfolioWalkForwardRunResult(
             portfolio_name=str(walk_forward_result["portfolio_name"]),
@@ -203,24 +232,40 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
     else:
         strategy_returns = load_strategy_runs_returns(run_dirs)
         aligned_returns = build_aligned_return_matrix(strategy_returns)
-        portfolio_output = construct_portfolio(
-            aligned_returns,
-            allocator,
-            initial_capital=float(resolved_config["initial_capital"]),
-            execution_config=_portfolio_execution_config(resolved_config),
-            validation_config=resolved_config.get("validation"),
-        )
+        try:
+            portfolio_output = construct_portfolio(
+                aligned_returns,
+                allocator,
+                initial_capital=float(resolved_config["initial_capital"]),
+                execution_config=_portfolio_execution_config(resolved_config),
+                validation_config=resolved_config.get("validation"),
+            )
+        except ValueError as exc:
+            raise_research_validation_error(
+                validator="portfolio_validation",
+                scope=f"portfolio:{resolved_config['portfolio_name']}",
+                exc=exc,
+                strict_mode=strict_policy.enabled,
+            )
         metrics = compute_portfolio_metrics(
             portfolio_output,
             timeframe,
             validation_config=resolved_config.get("validation"),
         )
-        sanity_report = validate_portfolio_output_sanity(
-            portfolio_output,
-            metrics,
-            resolved_config.get("sanity"),
-            initial_capital=float(resolved_config["initial_capital"]),
-        )
+        try:
+            sanity_report = validate_portfolio_output_sanity(
+                portfolio_output,
+                metrics,
+                resolved_config.get("sanity"),
+                initial_capital=float(resolved_config["initial_capital"]),
+            )
+        except ValueError as exc:
+            raise_research_validation_error(
+                validator="sanity",
+                scope=f"portfolio:{resolved_config['portfolio_name']}",
+                exc=exc,
+                strict_mode=strict_policy.enabled,
+            )
         metrics = sanity_report.apply_to_metrics(metrics)
         portfolio_output.attrs["sanity_check"] = sanity_report.to_dict()
 
@@ -311,7 +356,7 @@ def main() -> None:
 
     try:
         run_cli()
-    except ValueError as exc:
+    except (ResearchStrictModeError, ValueError) as exc:
         print(_format_run_failure(exc), file=sys.stderr)
         raise SystemExit(1) from exc
 

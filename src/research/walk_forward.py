@@ -8,11 +8,17 @@ import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.config.evaluation import EVALUATION_CONFIG, EvaluationConfig, load_evaluation_config
-from src.config.sanity import SanityCheckConfig, resolve_sanity_check_config
+from src.config.sanity import SanityCheckConfig
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_walk_forward_experiment
 from src.research.metrics import compute_performance_metrics
+from src.research.strict_mode import (
+    ResearchStrictModeError,
+    apply_strict_mode_to_sanity_config,
+    raise_research_validation_error,
+    resolve_strict_mode_policy,
+)
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
 from src.research.sanity import SanityCheckError, validate_strategy_backtest_sanity
@@ -93,12 +99,17 @@ def run_walk_forward_experiment(
     evaluation_path: Path | None = None,
     strategy_config: dict[str, Any] | None = None,
     execution_config: ExecutionConfig | None = None,
+    strict: bool = False,
 ) -> WalkForwardRunResult:
     """Execute one strategy across deterministic evaluation splits and persist artifacts."""
 
     evaluation_config = load_walk_forward_config(evaluation_path)
     resolved_execution = execution_config or resolve_execution_config((strategy_config or {}).get("execution"))
-    resolved_sanity = resolve_sanity_check_config((strategy_config or {}).get("sanity"))
+    strict_policy = resolve_strict_mode_policy(
+        cli_strict=strict,
+        sanity_config=(strategy_config or {}).get("sanity"),
+    )
+    resolved_sanity = apply_strict_mode_to_sanity_config((strategy_config or {}).get("sanity"), strict_policy)
     splits = generate_evaluation_splits(evaluation_config)
     if not splits:
         raise WalkForwardExecutionError("Walk-forward evaluation did not produce any splits.")
@@ -111,6 +122,7 @@ def run_walk_forward_experiment(
             split,
             execution_config=resolved_execution,
             sanity_config=resolved_sanity,
+            strict_mode=strict_policy.enabled,
         )
         for split in splits
     ]
@@ -126,7 +138,15 @@ def run_walk_forward_experiment(
             scope="strategy_walk_forward_aggregate",
         )
     except SanityCheckError as exc:
-        raise WalkForwardExecutionError(str(exc)) from exc
+        try:
+            raise_research_validation_error(
+                validator="sanity",
+                scope=f"strategy_walk_forward:{strategy_name}:aggregate",
+                exc=exc,
+                strict_mode=strict_policy.enabled,
+            )
+        except ResearchStrictModeError as strict_exc:
+            raise WalkForwardExecutionError(str(strict_exc)) from strict_exc
     aggregate_summary = aggregate_report.apply_to_metrics(aggregate_summary)
     aggregate_summary["sanity"] = {
         "aggregate": aggregate_report.to_dict(),
@@ -158,6 +178,7 @@ def run_walk_forward_experiment(
         },
         "execution": resolved_execution.to_dict(),
         "sanity": resolved_sanity.to_dict(),
+        "strict_mode": strict_policy.to_dict(),
     }
     experiment_dir = save_walk_forward_experiment(
         strategy_name,
@@ -212,6 +233,7 @@ def execute_split(
     *,
     execution_config: ExecutionConfig | None = None,
     sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
+    strict_mode: bool = False,
 ) -> SplitExecutionResult:
     """Run the research pipeline for one split and score only the test window."""
 
@@ -242,7 +264,15 @@ def execute_split(
             scope=f"strategy_walk_forward_split:{split.split_id}",
         )
     except SanityCheckError as exc:
-        raise WalkForwardExecutionError(str(exc)) from exc
+        try:
+            raise_research_validation_error(
+                validator="sanity",
+                scope=f"strategy_walk_forward_split:{split.split_id}",
+                exc=exc,
+                strict_mode=strict_mode,
+            )
+        except ResearchStrictModeError as strict_exc:
+            raise WalkForwardExecutionError(str(strict_exc)) from strict_exc
     split_results.attrs["sanity_check"] = sanity_report.to_dict()
     metrics = sanity_report.apply_to_metrics(metrics)
     return SplitExecutionResult(

@@ -336,6 +336,7 @@ def _build_manifest(
         "metric_summary": metrics,
         "qa_summary_status": qa_summary.get("validation_status"),
         "portfolio_name": config.get("portfolio_name"),
+        "strict_mode": config.get("strict_mode"),
         "row_counts": {
             "components": len(components),
             "portfolio_equity_curve": int(len(equity_frame)),

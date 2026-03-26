@@ -750,6 +750,151 @@ def test_run_cli_passes_strict_flag_to_portfolio_walk_forward(
     assert calls["sanity_config"]["strict_sanity_checks"] is True
 
 
+def test_run_cli_strict_portfolio_config_from_registry_succeeds_and_persists_auditable_runtime(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    repo_root = Path(__file__).resolve().parents[1]
+    portfolio_config_path = repo_root / "configs" / "portfolios.yml"
+
+    _write_registered_strategy_run(
+        strategy_root,
+        run_id="run-momentum",
+        strategy_name="momentum_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.010},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": -0.012},
+            {"ts_utc": "2025-01-03T00:00:00Z", "strategy_return": 0.015},
+            {"ts_utc": "2025-01-04T00:00:00Z", "strategy_return": -0.010},
+            {"ts_utc": "2025-01-05T00:00:00Z", "strategy_return": 0.008},
+            {"ts_utc": "2025-01-06T00:00:00Z", "strategy_return": -0.009},
+            {"ts_utc": "2025-01-07T00:00:00Z", "strategy_return": 0.011},
+            {"ts_utc": "2025-01-08T00:00:00Z", "strategy_return": -0.007},
+        ],
+        timeframe="1D",
+        timestamp="2026-03-25T00:00:00Z",
+    )
+    _write_registered_strategy_run(
+        strategy_root,
+        run_id="run-meanrev",
+        strategy_name="mean_reversion_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": -0.004},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.007},
+            {"ts_utc": "2025-01-03T00:00:00Z", "strategy_return": -0.006},
+            {"ts_utc": "2025-01-04T00:00:00Z", "strategy_return": 0.005},
+            {"ts_utc": "2025-01-05T00:00:00Z", "strategy_return": -0.003},
+            {"ts_utc": "2025-01-06T00:00:00Z", "strategy_return": 0.004},
+            {"ts_utc": "2025-01-07T00:00:00Z", "strategy_return": -0.002},
+            {"ts_utc": "2025-01-08T00:00:00Z", "strategy_return": 0.003},
+        ],
+        timeframe="1D",
+        timestamp="2026-03-25T00:05:00Z",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_portfolio.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.cli.run_portfolio.DEFAULT_PORTFOLIO_ARTIFACTS_ROOT", portfolio_root)
+
+    cli_args = [
+        "--portfolio-config",
+        str(portfolio_config_path),
+        "--portfolio-name",
+        "strict_valid_builtin_pair",
+        "--from-registry",
+        "--timeframe",
+        "1D",
+        "--strict",
+    ]
+    first = run_cli(cli_args)
+    second = run_cli(cli_args)
+
+    assert isinstance(first, PortfolioRunResult)
+    assert first.run_id == second.run_id
+    assert first.metrics == second.metrics
+    assert _artifact_bytes(first.experiment_dir) == _artifact_bytes(second.experiment_dir)
+
+    assert first.portfolio_name == "strict_valid_builtin_pair"
+    assert first.allocator_name == "equal_weight"
+    assert first.component_count == 2
+    assert [component["strategy_name"] for component in first.components] == [
+        "mean_reversion_v1",
+        "momentum_v1",
+    ]
+    assert [component["run_id"] for component in first.components] == [
+        "run-meanrev",
+        "run-momentum",
+    ]
+
+    required_files = {
+        "config.json",
+        "manifest.json",
+        "metrics.json",
+        "portfolio_equity_curve.csv",
+        "portfolio_returns.csv",
+        "qa_summary.json",
+        "weights.csv",
+    }
+    assert required_files.issubset({path.name for path in first.experiment_dir.iterdir() if path.is_file()})
+
+    config_payload = json.loads((first.experiment_dir / "config.json").read_text(encoding="utf-8"))
+    metrics_payload = json.loads((first.experiment_dir / "metrics.json").read_text(encoding="utf-8"))
+    manifest_payload = json.loads((first.experiment_dir / "manifest.json").read_text(encoding="utf-8"))
+    qa_payload = json.loads((first.experiment_dir / "qa_summary.json").read_text(encoding="utf-8"))
+    returns_frame = pd.read_csv(first.experiment_dir / "portfolio_returns.csv")
+
+    assert config_payload["strict_mode"] == {
+        "enabled": True,
+        "source": "cli",
+    }
+    assert config_payload["runtime"]["strict_mode"] == config_payload["strict_mode"]
+    assert config_payload["runtime"]["execution"] == {
+        "enabled": False,
+        "execution_delay": 1,
+        "transaction_cost_bps": 0.0,
+        "slippage_bps": 0.0,
+    }
+    assert config_payload["runtime"]["portfolio_validation"]["strict_sanity_checks"] is True
+    assert config_payload["runtime"]["sanity"]["strict_sanity_checks"] is True
+    assert config_payload["validation"] == config_payload["runtime"]["portfolio_validation"]
+
+    assert metrics_payload["sanity_status"] == "pass"
+    assert metrics_payload["sanity_issue_count"] == pytest.approx(0.0)
+    assert metrics_payload["sanity_warning_count"] == pytest.approx(0.0)
+
+    assert manifest_payload["portfolio_name"] == "strict_valid_builtin_pair"
+    assert manifest_payload["strict_mode"] == {
+        "enabled": True,
+        "source": "cli",
+    }
+    assert manifest_payload["qa_summary_status"] == "pass"
+    assert manifest_payload["row_counts"]["portfolio_returns"] == len(returns_frame)
+    assert manifest_payload["row_counts"]["portfolio_returns"] > 0
+    assert "portfolio_returns.csv" in manifest_payload["artifact_files"]
+    assert "metrics.json" in manifest_payload["artifact_files"]
+
+    assert qa_payload["validation_status"] == "pass"
+    assert qa_payload["sanity"]["status"] == "pass"
+    assert qa_payload["sanity"]["strict_sanity_checks"] is True
+    assert qa_payload["sanity"]["issue_count"] == 0
+    assert qa_payload["issues"] == []
+
+    assert len(returns_frame) > 0
+    assert "portfolio_return" in returns_frame.columns
+    assert "weight__momentum_v1" in returns_frame.columns
+    assert "strategy_return__mean_reversion_v1" in returns_frame.columns
+
+    registry_entries = _read_registry(portfolio_root / "registry.jsonl")
+    assert [entry["run_id"] for entry in registry_entries] == [first.run_id]
+    assert registry_entries[0]["portfolio_name"] == "strict_valid_builtin_pair"
+    assert registry_entries[0]["config"]["strict_mode"] == {
+        "enabled": True,
+        "source": "cli",
+    }
+
+
 def _write_strategy_run(
     root: Path,
     *,
@@ -773,6 +918,42 @@ def _write_strategy_run(
     frame["signal"] = 1.0
     frame["position"] = 1.0
     frame.to_csv(run_dir / "equity_curve.csv", index=False)
+    return run_dir
+
+
+def _write_registered_strategy_run(
+    root: Path,
+    *,
+    run_id: str,
+    strategy_name: str,
+    rows: list[dict[str, object]],
+    timeframe: str,
+    timestamp: str,
+) -> Path:
+    run_dir = _write_strategy_run(
+        root,
+        run_id=run_id,
+        strategy_name=strategy_name,
+        rows=rows,
+    )
+    registry_path = root / "registry.jsonl"
+    entry = {
+        "run_id": run_id,
+        "run_type": "strategy",
+        "timestamp": timestamp,
+        "strategy_name": strategy_name,
+        "timeframe": timeframe,
+        "artifact_path": run_dir.as_posix(),
+    }
+    existing_lines = []
+    if registry_path.exists():
+        existing_lines = [
+            line
+            for line in registry_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    existing_lines.append(json.dumps(entry))
+    registry_path.write_text("\n".join(existing_lines) + "\n", encoding="utf-8")
     return run_dir
 
 

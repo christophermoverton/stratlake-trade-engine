@@ -6,3 +6,10 @@ portfolios:
     components:
       - strategy_name: momentum_v1
       - strategy_name: mean_reversion_v1
+  strict_valid_builtin_pair:
+    allocator: equal_weight
+    initial_capital: 1.0
+    alignment_policy: intersection
+    components:
+      - strategy_name: momentum_v1
+      - strategy_name: mean_reversion_v1

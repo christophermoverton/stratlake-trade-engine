@@ -12,6 +12,7 @@ from src.portfolio.contracts import (
     PortfolioContractError,
     validate_portfolio_output,
 )
+from src.portfolio.qa import run_portfolio_qa
 from src.research.registry import canonicalize_value
 
 _CONFIG_FILENAME = "config.json"
@@ -20,6 +21,7 @@ _WEIGHTS_FILENAME = "weights.csv"
 _PORTFOLIO_RETURNS_FILENAME = "portfolio_returns.csv"
 _PORTFOLIO_EQUITY_FILENAME = "portfolio_equity_curve.csv"
 _METRICS_FILENAME = "metrics.json"
+_QA_SUMMARY_FILENAME = "qa_summary.json"
 _MANIFEST_FILENAME = "manifest.json"
 
 
@@ -54,12 +56,21 @@ def write_portfolio_artifacts(
     _write_csv(resolved_output_dir / _PORTFOLIO_RETURNS_FILENAME, returns_frame)
     _write_csv(resolved_output_dir / _PORTFOLIO_EQUITY_FILENAME, equity_frame)
     _write_json(resolved_output_dir / _METRICS_FILENAME, normalized_metrics)
+    qa_summary = run_portfolio_qa(
+        normalized_portfolio_output,
+        normalized_metrics,
+        normalized_config,
+        artifacts_dir=resolved_output_dir,
+        run_id=resolved_output_dir.name,
+        strict=True,
+    )
 
     manifest = _build_manifest(
         output_dir=resolved_output_dir,
         config=normalized_config,
         components=normalized_components,
         metrics=normalized_metrics,
+        qa_summary=qa_summary,
         weights_frame=weights_frame,
         returns_frame=returns_frame,
         equity_frame=equity_frame,
@@ -250,6 +261,7 @@ def _build_manifest(
     config: dict[str, object],
     components: list[dict[str, object]],
     metrics: dict[str, object],
+    qa_summary: dict[str, object],
     weights_frame: pd.DataFrame,
     returns_frame: pd.DataFrame,
     equity_frame: pd.DataFrame,
@@ -260,6 +272,7 @@ def _build_manifest(
         _CONFIG_FILENAME: {"path": _CONFIG_FILENAME},
         _MANIFEST_FILENAME: {"path": _MANIFEST_FILENAME},
         _METRICS_FILENAME: {"path": _METRICS_FILENAME},
+        _QA_SUMMARY_FILENAME: {"path": _QA_SUMMARY_FILENAME},
         _PORTFOLIO_EQUITY_FILENAME: {
             "columns": equity_frame.columns.tolist(),
             "path": _PORTFOLIO_EQUITY_FILENAME,
@@ -286,6 +299,7 @@ def _build_manifest(
         "files_written": len(artifact_inventory),
         "initial_capital": config.get("initial_capital"),
         "metric_summary": metrics,
+        "qa_summary_status": qa_summary.get("validation_status"),
         "portfolio_name": config.get("portfolio_name"),
         "row_counts": {
             "components": len(components),

@@ -102,6 +102,7 @@ def test_run_cli_builds_portfolio_from_explicit_run_ids(
     assert [component["run_id"] for component in result.components] == ["run-alpha", "run-beta"]
     assert result.experiment_dir == portfolio_root / result.run_id
     assert (result.experiment_dir / "manifest.json").exists()
+    assert (result.experiment_dir / "qa_summary.json").exists()
 
     registry_entries = _read_registry(portfolio_root / "registry.jsonl")
     assert [entry["run_id"] for entry in registry_entries] == [result.run_id]
@@ -444,6 +445,7 @@ def test_run_cli_supports_walk_forward_portfolios(
     assert result.experiment_dir == portfolio_root / result.run_id
     assert (result.experiment_dir / "aggregate_metrics.json").exists()
     assert (result.experiment_dir / "metrics_by_split.csv").exists()
+    assert (result.experiment_dir / "splits" / "rolling_0000" / "qa_summary.json").exists()
     assert result.aggregate_metrics["metric_summary"]["total_return"] == pytest.approx(0.0175)
 
     registry_entries = _read_registry(portfolio_root / "registry.jsonl")

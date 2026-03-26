@@ -19,6 +19,15 @@ from .loaders import (
     load_strategy_runs_returns,
 )
 from .metrics import compute_portfolio_metrics
+from .qa import (
+    PortfolioQAError,
+    generate_portfolio_qa_summary,
+    run_portfolio_qa,
+    validate_equity_curve,
+    validate_portfolio_artifact_consistency,
+    validate_portfolio_return_consistency,
+    validate_weights_behavior,
+)
 from .walk_forward import (
     PORTFOLIO_WALK_FORWARD_METRIC_KEYS,
     PortfolioWalkForwardError,
@@ -37,6 +46,9 @@ __all__ = [
     "compute_portfolio_returns",
     "compute_portfolio_equity_curve",
     "construct_portfolio",
+    "PortfolioQAError",
+    "generate_portfolio_qa_summary",
+    "run_portfolio_qa",
     "PORTFOLIO_WALK_FORWARD_METRIC_KEYS",
     "PortfolioWalkForwardError",
     "run_portfolio_walk_forward",
@@ -45,4 +57,8 @@ __all__ = [
     "validate_weights",
     "validate_portfolio_output",
     "validate_portfolio_config",
+    "validate_portfolio_return_consistency",
+    "validate_equity_curve",
+    "validate_weights_behavior",
+    "validate_portfolio_artifact_consistency",
 ]

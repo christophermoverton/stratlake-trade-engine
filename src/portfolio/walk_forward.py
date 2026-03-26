@@ -34,6 +34,7 @@ from .artifacts import (
 from .constructor import construct_portfolio
 from .loaders import build_aligned_return_matrix, load_strategy_run_returns
 from .metrics import compute_portfolio_metrics
+from .qa import run_portfolio_qa
 
 PORTFOLIO_WALK_FORWARD_METRIC_KEYS: tuple[str, ...] = (
     "cumulative_return",
@@ -121,6 +122,7 @@ def run_portfolio_walk_forward(
             allocator=allocator,
             timeframe=normalized_timeframe,
             initial_capital=float(initial_capital),
+            portfolio_name=normalized_portfolio_name,
         )
         for split in splits
     ]
@@ -239,6 +241,7 @@ def _execute_portfolio_split(
     allocator: BaseAllocator,
     timeframe: str,
     initial_capital: float,
+    portfolio_name: str,
 ) -> dict[str, Any]:
     split_returns = _slice_strategy_returns_for_split(strategy_returns, split)
     aligned_returns = build_aligned_return_matrix(split_returns)
@@ -260,6 +263,10 @@ def _execute_portfolio_split(
         "portfolio_output": portfolio_output,
         "metrics": metrics,
         "row_count": int(len(portfolio_output)),
+        "portfolio_name": portfolio_name,
+        "allocator_name": allocator.name,
+        "timeframe": timeframe,
+        "initial_capital": float(initial_capital),
     }
 
 
@@ -360,11 +367,25 @@ def _build_aggregate_metrics(
 
 def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) -> None:
     portfolio_output = split_result["portfolio_output"]
+    split_config = {
+        "portfolio_name": split_result["portfolio_name"],
+        "allocator": split_result["allocator_name"],
+        "initial_capital": float(split_result["initial_capital"]),
+        "timeframe": split_result["timeframe"],
+    }
     _write_json(split_dir / "split.json", dict(split_result["split_metadata"]))
     _write_csv(split_dir / "weights.csv", _weights_frame(portfolio_output))
     _write_csv(split_dir / "portfolio_returns.csv", _portfolio_returns_frame(portfolio_output))
     _write_csv(split_dir / "portfolio_equity_curve.csv", _portfolio_equity_curve_frame(portfolio_output))
     _write_json(split_dir / "metrics.json", _normalize_mapping(dict(split_result["metrics"]), owner="metrics"))
+    run_portfolio_qa(
+        portfolio_output,
+        dict(split_result["metrics"]),
+        split_config,
+        artifacts_dir=split_dir,
+        run_id=split_dir.name,
+        strict=True,
+    )
 
 
 def _build_manifest(

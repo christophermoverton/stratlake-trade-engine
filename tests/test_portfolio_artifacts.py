@@ -10,15 +10,15 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.portfolio import write_portfolio_artifacts
+from src.portfolio import compute_portfolio_metrics, write_portfolio_artifacts
 
 
 def _portfolio_output() -> pd.DataFrame:
     return pd.DataFrame(
         {
-            "weight__beta": [0.4, 0.5],
+            "weight__beta": [0.5, 0.5],
             "strategy_return__beta": [0.03, 0.02],
-            "portfolio_return": [0.018, 0.01],
+            "portfolio_return": [0.02, 0.01],
             "ts_utc": pd.Series(
                 [
                     pd.Timestamp("2025-01-02 00:00:00+00:00"),
@@ -26,9 +26,9 @@ def _portfolio_output() -> pd.DataFrame:
                 ],
                 dtype="datetime64[ns, UTC]",
             ),
-            "weight__alpha": [0.6, 0.5],
+            "weight__alpha": [0.5, 0.5],
             "strategy_return__alpha": [0.01, 0.00],
-            "portfolio_equity_curve": [101.8, 100.0],
+            "portfolio_equity_curve": [103.02, 101.0],
         }
     )
 
@@ -63,15 +63,7 @@ def _components() -> list[dict[str, object]]:
 
 
 def _metrics() -> dict[str, object]:
-    return {
-        "annualized_return": 0.12,
-        "annualized_volatility": 0.15,
-        "exposure_pct": 100.0,
-        "max_drawdown": None,
-        "sharpe_ratio": 1.3,
-        "total_return": 0.018,
-        "turnover": 0.1,
-    }
+    return compute_portfolio_metrics(_portfolio_output().sort_values("ts_utc").reset_index(drop=True), "1D")
 
 
 def _load_json(path: Path) -> dict[str, object]:
@@ -94,6 +86,7 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "config.json",
         "manifest.json",
         "metrics.json",
+        "qa_summary.json",
         "portfolio_equity_curve.csv",
         "portfolio_returns.csv",
         "weights.csv",
@@ -149,13 +142,18 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     assert len(equity_frame) == 2
 
     metrics_payload = _load_json(output_dir / "metrics.json")
-    assert metrics_payload["max_drawdown"] is None
-    assert metrics_payload["sharpe_ratio"] == pytest.approx(1.3)
+    assert metrics_payload["total_return"] == pytest.approx(0.0302)
+    assert metrics_payload["sharpe_ratio"] == pytest.approx(_metrics()["sharpe_ratio"])
+
+    qa_summary = _load_json(output_dir / "qa_summary.json")
+    assert qa_summary["validation_status"] == "pass"
+    assert qa_summary["strategy_count"] == 2
 
     manifest_payload = _load_json(output_dir / "manifest.json")
     assert manifest == manifest_payload
     assert manifest_payload["artifact_files"] == sorted(expected_files)
     assert manifest_payload["component_count"] == 2
+    assert manifest_payload["qa_summary_status"] == "pass"
     assert manifest_payload["row_counts"] == {
         "components": 2,
         "portfolio_equity_curve": 2,
@@ -184,6 +182,7 @@ def test_write_portfolio_artifacts_is_deterministic_for_identical_inputs(tmp_pat
         "config.json",
         "manifest.json",
         "metrics.json",
+        "qa_summary.json",
         "portfolio_equity_curve.csv",
         "portfolio_returns.csv",
         "weights.csv",

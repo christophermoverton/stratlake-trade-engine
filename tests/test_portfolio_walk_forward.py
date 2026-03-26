@@ -83,6 +83,7 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
     assert (experiment_dir / "splits" / "rolling_0000" / "portfolio_returns.csv").exists()
     assert (experiment_dir / "splits" / "rolling_0000" / "portfolio_equity_curve.csv").exists()
     assert (experiment_dir / "splits" / "rolling_0000" / "metrics.json").exists()
+    assert (experiment_dir / "splits" / "rolling_0000" / "qa_summary.json").exists()
 
     metrics_by_split = pd.read_csv(experiment_dir / "metrics_by_split.csv")
     assert metrics_by_split["split_id"].tolist() == ["rolling_0000", "rolling_0001"]

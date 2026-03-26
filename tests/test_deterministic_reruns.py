@@ -14,6 +14,7 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.cli.run_strategy import run_strategy_experiment
+from src.cli.run_portfolio import run_cli as run_portfolio_cli
 from src.research import compare, experiment_tracker
 from src.research.registry import default_registry_path, load_registry
 from src.research.strategy_base import BaseStrategy
@@ -130,6 +131,14 @@ def _assert_structured_values_stable(left: Any, right: Any, *, path: str = "root
     assert left == right, f"{path} differs: {left!r} != {right!r}"
 
 
+def _artifact_bytes(root: Path) -> dict[str, bytes]:
+    return {
+        path.relative_to(root).as_posix(): path.read_bytes()
+        for path in sorted(root.rglob("*"))
+        if path.is_file()
+    }
+
+
 def _single_run_artifacts(run_dir: Path) -> dict[str, Any]:
     return {
         "metrics": _load_json(run_dir / "metrics.json"),
@@ -138,6 +147,32 @@ def _single_run_artifacts(run_dir: Path) -> dict[str, Any]:
         "qa_summary": _load_json(run_dir / "qa_summary.json"),
         "signals": pd.read_parquet(run_dir / "signals.parquet"),
     }
+
+
+def _write_portfolio_strategy_run(
+    root: Path,
+    *,
+    run_id: str,
+    strategy_name: str,
+    rows: list[dict[str, object]],
+) -> Path:
+    run_dir = root / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+    (run_dir / "config.json").write_text(
+        json.dumps({"strategy_name": strategy_name}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"run_id": run_id, "strategy_name": strategy_name}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    frame = pd.DataFrame(rows)
+    frame["equity"] = 1.0
+    frame["symbol"] = "SPY"
+    frame["signal"] = 1.0
+    frame["position"] = 1.0
+    frame.to_csv(run_dir / "equity_curve.csv", index=False)
+    return run_dir
 
 
 @pytest.mark.parametrize("strategy_name", ["buy_and_hold_v1", "momentum_v1"])
@@ -357,3 +392,66 @@ def test_walk_forward_reruns_produce_stable_aggregate_and_split_outputs(
     assert len(registry_entries) == 1
     assert registry_entries[0]["run_id"] == first.run_id
     assert registry_entries[0]["split_count"] == len(first.splits)
+
+
+def test_portfolio_reruns_produce_stable_outputs_artifacts_and_registry(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    _write_portfolio_strategy_run(
+        strategy_root,
+        run_id="run-alpha",
+        strategy_name="alpha_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.01},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.02},
+        ],
+    )
+    _write_portfolio_strategy_run(
+        strategy_root,
+        run_id="run-beta",
+        strategy_name="beta_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.03},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": -0.01},
+        ],
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_portfolio.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.cli.run_portfolio.DEFAULT_PORTFOLIO_ARTIFACTS_ROOT", portfolio_root)
+
+    first = run_portfolio_cli(
+        [
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-alpha",
+            "run-beta",
+            "--timeframe",
+            "1D",
+        ]
+    )
+    second = run_portfolio_cli(
+        [
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-alpha",
+            "run-beta",
+            "--timeframe",
+            "1D",
+        ]
+    )
+
+    assert first.run_id == second.run_id
+    _assert_structured_values_stable(first.metrics, second.metrics, path="portfolio.metrics")
+    _assert_frame_values_stable(first.portfolio_output, second.portfolio_output)
+    assert _artifact_bytes(first.experiment_dir) == _artifact_bytes(second.experiment_dir)
+
+    registry_entries = load_registry(default_registry_path(portfolio_root))
+    portfolio_entries = [entry for entry in registry_entries if entry.get("run_id") == first.run_id]
+    assert len(portfolio_entries) == 1
+    _assert_structured_values_stable(portfolio_entries[0]["metrics"], first.metrics, path="portfolio.registry.metrics")

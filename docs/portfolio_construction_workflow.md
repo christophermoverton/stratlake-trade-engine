@@ -2,8 +2,8 @@
 
 ## Overview
 
-Milestone 9 adds a first-class portfolio layer on top of the existing
-strategy research workflow.
+The portfolio layer adds deterministic portfolio construction on top of the
+existing strategy research workflow.
 
 The portfolio layer answers a different question than a single strategy run:
 
@@ -109,7 +109,7 @@ src/portfolio/allocators.py
 
 The allocator converts the aligned return matrix into a weight matrix.
 
-Milestone 9 currently supports:
+Current allocator support:
 
 * `equal_weight`
 
@@ -131,13 +131,15 @@ It produces:
 
 * `strategy_return__<strategy>` traceability columns
 * `weight__<strategy>` traceability columns
+* execution-friction and turnover columns
 * `portfolio_return`
 * `portfolio_equity_curve`
 
 Current construction logic is:
 
 ```python
-portfolio_return = (aligned_returns * weights).sum(axis=1)
+gross_portfolio_return = (aligned_returns * weights).sum(axis=1)
+portfolio_return = gross_portfolio_return - portfolio_transaction_cost - portfolio_slippage_cost
 portfolio_equity_curve = initial_capital * (1.0 + portfolio_return).cumprod()
 ```
 
@@ -273,7 +275,7 @@ The portfolio workflow maps to the current implementation as follows:
    timestamps under `intersection` alignment.
 3. `allocate weights`
    The allocator creates a deterministic weight matrix from the aligned return
-   matrix. Milestone 9 currently uses `equal_weight`.
+   matrix. The current implementation uses `equal_weight`.
 4. `compute portfolio returns`
    `compute_portfolio_returns()` writes one weighted return stream plus
    component traceability columns.
@@ -311,6 +313,12 @@ Important optional arguments:
   `strategy_name`
 * `--evaluation [PATH]` -> run walk-forward portfolio evaluation
 * `--output-dir` -> override the default `artifacts/portfolios/` root
+* `--execution-delay` -> override runtime execution delay
+* `--transaction-cost-bps` -> override runtime transaction cost
+* `--slippage-bps` -> override runtime slippage
+* `--execution-enabled` -> force execution frictions on
+* `--disable-execution-model` -> force execution frictions off
+* `--strict` -> enable strict-mode validation enforcement
 
 Validation rules:
 
@@ -452,7 +460,14 @@ When reviewing a portfolio run:
 * use `metrics.json` or `aggregate_metrics.json` to compare return, risk, and
   activity statistics
 * use `qa_summary.json` to confirm deterministic validation passed and no
-  no-lookahead or traceability invariants were broken
+  portfolio validation, sanity, or traceability invariants were broken
+
+Portfolio runs now share the same runtime and strict-mode model as strategy
+runs. See:
+
+* [docs/runtime_configuration.md](runtime_configuration.md)
+* [docs/execution_model.md](execution_model.md)
+* [docs/strict_mode.md](strict_mode.md)
 
 ## Walk-Forward Semantics
 

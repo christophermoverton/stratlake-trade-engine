@@ -33,6 +33,12 @@ from src.research.reporting import (
     summarize_run,
 )
 from src.research.signal_engine import generate_signals
+from src.research.simulation import (
+    SimulationError,
+    SimulationRunResult,
+    run_return_simulation,
+    write_simulation_artifacts,
+)
 from src.research.strategy_qa import generate_strategy_qa_summary
 from src.research.splits import (
     EvaluationSplit,
@@ -70,8 +76,11 @@ __all__ = [
     "print_quick_report",
     "profit_factor",
     "run_backtest",
+    "run_return_simulation",
     "save_experiment",
     "sharpe_ratio",
+    "SimulationError",
+    "SimulationRunResult",
     "summarize_run",
     "total_return",
     "turnover",
@@ -79,5 +88,6 @@ __all__ = [
     "validate_run_consistency",
     "validate_research_integrity",
     "volatility",
+    "write_simulation_artifacts",
     "win_rate",
 ]

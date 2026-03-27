@@ -79,6 +79,12 @@ def test_parse_args_accepts_strict_flag() -> None:
     assert args.strict is True
 
 
+def test_parse_args_accepts_simulation_config_path() -> None:
+    args = parse_args(["--strategy", "momentum_v1", "--simulation", "configs/simulation.yml"])
+
+    assert args.simulation == "configs/simulation.yml"
+
+
 def test_get_strategy_config_raises_for_unknown_strategy() -> None:
     with pytest.raises(ValueError, match="Unknown strategy 'missing_strategy'"):
         get_strategy_config("missing_strategy", {"momentum_v1": {"dataset": "features_daily"}})
@@ -576,3 +582,25 @@ def test_run_cli_passes_strict_flag_to_single_strategy_run(monkeypatch: pytest.M
 
     assert calls["strategy_name"] == "momentum_v1"
     assert calls["kwargs"]["strict"] is True
+
+
+def test_run_strategy_experiment_writes_simulation_artifacts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _write_daily_features_dataset(tmp_path, periods=40)
+    monkeypatch.chdir(tmp_path)
+
+    result = run_strategy_experiment(
+        "momentum_v1",
+        simulation_config={"method": "bootstrap", "num_paths": 4, "path_length": 5, "seed": 13},
+    )
+
+    assert result.simulation_result is not None
+    simulation_dir = result.experiment_dir / "simulation"
+    assert (simulation_dir / "summary.json").exists()
+    assert (simulation_dir / "path_metrics.csv").exists()
+    metrics_frame = pd.read_csv(simulation_dir / "path_metrics.csv")
+    assert len(metrics_frame) == 4
+    parent_manifest = (result.experiment_dir / "manifest.json").read_text(encoding="utf-8")
+    assert "simulation/summary.json" in parent_manifest

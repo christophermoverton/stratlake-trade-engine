@@ -12,13 +12,15 @@ import yaml
 from src.config.execution import ExecutionConfig
 from src.config.evaluation import EVALUATION_CONFIG
 from src.config.robustness import ROBUSTNESS_CONFIG, load_robustness_config
+from src.config.simulation import load_simulation_config, resolve_simulation_config
 from src.config.runtime import RuntimeConfig, resolve_runtime_config
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.input_validation import StrategyInputError
-from src.research.metrics import compute_benchmark_relative_metrics
+from src.research.metrics import aggregate_strategy_returns, compute_benchmark_relative_metrics, infer_periods_per_year
 from src.research.robustness import RobustnessRunResult, run_robustness_experiment
+from src.research.simulation import SimulationRunResult, run_return_simulation, write_simulation_artifacts
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
@@ -42,6 +44,7 @@ class StrategyRunResult:
     results_df: pd.DataFrame
     signal_diagnostics: dict[str, Any] = field(default_factory=dict)
     qa_summary: dict[str, Any] = field(default_factory=dict)
+    simulation_result: SimulationRunResult | None = None
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -95,6 +98,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Enable strict research-validity enforcement and block artifact or registry writes on flagged runs.",
     )
+    parser.add_argument(
+        "--simulation",
+        help="Optional simulation config path for deterministic bootstrap/Monte Carlo return analysis.",
+    )
     return parser.parse_args(argv)
 
 
@@ -137,6 +144,7 @@ def run_strategy_experiment(
     runtime_config: RuntimeConfig | None = None,
     execution_config: ExecutionConfig | None = None,
     strict: bool = False,
+    simulation_config: dict[str, Any] | None = None,
 ) -> StrategyRunResult:
     """Run the full strategy research pipeline and persist experiment artifacts."""
 
@@ -166,6 +174,7 @@ def run_strategy_experiment(
     results_df.attrs["sanity_check"] = sanity_report.to_dict()
     results_df.attrs["runtime_config"] = resolved_runtime.to_dict()
     signal_diagnostics = compute_signal_diagnostics(results_df["signal"], results_df)
+    resolved_simulation = resolve_simulation_config(simulation_config, base=config.get("simulation"))
 
     experiment_config = resolved_runtime.apply_to_payload(
         {
@@ -177,6 +186,8 @@ def run_strategy_experiment(
         },
         include_validation_section=False,
     )
+    if resolved_simulation is not None:
+        experiment_config["simulation"] = resolved_simulation.to_dict()
     experiment_dir = save_experiment(strategy_name, results_df, metrics, experiment_config)
     qa_summary = generate_strategy_qa_summary(
         results_df,
@@ -186,6 +197,20 @@ def run_strategy_experiment(
         strategy_name=strategy_name,
         run_id=experiment_dir.name,
     )
+    simulation_result = None
+    if resolved_simulation is not None:
+        aggregated_returns = aggregate_strategy_returns(results_df)["strategy_return"]
+        simulation_result = run_return_simulation(
+            aggregated_returns,
+            config=resolved_simulation,
+            periods_per_year=infer_periods_per_year(aggregate_strategy_returns(results_df)),
+            owner=f"strategy {strategy_name} returns",
+        )
+        write_simulation_artifacts(
+            experiment_dir / "simulation",
+            simulation_result,
+            parent_manifest_dir=experiment_dir,
+        )
 
     return StrategyRunResult(
         strategy_name=strategy_name,
@@ -195,6 +220,7 @@ def run_strategy_experiment(
         results_df=results_df,
         signal_diagnostics=signal_diagnostics,
         qa_summary=qa_summary,
+        simulation_result=simulation_result,
     )
 
 
@@ -256,6 +282,21 @@ def print_summary(result: StrategyRunResult | WalkForwardRunResult | RobustnessR
             print("Warnings:")
             for warning in warnings_list:
                 print(f"- {warning}")
+    simulation_result = getattr(result, "simulation_result", None)
+    if simulation_result is not None:
+        simulation_summary = simulation_result.summary
+        stats = simulation_summary["metric_statistics"]["cumulative_return"]
+        print("Simulation:")
+        print(
+            f"- method: {simulation_summary['method']} | "
+            f"paths: {simulation_summary['num_paths']} | "
+            f"loss_prob: {simulation_summary['probability_of_loss']:.0%}"
+        )
+        print(
+            f"- mean cumulative return: {stats['mean']:.6f} | "
+            f"median: {stats['median']:.6f} | "
+            f"p05: {stats['p05']:.6f}"
+        )
 
 
 def summarize_qa_warnings(qa_summary: dict[str, Any]) -> list[str]:
@@ -350,6 +391,8 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
         cli_overrides=None if execution_override is None else {"execution": execution_override},
         cli_strict=args.strict,
     )
+    if args.simulation and robustness_config is not None:
+        raise ValueError("The --simulation argument cannot be combined with --robustness.")
     if robustness_config is not None:
         result = run_robustness_experiment(
             strategy_name,
@@ -361,6 +404,8 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
             strict=args.strict,
         )
     elif args.evaluation:
+        if args.simulation:
+            raise ValueError("The --simulation argument cannot be combined with --evaluation.")
         if args.start or args.end:
             raise ValueError("The --start and --end arguments cannot be combined with --evaluation.")
 
@@ -380,6 +425,7 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
             end=args.end,
             execution_config=runtime_config.execution,
             strict=args.strict,
+            simulation_config=None if args.simulation is None else load_simulation_config(Path(args.simulation)).to_dict(),
         )
     print_summary(result)
     return result

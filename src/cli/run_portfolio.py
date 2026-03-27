@@ -11,6 +11,7 @@ import pandas as pd
 import yaml
 
 from src.config.execution import ExecutionConfig
+from src.config.simulation import load_simulation_config, resolve_simulation_config
 from src.config.runtime import resolve_runtime_config
 from src.portfolio import (
     EqualWeightAllocator,
@@ -23,6 +24,7 @@ from src.portfolio import (
     validate_portfolio_config,
 )
 from src.research import experiment_tracker
+from src.research.metrics import MINUTE_PERIODS_PER_YEAR, TRADING_DAYS_PER_YEAR
 from src.research.registry import (
     STRATEGY_RUN_TYPE,
     default_registry_path,
@@ -31,6 +33,7 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
+from src.research.simulation import SimulationRunResult, run_return_simulation, write_simulation_artifacts
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.sanity import validate_portfolio_output_sanity
 
@@ -53,6 +56,7 @@ class PortfolioRunResult:
     portfolio_output: pd.DataFrame
     config: dict[str, Any]
     components: list[dict[str, Any]]
+    simulation_result: SimulationRunResult | None = None
 
 
 @dataclass(frozen=True)
@@ -68,6 +72,7 @@ class PortfolioWalkForwardRunResult:
     experiment_dir: Path
     config: dict[str, Any]
     components: list[dict[str, Any]]
+    simulation_result: SimulationRunResult | None = None
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -140,6 +145,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Enable strict research-validity enforcement and block artifact or registry writes on flagged runs.",
     )
+    parser.add_argument(
+        "--simulation",
+        help="Optional simulation config path for deterministic bootstrap/Monte Carlo return analysis.",
+    )
     return parser.parse_args(argv)
 
 
@@ -177,11 +186,17 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
         execution_override=execution_override,
     )
+    resolved_simulation = resolve_simulation_config(
+        None if args.simulation is None else load_simulation_config(Path(args.simulation)).to_dict(),
+        base=resolved_config.get("simulation"),
+    )
     runtime_config = resolve_runtime_config(
         resolved_config,
         cli_strict=args.strict,
     )
     resolved_config = runtime_config.apply_to_payload(dict(resolved_config), validation_key="validation")
+    if resolved_simulation is not None:
+        resolved_config["simulation"] = resolved_simulation.to_dict()
 
     allocator = _build_allocator(
         resolved_config["allocator"],
@@ -190,6 +205,8 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
     output_root = DEFAULT_PORTFOLIO_ARTIFACTS_ROOT if args.output_dir is None else Path(args.output_dir)
 
     if args.evaluation is not None:
+        if resolved_simulation is not None:
+            raise ValueError("The --simulation argument cannot be combined with --evaluation.")
         walk_forward_result = run_portfolio_walk_forward(
             component_run_ids=[str(component["run_id"]) for component in components],
             evaluation_config_path=Path(args.evaluation),
@@ -217,6 +234,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             experiment_dir=Path(walk_forward_result["experiment_dir"]),
             config=dict(walk_forward_result["config"]),
             components=[dict(component) for component in walk_forward_result["components"]],
+            simulation_result=None,
         )
     else:
         strategy_returns = load_strategy_runs_returns(run_dirs)
@@ -283,6 +301,21 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             config=resolved_config,
             components=components,
         )
+        simulation_result = None
+        if resolved_simulation is not None:
+            simulation_result = run_return_simulation(
+                portfolio_output["portfolio_return"],
+                config=resolved_simulation,
+                periods_per_year=_periods_per_year_from_timeframe(timeframe),
+                owner=f"portfolio {resolved_config['portfolio_name']} returns",
+                var_confidence_level=float(runtime_config.risk.var_confidence_level),
+                cvar_confidence_level=float(runtime_config.risk.cvar_confidence_level),
+            )
+            write_simulation_artifacts(
+                experiment_dir / "simulation",
+                simulation_result,
+                parent_manifest_dir=experiment_dir,
+            )
 
         registry_path = default_registry_path(output_root)
         register_portfolio_run(
@@ -320,6 +353,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             portfolio_output=portfolio_output,
             config=resolved_config,
             components=components,
+            simulation_result=simulation_result,
         )
     print_summary(result)
     return result
@@ -348,6 +382,18 @@ def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) ->
     print(f"Max Drawdown: {_format_pct(result.metrics.get('max_drawdown'))}")
     print(f"VaR: {_format_pct(result.metrics.get('value_at_risk'))}")
     print(f"CVaR: {_format_pct(result.metrics.get('conditional_value_at_risk'))}")
+    if result.simulation_result is not None:
+        simulation_summary = result.simulation_result.summary
+        stats = simulation_summary["metric_statistics"]["cumulative_return"]
+        print()
+        print(
+            f"Simulation: {simulation_summary['method']} | "
+            f"Paths: {simulation_summary['num_paths']} | "
+            f"Loss Prob: {simulation_summary['probability_of_loss']:.2%}"
+        )
+        print(f"Mean Sim Return: {_format_pct(stats['mean'])}")
+        print(f"Median Sim Return: {_format_pct(stats['median'])}")
+        print(f"P05 Sim Return: {_format_pct(stats['p05'])}")
 
 
 def main() -> None:
@@ -447,6 +493,8 @@ def _resolve_portfolio_inputs(
     validated_config["evaluation_config_path"] = (
         None if evaluation_path is None else evaluation_path.as_posix()
     )
+    if base_definition.get("simulation") is not None:
+        validated_config["simulation"] = dict(base_definition["simulation"])
     run_dirs = [Path(str(component["source_artifact_path"])) for component in components]
     return validated_config, run_dirs, components
 
@@ -602,6 +650,7 @@ def _normalize_portfolio_definition(
         "validation": definition.get("validation"),
         "risk": definition.get("risk"),
         "sanity": definition.get("sanity"),
+        "simulation": definition.get("simulation"),
     }
 
 
@@ -768,6 +817,15 @@ def _format_timestamp(value: pd.Timestamp) -> str:
     else:
         timestamp = timestamp.tz_convert("UTC")
     return timestamp.isoformat().replace("+00:00", "Z")
+
+
+def _periods_per_year_from_timeframe(timeframe: str) -> int:
+    normalized = _normalize_required_string(timeframe, field_name="timeframe").lower()
+    if normalized in {"1d", "1day", "day", "daily"}:
+        return TRADING_DAYS_PER_YEAR
+    if normalized in {"1m", "1min", "1minute", "minute", "minutes"}:
+        return MINUTE_PERIODS_PER_YEAR
+    raise ValueError(f"Unsupported simulation timeframe: {timeframe!r}.")
 
 
 def _normalize_required_string(value: object, *, field_name: str) -> str:

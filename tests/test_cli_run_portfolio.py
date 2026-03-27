@@ -61,6 +61,23 @@ def test_parse_args_accepts_portfolio_strict_flag() -> None:
     assert args.strict is True
 
 
+def test_parse_args_accepts_portfolio_simulation_flag() -> None:
+    args = parse_args(
+        [
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-a",
+            "--timeframe",
+            "1D",
+            "--simulation",
+            "configs/simulation.yml",
+        ]
+    )
+
+    assert args.simulation == "configs/simulation.yml"
+
+
 def test_parse_run_ids_supports_mixed_cli_formats() -> None:
     assert parse_run_ids(["run-a,run-b", "run-c", " run-d "]) == [
         "run-a",
@@ -916,6 +933,75 @@ def test_run_cli_strict_portfolio_config_from_registry_succeeds_and_persists_aud
         "enabled": True,
         "source": "cli",
     }
+
+
+def test_run_cli_writes_portfolio_simulation_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-alpha",
+        strategy_name="alpha_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.01},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.02},
+            {"ts_utc": "2025-01-03T00:00:00Z", "strategy_return": -0.01},
+        ],
+    )
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-beta",
+        strategy_name="beta_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.00},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.01},
+            {"ts_utc": "2025-01-03T00:00:00Z", "strategy_return": 0.02},
+        ],
+    )
+    simulation_path = tmp_path / "simulation.yml"
+    simulation_path.write_text(
+        yaml.safe_dump(
+            {
+                "simulation": {
+                    "method": "bootstrap",
+                    "num_paths": 3,
+                    "path_length": 4,
+                    "seed": 21,
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_portfolio.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.cli.run_portfolio.DEFAULT_PORTFOLIO_ARTIFACTS_ROOT", portfolio_root)
+
+    result = run_cli(
+        [
+            "--portfolio-name",
+            "sim_portfolio",
+            "--run-ids",
+            "run-alpha",
+            "run-beta",
+            "--timeframe",
+            "1D",
+            "--simulation",
+            str(simulation_path),
+        ]
+    )
+
+    assert result.simulation_result is not None
+    simulation_dir = result.experiment_dir / "simulation"
+    assert (simulation_dir / "summary.json").exists()
+    assert (simulation_dir / "simulated_paths.csv").exists()
+    manifest_payload = json.loads((result.experiment_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest_payload["simulation"]["summary_path"] == "simulation/summary.json"
+    assert "simulation/path_metrics.csv" in manifest_payload["artifact_files"]
 
 
 def _write_strategy_run(

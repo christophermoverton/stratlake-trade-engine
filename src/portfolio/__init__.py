@@ -1,4 +1,4 @@
-from .allocators import BaseAllocator, EqualWeightAllocator
+from .allocators import BaseAllocator, EqualWeightAllocator, OptimizerAllocator
 from .artifacts import write_portfolio_artifacts
 from .contracts import (
     PortfolioContractError,
@@ -21,6 +21,13 @@ from .loaders import (
     load_strategy_runs_returns,
 )
 from .metrics import compute_portfolio_metrics
+from .optimizer import (
+    PortfolioOptimizationError,
+    PortfolioOptimizerConfig,
+    SUPPORTED_PORTFOLIO_OPTIMIZERS,
+    optimize_portfolio,
+    resolve_portfolio_optimizer_config,
+)
 from .qa import (
     PortfolioQAError,
     generate_portfolio_qa_summary,
@@ -48,11 +55,15 @@ __all__ = [
     "PortfolioValidationError",
     "BaseAllocator",
     "EqualWeightAllocator",
+    "OptimizerAllocator",
+    "PortfolioOptimizationError",
+    "PortfolioOptimizerConfig",
     "write_portfolio_artifacts",
     "load_strategy_run_returns",
     "load_strategy_runs_returns",
     "build_aligned_return_matrix",
     "compute_portfolio_metrics",
+    "optimize_portfolio",
     "compute_portfolio_returns",
     "compute_portfolio_equity_curve",
     "construct_portfolio",
@@ -68,6 +79,8 @@ __all__ = [
     "validate_portfolio_output",
     "validate_portfolio_config",
     "resolve_portfolio_validation_config",
+    "resolve_portfolio_optimizer_config",
+    "SUPPORTED_PORTFOLIO_OPTIMIZERS",
     "validate_portfolio_return_consistency",
     "validate_equity_curve",
     "validate_weights_behavior",

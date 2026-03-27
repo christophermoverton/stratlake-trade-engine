@@ -14,6 +14,7 @@ from src.config.execution import ExecutionConfig
 from src.config.runtime import resolve_runtime_config
 from src.portfolio import (
     EqualWeightAllocator,
+    OptimizerAllocator,
     build_aligned_return_matrix,
     compute_portfolio_metrics,
     construct_portfolio,
@@ -182,7 +183,10 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
     )
     resolved_config = runtime_config.apply_to_payload(dict(resolved_config), validation_key="validation")
 
-    allocator = _build_allocator(resolved_config["allocator"])
+    allocator = _build_allocator(
+        resolved_config["allocator"],
+        optimizer_config=resolved_config.get("optimizer"),
+    )
     output_root = DEFAULT_PORTFOLIO_ARTIFACTS_ROOT if args.output_dir is None else Path(args.output_dir)
 
     if args.evaluation is not None:
@@ -223,6 +227,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
                 initial_capital=float(resolved_config["initial_capital"]),
                 execution_config=runtime_config.execution,
                 validation_config=runtime_config.portfolio_validation,
+                optimization_returns=aligned_returns,
             )
         except ValueError as exc:
             raise_research_validation_error(
@@ -288,6 +293,11 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             metadata={
                 "portfolio_name": resolved_config["portfolio_name"],
                 "allocator_name": allocator.name,
+                "optimizer_method": (
+                    None
+                    if not isinstance(resolved_config.get("optimizer"), dict)
+                    else resolved_config["optimizer"].get("method")
+                ),
                 "timeframe": timeframe,
                 "start_ts": start_ts,
                 "end_ts": end_ts,
@@ -419,12 +429,14 @@ def _resolve_portfolio_inputs(
             base_definition.get("alignment_policy", DEFAULT_ALIGNMENT_POLICY),
             field_name="alignment_policy",
         ),
+        "optimizer": base_definition.get("optimizer"),
         "timeframe": timeframe,
         "evaluation_config_path": None if evaluation_path is None else evaluation_path.as_posix(),
         },
         validation_key="validation",
     )
     validated_config = validate_portfolio_config(resolved_config)
+    runtime_config = resolve_runtime_config(validated_config, cli_overrides=runtime_override)
     validated_config = runtime_config.apply_to_payload(validated_config, validation_key="validation")
     validated_config["timeframe"] = timeframe
     validated_config["evaluation_config_path"] = (
@@ -580,6 +592,7 @@ def _normalize_portfolio_definition(
         "components": normalized_components,
         "initial_capital": definition.get("initial_capital", DEFAULT_INITIAL_CAPITAL),
         "alignment_policy": definition.get("alignment_policy", DEFAULT_ALIGNMENT_POLICY),
+        "optimizer": definition.get("optimizer"),
         "execution": definition.get("execution"),
         "validation": definition.get("validation"),
         "sanity": definition.get("sanity"),
@@ -713,13 +726,20 @@ def _sorted_components(components: Sequence[Mapping[str, Any]]) -> list[dict[str
     )
 
 
-def _build_allocator(name: str) -> EqualWeightAllocator:
+def _build_allocator(
+    name: str,
+    *,
+    optimizer_config: Mapping[str, Any] | None = None,
+) -> EqualWeightAllocator | OptimizerAllocator:
     normalized = _normalize_required_string(name, field_name="allocator").lower()
-    if normalized != DEFAULT_ALLOCATOR:
+    supported = {"equal_weight", "max_sharpe", "risk_parity"}
+    if normalized not in supported:
         raise ValueError(
-            f"Unsupported portfolio allocator '{name}'. Supported allocator: {DEFAULT_ALLOCATOR}."
+            f"Unsupported portfolio allocator '{name}'. Supported allocators: {', '.join(sorted(supported))}."
         )
-    return EqualWeightAllocator()
+    if normalized == DEFAULT_ALLOCATOR and optimizer_config is None:
+        return EqualWeightAllocator()
+    return OptimizerAllocator(optimizer_config, fallback_method=normalized)
 
 
 def _looks_like_portfolio_definition(payload: Mapping[str, Any]) -> bool:

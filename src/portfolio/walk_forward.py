@@ -25,7 +25,6 @@ from src.research.strict_mode import ResearchStrictModeError, raise_research_val
 from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 
-from .contracts import resolve_portfolio_validation_config
 from .allocators import BaseAllocator
 from .artifacts import (
     _normalize_components,
@@ -138,6 +137,11 @@ def run_portfolio_walk_forward(
     root_config = _build_root_config(
         portfolio_name=normalized_portfolio_name,
         allocator_name=allocator.name,
+        optimizer_config=(
+            allocator.optimizer_config.to_dict()
+            if hasattr(allocator, "optimizer_config")
+            else {"method": allocator.name}
+        ),
         timeframe=normalized_timeframe,
         initial_capital=initial_capital,
         alignment_policy=alignment_policy,
@@ -296,8 +300,13 @@ def _execute_portfolio_split(
     sanity_config: Mapping[str, Any] | None,
     strict_mode: bool,
 ) -> dict[str, Any]:
-    split_returns = _slice_strategy_returns_for_split(strategy_returns, split)
+    train_returns, split_returns = _slice_strategy_returns_for_split(strategy_returns, split)
+    optimization_returns = build_aligned_return_matrix(train_returns)
     aligned_returns = build_aligned_return_matrix(split_returns)
+    if optimization_returns.empty:
+        raise PortfolioWalkForwardError(
+            f"Split '{split.split_id}' produced an empty aligned optimization matrix in train window."
+        )
     if aligned_returns.empty:
         raise PortfolioWalkForwardError(
             f"Split '{split.split_id}' produced an empty aligned return matrix after intersection alignment."
@@ -310,6 +319,7 @@ def _execute_portfolio_split(
             initial_capital=initial_capital,
             execution_config=execution_config,
             validation_config=validation_config,
+            optimization_returns=optimization_returns,
         )
     except ValueError as exc:
         try:
@@ -363,6 +373,7 @@ def _execute_portfolio_split(
             else execution_config.to_dict()
         ),
         "validation": dict(validation_config or {}),
+        "optimizer": portfolio_output.attrs.get("portfolio_constructor", {}).get("optimizer"),
         "sanity": dict(resolve_sanity_check_config(sanity_config).to_dict()),
     }
 
@@ -370,24 +381,37 @@ def _execute_portfolio_split(
 def _slice_strategy_returns_for_split(
     strategy_returns: pd.DataFrame,
     split: EvaluationSplit,
-) -> pd.DataFrame:
+) -> tuple[pd.DataFrame, pd.DataFrame]:
     date_values = pd.to_datetime(strategy_returns["ts_utc"], utc=True, errors="coerce").dt.strftime("%Y-%m-%d")
-    mask = (date_values >= split.test_start) & (date_values < split.test_end)
-    split_returns = strategy_returns.loc[mask].reset_index(drop=True)
+    train_mask = (date_values >= split.train_start) & (date_values < split.train_end)
+    test_mask = (date_values >= split.test_start) & (date_values < split.test_end)
+    train_returns = strategy_returns.loc[train_mask].reset_index(drop=True)
+    split_returns = strategy_returns.loc[test_mask].reset_index(drop=True)
+    if train_returns.empty:
+        raise PortfolioWalkForwardError(
+            f"Split '{split.split_id}' has no component strategy data in train window [{split.train_start}, {split.train_end})."
+        )
     if split_returns.empty:
         raise PortfolioWalkForwardError(
             f"Split '{split.split_id}' has no component strategy data in test window [{split.test_start}, {split.test_end})."
         )
 
     expected_strategies = sorted(strategy_returns["strategy_name"].astype("string").unique().tolist())
+    observed_train_strategies = sorted(train_returns["strategy_name"].astype("string").unique().tolist())
     observed_strategies = sorted(split_returns["strategy_name"].astype("string").unique().tolist())
+    missing_train = sorted(set(expected_strategies) - set(observed_train_strategies))
     missing = sorted(set(expected_strategies) - set(observed_strategies))
+    if missing_train:
+        raise PortfolioWalkForwardError(
+            f"Split '{split.split_id}' is missing component returns for strategies {missing_train} "
+            f"in train window [{split.train_start}, {split.train_end})."
+        )
     if missing:
         raise PortfolioWalkForwardError(
             f"Split '{split.split_id}' is missing component returns for strategies {missing} "
             f"in test window [{split.test_start}, {split.test_end})."
         )
-    return split_returns
+    return train_returns, split_returns
 
 
 def _metrics_by_split_frame(split_results: Sequence[Mapping[str, Any]]) -> pd.DataFrame:
@@ -494,6 +518,7 @@ def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) 
     split_config = {
         "portfolio_name": split_result["portfolio_name"],
         "allocator": split_result["allocator_name"],
+        "optimizer": split_result.get("optimizer"),
         "initial_capital": float(split_result["initial_capital"]),
         "execution": dict(split_result.get("execution", {})),
         "timeframe": split_result["timeframe"],
@@ -556,6 +581,7 @@ def _build_manifest(
         "timestamp": _utc_timestamp_from_run_id(experiment_dir.name),
         "portfolio_name": config["portfolio_name"],
         "allocator": config["allocator"],
+        "optimizer": config.get("optimizer"),
         "evaluation_mode": "walk_forward",
         "evaluation_config_path": config["evaluation_config_path"],
         "strict_mode": config.get("strict_mode"),
@@ -573,6 +599,7 @@ def _build_root_config(
     *,
     portfolio_name: str,
     allocator_name: str,
+    optimizer_config: Mapping[str, Any],
     timeframe: str,
     initial_capital: float,
     alignment_policy: str,
@@ -584,6 +611,7 @@ def _build_root_config(
         "allocator": allocator_name,
         "initial_capital": float(initial_capital),
         "alignment_policy": _normalize_required_string(alignment_policy, field_name="alignment_policy"),
+        "optimizer": dict(optimizer_config),
         "execution": runtime_config.execution.to_dict(),
         "timeframe": timeframe,
         "evaluation_config_path": evaluation_path.as_posix(),

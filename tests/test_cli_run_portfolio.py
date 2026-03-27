@@ -201,6 +201,8 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
     assert result.config["portfolio_name"] == "core_portfolio"
     assert result.config["initial_capital"] == pytest.approx(100.0)
     assert result.config["alignment_policy"] == "intersection"
+    assert result.config["optimizer"]["method"] == "equal_weight"
+    assert result.config["optimizer"]["long_only"] is True
     assert result.config["execution"] == {
         "enabled": False,
         "execution_delay": 1,
@@ -211,6 +213,7 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
         "enabled": False,
         "source": "default",
     }
+    assert result.config["validation"]["long_only"] is True
     assert result.config["timeframe"] == "1D"
 
 
@@ -859,6 +862,8 @@ def test_run_cli_strict_portfolio_config_from_registry_succeeds_and_persists_aud
     assert config_payload["runtime"]["portfolio_validation"]["strict_sanity_checks"] is True
     assert config_payload["runtime"]["sanity"]["strict_sanity_checks"] is True
     assert config_payload["validation"] == config_payload["runtime"]["portfolio_validation"]
+    assert config_payload["optimizer"]["method"] == "equal_weight"
+    assert config_payload["validation"]["long_only"] is True
 
     assert metrics_payload["sanity_status"] == "pass"
     assert metrics_payload["sanity_issue_count"] == pytest.approx(0.0)
@@ -876,6 +881,7 @@ def test_run_cli_strict_portfolio_config_from_registry_succeeds_and_persists_aud
     assert "metrics.json" in manifest_payload["artifact_files"]
 
     assert qa_payload["validation_status"] == "pass"
+    assert qa_payload["optimizer_method"] == "equal_weight"
     assert qa_payload["sanity"]["status"] == "pass"
     assert qa_payload["sanity"]["strict_sanity_checks"] is True
     assert qa_payload["sanity"]["issue_count"] == 0

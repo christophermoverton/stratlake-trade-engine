@@ -145,6 +145,7 @@ def construct_portfolio(
     initial_capital: float = 1.0,
     execution_config: ExecutionConfig | None = None,
     validation_config: PortfolioValidationConfig | dict[str, object] | None = None,
+    optimization_returns: pd.DataFrame | None = None,
 ) -> pd.DataFrame:
     """Construct a complete in-memory portfolio output from aligned strategy returns."""
 
@@ -155,9 +156,24 @@ def construct_portfolio(
         normalized_returns = validate_aligned_returns(returns_wide)
     except PortfolioContractError as exc:
         raise ValueError(f"returns_wide must be a valid aligned return matrix: {exc}") from exc
+    if optimization_returns is None:
+        normalized_optimization_returns = normalized_returns
+    else:
+        try:
+            normalized_optimization_returns = validate_aligned_returns(optimization_returns)
+        except PortfolioContractError as exc:
+            raise ValueError(f"optimization_returns must be a valid aligned return matrix: {exc}") from exc
+        if normalized_optimization_returns.columns.tolist() != normalized_returns.columns.tolist():
+            raise ValueError(
+                "optimization_returns and returns_wide must contain exactly matching strategy columns."
+            )
 
     config_validation = resolve_portfolio_validation_config(validation_config)
-    weights = allocator.allocate(normalized_returns)
+    weights = allocator.allocate_for_application(
+        normalized_optimization_returns,
+        normalized_returns,
+    )
+    optimizer_payload = weights.attrs.get("portfolio_optimizer")
     portfolio_returns = compute_portfolio_returns(
         normalized_returns,
         weights,
@@ -172,6 +188,7 @@ def construct_portfolio(
     portfolio_output.attrs["portfolio_constructor"] = {
         "stage": "complete",
         "allocator": allocator.name,
+        "optimizer": optimizer_payload,
         "strategy_count": len(normalized_returns.columns),
         "timestamp_count": len(normalized_returns.index),
         "initial_capital": float(initial_capital),

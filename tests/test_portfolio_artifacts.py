@@ -46,6 +46,21 @@ def _config() -> dict[str, object]:
     return {
         "portfolio_name": "Core Portfolio",
         "allocator": "equal_weight",
+        "optimizer": {
+            "method": "equal_weight",
+            "long_only": True,
+            "target_weight_sum": 1.0,
+            "min_weight": 0.0,
+            "max_weight": None,
+            "leverage_ceiling": 1.0,
+            "full_investment": True,
+            "max_single_weight": None,
+            "max_turnover": None,
+            "risk_free_rate": 0.0,
+            "covariance_ridge": 1e-8,
+            "max_iterations": 500,
+            "tolerance": 1e-8,
+        },
         "initial_capital": 100.0,
         "alignment_policy": "intersection",
         "timeframe": "1D",
@@ -119,6 +134,21 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
             "transaction_cost_bps": 10.0,
         },
         "initial_capital": 100.0,
+        "optimizer": {
+            "covariance_ridge": 1e-08,
+            "full_investment": True,
+            "leverage_ceiling": 1.0,
+            "long_only": True,
+            "max_iterations": 500,
+            "max_single_weight": None,
+            "max_turnover": None,
+            "max_weight": None,
+            "method": "equal_weight",
+            "min_weight": 0.0,
+            "risk_free_rate": 0.0,
+            "target_weight_sum": 1.0,
+            "tolerance": 1e-08,
+        },
         "portfolio_name": "Core Portfolio",
         "settings": {"long_only": True, "rebalance": "daily"},
         "timeframe": "1D",
@@ -183,6 +213,7 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     assert manifest == manifest_payload
     assert manifest_payload["artifact_files"] == sorted(expected_files)
     assert manifest_payload["component_count"] == 2
+    assert manifest_payload["optimizer_method"] == "equal_weight"
     assert manifest_payload["qa_summary_status"] == "pass"
     assert manifest_payload["row_counts"] == {
         "components": 2,
@@ -384,14 +415,15 @@ def test_write_portfolio_artifacts_persists_effective_runtime_config(tmp_path: P
                 "smoothness_min_positive_return_fraction": 0.95,
             },
             "portfolio_validation": {
+                "long_only": True,
                 "target_weight_sum": 1.0,
                 "weight_sum_tolerance": 1e-8,
                 "target_net_exposure": 1.0,
                 "net_exposure_tolerance": 1e-8,
                 "max_gross_exposure": 1.0,
                 "max_leverage": 1.0,
-                "max_single_sleeve_weight": None,
-                "min_single_sleeve_weight": None,
+                "max_single_sleeve_weight": 1.0,
+                "min_single_sleeve_weight": 0.0,
                 "max_abs_period_return": 1.0,
                 "max_equity_multiple": 1000000.0,
                 "strict_sanity_checks": False,

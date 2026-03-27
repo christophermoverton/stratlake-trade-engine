@@ -4,7 +4,6 @@ import hashlib
 import json
 import math
 from pathlib import Path
-from typing import Any
 
 import pandas as pd
 
@@ -328,6 +327,10 @@ def _build_manifest(
     return {
         "alignment_policy": config.get("alignment_policy"),
         "allocator": config.get("allocator"),
+        "optimizer": config.get("optimizer"),
+        "optimizer_method": None
+        if not isinstance(config.get("optimizer"), dict)
+        else config["optimizer"].get("method"),
         "artifact_files": sorted(artifact_inventory),
         "artifacts": artifact_inventory,
         "component_count": len(components),

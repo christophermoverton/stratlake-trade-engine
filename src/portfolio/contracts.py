@@ -17,6 +17,7 @@ _DEFAULT_VALIDATION_TARGET_NET_EXPOSURE = 1.0
 _DEFAULT_VALIDATION_NET_EXPOSURE_TOLERANCE = 1e-8
 _DEFAULT_VALIDATION_MAX_GROSS_EXPOSURE = 1.0
 _DEFAULT_VALIDATION_MAX_LEVERAGE = 1.0
+_DEFAULT_VALIDATION_LONG_ONLY = False
 _DEFAULT_VALIDATION_MAX_ABS_PERIOD_RETURN = 1.0
 _DEFAULT_VALIDATION_MAX_EQUITY_MULTIPLE = 1_000_000.0
 
@@ -29,6 +30,7 @@ class PortfolioContractError(ValueError):
 class PortfolioValidationConfig:
     """Deterministic portfolio-level validation thresholds."""
 
+    long_only: bool = _DEFAULT_VALIDATION_LONG_ONLY
     target_weight_sum: float = _DEFAULT_VALIDATION_TARGET_WEIGHT_SUM
     weight_sum_tolerance: float = _WEIGHT_SUM_TOLERANCE
     target_net_exposure: float = _DEFAULT_VALIDATION_TARGET_NET_EXPOSURE
@@ -43,6 +45,7 @@ class PortfolioValidationConfig:
 
     def to_dict(self) -> dict[str, Any]:
         return {
+            "long_only": self.long_only,
             "target_weight_sum": self.target_weight_sum,
             "weight_sum_tolerance": self.weight_sum_tolerance,
             "target_net_exposure": self.target_net_exposure,
@@ -373,7 +376,14 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
         config_dict.get("alignment_policy", _DEFAULT_ALIGNMENT_POLICY),
         field_name="alignment_policy",
     )
-    validation = resolve_portfolio_validation_config(config_dict.get("validation"))
+    optimizer = _resolve_optimizer_config(
+        config_dict.get("optimizer"),
+        allocator=allocator,
+    )
+    validation = _resolve_validation_with_optimizer(
+        config_dict.get("validation"),
+        optimizer=optimizer,
+    )
 
     normalized_config = {
         "portfolio_name": portfolio_name,
@@ -384,6 +394,7 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
         ),
         "initial_capital": initial_capital,
         "alignment_policy": alignment_policy,
+        "optimizer": optimizer,
         "validation": validation.to_dict(),
     }
 
@@ -553,6 +564,11 @@ def resolve_portfolio_validation_config(
     if not isinstance(payload, dict):
         raise PortfolioContractError("portfolio validation config must be a dictionary when provided.")
 
+    long_only = payload.get("long_only", _DEFAULT_VALIDATION_LONG_ONLY)
+    if not isinstance(long_only, bool):
+        raise PortfolioContractError(
+            "portfolio validation field 'long_only' must be a boolean."
+        )
     target_weight_sum = _coerce_finite_float(
         payload.get("target_weight_sum", _DEFAULT_VALIDATION_TARGET_WEIGHT_SUM),
         field_name="validation.target_weight_sum",
@@ -613,6 +629,7 @@ def resolve_portfolio_validation_config(
         )
 
     return PortfolioValidationConfig(
+        long_only=long_only,
         target_weight_sum=target_weight_sum,
         weight_sum_tolerance=weight_sum_tolerance,
         target_net_exposure=target_net_exposure,
@@ -625,6 +642,41 @@ def resolve_portfolio_validation_config(
         max_equity_multiple=max_equity_multiple,
         strict_sanity_checks=strict_sanity_checks,
     )
+
+
+def _resolve_optimizer_config(payload: Any, *, allocator: str) -> dict[str, Any]:
+    from .optimizer import PortfolioOptimizationError, resolve_portfolio_optimizer_config
+
+    try:
+        resolved = resolve_portfolio_optimizer_config(payload, fallback_method=allocator)
+    except PortfolioOptimizationError as exc:
+        raise PortfolioContractError(str(exc)) from exc
+    if resolved.method != allocator:
+        raise PortfolioContractError(
+            "portfolio config field 'allocator' must match optimizer.method when optimizer is provided."
+        )
+    return resolved.to_dict()
+
+
+def _resolve_validation_with_optimizer(
+    payload: Any,
+    *,
+    optimizer: dict[str, Any],
+) -> PortfolioValidationConfig:
+    from .optimizer import PortfolioOptimizationError, optimizer_validation_overrides, resolve_portfolio_optimizer_config
+
+    base_payload = {} if payload is None else payload
+    if not isinstance(base_payload, dict):
+        raise PortfolioContractError("portfolio validation config must be a dictionary when provided.")
+    try:
+        optimizer_config = resolve_portfolio_optimizer_config(optimizer)
+    except PortfolioOptimizationError as exc:
+        raise PortfolioContractError(str(exc)) from exc
+
+    merged = dict(base_payload)
+    for key, value in optimizer_validation_overrides(optimizer_config).items():
+        merged[key] = value
+    return resolve_portfolio_validation_config(merged)
 
 
 def _normalize_column_index(columns: pd.Index, *, owner: str) -> pd.Index:

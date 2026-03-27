@@ -38,6 +38,7 @@ _SANITY_KEYS = frozenset(
 )
 _PORTFOLIO_VALIDATION_KEYS = frozenset(
     (
+        "long_only",
         "target_weight_sum",
         "weight_sum_tolerance",
         "target_net_exposure",

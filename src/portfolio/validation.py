@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from typing import Any
 
-import numpy as np
 import pandas as pd
 
 from .contracts import (
@@ -151,6 +150,16 @@ def _raise_on_weight_constraint_breach(
             "Portfolio weight validation failed: leverage exceeds configured maximum "
             f"{config.max_leverage}. First failing ts_utc={bad_ts}, leverage={leverage.loc[bad_ts]}."
         )
+
+    if config.long_only:
+        negative_mask = weights_wide < -config.weight_sum_tolerance
+        if negative_mask.any().any():
+            bad_ts, bad_strategy = negative_mask.stack()[lambda values: values].index[0]
+            raise PortfolioValidationError(
+                "Portfolio weight validation failed: long-only portfolios cannot hold negative sleeve weights. "
+                f"First failing ts_utc={bad_ts}, strategy={bad_strategy!r}, "
+                f"weight={weights_wide.loc[bad_ts, bad_strategy]}."
+            )
 
     if config.max_single_sleeve_weight is not None:
         overweight_mask = weights_wide.abs() > config.max_single_sleeve_weight

@@ -12,7 +12,6 @@ from .contracts import PortfolioContractError, validate_portfolio_output
 from .metrics import compute_portfolio_metrics
 from .validation import (
     summarize_weight_diagnostics,
-    validate_portfolio_output_constraints,
     validate_portfolio_weights,
 )
 
@@ -346,6 +345,7 @@ def generate_portfolio_qa_summary(
         "run_id": run_id,
         "portfolio_name": None if portfolio_name is None else str(portfolio_name),
         "allocator": None if allocator_name is None else str(allocator_name),
+        "optimizer_method": None,
         "timeframe": None if timeframe is None else str(timeframe),
         "row_count": int(len(normalized)),
         "strategy_count": int(len(weight_columns)),
@@ -366,6 +366,7 @@ def generate_portfolio_qa_summary(
             "exposure_pct": _coerce_number(metrics.get("exposure_pct")),
         },
         "diagnostics": {
+            "optimizer_method": None,
             "max_gross_exposure": _coerce_number(diagnostics.get("max_gross_exposure")),
             "min_net_exposure": _coerce_number(diagnostics.get("min_net_exposure")),
             "max_net_exposure": _coerce_number(diagnostics.get("max_net_exposure")),
@@ -443,6 +444,10 @@ def run_portfolio_qa(
         run_id=run_id,
         issues=issues,
     )
+    optimizer_payload = config.get("optimizer") if isinstance(config, dict) else None
+    optimizer_method = None if not isinstance(optimizer_payload, dict) else optimizer_payload.get("method")
+    summary["optimizer_method"] = optimizer_method
+    summary["diagnostics"]["optimizer_method"] = optimizer_method
 
     if artifacts_dir is not None:
         _write_qa_summary(Path(artifacts_dir) / _QA_SUMMARY_FILENAME, summary)

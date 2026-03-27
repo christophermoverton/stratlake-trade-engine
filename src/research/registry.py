@@ -498,6 +498,10 @@ def _build_portfolio_registry_entry(
             "split_count",
         }
     }
+    metrics_summary = _portfolio_metrics_summary(metrics)
+    optimizer_summary = _portfolio_optimizer_summary(config, extra_metadata)
+    risk_summary = _portfolio_risk_summary(metrics)
+    simulation_summary = _portfolio_simulation_summary(config, extra_metadata)
 
     return {
         "run_id": run_id,
@@ -511,12 +515,106 @@ def _build_portfolio_registry_entry(
         "start_ts": start_ts,
         "end_ts": end_ts,
         "artifact_path": artifact_path,
+        "metrics_summary": metrics_summary,
         "metrics": canonicalize_value(metrics),
+        "optimizer_method": optimizer_summary.get("method"),
+        "optimizer_constraint_summary": optimizer_summary.get("constraints"),
+        "weight_sum_target": optimizer_summary.get("target_weight_sum"),
+        "long_only": optimizer_summary.get("long_only"),
+        "leverage_ceiling": optimizer_summary.get("leverage_ceiling"),
+        "risk_summary": risk_summary,
+        "simulation_enabled": simulation_summary.get("enabled"),
+        "simulation_method": simulation_summary.get("method"),
+        "simulation_summary": simulation_summary,
         "evaluation_config_path": evaluation_config_path,
         "split_count": split_count,
         "config": canonicalize_value(config),
         "components": normalized_components,
         "metadata": extra_metadata,
+    }
+
+
+def _portfolio_metrics_summary(metrics: dict[str, Any]) -> dict[str, Any]:
+    summary_keys = (
+        "total_return",
+        "sharpe_ratio",
+        "max_drawdown",
+        "realized_volatility",
+        "target_volatility",
+        "value_at_risk",
+        "conditional_value_at_risk",
+        "turnover",
+        "trade_count",
+        "total_execution_friction",
+        "exposure_pct",
+        "sanity_issue_count",
+        "sanity_warning_count",
+        "flagged_split_count",
+    )
+    return {
+        key: canonicalize_value(metrics[key])
+        for key in summary_keys
+        if key in metrics
+    }
+
+
+def _portfolio_optimizer_summary(
+    config: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    optimizer = config.get("optimizer")
+    if not isinstance(optimizer, dict):
+        optimizer = {}
+    return {
+        "constraints": {
+            "full_investment": optimizer.get("full_investment"),
+            "leverage_ceiling": optimizer.get("leverage_ceiling"),
+            "long_only": optimizer.get("long_only"),
+            "max_single_weight": optimizer.get("max_single_weight"),
+            "max_turnover": optimizer.get("max_turnover"),
+            "max_weight": optimizer.get("max_weight"),
+            "min_weight": optimizer.get("min_weight"),
+            "target_weight_sum": optimizer.get("target_weight_sum"),
+        },
+        "leverage_ceiling": optimizer.get("leverage_ceiling"),
+        "long_only": optimizer.get("long_only"),
+        "method": metadata.get("optimizer_method", optimizer.get("method")),
+        "target_weight_sum": optimizer.get("target_weight_sum"),
+    }
+
+
+def _portfolio_risk_summary(metrics: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "conditional_value_at_risk": metrics.get("conditional_value_at_risk"),
+        "conditional_value_at_risk_confidence_level": metrics.get(
+            "conditional_value_at_risk_confidence_level"
+        ),
+        "max_drawdown": metrics.get("max_drawdown"),
+        "realized_volatility": metrics.get("realized_volatility"),
+        "target_volatility": metrics.get("target_volatility"),
+        "value_at_risk": metrics.get("value_at_risk"),
+        "value_at_risk_confidence_level": metrics.get("value_at_risk_confidence_level"),
+    }
+
+
+def _portfolio_simulation_summary(
+    config: dict[str, Any],
+    metadata: dict[str, Any],
+) -> dict[str, Any]:
+    simulation_config = config.get("simulation")
+    simulation_metadata = metadata.get("simulation")
+    if not isinstance(simulation_config, dict):
+        simulation_config = {}
+    if not isinstance(simulation_metadata, dict):
+        simulation_metadata = {}
+    enabled = bool(simulation_config) or bool(simulation_metadata.get("enabled"))
+    return {
+        "enabled": enabled,
+        "method": simulation_metadata.get("method", simulation_config.get("method")),
+        "num_paths": simulation_metadata.get("num_paths", simulation_config.get("num_paths")),
+        "path_length": simulation_metadata.get("path_length", simulation_config.get("path_length")),
+        "probability_of_loss": simulation_metadata.get("probability_of_loss"),
+        "summary_path": simulation_metadata.get("summary_path"),
     }
 
 

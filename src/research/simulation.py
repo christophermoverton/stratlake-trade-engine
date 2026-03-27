@@ -334,13 +334,35 @@ def _augment_parent_manifest(
     )
     payload["artifact_files"] = sorted(set([*artifact_files, *simulation_files]))
     payload["simulation"] = {
+        "enabled": True,
         "method": config.get("method"),
         "num_paths": config.get("num_paths"),
         "path_length": config.get("path_length"),
         "seed": config.get("seed"),
+        "config_path": Path(simulation_dir_name, "config.json").as_posix(),
+        "manifest_path": Path(simulation_dir_name, "manifest.json").as_posix(),
         "summary_path": Path(simulation_dir_name, "summary.json").as_posix(),
         "artifact_path": simulation_dir_name,
+        "artifact_files": simulation_files,
         "probability_of_loss": summary.get("probability_of_loss"),
+        "summary": {
+            "cumulative_return": (
+                summary.get("metric_statistics", {})
+                .get("cumulative_return", {})
+            ),
+            "max_drawdown": (
+                summary.get("metric_statistics", {})
+                .get("max_drawdown", {})
+            ),
+        },
+    }
+    artifact_groups = payload.get("artifact_groups")
+    if not isinstance(artifact_groups, dict):
+        artifact_groups = {}
+    artifact_groups["simulation"] = simulation_files
+    payload["artifact_groups"] = {
+        key: sorted(value) if isinstance(value, list) else value
+        for key, value in sorted(artifact_groups.items())
     }
     manifest_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
 

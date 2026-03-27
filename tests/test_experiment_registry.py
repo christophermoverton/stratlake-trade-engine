@@ -434,7 +434,12 @@ def test_register_portfolio_run_appends_one_portfolio_entry_with_stable_schema(t
     assert entry["start_ts"] == "2025-01-01"
     assert entry["end_ts"] == "2025-01-31"
     assert entry["artifact_path"] == "artifacts/portfolios/core_portfolio"
+    assert entry["metrics_summary"] == {"sharpe_ratio": 1.4, "total_return": 0.12}
     assert entry["metrics"] == metrics
+    assert entry["optimizer_method"] is None
+    assert entry["optimizer_constraint_summary"]["target_weight_sum"] is None
+    assert entry["simulation_enabled"] is False
+    assert entry["simulation_summary"]["method"] is None
     assert entry["evaluation_config_path"] == "configs/portfolio.yml"
     assert entry["split_count"] is None
 

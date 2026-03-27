@@ -1,5 +1,9 @@
 from .allocators import BaseAllocator, EqualWeightAllocator, OptimizerAllocator
-from .artifacts import write_portfolio_artifacts
+from .artifacts import (
+    build_portfolio_registry_metadata,
+    register_validated_portfolio_run,
+    write_portfolio_artifacts,
+)
 from .contracts import (
     PortfolioContractError,
     PortfolioValidationConfig,
@@ -75,6 +79,8 @@ __all__ = [
     "PortfolioOptimizerConfig",
     "PortfolioRiskConfig",
     "PortfolioRiskError",
+    "build_portfolio_registry_metadata",
+    "register_validated_portfolio_run",
     "write_portfolio_artifacts",
     "load_strategy_run_returns",
     "load_strategy_runs_returns",

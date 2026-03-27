@@ -20,6 +20,7 @@ from src.portfolio import (
     compute_portfolio_metrics,
     construct_portfolio,
     load_strategy_runs_returns,
+    register_validated_portfolio_run,
     run_portfolio_walk_forward,
     validate_portfolio_config,
 )
@@ -31,7 +32,6 @@ from src.research.registry import (
     filter_by_run_type,
     generate_portfolio_run_id,
     load_registry,
-    register_portfolio_run,
 )
 from src.research.simulation import SimulationRunResult, run_return_simulation, write_simulation_artifacts
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
@@ -42,6 +42,10 @@ SUPPORTED_TIMEFRAMES = ("1D", "1Min")
 DEFAULT_ALLOCATOR = "equal_weight"
 DEFAULT_ALIGNMENT_POLICY = "intersection"
 DEFAULT_INITIAL_CAPITAL = 1.0
+
+# Backward-compatible alias for tests and callers that monkeypatch the portfolio
+# registry writer at the CLI module boundary.
+register_portfolio_run = register_validated_portfolio_run
 
 
 @dataclass(frozen=True)
@@ -294,7 +298,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
 
         from src.portfolio import write_portfolio_artifacts
 
-        write_portfolio_artifacts(
+        manifest = write_portfolio_artifacts(
             output_dir=experiment_dir,
             portfolio_output=portfolio_output,
             metrics=metrics,
@@ -316,6 +320,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
                 simulation_result,
                 parent_manifest_dir=experiment_dir,
             )
+            manifest = json.loads((experiment_dir / "manifest.json").read_text(encoding="utf-8"))
 
         registry_path = default_registry_path(output_root)
         register_portfolio_run(
@@ -325,21 +330,9 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             components=components,
             metrics=metrics,
             artifact_path=experiment_dir.as_posix(),
-            metadata={
-                "portfolio_name": resolved_config["portfolio_name"],
-                "allocator_name": allocator.name,
-                "optimizer_method": (
-                    None
-                    if not isinstance(resolved_config.get("optimizer"), dict)
-                    else resolved_config["optimizer"].get("method")
-                ),
-                "timeframe": timeframe,
-                "start_ts": start_ts,
-                "end_ts": end_ts,
-                "evaluation_config_path": (
-                    None if args.evaluation is None else str(Path(args.evaluation))
-                ),
-            },
+            manifest=manifest,
+            start_ts=start_ts,
+            end_ts=end_ts,
         )
 
         result = PortfolioRunResult(

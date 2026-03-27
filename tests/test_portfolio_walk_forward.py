@@ -141,6 +141,9 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
     }
     assert manifest["split_artifact_dirs"] == ["splits/rolling_0000", "splits/rolling_0001"]
     assert manifest["aggregate_metric_summary"]["total_return"] == pytest.approx(0.0175)
+    assert manifest["optimizer_method"] == "equal_weight"
+    assert manifest["risk"]["config"]["volatility_window"] == 20
+    assert manifest["simulation"]["enabled"] is False
     assert "aggregate_metrics.json" in manifest["artifact_files"]
     assert "splits/rolling_0000/portfolio_returns.csv" in manifest["artifact_files"]
 
@@ -149,6 +152,7 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
     assert registry_entries[0]["split_count"] == 2
     assert registry_entries[0]["evaluation_config_path"] == evaluation_path.as_posix()
     assert registry_entries[0]["metrics"]["total_return"] == pytest.approx(0.0175)
+    assert registry_entries[0]["metrics_summary"]["total_return"] == pytest.approx(0.0175)
     assert registry_entries[0]["metadata"]["aggregate_metrics"]["split_ids"] == [
         "rolling_0000",
         "rolling_0001",

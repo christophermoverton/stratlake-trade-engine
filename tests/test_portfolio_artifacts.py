@@ -214,7 +214,31 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     assert manifest_payload["artifact_files"] == sorted(expected_files)
     assert manifest_payload["component_count"] == 2
     assert manifest_payload["optimizer_method"] == "equal_weight"
+    assert manifest_payload["optimizer"]["constraint_summary"] == {
+        "full_investment": True,
+        "leverage_ceiling": 1.0,
+        "long_only": True,
+        "max_single_weight": None,
+        "max_turnover": None,
+        "max_weight": None,
+        "min_weight": 0.0,
+        "target_weight_sum": 1.0,
+    }
     assert manifest_payload["qa_summary_status"] == "pass"
+    assert manifest_payload["risk"]["config"]["volatility_window"] == 20
+    assert manifest_payload["risk"]["summary"]["max_drawdown"] == pytest.approx(
+        metrics_payload["max_drawdown"]
+    )
+    assert manifest_payload["simulation"] == {
+        "artifact_path": None,
+        "enabled": False,
+        "method": None,
+        "num_paths": None,
+        "path_length": None,
+        "probability_of_loss": None,
+        "seed": None,
+        "summary_path": None,
+    }
     assert manifest_payload["row_counts"] == {
         "components": 2,
         "portfolio_equity_curve": 2,

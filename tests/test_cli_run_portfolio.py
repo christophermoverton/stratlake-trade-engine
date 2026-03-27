@@ -1000,7 +1000,9 @@ def test_run_cli_writes_portfolio_simulation_artifacts(
     assert (simulation_dir / "summary.json").exists()
     assert (simulation_dir / "simulated_paths.csv").exists()
     manifest_payload = json.loads((result.experiment_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest_payload["simulation"]["enabled"] is True
     assert manifest_payload["simulation"]["summary_path"] == "simulation/summary.json"
+    assert manifest_payload["simulation"]["config_path"] == "simulation/config.json"
     assert "simulation/path_metrics.csv" in manifest_payload["artifact_files"]
 
 

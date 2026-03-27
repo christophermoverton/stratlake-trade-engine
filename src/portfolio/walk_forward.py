@@ -19,7 +19,6 @@ from src.research.registry import (
     filter_by_run_type,
     generate_portfolio_run_id,
     load_registry,
-    register_portfolio_run,
 )
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
@@ -36,6 +35,7 @@ from .artifacts import (
     _weights_frame,
     _write_csv,
     _write_json,
+    register_validated_portfolio_run,
 )
 from .constructor import construct_portfolio
 from .loaders import build_aligned_return_matrix, load_strategy_run_returns
@@ -225,23 +225,18 @@ def run_portfolio_walk_forward(
     )
     _write_json(experiment_dir / "manifest.json", manifest)
 
-    register_portfolio_run(
+    register_validated_portfolio_run(
         registry_path=default_registry_path(Path(output_dir)),
         run_id=run_id,
         config=root_config,
         components=components,
         metrics=dict(aggregate_metrics["metric_summary"]),
         artifact_path=experiment_dir.as_posix(),
-        metadata={
-            "portfolio_name": normalized_portfolio_name,
-            "allocator_name": allocator.name,
-            "timeframe": normalized_timeframe,
-            "start_ts": _run_start_ts(splits),
-            "end_ts": _run_end_ts(splits),
-            "evaluation_config_path": evaluation_path.as_posix(),
-            "split_count": len(split_results),
-            "aggregate_metrics": aggregate_metrics,
-        },
+        manifest=manifest,
+        start_ts=_run_start_ts(splits),
+        end_ts=_run_end_ts(splits),
+        split_count=len(split_results),
+        extra_metadata={"aggregate_metrics": aggregate_metrics},
     )
 
     return {
@@ -605,6 +600,9 @@ def _build_manifest(
         "portfolio_name": config["portfolio_name"],
         "allocator": config["allocator"],
         "optimizer": config.get("optimizer"),
+        "optimizer_method": None
+        if not isinstance(config.get("optimizer"), dict)
+        else config["optimizer"].get("method"),
         "evaluation_mode": "walk_forward",
         "evaluation_config_path": config["evaluation_config_path"],
         "strict_mode": config.get("strict_mode"),
@@ -612,9 +610,62 @@ def _build_manifest(
         "split_count": len(split_results),
         "split_artifact_dirs": list(split_artifact_dirs),
         "artifact_files": artifact_files,
+        "artifact_groups": {
+            "core": sorted(
+                [
+                    "aggregate_metrics.json",
+                    "components.json",
+                    "config.json",
+                    "manifest.json",
+                    "metrics_by_split.csv",
+                ]
+            ),
+            "metrics": ["aggregate_metrics.json", "metrics_by_split.csv"],
+            "qa": sorted(
+                f"{split_artifact_dir}/qa_summary.json"
+                for split_artifact_dir in split_artifact_dirs
+            ),
+            "risk": [],
+            "simulation": [],
+            "walk_forward": list(split_artifact_dirs),
+        },
         "aggregate_metric_summary": canonicalize_value(dict(aggregate_metrics["metric_summary"])),
         "aggregate_metrics_path": "aggregate_metrics.json",
         "metrics_by_split_path": "metrics_by_split.csv",
+        "config_snapshot": {
+            "execution": config.get("execution"),
+            "risk": config.get("risk"),
+            "runtime": config.get("runtime"),
+            "sanity": config.get("sanity"),
+            "strict_mode": config.get("strict_mode"),
+            "validation": config.get("validation"),
+        },
+        "risk": {
+            "config": config.get("risk"),
+            "summary": {
+                "conditional_value_at_risk": aggregate_metrics["metric_summary"].get("conditional_value_at_risk"),
+                "conditional_value_at_risk_confidence_level": aggregate_metrics["metric_summary"].get(
+                    "conditional_value_at_risk_confidence_level"
+                ),
+                "max_drawdown": aggregate_metrics["metric_summary"].get("max_drawdown"),
+                "realized_volatility": aggregate_metrics["metric_summary"].get("realized_volatility"),
+                "target_volatility": aggregate_metrics["metric_summary"].get("target_volatility"),
+                "value_at_risk": aggregate_metrics["metric_summary"].get("value_at_risk"),
+                "value_at_risk_confidence_level": aggregate_metrics["metric_summary"].get(
+                    "value_at_risk_confidence_level"
+                ),
+            },
+        },
+        "simulation": {
+            "artifact_path": None,
+            "enabled": False,
+            "method": None,
+            "num_paths": None,
+            "path_length": None,
+            "probability_of_loss": None,
+            "seed": None,
+            "summary_path": None,
+        },
     }
 
 

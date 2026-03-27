@@ -9,8 +9,9 @@ import pandas as pd
 
 from src.portfolio.contracts import PortfolioContractError, validate_portfolio_output
 from src.portfolio.qa import run_portfolio_qa
+from src.portfolio.risk import resolve_portfolio_risk_config, summarize_portfolio_risk
 from src.research.consistency import validate_portfolio_artifact_payload_consistency
-from src.research.registry import canonicalize_value
+from src.research.registry import canonicalize_value, register_portfolio_run
 
 _CONFIG_FILENAME = "config.json"
 _COMPONENTS_FILENAME = "components.json"
@@ -58,6 +59,7 @@ def write_portfolio_artifacts(
     )
     manifest = _build_manifest(
         output_dir=resolved_output_dir,
+        portfolio_output=normalized_portfolio_output,
         config=normalized_config,
         components=normalized_components,
         metrics=normalized_metrics,
@@ -292,6 +294,7 @@ def _write_json(path: Path, payload: dict[str, object]) -> None:
 def _build_manifest(
     *,
     output_dir: Path,
+    portfolio_output: pd.DataFrame,
     config: dict[str, object],
     components: list[dict[str, object]],
     metrics: dict[str, object],
@@ -301,6 +304,16 @@ def _build_manifest(
     equity_frame: pd.DataFrame,
 ) -> dict[str, object]:
     run_id = output_dir.name
+    optimizer_metadata = _optimizer_manifest_metadata(
+        portfolio_output=portfolio_output,
+        config=config,
+        metrics=metrics,
+    )
+    risk_metadata = _risk_manifest_metadata(
+        portfolio_output=portfolio_output,
+        config=config,
+        metrics=metrics,
+    )
     artifact_inventory = {
         _COMPONENTS_FILENAME: {"path": _COMPONENTS_FILENAME, "rows": len(components)},
         _CONFIG_FILENAME: {"path": _CONFIG_FILENAME},
@@ -327,25 +340,66 @@ def _build_manifest(
     return {
         "alignment_policy": config.get("alignment_policy"),
         "allocator": config.get("allocator"),
-        "optimizer": config.get("optimizer"),
-        "optimizer_method": None
-        if not isinstance(config.get("optimizer"), dict)
-        else config["optimizer"].get("method"),
-        "risk": config.get("risk"),
         "artifact_files": sorted(artifact_inventory),
         "artifacts": artifact_inventory,
+        "artifact_groups": {
+            "core": sorted(
+                [
+                    _COMPONENTS_FILENAME,
+                    _CONFIG_FILENAME,
+                    _MANIFEST_FILENAME,
+                    _METRICS_FILENAME,
+                    _PORTFOLIO_EQUITY_FILENAME,
+                    _PORTFOLIO_RETURNS_FILENAME,
+                    _QA_SUMMARY_FILENAME,
+                    _WEIGHTS_FILENAME,
+                ]
+            ),
+            "metrics": [_METRICS_FILENAME],
+            "qa": [_QA_SUMMARY_FILENAME],
+            "risk": [],
+            "simulation": [],
+            "walk_forward": [],
+        },
         "component_count": len(components),
+        "components_path": _COMPONENTS_FILENAME,
+        "config_path": _CONFIG_FILENAME,
+        "config_snapshot": {
+            "execution": config.get("execution"),
+            "risk": config.get("risk"),
+            "runtime": config.get("runtime"),
+            "sanity": config.get("sanity"),
+            "strict_mode": config.get("strict_mode"),
+            "validation": config.get("validation"),
+        },
+        "evaluation_config_path": config.get("evaluation_config_path"),
+        "evaluation_mode": "single",
         "files_written": len(artifact_inventory),
         "initial_capital": config.get("initial_capital"),
         "metric_summary": metrics,
+        "metrics_path": _METRICS_FILENAME,
+        "optimizer": optimizer_metadata,
+        "optimizer_method": optimizer_metadata.get("method"),
         "qa_summary_status": qa_summary.get("validation_status"),
+        "qa_summary_path": _QA_SUMMARY_FILENAME,
         "portfolio_name": config.get("portfolio_name"),
+        "risk": risk_metadata,
         "risk_summary": {
-            "target_volatility": metrics.get("target_volatility"),
-            "realized_volatility": metrics.get("realized_volatility"),
-            "value_at_risk": metrics.get("value_at_risk"),
-            "conditional_value_at_risk": metrics.get("conditional_value_at_risk"),
-            "max_drawdown": metrics.get("max_drawdown"),
+            "target_volatility": risk_metadata["summary"].get("target_volatility"),
+            "realized_volatility": risk_metadata["summary"].get("realized_volatility"),
+            "value_at_risk": risk_metadata["summary"].get("value_at_risk"),
+            "conditional_value_at_risk": risk_metadata["summary"].get("conditional_value_at_risk"),
+            "max_drawdown": risk_metadata["summary"].get("max_drawdown"),
+        },
+        "simulation": {
+            "artifact_path": None,
+            "enabled": False,
+            "method": None,
+            "num_paths": None,
+            "path_length": None,
+            "probability_of_loss": None,
+            "seed": None,
+            "summary_path": None,
         },
         "strict_mode": config.get("strict_mode"),
         "row_counts": {
@@ -357,6 +411,212 @@ def _build_manifest(
         "run_id": run_id,
         "timestamp": _utc_timestamp_from_run_id(run_id),
     }
+
+
+def _optimizer_manifest_metadata(
+    *,
+    portfolio_output: pd.DataFrame,
+    config: dict[str, object],
+    metrics: dict[str, object],
+) -> dict[str, object]:
+    constructor_payload = portfolio_output.attrs.get("portfolio_constructor", {})
+    optimizer_payload = (
+        constructor_payload.get("optimizer")
+        if isinstance(constructor_payload, dict)
+        else None
+    )
+    configured_optimizer = config.get("optimizer") if isinstance(config.get("optimizer"), dict) else {}
+    optimizer_config = {}
+    if isinstance(optimizer_payload, dict) and isinstance(optimizer_payload.get("config"), dict):
+        optimizer_config = _normalize_mapping(dict(optimizer_payload["config"]), owner="optimizer")
+    elif isinstance(configured_optimizer, dict):
+        optimizer_config = _normalize_mapping(dict(configured_optimizer), owner="optimizer")
+
+    diagnostics = {}
+    if isinstance(optimizer_payload, dict) and isinstance(optimizer_payload.get("diagnostics"), dict):
+        diagnostics = _normalize_mapping(
+            dict(optimizer_payload["diagnostics"]),
+            owner="optimizer.diagnostics",
+        )
+
+    method = optimizer_config.get("method")
+    return {
+        "config": optimizer_config or None,
+        "constraint_summary": {
+            "full_investment": optimizer_config.get("full_investment"),
+            "leverage_ceiling": optimizer_config.get("leverage_ceiling"),
+            "long_only": optimizer_config.get("long_only"),
+            "max_single_weight": optimizer_config.get("max_single_weight"),
+            "max_turnover": optimizer_config.get("max_turnover"),
+            "max_weight": optimizer_config.get("max_weight"),
+            "min_weight": optimizer_config.get("min_weight"),
+            "target_weight_sum": optimizer_config.get("target_weight_sum"),
+        },
+        "diagnostics": diagnostics or None,
+        "diagnostic_summary": {
+            "converged": diagnostics.get("converged"),
+            "gross_exposure": diagnostics.get("gross_exposure", metrics.get("max_leverage")),
+            "iterations": diagnostics.get("iterations"),
+            "max_single_weight": diagnostics.get("max_single_weight", metrics.get("max_single_weight")),
+            "net_exposure": diagnostics.get("net_exposure"),
+            "objective_expected_return": diagnostics.get("objective_expected_return"),
+            "objective_sharpe_ratio": diagnostics.get("objective_sharpe_ratio"),
+            "objective_volatility": diagnostics.get("objective_volatility"),
+            "observation_count": diagnostics.get("observation_count"),
+            "strategy_count": diagnostics.get("strategy_count"),
+            "turnover_vs_previous": diagnostics.get("turnover_vs_previous"),
+            "weight_sum": diagnostics.get("weight_sum", optimizer_config.get("target_weight_sum")),
+        },
+        "method": method,
+    }
+
+
+def _risk_manifest_metadata(
+    *,
+    portfolio_output: pd.DataFrame,
+    config: dict[str, object],
+    metrics: dict[str, object],
+) -> dict[str, object]:
+    resolved_risk = resolve_portfolio_risk_config(
+        config.get("risk") if isinstance(config.get("risk"), dict) else None
+    )
+    equity_curve = (
+        portfolio_output["portfolio_equity_curve"]
+        if "portfolio_equity_curve" in portfolio_output.columns
+        else None
+    )
+    weight_diagnostics = metrics.get("max_leverage")
+    risk_summary = summarize_portfolio_risk(
+        portfolio_output["portfolio_return"],
+        equity_curve=equity_curve,
+        config=resolved_risk,
+        periods_per_year=_periods_per_year_from_timeframe(str(config.get("timeframe"))),
+        leverage_ceiling=None if weight_diagnostics is None else float(weight_diagnostics),
+    )
+    return {
+        "config": _normalize_mapping(resolved_risk.to_dict(), owner="risk.config"),
+        "rolling_volatility": risk_summary["rolling_volatility"],
+        "summary": {
+            "conditional_value_at_risk": metrics.get("conditional_value_at_risk"),
+            "conditional_value_at_risk_confidence_level": metrics.get("conditional_value_at_risk_confidence_level"),
+            "current_drawdown": metrics.get("current_drawdown"),
+            "current_drawdown_duration": metrics.get("current_drawdown_duration"),
+            "latest_rolling_volatility": metrics.get("latest_rolling_volatility"),
+            "max_drawdown": metrics.get("max_drawdown"),
+            "max_drawdown_duration": metrics.get("max_drawdown_duration"),
+            "periods_per_year": risk_summary.get("periods_per_year"),
+            "realized_volatility": metrics.get("realized_volatility"),
+            "rolling_volatility_latest": metrics.get("rolling_volatility_latest"),
+            "rolling_volatility_max": metrics.get("rolling_volatility_max"),
+            "rolling_volatility_mean": metrics.get("rolling_volatility_mean"),
+            "rolling_volatility_window": metrics.get("rolling_volatility_window"),
+            "target_volatility": metrics.get("target_volatility"),
+            "value_at_risk": metrics.get("value_at_risk"),
+            "value_at_risk_confidence_level": metrics.get("value_at_risk_confidence_level"),
+            "volatility_target_scale": metrics.get("volatility_target_scale"),
+            "volatility_target_scale_capped": metrics.get("volatility_target_scale_capped"),
+        },
+        "tail_risk": risk_summary["tail_risk"],
+        "volatility_targeting": risk_summary["volatility_targeting"],
+    }
+
+
+def _periods_per_year_from_timeframe(timeframe: str) -> int:
+    normalized = timeframe.strip().lower()
+    if normalized in {"1d", "1day", "day", "daily"}:
+        return 252
+    if normalized in {"1m", "1min", "1minute", "minute", "minutes"}:
+        return 98_280
+    raise ValueError(f"Unsupported portfolio artifact timeframe: {timeframe!r}.")
+
+
+def build_portfolio_registry_metadata(
+    *,
+    config: dict[str, object],
+    metrics: dict[str, object],
+    manifest: dict[str, object],
+    start_ts: str,
+    end_ts: str,
+    split_count: int | None = None,
+    extra_metadata: dict[str, object] | None = None,
+) -> dict[str, object]:
+    simulation = manifest.get("simulation")
+    if not isinstance(simulation, dict):
+        simulation = {}
+    optimizer = manifest.get("optimizer")
+    if not isinstance(optimizer, dict):
+        optimizer = {}
+    payload = {
+        "portfolio_name": config.get("portfolio_name"),
+        "allocator_name": config.get("allocator"),
+        "optimizer_method": optimizer.get("method"),
+        "timeframe": config.get("timeframe"),
+        "start_ts": start_ts,
+        "end_ts": end_ts,
+        "evaluation_config_path": config.get("evaluation_config_path"),
+        "split_count": split_count,
+        "simulation": {
+            "enabled": bool(simulation.get("enabled")),
+            "method": simulation.get("method"),
+            "num_paths": simulation.get("num_paths"),
+            "path_length": simulation.get("path_length"),
+            "probability_of_loss": simulation.get("probability_of_loss"),
+            "summary_path": simulation.get("summary_path"),
+        },
+        "manifest": {
+            "evaluation_mode": manifest.get("evaluation_mode"),
+            "qa_summary_status": manifest.get("qa_summary_status"),
+            "artifact_path": manifest.get("simulation", {}).get("artifact_path")
+            if isinstance(manifest.get("simulation"), dict)
+            else None,
+        },
+        "risk_summary": manifest.get("risk_summary"),
+        "metrics_summary": {
+            "total_return": metrics.get("total_return"),
+            "sharpe_ratio": metrics.get("sharpe_ratio"),
+            "max_drawdown": metrics.get("max_drawdown"),
+            "realized_volatility": metrics.get("realized_volatility"),
+            "value_at_risk": metrics.get("value_at_risk"),
+            "conditional_value_at_risk": metrics.get("conditional_value_at_risk"),
+        },
+    }
+    if isinstance(extra_metadata, dict):
+        for key, value in sorted(extra_metadata.items()):
+            payload[key] = value
+    return payload
+
+
+def register_validated_portfolio_run(
+    *,
+    registry_path: str | Path,
+    run_id: str,
+    config: dict[str, object],
+    components: list[dict[str, object]],
+    metrics: dict[str, object],
+    artifact_path: str,
+    manifest: dict[str, object],
+    start_ts: str,
+    end_ts: str,
+    split_count: int | None = None,
+    extra_metadata: dict[str, object] | None = None,
+) -> None:
+    register_portfolio_run(
+        registry_path=registry_path,
+        run_id=run_id,
+        config=dict(config),
+        components=[dict(component) for component in components],
+        metrics=dict(metrics),
+        artifact_path=artifact_path,
+        metadata=build_portfolio_registry_metadata(
+            config=config,
+            metrics=metrics,
+            manifest=manifest,
+            start_ts=start_ts,
+            end_ts=end_ts,
+            split_count=split_count,
+            extra_metadata=extra_metadata,
+        ),
+    )
 
 
 def _utc_timestamp_from_run_id(run_id: str) -> str:
@@ -388,4 +648,8 @@ def _format_timestamp(value: object) -> str:
     return timestamp.isoformat().replace("+00:00", "Z")
 
 
-__all__ = ["write_portfolio_artifacts"]
+__all__ = [
+    "build_portfolio_registry_metadata",
+    "register_validated_portfolio_run",
+    "write_portfolio_artifacts",
+]

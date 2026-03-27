@@ -10,24 +10,13 @@ The portfolio CLI accepts config files in:
 * YAML
 * JSON
 
-Location in the current workflow:
-
-```text
-portfolio config
-        ->
-component strategy selection
-        ->
-portfolio construction
-        ->
-portfolio artifacts
-```
-
-The config file is consumed by `src.cli.run_portfolio` and normalized by the
-portfolio contract layer in `src/portfolio/contracts.py`.
+The config is consumed by `src.cli.run_portfolio` and normalized through the
+portfolio contract layer. For the full Milestone 11 workflow, see
+[milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md).
 
 ## Supported Top-Level Shapes
 
-The CLI can resolve a portfolio definition from any of these shapes:
+The CLI can resolve a portfolio definition from any of these shapes.
 
 ### Named mapping under `portfolios`
 
@@ -70,19 +59,35 @@ components:
 If the file contains multiple portfolio definitions, pass `--portfolio-name`
 to select one deterministically.
 
-## Example YAML
+## Example Definition
 
 ```yaml
 portfolios:
-  momentum_meanrev_equal:
-    allocator: equal_weight
+  momentum_meanrev_risk_parity:
+    allocator: risk_parity
     initial_capital: 1.0
+    alignment_policy: intersection
     components:
       - strategy_name: momentum_v1
-        run_id: <run_id>
       - strategy_name: mean_reversion_v1
-        run_id: <run_id>
-    alignment_policy: intersection
+    optimizer:
+      method: risk_parity
+      long_only: true
+      target_weight_sum: 1.0
+      leverage_ceiling: 1.0
+      covariance_ridge: 1e-8
+    risk:
+      volatility_window: 20
+      target_volatility: 0.12
+      var_confidence_level: 0.95
+      cvar_confidence_level: 0.95
+    execution:
+      enabled: true
+      transaction_cost_bps: 5
+      fixed_fee: 0.001
+      slippage_bps: 2
+      slippage_model: turnover_scaled
+      slippage_turnover_scale: 1.5
 ```
 
 ## Field Reference
@@ -91,36 +96,20 @@ portfolios:
 
 Human-readable portfolio identifier.
 
-Where it comes from:
-
-* the mapping key under `portfolios`, or
-* an explicit `portfolio_name` field
-
-Why it matters:
-
-* appears in the saved config and manifest
-* contributes to the deterministic portfolio `run_id`
-* is printed in the CLI summary
-* is stored in portfolio registry entries
-
-Rules:
-
-* must be a non-empty string
-* required after normalization
+It appears in saved config and manifest files, contributes to the deterministic
+`run_id`, is printed by the CLI, and is stored in registry entries.
 
 ### `allocator`
 
-Allocator name used to convert aligned component returns into portfolio
-weights.
+Allocator or optimizer method used to produce static portfolio weights.
 
-Current supported value:
+Supported values:
 
 * `equal_weight`
+* `max_sharpe`
+* `risk_parity`
 
-Rules:
-
-* must be a non-empty string
-* unsupported allocator names fail fast
+If `optimizer` is provided, `allocator` must match `optimizer.method`.
 
 ### `components`
 
@@ -146,66 +135,147 @@ Required behavior depends on selection mode:
 Rules:
 
 * must be a non-empty list
-* each component must be unique by `(strategy_name, run_id)` after resolution
-* components are normalized into deterministic sorted order before artifact
-  writing and run-id generation
+* components are normalized into deterministic sorted order
+* components must remain unique by strategy after resolution
 
 ### `initial_capital`
 
-Starting portfolio equity used when compounding `portfolio_equity_curve`.
+Starting portfolio equity used for `portfolio_equity_curve`.
 
-Example:
-
-```yaml
-initial_capital: 1.0
-```
-
-Rules:
-
-* optional
-* defaults to `1.0`
-* must be float-compatible
+Optional. Defaults to `1.0`.
 
 ### `alignment_policy`
 
-Return-series alignment behavior before weights and portfolio returns are
-computed.
+Return-series alignment behavior before portfolio construction.
 
 Current supported value:
 
 * `intersection`
 
 `intersection` keeps only timestamps that exist for every component strategy.
-This avoids filling missing returns and helps preserve deterministic,
-no-lookahead portfolio construction.
 
-Rules:
+### `optimizer`
 
-* optional
-* defaults to `intersection`
-* must be a non-empty string
+Optional optimizer configuration.
+
+Supported fields include:
+
+* `method`
+* `long_only`
+* `target_weight_sum`
+* `min_weight`
+* `max_weight`
+* `leverage_ceiling`
+* `full_investment`
+* `max_single_weight`
+* `max_turnover`
+* `risk_free_rate`
+* `covariance_ridge`
+* `max_iterations`
+* `tolerance`
+
+Important current limit:
+
+* only `long_only: true` is supported
+
+### `execution`
+
+Optional execution-friction settings shared with the repository runtime model.
+
+Supported fields include:
+
+* `enabled`
+* `execution_delay`
+* `transaction_cost_bps`
+* `slippage_bps`
+* `fixed_fee`
+* `fixed_fee_model`
+* `slippage_model`
+* `slippage_turnover_scale`
+* `slippage_volatility_scale`
+
+Supported `slippage_model` values:
+
+* `constant`
+* `turnover_scaled`
+* `volatility_scaled`
+
+Supported `fixed_fee_model` values:
+
+* `per_rebalance`
+
+### `validation` or `portfolio_validation`
+
+Optional portfolio-validation thresholds.
+
+Supported fields include:
+
+* `long_only`
+* `target_weight_sum`
+* `weight_sum_tolerance`
+* `target_net_exposure`
+* `net_exposure_tolerance`
+* `max_gross_exposure`
+* `max_leverage`
+* `max_single_sleeve_weight`
+* `min_single_sleeve_weight`
+* `max_abs_period_return`
+* `max_equity_multiple`
+* `strict_sanity_checks`
+
+`validation` and `portfolio_validation` are treated as the same section by the
+runtime layer.
+
+### `risk`
+
+Optional portfolio risk-summary configuration.
+
+Supported fields:
+
+* `volatility_window`
+* `target_volatility`
+* `min_volatility_scale`
+* `max_volatility_scale`
+* `allow_scale_up`
+* `var_confidence_level`
+* `cvar_confidence_level`
+* `volatility_epsilon`
+* `periods_per_year_override`
+
+Current behavior:
+
+* these settings control risk diagnostics and summary outputs
+* they do not automatically rescale realized portfolio returns
+
+### `sanity`
+
+Optional sanity-check settings from the shared runtime system.
+
+### `simulation`
+
+Optional simulation config for single-run portfolios.
+
+Supported fields are the same as `src.config.simulation.SimulationConfig`,
+including:
+
+* `method`
+* `num_paths`
+* `path_length`
+* `seed`
+* `monte_carlo_mean`
+* `monte_carlo_volatility`
+* `distribution`
+* `min_samples`
+* `drawdown_threshold`
+* `metrics`
+
+Current limit:
+
+* simulation is not supported when `--evaluation` is used
 
 ## CLI Interaction
 
-The portfolio config interacts with the CLI in three main ways.
-
-### Config + explicit run ids in the file
-
-```bash
-python -m src.cli.run_portfolio \
-  --portfolio-config configs/portfolios.yml \
-  --portfolio-name momentum_meanrev_equal \
-  --timeframe 1D
-```
-
-In this mode:
-
-* the CLI loads the named portfolio definition
-* component `run_id` values are resolved directly to
-  `artifacts/strategies/<run_id>/`
-* the config is validated before portfolio construction begins
-
-### Config + registry-backed selection
+### Config plus registry-backed selection
 
 ```bash
 python -m src.cli.run_portfolio \
@@ -218,10 +288,26 @@ python -m src.cli.run_portfolio \
 In this mode:
 
 * each component is matched by `strategy_name`
-* the latest matching strategy run is selected from
-  `artifacts/strategies/registry.jsonl`
-* selection is filtered by the requested portfolio `timeframe`
-* "latest" is determined by descending `timestamp`, then descending `run_id`
+* the latest matching strategy run is selected from the strategy registry
+* selection is filtered by the requested portfolio timeframe
+
+### Config plus CLI overrides
+
+```bash
+python -m src.cli.run_portfolio \
+  --portfolio-config configs/portfolios.yml \
+  --portfolio-name momentum_meanrev_equal \
+  --from-registry \
+  --timeframe 1D \
+  --optimizer-method max_sharpe \
+  --risk-target-volatility 0.12 \
+  --execution-enabled \
+  --transaction-cost-bps 5 \
+  --fixed-fee 0.001 \
+  --slippage-bps 2
+```
+
+CLI overrides are applied on top of config values and repository defaults.
 
 ### Explicit run ids without a config file
 
@@ -232,49 +318,46 @@ python -m src.cli.run_portfolio \
   --timeframe 1D
 ```
 
-In this mode the CLI builds an implicit config with:
+This builds an implicit config with:
 
 * `allocator: equal_weight`
 * `initial_capital: 1.0`
 * `alignment_policy: intersection`
 
-This is useful for fast ad hoc portfolio construction, but a config file is
-preferred when you want a documented, repeatable portfolio definition.
-
-## Timeframe And Evaluation
-
-The portfolio config does not replace the CLI `--timeframe` argument.
+## Timeframe, Evaluation, And Simulation
 
 `--timeframe` remains required because it controls:
 
 * portfolio metric annualization behavior
 * registry filtering when `--from-registry` is used
 * walk-forward timeframe compatibility checks
+* simulation annualization
 
 Walk-forward example:
 
 ```bash
 python -m src.cli.run_portfolio \
   --portfolio-config configs/portfolios.yml \
-  --portfolio-name momentum_meanrev_equal \
+  --portfolio-name strict_valid_builtin_pair \
+  --from-registry \
   --evaluation configs/evaluation.yml \
   --timeframe 1D
 ```
 
 In walk-forward mode:
 
-* the portfolio config still defines the component strategies and allocator
-* `configs/evaluation.yml` defines the evaluation splits
+* the portfolio config still defines components and allocator
+* the evaluation config defines the splits
 * the portfolio timeframe must match the evaluation timeframe
+* simulation cannot be combined with `--evaluation`
 
 ## Validation Summary
 
-Current portfolio config validation enforces:
+Portfolio config validation enforces:
 
 * required fields `portfolio_name`, `allocator`, and `components`
-* non-empty string values for identifier fields
-* non-empty component lists
-* unique component `(strategy_name, run_id)` pairs
+* supported optimizer methods
+* `allocator == optimizer.method` when optimizer config is provided
 * JSON-serializable normalized config payloads
 * deterministic ordering before artifact writing and registry registration
 

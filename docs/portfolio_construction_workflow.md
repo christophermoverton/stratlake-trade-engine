@@ -2,58 +2,25 @@
 
 ## Overview
 
-The portfolio layer adds deterministic portfolio construction on top of the
-existing strategy research workflow.
+The portfolio layer adds deterministic portfolio research on top of completed
+strategy artifacts.
 
-The portfolio layer answers a different question than a single strategy run:
+The portfolio workflow answers questions that a single strategy run cannot:
 
 * Which completed strategy runs should be combined?
-* How are those strategy return streams aligned and weighted?
-* What portfolio-level return, equity, metric, QA, and artifact outputs should
-  be persisted for reproducibility?
+* How are those return streams aligned and weighted?
+* How do optimizer choice, risk diagnostics, simulation, and execution
+  friction affect the review?
+* What portfolio-level artifacts should be persisted for reproducibility?
 
-At a high level, the portfolio workflow sits downstream of strategy execution:
-
-```text
-features
-    ->
-signals
-    ->
-backtest
-    ->
-strategy metrics
-    ->
-portfolio construction
-    ->
-portfolio metrics
-    ->
-artifacts
-    ->
-registry
-```
-
-Use this document as the central guide, then drill into the focused docs for
-details:
-
-* [docs/portfolio_configuration.md](portfolio_configuration.md)
-* [docs/portfolio_artifact_logging.md](portfolio_artifact_logging.md)
-* [docs/strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
-* [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
-* [docs/evaluation_split_configuration.md](evaluation_split_configuration.md)
+For the main Milestone 11 usage guide, start with
+[milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md).
 
 ## Where The Portfolio Layer Fits
 
-The existing strategy pipeline produces completed strategy runs under
-`artifacts/strategies/<run_id>/`. Each run includes an `equity_curve.csv`
-artifact with the timestamped `strategy_return` series needed by the portfolio
-layer.
-
-The portfolio layer consumes those saved strategy artifacts rather than
-rerunning strategies inside the portfolio constructor. This keeps the workflow
-artifact-driven and makes portfolio runs reproducible, deterministic, and easy
-to audit.
-
-The end-to-end flow is:
+The portfolio layer consumes completed strategy runs under
+`artifacts/strategies/<run_id>/` rather than rerunning strategies inside the
+portfolio constructor.
 
 ```text
 completed strategy runs
@@ -62,16 +29,20 @@ portfolio loaders
         ->
 aligned return matrix
         ->
-allocator
+allocator / optimizer
         ->
 portfolio constructor
         ->
-portfolio metrics
+portfolio metrics + risk summaries
+        ->
+optional simulation
         ->
 portfolio artifacts + QA
         ->
 portfolio registry entry
 ```
+
+This keeps the workflow deterministic, artifact-driven, and easy to audit.
 
 ## Component Map
 
@@ -83,38 +54,39 @@ Location:
 src/portfolio/loaders.py
 ```
 
-The loaders read completed strategy run directories and normalize them into
-portfolio-ready return inputs.
-
 Current behavior:
 
 * reads root-level `equity_curve.csv` from each component strategy run
 * requires `ts_utc` and `strategy_return`
-* resolves `strategy_name` from `config.json` or `manifest.json`
-* compounds same-timestamp rows into one strategy-level return when a strategy artifact contains multiple symbol rows for the same timestamp
+* resolves `strategy_name` from saved strategy artifacts
+* compounds same-timestamp rows into one strategy-level return when needed
 * builds one long-form return table across component strategies
 * aligns returns with `intersection` semantics only
 
-`intersection` alignment means the portfolio keeps only timestamps present for
-every component strategy. If no shared timestamps remain, the run fails
-explicitly rather than silently filling missing returns.
-
-### Allocator
+### Allocator And Optimizer
 
 Location:
 
 ```text
 src/portfolio/allocators.py
+src/portfolio/optimizer.py
 ```
 
-The allocator converts the aligned return matrix into a weight matrix.
-
-Current allocator support:
+Current supported methods:
 
 * `equal_weight`
+* `max_sharpe`
+* `risk_parity`
 
-`EqualWeightAllocator` assigns the same weight to every component strategy at
-every timestamp. The resulting weight rows must sum to `1.0`.
+All current methods produce one deterministic static weight vector. For
+single-run portfolios that vector is estimated from the aligned return matrix
+used for the run. For walk-forward portfolios it is estimated from the train
+window and applied to the test window for each split.
+
+Current optimizer limits:
+
+* long-only allocation only
+* no dynamic intra-window re-optimization
 
 ### Constructor
 
@@ -122,280 +94,136 @@ Location:
 
 ```text
 src/portfolio/constructor.py
+src/portfolio/execution.py
 ```
 
-The constructor combines aligned component returns and weights into the
-in-memory portfolio output.
+The constructor combines aligned component returns, weights, and execution
+frictions into the in-memory portfolio output.
 
 It produces:
 
 * `strategy_return__<strategy>` traceability columns
 * `weight__<strategy>` traceability columns
-* execution-friction and turnover columns
+* `gross_portfolio_return`
+* turnover and rebalance diagnostics
+* transaction-cost, fixed-fee, and slippage columns
+* `net_portfolio_return`
 * `portfolio_return`
 * `portfolio_equity_curve`
 
-Current construction logic is:
+Execution drag is deterministic and portfolio-level. Current slippage models
+are `constant`, `turnover_scaled`, and `volatility_scaled`.
 
-```python
-gross_portfolio_return = (aligned_returns * weights).sum(axis=1)
-portfolio_return = gross_portfolio_return - portfolio_transaction_cost - portfolio_slippage_cost
-portfolio_equity_curve = initial_capital * (1.0 + portfolio_return).cumprod()
-```
-
-### Metrics
+### Metrics And Risk
 
 Location:
 
 ```text
 src/portfolio/metrics.py
+src/portfolio/risk.py
 ```
 
-Portfolio metrics reuse the existing research metric primitives on the
-portfolio return stream.
+Portfolio metrics reuse the shared research metric primitives on the net
+portfolio return stream and add centralized risk summaries.
 
-Current summary metrics:
+Current headline metrics include:
 
-* `cumulative_return`
 * `total_return`
-* `volatility`
+* `gross_total_return`
+* `execution_drag_total_return`
 * `annualized_return`
 * `annualized_volatility`
 * `sharpe_ratio`
-* `max_drawdown`
-* `win_rate`
-* `hit_rate`
-* `profit_factor`
 * `turnover`
-* `exposure_pct`
+* `rebalance_count`
+* `total_execution_friction`
 
-Weight-based metrics are computed from `weight__<strategy>` traceability
-columns:
+Current risk metrics include:
 
-* `turnover` is the mean absolute component-weight change by timestamp
-* `exposure_pct` is the percentage of timestamps with non-zero gross exposure
+* `realized_volatility`
+* `rolling_volatility_latest`
+* `rolling_volatility_mean`
+* `max_drawdown`
+* `current_drawdown`
+* `value_at_risk`
+* `conditional_value_at_risk`
+* `volatility_target_scale`
 
-### Artifacts
+Important current behavior:
+
+* volatility targeting is diagnostic-only
+* the risk layer reports a recommended scale but does not automatically
+  transform the realized portfolio return path
+
+### Simulation
+
+Location:
+
+```text
+src/research/simulation.py
+```
+
+Single-run portfolios can optionally write deterministic simulation artifacts
+using bootstrap or normal Monte Carlo return paths.
+
+Current limits:
+
+* simulation is not available for walk-forward portfolios
+* simulation summarizes synthetic outcome distributions; it does not change the
+  realized portfolio results
+
+### Artifacts And Registry
 
 Location:
 
 ```text
 src/portfolio/artifacts.py
-src/portfolio/qa.py
-```
-
-Portfolio runs write deterministic CSV and JSON artifacts under
-`artifacts/portfolios/<run_id>/`.
-
-The artifact layer persists:
-
-* normalized config
-* resolved components
-* weights
-* component returns plus traceability columns
-* portfolio equity curve
-* metrics
-* QA summary
-* manifest
-
-Walk-forward portfolio runs additionally write:
-
-* `aggregate_metrics.json`
-* `metrics_by_split.csv`
-* per-split files under `splits/<split_id>/`
-
-See [docs/portfolio_artifact_logging.md](portfolio_artifact_logging.md) for the
-full artifact contract.
-
-### Registry
-
-Location:
-
-```text
+src/portfolio/walk_forward.py
 src/research/registry.py
 ```
 
-Portfolio runs are registered alongside strategy runs in a shared JSONL
-registry model, but with `run_type: "portfolio"`.
+Portfolio runs write deterministic CSV and JSON artifacts under
+`artifacts/portfolios/<run_id>/` and append one `run_type: "portfolio"` row to
+`artifacts/portfolios/registry.jsonl`.
 
-Portfolio registry entries capture:
+Milestone 11 adds manifest and registry metadata for:
 
-* `run_id`
-* `portfolio_name`
-* `allocator_name`
-* `component_run_ids`
-* `component_strategy_names`
-* `timeframe`
-* `start_ts`
-* `end_ts`
-* `artifact_path`
-* `metrics`
-* `evaluation_config_path`
-* `split_count`
-* `config`
-* `components`
-* `metadata`
+* optimizer settings and diagnostics
+* risk summaries
+* execution-friction summaries
+* simulation summaries for single-run portfolios
 
-This makes portfolio runs queryable without reopening every artifact directory.
-
-### CLI
-
-Location:
-
-```text
-src/cli/run_portfolio.py
-```
-
-The portfolio CLI is the entrypoint for end-to-end portfolio construction from
-saved strategy runs.
-
-Supported inputs:
-
-* explicit `--run-ids`
-* `--portfolio-config` plus explicit component `run_id` values
-* `--portfolio-config --from-registry` to resolve the latest matching strategy
-  run per configured `strategy_name`
-
-Supported modes:
-
-* single-run portfolio construction
-* walk-forward portfolio evaluation with `--evaluation`
+See [portfolio_artifact_logging.md](portfolio_artifact_logging.md) for the full
+artifact contract.
 
 ## Step-By-Step Workflow
 
-The portfolio workflow maps to the current implementation as follows:
-
-1. `select component strategy runs`
-   Choose completed strategy run ids directly with `--run-ids`, declare them
-   in a portfolio config, or resolve them from the strategy registry with
-   `--from-registry`.
-2. `load and align returns`
-   `load_strategy_runs_returns()` reads each component run's
-   `equity_curve.csv`, then `build_aligned_return_matrix()` keeps only shared
-   timestamps under `intersection` alignment.
-3. `allocate weights`
-   The allocator creates a deterministic weight matrix from the aligned return
-   matrix. The current implementation uses `equal_weight`.
-4. `compute portfolio returns`
-   `compute_portfolio_returns()` writes one weighted return stream plus
-   component traceability columns.
-5. `compute equity curve`
-   `compute_portfolio_equity_curve()` compounds `portfolio_return` from the
-   configured `initial_capital`.
-6. `compute metrics`
-   `compute_portfolio_metrics()` calculates return, risk, and weight-derived
-   activity metrics.
-7. `write artifacts`
-   `write_portfolio_artifacts()` writes normalized files and runs deterministic
-   portfolio QA before finalizing the manifest.
-8. `register run`
-   `register_portfolio_run()` appends one portfolio entry to
-   `artifacts/portfolios/registry.jsonl`.
+1. Select component strategy runs.
+   Use explicit `--run-ids`, define components in config, or resolve the latest
+   matching runs from the strategy registry with `--from-registry`.
+2. Load and align returns.
+   `load_strategy_runs_returns()` reads component artifacts and
+   `build_aligned_return_matrix()` keeps only shared timestamps.
+3. Allocate weights.
+   The allocator or optimizer produces a deterministic static weight matrix.
+4. Apply execution-friction accounting.
+   The constructor computes turnover, costs, fees, slippage, and net portfolio
+   returns.
+5. Compute equity and metrics.
+   `compute_portfolio_metrics()` calculates return, execution, exposure, and
+   risk summary metrics.
+6. Optionally run simulation.
+   Single-run portfolios can write bootstrap or Monte Carlo simulation outputs.
+7. Write artifacts.
+   `write_portfolio_artifacts()` persists normalized files and validates
+   consistency.
+8. Register the run.
+   `register_portfolio_run()` appends one deterministic portfolio row to the
+   shared registry model.
 
 ## CLI Usage
 
-Module execution:
-
-```powershell
-.\.venv\Scripts\python.exe -m src.cli.run_portfolio --portfolio-name core_portfolio --run-ids run-a run-b --timeframe 1D
-```
-
-Required arguments:
-
-* exactly one of `--portfolio-config` or `--run-ids`
-* `--timeframe`
-
-Important optional arguments:
-
-* `--portfolio-name` -> required when using `--run-ids`; also used to select a
-  named portfolio from config when multiple definitions exist
-* `--from-registry` -> resolve the latest matching strategy run per configured
-  `strategy_name`
-* `--evaluation [PATH]` -> run walk-forward portfolio evaluation
-* `--output-dir` -> override the default `artifacts/portfolios/` root
-* `--execution-delay` -> override runtime execution delay
-* `--transaction-cost-bps` -> override runtime transaction cost
-* `--slippage-bps` -> override runtime slippage
-* `--execution-enabled` -> force execution frictions on
-* `--disable-execution-model` -> force execution frictions off
-* `--strict` -> enable strict-mode validation enforcement
-
-Validation rules:
-
-* `--run-ids` cannot be combined with `--from-registry`
-* `--from-registry` requires `--portfolio-config`
-* supported timeframes are `1D` and `1Min`
-
-Console summary output includes:
-
-* portfolio name
-* run id
-* allocator
-* component count
-* timeframe
-* single-run totals or walk-forward aggregate statistics
-
-## Reproducible Example
-
-This section shows a minimal end-to-end portfolio run using the current CLI and
-the repository's existing strategy artifact flow.
-
-### 1. Ensure component strategy runs exist
-
-The portfolio runner consumes completed strategy artifacts. You can either use
-existing runs already recorded in `artifacts/strategies/registry.jsonl` or
-create fresh strategy runs first with:
-
-```bash
-python -m src.cli.run_strategy --strategy momentum_v1
-python -m src.cli.run_strategy --strategy mean_reversion_v1
-```
-
-Those commands write strategy artifacts under `artifacts/strategies/<run_id>/`
-and register them for later selection.
-
-### 2. Create `configs/portfolios.yml`
-
-The portfolio config can pin explicit strategy `run_id` values:
-
-```yaml
-portfolios:
-  momentum_meanrev_equal:
-    allocator: equal_weight
-    initial_capital: 1.0
-    components:
-      - strategy_name: momentum_v1
-        run_id: <run_id>
-      - strategy_name: mean_reversion_v1
-        run_id: <run_id>
-    alignment_policy: intersection
-```
-
-If you want a zero-edit registry-backed demo instead, use:
-
-```yaml
-portfolios:
-  momentum_meanrev_equal:
-    allocator: equal_weight
-    initial_capital: 1.0
-    components:
-      - strategy_name: momentum_v1
-      - strategy_name: mean_reversion_v1
-    alignment_policy: intersection
-```
-
-### 3. Run a single portfolio
-
-Explicit run ids:
-
-```bash
-python -m src.cli.run_portfolio \
-  --portfolio-config configs/portfolios.yml \
-  --portfolio-name momentum_meanrev_equal \
-  --timeframe 1D
-```
-
-Registry-backed selection:
+Baseline single-run portfolio:
 
 ```bash
 python -m src.cli.run_portfolio \
@@ -405,88 +233,79 @@ python -m src.cli.run_portfolio \
   --timeframe 1D
 ```
 
-The CLI prints the portfolio name, run id, allocator, component count,
-timeframe, total return, Sharpe ratio, and max drawdown.
-
-### 4. Optional walk-forward portfolio evaluation
-
-If the component strategy runs cover the same evaluation period and timeframe,
-you can construct the portfolio independently on each evaluation split:
+Optimizer-aware portfolio:
 
 ```bash
 python -m src.cli.run_portfolio \
   --portfolio-config configs/portfolios.yml \
   --portfolio-name momentum_meanrev_equal \
+  --from-registry \
+  --timeframe 1D \
+  --optimizer-method risk_parity
+```
+
+Risk-aware and execution-aware portfolio:
+
+```bash
+python -m src.cli.run_portfolio \
+  --portfolio-config configs/portfolios.yml \
+  --portfolio-name momentum_meanrev_equal \
+  --from-registry \
+  --timeframe 1D \
+  --risk-target-volatility 0.12 \
+  --risk-volatility-window 20 \
+  --execution-enabled \
+  --transaction-cost-bps 5 \
+  --fixed-fee 0.001 \
+  --slippage-bps 2 \
+  --slippage-model volatility_scaled \
+  --slippage-volatility-scale 1.5
+```
+
+Single-run simulation-enabled portfolio:
+
+```bash
+python -m src.cli.run_portfolio \
+  --portfolio-config configs/portfolios.yml \
+  --portfolio-name momentum_meanrev_equal \
+  --from-registry \
+  --timeframe 1D \
+  --simulation path/to/simulation.yml
+```
+
+Walk-forward portfolio:
+
+```bash
+python -m src.cli.run_portfolio \
+  --portfolio-config configs/portfolios.yml \
+  --portfolio-name strict_valid_builtin_pair \
+  --from-registry \
   --evaluation configs/evaluation.yml \
   --timeframe 1D
 ```
 
-In walk-forward mode the CLI prints:
-
-* split count
-* mean total return across splits
-* mean Sharpe ratio across splits
-* worst max drawdown across splits
-
-### 5. Inspect the outputs
-
-Single-run portfolio artifacts are written to:
-
-```text
-artifacts/portfolios/<run_id>/
-```
-
-Start with:
-
-* `manifest.json` for a compact run summary
-* `metrics.json` for the portfolio metric payload
-* `portfolio_returns.csv` for traceable component contributions
-* `portfolio_equity_curve.csv` for the compounded portfolio path
-* `qa_summary.json` for deterministic validation results
-
-Walk-forward portfolio runs additionally include:
-
-* `aggregate_metrics.json`
-* `metrics_by_split.csv`
-* `splits/<split_id>/`
-
-### Interpreting Results
+## Interpreting Results
 
 When reviewing a portfolio run:
 
-* use `portfolio_returns.csv` to confirm how component returns and weights map
-  into each `portfolio_return`
-* use `portfolio_equity_curve.csv` to inspect compounding behavior over time
-* use `metrics.json` or `aggregate_metrics.json` to compare return, risk, and
-  activity statistics
-* use `qa_summary.json` to confirm deterministic validation passed and no
-  portfolio validation, sanity, or traceability invariants were broken
+* use `manifest.json` first for run identity and high-level metadata
+* use `metrics.json` for return, execution, and risk summaries
+* use `portfolio_returns.csv` to see how component returns and weights map into
+  gross and net portfolio returns
+* use `portfolio_equity_curve.csv` to inspect the compounded net portfolio path
+* use `simulation/summary.json` when simulation is enabled
+* use `qa_summary.json` to confirm deterministic validation passed
 
-Portfolio runs now share the same runtime and strict-mode model as strategy
-runs. See:
+For walk-forward runs, also inspect:
 
-* [docs/runtime_configuration.md](runtime_configuration.md)
-* [docs/execution_model.md](execution_model.md)
-* [docs/strict_mode.md](strict_mode.md)
+* `aggregate_metrics.json`
+* `metrics_by_split.csv`
+* `splits/<split_id>/qa_summary.json`
 
-## Walk-Forward Semantics
+## Related Docs
 
-Walk-forward portfolio evaluation uses the same split configuration model as
-the strategy runner.
-
-Current behavior:
-
-* loads the evaluation config from `configs/evaluation.yml` or a supplied path
-* generates deterministic evaluation splits
-* slices each component strategy return stream to the split test window only
-* constructs and scores one independent portfolio per split
-* aggregates split-level portfolio metrics into descriptive statistics
-
-As with the broader evaluation layer:
-
-* split windows use half-open intervals
-* `start` is inclusive
-* `end` is exclusive
-
-See [docs/evaluation_split_configuration.md](evaluation_split_configuration.md)
-for split definitions and validation details.
+* [milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md)
+* [portfolio_configuration.md](portfolio_configuration.md)
+* [portfolio_artifact_logging.md](portfolio_artifact_logging.md)
+* [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
+* [evaluation_split_configuration.md](evaluation_split_configuration.md)

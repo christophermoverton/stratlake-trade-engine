@@ -143,7 +143,9 @@ def export_feature_metadata(
     for dataset_name in TARGET_DATASETS:
         entry = _registry_entry_for_dataset(registry, dataset_name)
         feature_list = sorted(str(item) for item in entry.get("features", []))
-        df = load_features(dataset_name, paths=feature_paths)
+        # Metadata export summarizes stored datasets as-is, even when they contain
+        # warm-up nulls or outlier values that strategy execution would later validate.
+        df = load_features(dataset_name, paths=feature_paths, validate_integrity=False)
         datasets.append(
             build_feature_metadata_summary(
                 dataset_name,

@@ -72,7 +72,7 @@ def run_backtest(
     config = execution_config or resolve_execution_config()
 
     result = df.copy()
-    result[return_column] = pd.to_numeric(result[return_column], errors="coerce").astype("float64")
+    result[return_column] = pd.to_numeric(result[return_column], errors="coerce").fillna(0.0).astype("float64")
     result["signal"] = pd.to_numeric(result["signal"], errors="coerce").fillna(0.0).astype("float64")
     executed_signal = result["signal"].shift(config.execution_delay).fillna(0.0).astype("float64")
     validate_research_integrity(

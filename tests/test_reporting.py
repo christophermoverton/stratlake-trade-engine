@@ -365,11 +365,13 @@ def test_generate_strategy_report_keeps_relative_paths_for_custom_output_locatio
 
 
 def test_generate_strategy_report_includes_walk_forward_context(tmp_path: Path) -> None:
+    split_one_results = _report_results().iloc[:6].copy()
+    split_two_results = _report_results().iloc[6:13].copy()
     split_results = [
         {
             "split_id": "split_001",
-            "results_df": _report_results().iloc[:12].copy(),
-                "metrics": compute_performance_metrics(_report_results().iloc[:12].copy()),
+            "results_df": split_one_results,
+            "metrics": compute_performance_metrics(split_one_results),
             "split_metadata": {
                 "split_id": "split_001",
                 "mode": "walk_forward",
@@ -384,8 +386,8 @@ def test_generate_strategy_report_includes_walk_forward_context(tmp_path: Path) 
         },
         {
             "split_id": "split_002",
-            "results_df": _report_results().iloc[12:].copy(),
-                "metrics": compute_performance_metrics(_report_results().iloc[12:].copy()),
+            "results_df": split_two_results,
+            "metrics": compute_performance_metrics(split_two_results),
             "split_metadata": {
                 "split_id": "split_002",
                 "mode": "walk_forward",

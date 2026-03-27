@@ -78,6 +78,9 @@ def _expected_walk_forward_metric_keys() -> set[str]:
         "excess_return",
         "benchmark_correlation",
         "relative_drawdown",
+        "sanity_issue_count",
+        "sanity_warning_count",
+        "flagged_split_count",
     }
 
 

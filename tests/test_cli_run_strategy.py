@@ -319,7 +319,9 @@ def test_run_strategy_experiment_loads_curated_daily_features_and_supports_mean_
         result.results_df.columns
     )
     assert result.results_df["close"].tolist() == pytest.approx(feature_df["close"].tolist())
-    assert result.results_df["feature_ret_1d"].notna().sum() == len(feature_df) - 1
+    assert result.results_df["feature_ret_1d"].tolist() == pytest.approx(
+        feature_df["feature_ret_1d"].fillna(0.0).tolist()
+    )
 
 
 def test_build_strategy_supports_buy_and_hold_baseline() -> None:

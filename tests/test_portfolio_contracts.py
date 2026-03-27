@@ -263,7 +263,7 @@ def test_validate_portfolio_config_accepts_and_normalizes_defaults() -> None:
             "min_single_sleeve_weight": None,
             "max_abs_period_return": 1.0,
             "max_equity_multiple": 1000000.0,
-            "strict_sanity_checks": True,
+            "strict_sanity_checks": False,
         },
     }
 

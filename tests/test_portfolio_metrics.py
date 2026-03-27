@@ -88,6 +88,10 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "max_single_weight",
         "max_weight_sum_deviation",
         "validation_issue_count",
+        "sanity_issue_count",
+        "sanity_warning_count",
+        "sanity_status",
+        "sanity_strict_mode",
     ]
     assert metrics["cumulative_return"] == pytest.approx(metrics["total_return"])
     assert metrics["total_return"] == pytest.approx(expected_total)
@@ -114,6 +118,10 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["max_single_weight"] == pytest.approx(0.8)
     assert metrics["max_weight_sum_deviation"] == pytest.approx(0.0)
     assert metrics["validation_issue_count"] == pytest.approx(0.0)
+    assert metrics["sanity_issue_count"] == pytest.approx(0.0)
+    assert metrics["sanity_warning_count"] == pytest.approx(0.0)
+    assert metrics["sanity_status"] == "pass"
+    assert metrics["sanity_strict_mode"] is False
 
 
 def test_compute_portfolio_metrics_matches_research_metric_primitives() -> None:

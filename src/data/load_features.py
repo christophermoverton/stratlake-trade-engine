@@ -114,6 +114,7 @@ def load_features(
     con: Optional[duckdb.DuckDBPyConnection] = None,
     paths: Optional[FeaturePaths] = None,
     cfg: Optional[FeatureViewConfig] = None,
+    validate_integrity: bool = True,
 ) -> pd.DataFrame:
     """
     Load an engineered feature dataset from partitioned parquet storage.
@@ -144,10 +145,10 @@ def load_features(
         ORDER BY symbol, ts_utc, timeframe, date
     """
     df = connection.execute(sql, params).df()
-    return _postprocess(df)
+    return _postprocess(df, validate_integrity=validate_integrity)
 
 
-def _postprocess(df: pd.DataFrame) -> pd.DataFrame:
+def _postprocess(df: pd.DataFrame, *, validate_integrity: bool = True) -> pd.DataFrame:
     if df.empty:
         return df.reset_index(drop=True)
 
@@ -166,5 +167,6 @@ def _postprocess(df: pd.DataFrame) -> pd.DataFrame:
         df = df.sort_values(sort_columns, kind="mergesort", na_position="last")
 
     df = df.reset_index(drop=True)
-    validate_research_integrity(df)
+    if validate_integrity:
+        validate_research_integrity(df)
     return df

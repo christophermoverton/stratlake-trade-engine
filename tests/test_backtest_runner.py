@@ -132,6 +132,17 @@ def test_run_backtest_raises_when_return_column_has_no_usable_values() -> None:
         run_backtest(df)
 
 
+def test_run_backtest_treats_partial_missing_returns_as_zero_for_warmup_rows() -> None:
+    df = _backtest_frame()
+    df.loc["row_a", "feature_ret_1d"] = pd.NA
+
+    result = run_backtest(df)
+
+    assert result["feature_ret_1d"].tolist() == pytest.approx([0.0, -0.02, 0.03, -0.01])
+    assert result["strategy_return"].tolist() == pytest.approx([0.0, -0.02, 0.03, 0.01])
+    assert result["equity_curve"].tolist() == pytest.approx([1.0, 0.98, 1.0094, 1.019494])
+
+
 def test_run_backtest_rejects_same_bar_execution_if_positions_are_not_shifted() -> None:
     df = _backtest_frame()
 

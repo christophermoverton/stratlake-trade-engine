@@ -91,6 +91,9 @@ def _expected_metric_keys() -> set[str]:
         "total_execution_friction",
         "average_execution_friction_per_trade",
         "exposure_pct",
+        "sanity_issue_count",
+        "sanity_warning_count",
+        "flagged_split_count",
     }
 
 

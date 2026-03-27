@@ -152,7 +152,7 @@ def test_load_strategy_runs_returns_rejects_duplicate_strategy_identifiers(tmp_p
         load_strategy_runs_returns([alpha_one, alpha_two])
 
 
-def test_load_strategy_run_returns_compounds_duplicate_timestamp_rows(tmp_path: Path) -> None:
+def test_load_strategy_run_returns_averages_duplicate_timestamp_rows(tmp_path: Path) -> None:
     run_dir = _write_run(
         tmp_path,
         run_id="20260325T104500Z_alpha",
@@ -169,7 +169,7 @@ def test_load_strategy_run_returns_compounds_duplicate_timestamp_rows(tmp_path: 
     assert loaded["ts_utc"].tolist() == list(
         pd.to_datetime(["2022-01-01T00:00:00Z", "2022-01-02T00:00:00Z"], utc=True)
     )
-    assert loaded["strategy_return"].tolist() == [pytest.approx(0.045), pytest.approx(0.01)]
+    assert loaded["strategy_return"].tolist() == [pytest.approx(0.025), pytest.approx(0.01)]
 
 
 def _write_run(

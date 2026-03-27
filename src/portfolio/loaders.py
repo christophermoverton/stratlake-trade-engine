@@ -67,7 +67,7 @@ def _collapse_strategy_return_rows(returns_frame: pd.DataFrame) -> pd.DataFrame:
 
     Strategy artifacts may contain multiple rows for the same timestamp when the
     originating research run spans multiple symbols. The portfolio layer needs a
-    single strategy-level return stream, so same-timestamp rows are compounded
+    single strategy-level return stream, so same-timestamp rows are averaged
     into one effective return for that timestamp.
     """
 
@@ -82,14 +82,14 @@ def _collapse_strategy_return_rows(returns_frame: pd.DataFrame) -> pd.DataFrame:
 
     grouped = (
         collapsed.groupby("ts_utc", sort=False, as_index=False)
-        .agg(strategy_return=("strategy_return", _compound_return_series))
+        .agg(strategy_return=("strategy_return", _average_return_series))
     )
     return grouped.loc[:, ["ts_utc", "strategy_return"]].reset_index(drop=True)
 
 
-def _compound_return_series(series: pd.Series) -> float:
+def _average_return_series(series: pd.Series) -> float:
     returns = pd.to_numeric(series, errors="raise").astype("float64")
-    return float((1.0 + returns).prod() - 1.0)
+    return float(returns.mean())
 
 
 def load_strategy_runs_returns(run_dirs: Sequence[str | Path]) -> pd.DataFrame:

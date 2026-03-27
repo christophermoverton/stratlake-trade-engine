@@ -8,6 +8,7 @@ import pytest
 
 from src.research import experiment_tracker
 from src.research.experiment_tracker import save_experiment, save_walk_forward_experiment
+from src.research.metrics import compute_performance_metrics
 
 
 def _metrics() -> dict[str, float | None]:
@@ -378,3 +379,37 @@ def test_save_experiment_persists_effective_runtime_config(tmp_path: Path, monke
     assert persisted["runtime"]["execution"]["transaction_cost_bps"] == pytest.approx(5.0)
     assert persisted["runtime"]["sanity"]["strict_sanity_checks"] is True
     assert persisted["runtime"]["strict_mode"] == {"enabled": True, "source": "config"}
+
+
+def test_save_experiment_writes_aggregated_strategy_equity_for_multi_symbol_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    results_df = pd.DataFrame(
+        {
+            "ts_utc": [
+                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+            ],
+            "symbol": ["AAPL", "AAPL", "MSFT", "MSFT"],
+            "signal": [1.0, 1.0, 1.0, 1.0],
+            "position": [1.0, 1.0, 1.0, 1.0],
+            "strategy_return": [0.04, 0.00, 0.02, 0.02],
+            "equity_curve": [1.04, 1.0608, 1.0608, 1.082016],
+        }
+    )
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    experiment_dir = save_experiment(
+        "multi_symbol_mean",
+        results_df,
+        compute_performance_metrics(results_df),
+        {"strategy_name": "multi_symbol_mean"},
+    )
+
+    equity_curve_df = pd.read_csv(experiment_dir / "equity_curve.csv")
+
+    assert equity_curve_df["strategy_return"].tolist() == pytest.approx([0.03, 0.01, 0.03, 0.01])
+    assert equity_curve_df["equity"].tolist() == pytest.approx([1.03, 1.0403, 1.03, 1.0403])

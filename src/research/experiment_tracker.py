@@ -13,7 +13,7 @@ from src.research.consistency import (
     validate_strategy_artifact_payload_consistency,
     validate_walk_forward_consistency,
 )
-from src.research.metrics import infer_position_series
+from src.research.metrics import broadcast_strategy_equity_curve, infer_position_series
 from src.research.registry import default_registry_path, serialize_canonical_json, upsert_registry_entry
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_qa import generate_strategy_qa_summary
@@ -413,13 +413,14 @@ def _equity_curve_frame(results_df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Experiment results must include backtest columns: {missing}.")
 
     frame = _normalize_artifact_frame(_sorted_by_time(results_df))
+    strategy_equity = broadcast_strategy_equity_curve(frame)
     payload = pd.DataFrame(index=frame.index)
     payload["ts_utc"] = frame["ts_utc"] if "ts_utc" in frame.columns else None
     if "symbol" in frame.columns:
         payload["symbol"] = frame["symbol"]
-    payload["equity"] = frame["equity_curve"].astype("float64")
+    payload["equity"] = strategy_equity["equity"].to_numpy(copy=True)
     if "strategy_return" in frame.columns:
-        payload["strategy_return"] = frame["strategy_return"]
+        payload["strategy_return"] = strategy_equity["strategy_return"].to_numpy(copy=True)
     if "signal" in frame.columns:
         payload["signal"] = frame["signal"]
     if "position" in frame.columns:

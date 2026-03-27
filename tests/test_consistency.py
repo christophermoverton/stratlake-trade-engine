@@ -7,7 +7,12 @@ import pandas as pd
 import pytest
 
 from src.research import experiment_tracker
-from src.research.consistency import ConsistencyError, validate_run_consistency
+from src.research.consistency import (
+    ConsistencyError,
+    validate_features_to_signals_consistency,
+    validate_run_consistency,
+    validate_signals_to_backtest_consistency,
+)
 from src.research.experiment_tracker import save_experiment, save_walk_forward_experiment
 from src.research.metrics import compute_performance_metrics
 from src.research.walk_forward import SplitExecutionResult, build_aggregate_summary
@@ -244,3 +249,49 @@ def test_validate_run_consistency_fails_for_walk_forward_split_inconsistency(
 
     with pytest.raises(ConsistencyError, match="metrics_by_split\\.rolling_0000\\.total_return mismatch"):
         validate_run_consistency(run_dir)
+
+
+def test_validate_features_to_signals_consistency_fails_for_reordered_index() -> None:
+    features = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL", "AAPL", "AAPL"], dtype="string"),
+            "ts_utc": pd.date_range("2025-01-01", periods=3, freq="D", tz="UTC"),
+            "timeframe": pd.Series(["1D", "1D", "1D"], dtype="string"),
+        },
+        index=pd.Index(["row_a", "row_b", "row_c"], name="row_id"),
+    )
+    signals = pd.Series([1, 0, -1], index=features.index[::-1], dtype="int64")
+
+    with pytest.raises(ConsistencyError, match="index mismatch"):
+        validate_features_to_signals_consistency(features, signals)
+
+
+def test_validate_signals_to_backtest_consistency_fails_for_dropped_row() -> None:
+    signal_df = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL", "AAPL", "AAPL"], dtype="string"),
+            "ts_utc": pd.date_range("2025-01-01", periods=3, freq="D", tz="UTC"),
+            "signal": [1, 0, -1],
+            "feature_ret_1d": [0.01, 0.02, -0.01],
+        }
+    )
+    backtest_df = signal_df.iloc[:2].copy()
+    backtest_df["executed_signal"] = [0.0, 1.0]
+
+    with pytest.raises(ConsistencyError, match="row count mismatch"):
+        validate_signals_to_backtest_consistency(signal_df, backtest_df, return_column="feature_ret_1d")
+
+
+def test_save_experiment_blocks_artifact_write_when_consistency_validation_fails(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    results = _single_results()
+    metrics = compute_performance_metrics(results)
+    metrics["total_return"] = 999.0
+
+    with pytest.raises(ConsistencyError, match="total_return mismatch"):
+        save_experiment("mean_reversion", results, metrics, _single_config())
+
+    assert not artifact_root.exists()

@@ -61,6 +61,16 @@ def _expected_metric_keys() -> set[str]:
         "hit_rate",
         "profit_factor",
         "turnover",
+        "total_turnover",
+        "average_turnover",
+        "trade_count",
+        "rebalance_count",
+        "percent_periods_traded",
+        "average_trade_size",
+        "total_transaction_cost",
+        "total_slippage_cost",
+        "total_execution_friction",
+        "average_execution_friction_per_trade",
         "exposure_pct",
     }
 
@@ -85,7 +95,8 @@ def test_execute_split_scores_only_test_window_and_preserves_metadata() -> None:
     assert result.results_df["date"].tolist() == ["2022-01-04", "2022-01-05"]
     assert result.results_df["split_id"].tolist() == ["fixed_0000", "fixed_0000"]
     assert result.results_df["train_start"].tolist() == ["2022-01-01", "2022-01-01"]
-    assert set(result.metrics) == _expected_metric_keys()
+    assert _expected_metric_keys().issubset(result.metrics)
+    assert result.metrics["sanity_issue_count"] == 0.0
     assert result.metrics["cumulative_return"] == pytest.approx(-0.0298)
 
 
@@ -197,11 +208,21 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     assert _expected_metric_keys().issubset(aggregate_metrics)
     assert aggregate_metrics["cumulative_return"] == pytest.approx(result.metrics["cumulative_return"])
 
+    config_payload = json.loads((result.experiment_dir / "config.json").read_text(encoding="utf-8"))
+    assert config_payload["strict_mode"] == {
+        "enabled": False,
+        "source": "default",
+    }
+
     manifest = json.loads((result.experiment_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest["run_id"] == result.run_id
     assert manifest["strategy_name"] == "sign_v1"
     assert manifest["evaluation_mode"] == "walk_forward"
     assert manifest["evaluation_config_path"] == str(config_path)
+    assert manifest["strict_mode"] == {
+        "enabled": False,
+        "source": "default",
+    }
     assert manifest["split_count"] == 4
     assert "metrics_by_split.csv" in manifest["artifact_files"]
     assert "splits/rolling_0000/equity_curve.csv" in manifest["artifact_files"]
@@ -224,7 +245,7 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     ]
     assert aggregate_equity_curve["ts_utc"].tolist() == sorted(aggregate_equity_curve["ts_utc"].tolist())
     assert split_equity_curve.columns.tolist() == aggregate_equity_curve.columns.tolist()
-    assert split_signals.columns.tolist()[:5] == ["ts_utc", "date", "symbol", "signal", "position"]
+    assert split_signals.columns.tolist()[:6] == ["ts_utc", "date", "symbol", "signal", "executed_signal", "position"]
     assert split_signals["split_id"].tolist() == ["rolling_0000"]
     assert split_metadata == {
         "split_id": "rolling_0000",
@@ -264,3 +285,82 @@ def test_run_walk_forward_experiment_rejects_empty_split_data(
 
     with pytest.raises(WalkForwardExecutionError, match="produced no training rows"):
         run_walk_forward_experiment("sign_v1", SignStrategy(), evaluation_path=config_path)
+
+
+def test_run_walk_forward_experiment_reports_flagged_splits_in_non_strict_sanity_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    config_path = tmp_path / "evaluation.yml"
+    _write_evaluation_config(
+        config_path,
+        {
+            "mode": "rolling",
+            "timeframe": "1d",
+            "start": "2022-01-01",
+            "end": "2022-01-07",
+            "train_window": "2D",
+            "test_window": "1D",
+            "step": "1D",
+        },
+    )
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    monkeypatch.setattr("src.research.walk_forward.load_features", lambda dataset, start=None, end=None: _feature_frame())
+
+    result = run_walk_forward_experiment(
+        "sign_v1",
+        SignStrategy(),
+        evaluation_path=config_path,
+        strategy_config={
+            "parameters": {"lookback": 2},
+            "sanity": {
+                "strict_sanity_checks": False,
+                "max_abs_period_return": 0.005,
+            },
+        },
+    )
+
+    assert result.aggregate_summary["flagged_split_count"] >= 1
+    assert result.sanity_summary["flagged_split_count"] >= 1
+    assert any(split.sanity["issue_count"] > 0 for split in result.splits)
+
+    metrics_payload = json.loads((result.experiment_dir / "metrics.json").read_text(encoding="utf-8"))
+    assert metrics_payload["flagged_split_count"] >= 1
+    assert metrics_payload["sanity_status"] in {"pass", "warn"}
+
+
+def test_run_walk_forward_experiment_records_enabled_strict_mode(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    config_path = tmp_path / "evaluation.yml"
+    _write_evaluation_config(
+        config_path,
+        {
+            "mode": "fixed",
+            "timeframe": "1d",
+            "train_start": "2022-01-01",
+            "train_end": "2022-01-05",
+            "test_start": "2022-01-05",
+            "test_end": "2022-01-07",
+        },
+    )
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    monkeypatch.setattr("src.research.walk_forward.load_features", lambda dataset, start=None, end=None: _feature_frame())
+
+    result = run_walk_forward_experiment(
+        "sign_v1",
+        SignStrategy(),
+        evaluation_path=config_path,
+        strict=True,
+    )
+
+    config_payload = json.loads((result.experiment_dir / "config.json").read_text(encoding="utf-8"))
+    assert config_payload["strict_mode"] == {
+        "enabled": True,
+        "source": "cli",
+    }

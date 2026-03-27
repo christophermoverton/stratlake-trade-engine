@@ -8,11 +8,9 @@ from typing import Any
 
 import pandas as pd
 
-from src.portfolio.contracts import (
-    PortfolioContractError,
-    validate_portfolio_output,
-)
+from src.portfolio.contracts import PortfolioContractError, validate_portfolio_output
 from src.portfolio.qa import run_portfolio_qa
+from src.research.consistency import validate_portfolio_artifact_payload_consistency
 from src.research.registry import canonicalize_value
 
 _CONFIG_FILENAME = "config.json"
@@ -43,28 +41,22 @@ def write_portfolio_artifacts(
     normalized_config = _normalize_portfolio_config(config, components=components)
     normalized_components = _normalize_components(components)
     normalized_metrics = _normalize_mapping(metrics, owner="metrics")
+    run_portfolio_qa(
+        normalized_portfolio_output,
+        normalized_metrics,
+        normalized_config,
+        strict=True,
+    )
 
     weights_frame = _weights_frame(normalized_portfolio_output)
     returns_frame = _portfolio_returns_frame(normalized_portfolio_output)
     equity_frame = _portfolio_equity_curve_frame(normalized_portfolio_output)
-
-    resolved_output_dir.mkdir(parents=True, exist_ok=True)
-
-    _write_json(resolved_output_dir / _CONFIG_FILENAME, normalized_config)
-    _write_json(resolved_output_dir / _COMPONENTS_FILENAME, {"components": normalized_components})
-    _write_csv(resolved_output_dir / _WEIGHTS_FILENAME, weights_frame)
-    _write_csv(resolved_output_dir / _PORTFOLIO_RETURNS_FILENAME, returns_frame)
-    _write_csv(resolved_output_dir / _PORTFOLIO_EQUITY_FILENAME, equity_frame)
-    _write_json(resolved_output_dir / _METRICS_FILENAME, normalized_metrics)
     qa_summary = run_portfolio_qa(
         normalized_portfolio_output,
         normalized_metrics,
         normalized_config,
-        artifacts_dir=resolved_output_dir,
-        run_id=resolved_output_dir.name,
         strict=True,
     )
-
     manifest = _build_manifest(
         output_dir=resolved_output_dir,
         config=normalized_config,
@@ -75,6 +67,26 @@ def write_portfolio_artifacts(
         returns_frame=returns_frame,
         equity_frame=equity_frame,
     )
+    validate_portfolio_artifact_payload_consistency(
+        portfolio_output=normalized_portfolio_output,
+        weights_frame=weights_frame,
+        returns_frame=returns_frame,
+        equity_frame=equity_frame,
+        metrics=normalized_metrics,
+        qa_summary=qa_summary,
+        config=normalized_config,
+        components=normalized_components,
+    )
+
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+
+    _write_json(resolved_output_dir / _CONFIG_FILENAME, normalized_config)
+    _write_json(resolved_output_dir / _COMPONENTS_FILENAME, {"components": normalized_components})
+    _write_csv(resolved_output_dir / _WEIGHTS_FILENAME, weights_frame)
+    _write_csv(resolved_output_dir / _PORTFOLIO_RETURNS_FILENAME, returns_frame)
+    _write_csv(resolved_output_dir / _PORTFOLIO_EQUITY_FILENAME, equity_frame)
+    _write_json(resolved_output_dir / _METRICS_FILENAME, normalized_metrics)
+    _write_json(resolved_output_dir / _QA_SUMMARY_FILENAME, qa_summary)
     _write_json(resolved_output_dir / _MANIFEST_FILENAME, manifest)
     return manifest
 
@@ -110,6 +122,7 @@ def _normalize_components(components: list[dict[str, object]]) -> list[dict[str,
 
     normalized_components: list[dict[str, object]] = []
     seen_keys: set[tuple[str, str]] = set()
+    seen_strategy_names: set[str] = set()
     for index, component in enumerate(components):
         if not isinstance(component, dict):
             raise TypeError(f"components[{index}] must be a dictionary.")
@@ -136,6 +149,12 @@ def _normalize_components(components: list[dict[str, object]]) -> list[dict[str,
                 f"Duplicate component: ({strategy_name!r}, {run_id!r})."
             )
         seen_keys.add(component_key)
+        if strategy_name in seen_strategy_names:
+            raise ValueError(
+                "components must be unique by strategy_name. "
+                f"Duplicate strategy_name: {strategy_name!r}."
+            )
+        seen_strategy_names.add(strategy_name)
 
         normalized_component = _normalize_mapping(component, owner=f"components[{index}]")
         normalized_component["strategy_name"] = strategy_name
@@ -217,10 +236,26 @@ def _portfolio_returns_frame(portfolio_output: pd.DataFrame) -> pd.DataFrame:
     if not weight_columns:
         raise ValueError("portfolio_output must include at least one weight__<strategy> column.")
 
+    execution_columns = [
+        column
+        for column in (
+            "gross_portfolio_return",
+            "portfolio_weight_change",
+            "portfolio_abs_weight_change",
+            "portfolio_turnover",
+            "portfolio_rebalance_event",
+            "portfolio_transaction_cost",
+            "portfolio_slippage_cost",
+            "portfolio_execution_friction",
+            "net_portfolio_return",
+        )
+        if column in portfolio_output.columns
+    ]
     ordered_columns = [
         "ts_utc",
         *sorted(return_columns),
         *sorted(weight_columns),
+        *execution_columns,
         "portfolio_return",
     ]
     return _csv_ready_frame(portfolio_output.loc[:, ordered_columns].copy())
@@ -301,6 +336,7 @@ def _build_manifest(
         "metric_summary": metrics,
         "qa_summary_status": qa_summary.get("validation_status"),
         "portfolio_name": config.get("portfolio_name"),
+        "strict_mode": config.get("strict_mode"),
         "row_counts": {
             "components": len(components),
             "portfolio_equity_curve": int(len(equity_frame)),

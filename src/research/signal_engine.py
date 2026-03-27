@@ -4,6 +4,7 @@ import warnings
 
 import pandas as pd
 
+from src.research.consistency import validate_features_to_signals_consistency
 from src.research.input_validation import STRATEGY_INPUT_MIN_ROWS, validate_strategy_input
 from src.research.integrity import validate_research_integrity
 from src.research.signal_diagnostics import compute_signal_diagnostics
@@ -41,6 +42,7 @@ def generate_signals(df: pd.DataFrame, strategy: BaseStrategy) -> pd.DataFrame:
             f"Strategy {strategy.__class__.__name__}.generate_signals() must return a pandas Series."
         )
 
+    validate_features_to_signals_consistency(df, signals)
     validate_research_integrity(df, signals)
 
     result = df.copy()

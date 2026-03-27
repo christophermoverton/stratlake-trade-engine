@@ -8,8 +8,12 @@ from typing import Any
 
 import pandas as pd
 
-from src.research.consistency import validate_run_consistency
-from src.research.metrics import infer_position_series
+from src.research.consistency import (
+    validate_run_consistency,
+    validate_strategy_artifact_payload_consistency,
+    validate_walk_forward_consistency,
+)
+from src.research.metrics import broadcast_strategy_equity_curve, infer_position_series
 from src.research.registry import default_registry_path, serialize_canonical_json, upsert_registry_entry
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_qa import generate_strategy_qa_summary
@@ -28,11 +32,24 @@ _METRIC_KEYS = (
     "hit_rate",
     "profit_factor",
     "turnover",
+    "total_turnover",
+    "average_turnover",
+    "trade_count",
+    "rebalance_count",
+    "percent_periods_traded",
+    "average_trade_size",
+    "total_transaction_cost",
+    "total_slippage_cost",
+    "total_execution_friction",
+    "average_execution_friction_per_trade",
     "exposure_pct",
     "benchmark_total_return",
     "excess_return",
     "benchmark_correlation",
     "relative_drawdown",
+    "sanity_issue_count",
+    "sanity_warning_count",
+    "flagged_split_count",
 )
 _METRICS_SUMMARY_KEYS = _METRIC_KEYS
 _SIGNAL_PRIORITY_COLUMNS = (
@@ -40,7 +57,17 @@ _SIGNAL_PRIORITY_COLUMNS = (
     "date",
     "symbol",
     "signal",
+    "executed_signal",
     "position",
+    "delta_position",
+    "abs_delta_position",
+    "turnover",
+    "trade_event",
+    "gross_strategy_return",
+    "transaction_cost",
+    "slippage_cost",
+    "execution_friction",
+    "net_strategy_return",
 )
 _SPLIT_METADATA_COLUMNS = (
     "split_id",
@@ -194,12 +221,14 @@ def _build_registry_entry(
         "strategy_params": dict(config.get("parameters") or {}),
         "evaluation_mode": evaluation_mode,
         "evaluation_config": _drop_none_values(evaluation_config),
+        "execution": _drop_none_values(config.get("execution")),
         "data_range": _resolve_data_range(results_df, config, evaluation_mode=evaluation_mode),
         "timeframe": _infer_timeframe(results_df, config),
         "metrics_summary": _metrics_summary(metrics_summary),
         "artifact_path": experiment_dir.as_posix(),
         "split_count": split_count,
         "evaluation_config_path": config.get("evaluation_config_path"),
+        "strict_mode": config.get("strict_mode"),
     }
 
 
@@ -260,7 +289,7 @@ def create_experiment_dir(
 ) -> Path:
     """Create and return the deterministic experiment directory for a strategy run."""
 
-    experiment_dir = ARTIFACTS_ROOT / _build_deterministic_run_id(
+    experiment_dir = resolve_experiment_dir(
         strategy_name,
         evaluation_mode=evaluation_mode,
         config=config,
@@ -270,6 +299,23 @@ def create_experiment_dir(
         shutil.rmtree(experiment_dir)
     experiment_dir.mkdir(parents=True, exist_ok=False)
     return experiment_dir
+
+
+def resolve_experiment_dir(
+    strategy_name: str,
+    *,
+    evaluation_mode: str,
+    config: dict[str, Any],
+    results_df: pd.DataFrame | None = None,
+) -> Path:
+    """Return the deterministic experiment directory path without creating it."""
+
+    return ARTIFACTS_ROOT / _build_deterministic_run_id(
+        strategy_name,
+        evaluation_mode=evaluation_mode,
+        config=config,
+        results_df=results_df,
+    )
 
 
 def _normalize_artifact_frame(df: pd.DataFrame) -> pd.DataFrame:
@@ -367,13 +413,14 @@ def _equity_curve_frame(results_df: pd.DataFrame) -> pd.DataFrame:
         raise ValueError(f"Experiment results must include backtest columns: {missing}.")
 
     frame = _normalize_artifact_frame(_sorted_by_time(results_df))
+    strategy_equity = broadcast_strategy_equity_curve(frame)
     payload = pd.DataFrame(index=frame.index)
     payload["ts_utc"] = frame["ts_utc"] if "ts_utc" in frame.columns else None
     if "symbol" in frame.columns:
         payload["symbol"] = frame["symbol"]
-    payload["equity"] = frame["equity_curve"].astype("float64")
+    payload["equity"] = strategy_equity["equity"].to_numpy(copy=True)
     if "strategy_return" in frame.columns:
-        payload["strategy_return"] = frame["strategy_return"]
+        payload["strategy_return"] = strategy_equity["strategy_return"].to_numpy(copy=True)
     if "signal" in frame.columns:
         payload["signal"] = frame["signal"]
     if "position" in frame.columns:
@@ -474,6 +521,47 @@ def _metrics_by_split_frame(metrics_rows: list[dict[str, Any]]) -> pd.DataFrame:
 
 def _write_run_outputs(
     output_dir: Path,
+    payloads: dict[str, Any],
+) -> list[str]:
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+    config = payloads.get("config")
+    split_metadata = payloads.get("split_metadata")
+    if split_metadata is None:
+        _write_json(output_dir / "config.json", dict(config or {}))
+    else:
+        _write_json(output_dir / "split.json", dict(split_metadata))
+
+    payloads["signals_frame"].to_parquet(output_dir / "signals.parquet")
+    payloads["equity_curve_frame"].to_csv(output_dir / "equity_curve.csv", index=False)
+    payloads["legacy_equity_curve_frame"].to_parquet(output_dir / "equity_curve.parquet")
+    _write_json(output_dir / "metrics.json", dict(payloads["metrics"]))
+    _write_json(output_dir / "signal_diagnostics.json", dict(payloads["signal_diagnostics"]))
+    _write_json(output_dir / "qa_summary.json", dict(payloads["qa_summary"]))
+
+    written = [
+        "signals.parquet",
+        "equity_curve.csv",
+        "equity_curve.parquet",
+        "metrics.json",
+        "signal_diagnostics.json",
+        "qa_summary.json",
+    ]
+    if split_metadata is None:
+        written.insert(0, "config.json")
+    else:
+        written.append("split.json")
+
+    trades_frame = payloads["trades_frame"]
+    if not trades_frame.empty:
+        trades_frame.to_parquet(output_dir / "trades.parquet")
+        written.append("trades.parquet")
+
+    return written
+
+
+def _prepare_run_outputs(
+    output_dir: Path,
     results_df: pd.DataFrame,
     metrics: dict[str, Any],
     config: dict[str, Any],
@@ -481,9 +569,7 @@ def _write_run_outputs(
     run_id: str,
     strategy_name: str,
     split_metadata: dict[str, Any] | None = None,
-) -> list[str]:
-    output_dir.mkdir(parents=True, exist_ok=True)
-
+) -> dict[str, Any]:
     annotated_results_df = results_df.copy()
     if annotated_results_df.attrs.get("dataset") is None and config.get("dataset") is not None:
         annotated_results_df.attrs["dataset"] = config["dataset"]
@@ -508,34 +594,26 @@ def _write_run_outputs(
         run_id=run_id,
     )
 
-    signals_frame.to_parquet(output_dir / "signals.parquet")
-    equity_curve_frame.to_csv(output_dir / "equity_curve.csv", index=False)
-    _legacy_equity_curve_frame(annotated_results_df).to_parquet(output_dir / "equity_curve.parquet")
-    _write_json(output_dir / "metrics.json", metrics)
-    _write_json(output_dir / "signal_diagnostics.json", signal_diagnostics)
-    _write_json(output_dir / "qa_summary.json", qa_summary)
+    validate_strategy_artifact_payload_consistency(
+        results_df=annotated_results_df,
+        signals_frame=signals_frame,
+        equity_curve_frame=equity_curve_frame,
+        metrics=metrics,
+        signal_diagnostics=signal_diagnostics,
+        qa_summary=qa_summary,
+    )
 
-    written = [
-        "signals.parquet",
-        "equity_curve.csv",
-        "equity_curve.parquet",
-        "metrics.json",
-        "signal_diagnostics.json",
-        "qa_summary.json",
-    ]
-
-    if split_metadata is None:
-        _write_json(output_dir / "config.json", config)
-        written.insert(0, "config.json")
-    else:
-        _write_json(output_dir / "split.json", split_metadata)
-        written.append("split.json")
-
-    if not trades_frame.empty:
-        trades_frame.to_parquet(output_dir / "trades.parquet")
-        written.append("trades.parquet")
-
-    return written
+    return {
+        "config": dict(config),
+        "split_metadata": None if split_metadata is None else dict(split_metadata),
+        "signals_frame": signals_frame,
+        "equity_curve_frame": equity_curve_frame,
+        "legacy_equity_curve_frame": _legacy_equity_curve_frame(annotated_results_df),
+        "trades_frame": trades_frame,
+        "metrics": dict(metrics),
+        "signal_diagnostics": dict(signal_diagnostics),
+        "qa_summary": dict(qa_summary),
+    }
 
 
 def _signal_diagnostics_payload(results_df: pd.DataFrame) -> dict[str, Any]:
@@ -572,6 +650,7 @@ def _build_manifest(
         "strategy_name": strategy_name,
         "evaluation_mode": evaluation_mode,
         "evaluation_config_path": config.get("evaluation_config_path"),
+        "strict_mode": config.get("strict_mode"),
         "artifact_files": artifact_files,
         "split_count": split_count,
         "primary_metric": "sharpe_ratio",
@@ -612,7 +691,7 @@ def save_experiment_outputs(
     """Write the standard single-run experiment artifacts into an existing directory."""
 
     resolved_strategy_name = str(strategy_name or config.get("strategy_name") or experiment_dir.name)
-    _write_run_outputs(
+    payloads = _prepare_run_outputs(
         experiment_dir,
         results_df,
         metrics,
@@ -620,6 +699,7 @@ def save_experiment_outputs(
         run_id=experiment_dir.name,
         strategy_name=resolved_strategy_name,
     )
+    _write_run_outputs(experiment_dir, payloads)
     _write_manifest(
         experiment_dir,
         resolved_strategy_name,
@@ -642,41 +722,27 @@ def save_walk_forward_experiment(
         [split_result["results_df"] for split_result in split_results],
         ignore_index=True,
     ) if split_results else pd.DataFrame(columns=["ts_utc", "signal", "strategy_return", "equity_curve"])
-    experiment_dir = create_experiment_dir(
-        strategy_name,
-        evaluation_mode="walk_forward",
-        config=config,
-        results_df=aggregate_results_df,
-    )
-
-    _write_run_outputs(
-        experiment_dir,
+    aggregate_payloads = _prepare_run_outputs(
+        ARTIFACTS_ROOT,
         aggregate_results_df,
         aggregate_summary,
         config,
-        run_id=experiment_dir.name,
+        run_id="aggregate",
         strategy_name=strategy_name,
     )
-
     metrics_rows: list[dict[str, Any]] = []
-    splits_dir = experiment_dir / "splits"
-    splits_dir.mkdir(parents=True, exist_ok=True)
-
+    split_payloads: list[dict[str, Any]] = []
     for split_result in split_results:
-        split_id = str(split_result["split_id"])
-        split_dir = splits_dir / split_id
-        split_dir.mkdir(parents=True, exist_ok=False)
-
-        _write_run_outputs(
-            split_dir,
+        split_payload = _prepare_run_outputs(
+            ARTIFACTS_ROOT,
             split_result["results_df"],
             split_result["metrics"],
             config,
-            run_id=split_id,
+            run_id=str(split_result["split_id"]),
             strategy_name=strategy_name,
             split_metadata=split_result["split_metadata"],
         )
-
+        split_payloads.append(split_payload)
         metrics_rows.append(
             {
                 **split_result["split_metadata"],
@@ -687,7 +753,31 @@ def save_walk_forward_experiment(
             }
         )
 
-    _metrics_by_split_frame(metrics_rows).to_csv(experiment_dir / "metrics_by_split.csv", index=False)
+    metrics_by_split = _metrics_by_split_frame(metrics_rows)
+    validate_walk_forward_consistency(split_results, aggregate_summary, metrics_by_split)
+    experiment_dir = resolve_experiment_dir(
+        strategy_name,
+        evaluation_mode="walk_forward",
+        config=config,
+        results_df=aggregate_results_df,
+    )
+
+    if experiment_dir.exists():
+        shutil.rmtree(experiment_dir)
+    experiment_dir.mkdir(parents=True, exist_ok=False)
+
+    aggregate_payloads["config"] = dict(config)
+    splits_dir = experiment_dir / "splits"
+    splits_dir.mkdir(parents=True, exist_ok=True)
+    _write_run_outputs(experiment_dir, aggregate_payloads)
+
+    for split_result, split_payload in zip(split_results, split_payloads, strict=False):
+        split_id = str(split_result["split_id"])
+        split_dir = splits_dir / split_id
+        split_dir.mkdir(parents=True, exist_ok=False)
+        _write_run_outputs(split_dir, split_payload)
+
+    metrics_by_split.to_csv(experiment_dir / "metrics_by_split.csv", index=False)
     _write_manifest(
         experiment_dir,
         strategy_name,
@@ -696,6 +786,7 @@ def save_walk_forward_experiment(
         aggregate_summary,
         split_count=len(split_results),
     )
+    validate_run_consistency(experiment_dir, validate_registry=False)
     _write_registry_entry(
         _build_registry_entry(
             experiment_dir,
@@ -735,19 +826,33 @@ def save_experiment(
             ``equity_curve`` columns required for the equity curve artifact.
     """
 
-    experiment_dir = create_experiment_dir(
+    experiment_dir = resolve_experiment_dir(
         strategy_name,
         evaluation_mode="single",
         config=config,
         results_df=results_df,
     )
-    save_experiment_outputs(
+    payloads = _prepare_run_outputs(
         experiment_dir,
         results_df,
         metrics,
         config,
+        run_id=experiment_dir.name,
         strategy_name=strategy_name,
     )
+    if experiment_dir.exists():
+        shutil.rmtree(experiment_dir)
+    experiment_dir.mkdir(parents=True, exist_ok=False)
+    _write_run_outputs(experiment_dir, payloads)
+    _write_manifest(
+        experiment_dir,
+        strategy_name,
+        "single",
+        config,
+        metrics,
+        split_count=None,
+    )
+    validate_run_consistency(experiment_dir, validate_registry=False)
     _write_registry_entry(
         _build_registry_entry(
             experiment_dir,

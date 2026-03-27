@@ -10,6 +10,11 @@ import numpy as np
 
 from .contracts import PortfolioContractError, validate_portfolio_output
 from .metrics import compute_portfolio_metrics
+from .validation import (
+    summarize_weight_diagnostics,
+    validate_portfolio_output_constraints,
+    validate_portfolio_weights,
+)
 
 _DEFAULT_TOLERANCE = 1e-10
 _QA_SUMMARY_FILENAME = "qa_summary.json"
@@ -23,10 +28,15 @@ def validate_portfolio_return_consistency(
     portfolio_df: pd.DataFrame,
     *,
     tolerance: float = _DEFAULT_TOLERANCE,
+    validation_config: dict[str, Any] | None = None,
 ) -> pd.DataFrame:
     """Validate weighted-return traceability for one portfolio output frame."""
 
-    normalized = _normalize_portfolio_output(portfolio_df, owner="portfolio_df")
+    normalized = _normalize_portfolio_output(
+        portfolio_df,
+        owner="portfolio_df",
+        validation_config=validation_config,
+    )
     required_columns = _required_traceability_columns(normalized)
     if required_columns["return_columns"] == []:
         raise PortfolioQAError(
@@ -58,12 +68,68 @@ def validate_portfolio_return_consistency(
             f"{tolerance}. First failing row index={failing_index}, row_sum={row_sums.iloc[failing_index]}."
         )
 
-    recomputed_returns = (_strategy_return_frame(normalized) * weight_frame).sum(axis=1)
-    mismatched_returns = (recomputed_returns - normalized["portfolio_return"]).abs() > tolerance
+    recomputed_gross_returns = pd.Series(
+        (_strategy_return_frame(normalized) * weight_frame).sum(axis=1).to_numpy(dtype="float64", copy=True),
+        index=normalized.index,
+        dtype="float64",
+    )
+    if "gross_portfolio_return" in normalized.columns:
+        mismatched_gross_returns = (
+            recomputed_gross_returns - normalized["gross_portfolio_return"]
+        ).abs() > tolerance
+        if mismatched_gross_returns.any():
+            failing_index = recomputed_gross_returns.index[mismatched_gross_returns][0]
+            raise PortfolioQAError(
+                "Portfolio QA failed: gross_portfolio_return does not equal the weighted sum of component returns "
+                f"at row index {failing_index}."
+            )
+
+    recomputed_returns = recomputed_gross_returns.copy()
+    if "portfolio_execution_friction" in normalized.columns:
+        transaction_cost = pd.Series(
+            normalized["portfolio_transaction_cost"].to_numpy(dtype="float64", copy=True),
+            index=normalized.index,
+            dtype="float64",
+        ) if "portfolio_transaction_cost" in normalized.columns else pd.Series(0.0, index=normalized.index, dtype="float64")
+        slippage_cost = pd.Series(
+            normalized["portfolio_slippage_cost"].to_numpy(dtype="float64", copy=True),
+            index=normalized.index,
+            dtype="float64",
+        ) if "portfolio_slippage_cost" in normalized.columns else pd.Series(0.0, index=normalized.index, dtype="float64")
+        friction_match = (
+            normalized["portfolio_execution_friction"]
+            - transaction_cost
+            - slippage_cost
+        ).abs() > tolerance
+        if friction_match.any():
+            failing_index = normalized.index[friction_match][0]
+            raise PortfolioQAError(
+                "Portfolio QA failed: portfolio_execution_friction must equal "
+                "portfolio_transaction_cost + portfolio_slippage_cost "
+                f"at row index {failing_index}."
+            )
+    if "portfolio_transaction_cost" in normalized.columns:
+        recomputed_returns = recomputed_returns - pd.Series(
+            normalized["portfolio_transaction_cost"].to_numpy(dtype="float64", copy=True),
+            index=normalized.index,
+            dtype="float64",
+        )
+    if "portfolio_slippage_cost" in normalized.columns:
+        recomputed_returns = recomputed_returns - pd.Series(
+            normalized["portfolio_slippage_cost"].to_numpy(dtype="float64", copy=True),
+            index=normalized.index,
+            dtype="float64",
+        )
+
+    mismatched_returns = (
+        recomputed_returns
+        - pd.Series(normalized["portfolio_return"].to_numpy(dtype="float64", copy=True), index=normalized.index, dtype="float64")
+    ).abs() > tolerance
     if mismatched_returns.any():
         failing_index = recomputed_returns.index[mismatched_returns][0]
         raise PortfolioQAError(
             "Portfolio QA failed: portfolio_return does not equal the weighted sum of component returns "
+            "after execution frictions "
             f"at row index {failing_index}."
         )
 
@@ -76,10 +142,15 @@ def validate_equity_curve(
     initial_capital: float | None = None,
     allow_non_positive: bool = False,
     tolerance: float = _DEFAULT_TOLERANCE,
+    validation_config: dict[str, Any] | None = None,
 ) -> pd.DataFrame:
     """Validate that the portfolio equity curve matches compounded returns."""
 
-    normalized = validate_portfolio_return_consistency(portfolio_df, tolerance=tolerance)
+    normalized = validate_portfolio_return_consistency(
+        portfolio_df,
+        tolerance=tolerance,
+        validation_config=validation_config,
+    )
     if "portfolio_equity_curve" not in normalized.columns:
         raise PortfolioQAError(
             "Portfolio QA failed: portfolio output must include 'portfolio_equity_curve'."
@@ -122,10 +193,15 @@ def validate_weights_behavior(
     *,
     allocator_name: str | None = None,
     tolerance: float = _DEFAULT_TOLERANCE,
+    validation_config: dict[str, Any] | None = None,
 ) -> pd.DataFrame:
     """Validate weight presence, finiteness, and allocator-specific behavior."""
 
-    normalized = _normalize_portfolio_output(portfolio_df, owner="portfolio_df")
+    normalized = _normalize_portfolio_output(
+        portfolio_df,
+        owner="portfolio_df",
+        validation_config=validation_config,
+    )
     weight_columns = [column for column in normalized.columns if column.startswith("weight__")]
     if not weight_columns:
         raise PortfolioQAError(
@@ -136,6 +212,10 @@ def validate_weights_behavior(
     weights = _weight_frame(normalized)
     if not np.isfinite(weights.to_numpy(dtype="float64")).all():
         raise PortfolioQAError("Portfolio QA failed: weights contain infinite values.")
+    try:
+        validate_portfolio_weights(weights, validation_config=validation_config)
+    except ValueError as exc:
+        raise PortfolioQAError(str(exc)) from exc
 
     normalized_allocator = None if allocator_name is None else str(allocator_name).strip().lower()
     if normalized_allocator == "equal_weight" and len(weights) > 1:
@@ -166,11 +246,13 @@ def validate_portfolio_artifact_consistency(
         portfolio_output,
         initial_capital=_initial_capital_from_config(config),
         tolerance=tolerance,
+        validation_config=config.get("validation") if isinstance(config, dict) else None,
     )
     validate_weights_behavior(
         normalized_output,
         allocator_name=config.get("allocator"),
         tolerance=tolerance,
+        validation_config=config.get("validation") if isinstance(config, dict) else None,
     )
 
     returns_path = resolved_output_dir / "portfolio_returns.csv"
@@ -222,6 +304,7 @@ def validate_portfolio_artifact_consistency(
     recomputed_metrics = compute_portfolio_metrics(
         normalized_output,
         timeframe=_timeframe_from_config(config),
+        validation_config=config.get("validation") if isinstance(config, dict) else None,
     )
     _assert_metrics_match(
         expected=dict(metrics),
@@ -246,13 +329,19 @@ def generate_portfolio_qa_summary(
     normalized = _normalize_portfolio_output(portfolio_df, owner="portfolio_df")
     weight_columns = [column for column in normalized.columns if column.startswith("weight__")]
     issue_list = sorted(str(issue) for issue in (issues or []))
+    sanity = _portfolio_sanity_payload(normalized, metrics)
+    diagnostics = (
+        summarize_weight_diagnostics(_weight_frame(normalized))
+        if weight_columns
+        else summarize_weight_diagnostics(pd.DataFrame(dtype="float64"))
+    )
     if "portfolio_equity_curve" in normalized.columns:
         equity_series = pd.to_numeric(normalized["portfolio_equity_curve"], errors="coerce")
         ending_equity = None if equity_series.empty or equity_series.isna().all() else float(equity_series.iloc[-1])
     else:
         ending_equity = None
 
-    status = "pass" if not issue_list else "fail"
+    status = "fail" if issue_list else ("warn" if sanity["issue_count"] > 0 else "pass")
     return {
         "run_id": run_id,
         "portfolio_name": None if portfolio_name is None else str(portfolio_name),
@@ -272,8 +361,20 @@ def generate_portfolio_qa_summary(
             "sharpe_ratio": _coerce_number(metrics.get("sharpe_ratio")),
             "max_drawdown": _coerce_number(metrics.get("max_drawdown")),
             "turnover": _coerce_number(metrics.get("turnover")),
+            "trade_count": _coerce_number(metrics.get("trade_count")),
+            "total_execution_friction": _coerce_number(metrics.get("total_execution_friction")),
             "exposure_pct": _coerce_number(metrics.get("exposure_pct")),
         },
+        "diagnostics": {
+            "max_gross_exposure": _coerce_number(diagnostics.get("max_gross_exposure")),
+            "min_net_exposure": _coerce_number(diagnostics.get("min_net_exposure")),
+            "max_net_exposure": _coerce_number(diagnostics.get("max_net_exposure")),
+            "max_leverage": _coerce_number(diagnostics.get("max_leverage")),
+            "max_single_weight": _coerce_number(diagnostics.get("max_single_weight")),
+            "max_weight_sum_deviation": _coerce_number(diagnostics.get("max_weight_sum_deviation")),
+            "validation_issue_count": _coerce_number(metrics.get("validation_issue_count", len(issue_list))),
+        },
+        "sanity": sanity,
         "issues": issue_list,
         "validation_status": status,
     }
@@ -294,16 +395,22 @@ def run_portfolio_qa(
     issues: list[str] = []
     normalized: pd.DataFrame | None = None
     try:
-        normalized = validate_portfolio_return_consistency(portfolio_df, tolerance=tolerance)
+        normalized = validate_portfolio_return_consistency(
+            portfolio_df,
+            tolerance=tolerance,
+            validation_config=config.get("validation") if isinstance(config, dict) else None,
+        )
         validate_equity_curve(
             normalized,
             initial_capital=_initial_capital_from_config(config),
             tolerance=tolerance,
+            validation_config=config.get("validation") if isinstance(config, dict) else None,
         )
         validate_weights_behavior(
             normalized,
             allocator_name=config.get("allocator"),
             tolerance=tolerance,
+            validation_config=config.get("validation") if isinstance(config, dict) else None,
         )
     except PortfolioQAError as exc:
         issues.append(str(exc))
@@ -349,7 +456,12 @@ def run_portfolio_qa(
     return summary
 
 
-def _normalize_portfolio_output(portfolio_df: pd.DataFrame, *, owner: str) -> pd.DataFrame:
+def _normalize_portfolio_output(
+    portfolio_df: pd.DataFrame,
+    *,
+    owner: str,
+    validation_config: dict[str, Any] | None = None,
+) -> pd.DataFrame:
     try:
         return validate_portfolio_output(portfolio_df)
     except PortfolioContractError as exc:
@@ -396,6 +508,7 @@ def _strategy_return_frame(portfolio_df: pd.DataFrame) -> pd.DataFrame:
     return_columns = [column for column in portfolio_df.columns if column.startswith("strategy_return__")]
     frame = portfolio_df.loc[:, return_columns].copy()
     frame.columns = [column.removeprefix("strategy_return__") for column in return_columns]
+    frame.index = pd.DatetimeIndex(pd.to_datetime(portfolio_df["ts_utc"], utc=True), name="ts_utc")
     return frame.astype("float64")
 
 
@@ -403,6 +516,7 @@ def _weight_frame(portfolio_df: pd.DataFrame) -> pd.DataFrame:
     weight_columns = [column for column in portfolio_df.columns if column.startswith("weight__")]
     frame = portfolio_df.loc[:, weight_columns].copy()
     frame.columns = [column.removeprefix("weight__") for column in weight_columns]
+    frame.index = pd.DatetimeIndex(pd.to_datetime(portfolio_df["ts_utc"], utc=True), name="ts_utc")
     return frame.astype("float64")
 
 
@@ -429,6 +543,21 @@ def _resolve_initial_capital(
 
 
 def _portfolio_returns_artifact_frame(portfolio_df: pd.DataFrame) -> pd.DataFrame:
+    execution_columns = [
+        column
+        for column in (
+            "gross_portfolio_return",
+            "portfolio_weight_change",
+            "portfolio_abs_weight_change",
+            "portfolio_turnover",
+            "portfolio_rebalance_event",
+            "portfolio_transaction_cost",
+            "portfolio_slippage_cost",
+            "portfolio_execution_friction",
+            "net_portfolio_return",
+        )
+        if column in portfolio_df.columns
+    ]
     return _csv_ready(
         portfolio_df.loc[
             :,
@@ -436,6 +565,7 @@ def _portfolio_returns_artifact_frame(portfolio_df: pd.DataFrame) -> pd.DataFram
                 "ts_utc",
                 *sorted(column for column in portfolio_df.columns if column.startswith("strategy_return__")),
                 *sorted(column for column in portfolio_df.columns if column.startswith("weight__")),
+                *execution_columns,
                 "portfolio_return",
             ],
         ].copy()
@@ -529,8 +659,12 @@ def _assert_numeric_match(name: str, expected: Any, actual: Any, *, tolerance: f
     left = _coerce_number(expected)
     right = _coerce_number(actual)
     if left is None and right is None:
-        return
+        if expected == actual:
+            return
+        raise PortfolioQAError(f"Portfolio QA failed: {name} mismatch (expected={expected!r} vs actual={actual!r}).")
     if left is None or right is None:
+        if expected == actual:
+            return
         raise PortfolioQAError(f"Portfolio QA failed: {name} mismatch (expected={expected!r} vs actual={actual!r}).")
     if abs(left - right) > tolerance:
         raise PortfolioQAError(f"Portfolio QA failed: {name} mismatch (expected={left} vs actual={right}).")
@@ -561,13 +695,46 @@ def _date_range(portfolio_df: pd.DataFrame) -> list[str | None]:
 
 
 def _coerce_number(value: Any) -> float | None:
-    if value is None or pd.isna(value):
+    if value is None:
         return None
-    return float(value)
+    try:
+        if pd.isna(value):
+            return None
+    except TypeError:
+        pass
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
 
 
 def _write_qa_summary(path: Path, summary: dict[str, Any]) -> None:
     path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+
+
+def _portfolio_sanity_payload(portfolio_df: pd.DataFrame, metrics: dict[str, Any]) -> dict[str, Any]:
+    payload = portfolio_df.attrs.get("sanity_check")
+    if not isinstance(payload, dict):
+        payload = metrics.get("sanity")
+    if not isinstance(payload, dict):
+        return {
+            "status": "pass",
+            "issue_count": 0,
+            "warning_count": 0,
+            "strict_sanity_checks": False,
+            "issues": [],
+        }
+
+    issues = payload.get("issues", [])
+    if not isinstance(issues, list):
+        issues = []
+    return {
+        "status": str(payload.get("status", "pass")),
+        "issue_count": int(payload.get("issue_count", len(issues))),
+        "warning_count": int(payload.get("warning_count", 0)),
+        "strict_sanity_checks": bool(payload.get("strict_sanity_checks", False)),
+        "issues": [dict(issue) for issue in issues if isinstance(issue, dict)],
+    }
 
 
 __all__ = [

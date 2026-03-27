@@ -1,0 +1,13 @@
+sanity:
+  max_abs_period_return: 1.0
+  max_annualized_return: 25.0
+  max_sharpe_ratio: 10.0
+  max_equity_multiple: 1000000.0
+  strict_sanity_checks: false
+  min_annualized_volatility_floor: 0.02
+  min_volatility_trigger_sharpe: 4.0
+  min_volatility_trigger_annualized_return: 1.0
+  smoothness_min_sharpe: 3.0
+  smoothness_min_annualized_return: 0.75
+  smoothness_max_drawdown: 0.02
+  smoothness_min_positive_return_fraction: 0.95

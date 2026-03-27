@@ -18,6 +18,15 @@ def _portfolio_output() -> pd.DataFrame:
         {
             "weight__beta": [0.5, 0.5],
             "strategy_return__beta": [0.03, 0.02],
+            "gross_portfolio_return": [0.02, 0.01],
+            "portfolio_weight_change": [1.0, 0.0],
+            "portfolio_abs_weight_change": [1.0, 0.0],
+            "portfolio_turnover": [1.0, 0.0],
+            "portfolio_rebalance_event": [1, 0],
+            "portfolio_transaction_cost": [0.0, 0.0],
+            "portfolio_slippage_cost": [0.0, 0.0],
+            "portfolio_execution_friction": [0.0, 0.0],
+            "net_portfolio_return": [0.02, 0.01],
             "portfolio_return": [0.02, 0.01],
             "ts_utc": pd.Series(
                 [
@@ -43,6 +52,12 @@ def _config() -> dict[str, object]:
         "settings": {
             "rebalance": "daily",
             "long_only": True,
+        },
+        "execution": {
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 10.0,
+            "slippage_bps": 5.0,
         },
     }
 
@@ -97,6 +112,12 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     assert config_payload == {
         "alignment_policy": "intersection",
         "allocator": "equal_weight",
+        "execution": {
+            "enabled": True,
+            "execution_delay": 1,
+            "slippage_bps": 5.0,
+            "transaction_cost_bps": 10.0,
+        },
         "initial_capital": 100.0,
         "portfolio_name": "Core Portfolio",
         "settings": {"long_only": True, "rebalance": "daily"},
@@ -133,6 +154,15 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "strategy_return__beta",
         "weight__alpha",
         "weight__beta",
+        "gross_portfolio_return",
+        "portfolio_weight_change",
+        "portfolio_abs_weight_change",
+        "portfolio_turnover",
+        "portfolio_rebalance_event",
+        "portfolio_transaction_cost",
+        "portfolio_slippage_cost",
+        "portfolio_execution_friction",
+        "net_portfolio_return",
         "portfolio_return",
     ]
     assert len(returns_frame) == 2
@@ -166,6 +196,15 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "strategy_return__beta",
         "weight__alpha",
         "weight__beta",
+        "gross_portfolio_return",
+        "portfolio_weight_change",
+        "portfolio_abs_weight_change",
+        "portfolio_turnover",
+        "portfolio_rebalance_event",
+        "portfolio_transaction_cost",
+        "portfolio_slippage_cost",
+        "portfolio_execution_friction",
+        "net_portfolio_return",
         "portfolio_return",
     ]
 
@@ -238,3 +277,140 @@ def test_write_portfolio_artifacts_rejects_duplicate_components(tmp_path: Path) 
             _config(),
             components,
         )
+
+
+def test_write_portfolio_artifacts_does_not_persist_invalid_portfolio(tmp_path: Path) -> None:
+    output_dir = tmp_path / "portfolio_invalid_abcd1234"
+    invalid_output = _portfolio_output().sort_values("ts_utc").reset_index(drop=True)
+    invalid_output.loc[1, "weight__alpha"] = 0.9
+    invalid_output.loc[1, "weight__beta"] = 0.1
+    recomputed_return = (
+        invalid_output.loc[1, "strategy_return__alpha"] * invalid_output.loc[1, "weight__alpha"]
+        + invalid_output.loc[1, "strategy_return__beta"] * invalid_output.loc[1, "weight__beta"]
+    )
+    invalid_output.loc[1, "gross_portfolio_return"] = recomputed_return
+    invalid_output.loc[1, "net_portfolio_return"] = recomputed_return
+    invalid_output.loc[1, "portfolio_return"] = recomputed_return
+    invalid_output.loc[1, "portfolio_equity_curve"] = invalid_output.loc[0, "portfolio_equity_curve"] * (
+        1.0 + recomputed_return
+    )
+
+    with pytest.raises(ValueError, match="equal_weight allocator should produce constant weights"):
+        write_portfolio_artifacts(
+            output_dir,
+            invalid_output,
+            _metrics(),
+            _config(),
+            _components(),
+        )
+
+    assert not output_dir.exists()
+
+
+def test_write_portfolio_artifacts_blocks_write_on_metrics_mismatch(tmp_path: Path) -> None:
+    output_dir = tmp_path / "portfolio_invalid_metrics_abcd1234"
+    metrics = _metrics()
+    metrics["total_return"] = 99.0
+
+    with pytest.raises(ValueError, match="portfolio.metrics.total_return mismatch"):
+        write_portfolio_artifacts(
+            output_dir,
+            _portfolio_output(),
+            metrics,
+            _config(),
+            _components(),
+        )
+
+    assert not output_dir.exists()
+
+
+def test_write_portfolio_artifacts_surfaces_non_strict_sanity_in_qa_summary(tmp_path: Path) -> None:
+    output_dir = tmp_path / "portfolio_sanity_warn_abcd1234"
+    portfolio_output = _portfolio_output().sort_values("ts_utc").reset_index(drop=True)
+    portfolio_output.attrs["sanity_check"] = {
+        "status": "warn",
+        "issue_count": 1,
+        "warning_count": 1,
+        "strict_sanity_checks": False,
+        "issues": [
+            {
+                "code": "portfolio_return_max_abs_period_return",
+                "message": "Sanity check flagged: absolute portfolio_return exceeds configured maximum 0.01 at row index 1.",
+                "severity": "warning",
+            }
+        ],
+    }
+    metrics = _metrics()
+    metrics["sanity_status"] = "warn"
+    metrics["sanity_issue_count"] = 1.0
+    metrics["sanity_warning_count"] = 1.0
+
+    write_portfolio_artifacts(
+        output_dir=output_dir,
+        portfolio_output=portfolio_output,
+        metrics=metrics,
+        config=_config(),
+        components=_components(),
+    )
+
+    qa_summary = _load_json(output_dir / "qa_summary.json")
+    assert qa_summary["validation_status"] == "warn"
+    assert qa_summary["sanity"]["status"] == "warn"
+    assert qa_summary["sanity"]["issue_count"] == 1
+
+
+def test_write_portfolio_artifacts_persists_effective_runtime_config(tmp_path: Path) -> None:
+    output_dir = tmp_path / "portfolio_runtime_abcd1234"
+    config = _config() | {
+        "runtime": {
+            "execution": {
+                "enabled": True,
+                "execution_delay": 1,
+                "transaction_cost_bps": 10.0,
+                "slippage_bps": 5.0,
+            },
+            "sanity": {
+                "max_abs_period_return": 1.0,
+                "max_annualized_return": 25.0,
+                "max_sharpe_ratio": 10.0,
+                "max_equity_multiple": 1000000.0,
+                "strict_sanity_checks": False,
+                "min_annualized_volatility_floor": 0.02,
+                "min_volatility_trigger_sharpe": 4.0,
+                "min_volatility_trigger_annualized_return": 1.0,
+                "smoothness_min_sharpe": 3.0,
+                "smoothness_min_annualized_return": 0.75,
+                "smoothness_max_drawdown": 0.02,
+                "smoothness_min_positive_return_fraction": 0.95,
+            },
+            "portfolio_validation": {
+                "target_weight_sum": 1.0,
+                "weight_sum_tolerance": 1e-8,
+                "target_net_exposure": 1.0,
+                "net_exposure_tolerance": 1e-8,
+                "max_gross_exposure": 1.0,
+                "max_leverage": 1.0,
+                "max_single_sleeve_weight": None,
+                "min_single_sleeve_weight": None,
+                "max_abs_period_return": 1.0,
+                "max_equity_multiple": 1000000.0,
+                "strict_sanity_checks": False,
+            },
+            "strict_mode": {
+                "enabled": False,
+                "source": "default",
+            },
+        }
+    }
+
+    write_portfolio_artifacts(
+        output_dir=output_dir,
+        portfolio_output=_portfolio_output(),
+        metrics=_metrics(),
+        config=config,
+        components=_components(),
+    )
+
+    config_payload = _load_json(output_dir / "config.json")
+    assert config_payload["runtime"]["execution"]["transaction_cost_bps"] == pytest.approx(10.0)
+    assert config_payload["runtime"]["portfolio_validation"]["max_leverage"] == pytest.approx(1.0)

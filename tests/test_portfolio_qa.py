@@ -36,6 +36,10 @@ def _portfolio_output() -> pd.DataFrame:
             "strategy_return__beta": [0.03, -0.01, 0.00],
             "weight__alpha": [0.5, 0.5, 0.5],
             "weight__beta": [0.5, 0.5, 0.5],
+            "portfolio_weight_change": [1.0, 0.0, 0.0],
+            "portfolio_abs_weight_change": [1.0, 0.0, 0.0],
+            "portfolio_turnover": [1.0, 0.0, 0.0],
+            "portfolio_rebalance_event": [1, 0, 0],
             "portfolio_return": [0.02, 0.005, -0.005],
             "portfolio_equity_curve": [102.0, 102.51, 101.99745],
         }
@@ -85,6 +89,7 @@ def test_portfolio_qa_accepts_valid_output() -> None:
     assert summary["issues"] == []
     assert summary["row_count"] == 3
     assert summary["strategy_count"] == 2
+    assert summary["metrics"]["trade_count"] == pytest.approx(1.0)
 
 
 def test_portfolio_qa_fails_for_incorrect_weighted_return() -> None:

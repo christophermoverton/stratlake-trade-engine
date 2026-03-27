@@ -55,6 +55,7 @@ def test_parse_args_accepts_strategy_and_date_filters() -> None:
     assert args.start == "2025-01-01"
     assert args.end == "2025-02-01"
     assert args.evaluation is None
+    assert args.strict is False
 
 
 def test_parse_args_accepts_evaluation_flag_without_path() -> None:
@@ -62,6 +63,12 @@ def test_parse_args_accepts_evaluation_flag_without_path() -> None:
 
     assert args.strategy == "momentum_v1"
     assert args.evaluation.endswith("configs\\evaluation.yml")
+
+
+def test_parse_args_accepts_strict_flag() -> None:
+    args = parse_args(["--strategy", "momentum_v1", "--strict"])
+
+    assert args.strict is True
 
 
 def test_get_strategy_config_raises_for_unknown_strategy() -> None:
@@ -111,7 +118,7 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
     monkeypatch.setattr("src.cli.run_strategy.load_strategies_config", fake_load_strategies_config)
     monkeypatch.setattr("src.cli.run_strategy.load_features", fake_load_features)
     monkeypatch.setattr("src.cli.run_strategy.generate_signals", fake_generate_signals)
-    monkeypatch.setattr("src.cli.run_strategy.run_backtest", fake_run_backtest)
+    monkeypatch.setattr("src.cli.run_strategy.run_backtest", lambda signal_frame, execution_config=None: fake_run_backtest(signal_frame))
     monkeypatch.setattr("src.cli.run_strategy.compute_metrics", fake_compute_metrics)
     monkeypatch.setattr("src.cli.run_strategy.save_experiment", fake_save_experiment)
 
@@ -141,6 +148,69 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
         "parameters": {"lookback_short": 5, "lookback_long": 20},
         "start": "2025-01-01",
         "end": "2025-02-01",
+        "execution": {
+            "enabled": False,
+            "execution_delay": 1,
+            "transaction_cost_bps": 0.0,
+            "slippage_bps": 0.0,
+        },
+        "sanity": {
+            "max_abs_period_return": 1.0,
+            "max_annualized_return": 25.0,
+            "max_equity_multiple": 1000000.0,
+            "max_sharpe_ratio": 10.0,
+            "min_annualized_volatility_floor": 0.02,
+            "min_volatility_trigger_annualized_return": 1.0,
+            "min_volatility_trigger_sharpe": 4.0,
+            "smoothness_max_drawdown": 0.02,
+            "smoothness_min_annualized_return": 0.75,
+            "smoothness_min_positive_return_fraction": 0.95,
+            "smoothness_min_sharpe": 3.0,
+            "strict_sanity_checks": False,
+        },
+        "strict_mode": {
+            "enabled": False,
+            "source": "default",
+        },
+        "runtime": {
+            "execution": {
+                "enabled": False,
+                "execution_delay": 1,
+                "transaction_cost_bps": 0.0,
+                "slippage_bps": 0.0,
+            },
+            "sanity": {
+                "max_abs_period_return": 1.0,
+                "max_annualized_return": 25.0,
+                "max_equity_multiple": 1000000.0,
+                "max_sharpe_ratio": 10.0,
+                "min_annualized_volatility_floor": 0.02,
+                "min_volatility_trigger_annualized_return": 1.0,
+                "min_volatility_trigger_sharpe": 4.0,
+                "smoothness_max_drawdown": 0.02,
+                "smoothness_min_annualized_return": 0.75,
+                "smoothness_min_positive_return_fraction": 0.95,
+                "smoothness_min_sharpe": 3.0,
+                "strict_sanity_checks": False,
+            },
+            "portfolio_validation": {
+                "target_weight_sum": 1.0,
+                "weight_sum_tolerance": 1e-08,
+                "target_net_exposure": 1.0,
+                "net_exposure_tolerance": 1e-08,
+                "max_gross_exposure": 1.0,
+                "max_leverage": 1.0,
+                "max_single_sleeve_weight": None,
+                "min_single_sleeve_weight": None,
+                "max_abs_period_return": 1.0,
+                "max_equity_multiple": 1000000.0,
+                "strict_sanity_checks": False,
+            },
+            "strict_mode": {
+                "enabled": False,
+                "source": "default",
+            },
+        },
     }
 
     stdout = capsys.readouterr().out
@@ -192,13 +262,15 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
 
     monkeypatch.setattr("src.cli.run_strategy.load_strategies_config", lambda path=None: strategy_config)
 
-    def fake_run_walk_forward_experiment(strategy_name, strategy, evaluation_path, strategy_config):
+    def fake_run_walk_forward_experiment(strategy_name, strategy, evaluation_path, strategy_config, execution_config, strict):
         calls["walk_forward"] = {
             "strategy_name": strategy_name,
             "strategy_name_attr": strategy.name,
             "dataset": strategy.dataset,
             "evaluation_path": evaluation_path,
             "strategy_config": strategy_config,
+            "execution_config": execution_config.to_dict(),
+            "strict": strict,
         }
         return walk_forward_result
 
@@ -212,6 +284,13 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
     assert calls["walk_forward"]["dataset"] == "features_daily"
     assert calls["walk_forward"]["evaluation_path"] == Path("configs/evaluation.yml")
     assert calls["walk_forward"]["strategy_config"] == strategy_config["momentum_v1"]
+    assert calls["walk_forward"]["execution_config"] == {
+        "enabled": False,
+        "execution_delay": 1,
+        "transaction_cost_bps": 0.0,
+        "slippage_bps": 0.0,
+    }
+    assert calls["walk_forward"]["strict"] is False
 
     stdout = capsys.readouterr().out
     assert "strategy: momentum_v1" in stdout
@@ -236,9 +315,13 @@ def test_run_strategy_experiment_loads_curated_daily_features_and_supports_mean_
     assert isinstance(result, StrategyRunResult)
     assert result.strategy_name == "mean_reversion_v1"
     assert result.run_id == "run-mean-reversion"
-    assert list(result.results_df.columns[-3:]) == ["signal", "strategy_return", "equity_curve"]
+    assert {"executed_signal", "delta_position", "abs_delta_position", "turnover", "trade_event", "gross_strategy_return", "net_strategy_return", "execution_friction"}.issubset(
+        result.results_df.columns
+    )
     assert result.results_df["close"].tolist() == pytest.approx(feature_df["close"].tolist())
-    assert result.results_df["feature_ret_1d"].notna().sum() == len(feature_df) - 1
+    assert result.results_df["feature_ret_1d"].tolist() == pytest.approx(
+        feature_df["feature_ret_1d"].fillna(0.0).tolist()
+    )
 
 
 def test_build_strategy_supports_buy_and_hold_baseline() -> None:
@@ -272,3 +355,131 @@ def test_run_strategy_experiment_is_reproducible_for_repeated_runs(
     assert first.run_id == second.run_id
     assert first_metrics == second.metrics
     assert first_artifacts == second_artifacts
+
+
+def test_run_strategy_experiment_does_not_write_artifacts_when_temporal_validation_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    invalid_frame = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL", "AAPL"], dtype="string"),
+            "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"], utc=True),
+            "timeframe": pd.Series(["1D", "1D"], dtype="string"),
+            "date": pd.Series(["2025-01-01", "2025-01-02"], dtype="string"),
+            "feature_ret_1d": [0.01, 0.02],
+            "feature_source_ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-03T00:00:00Z"], utc=True),
+        }
+    )
+    calls: dict[str, int] = {"save_experiment": 0}
+
+    monkeypatch.setattr("src.cli.run_strategy.load_features", lambda dataset, start=None, end=None: invalid_frame)
+
+    def fake_save_experiment(*args, **kwargs):
+        calls["save_experiment"] += 1
+        return Path("artifacts/strategies/should-not-exist")
+
+    monkeypatch.setattr("src.cli.run_strategy.save_experiment", fake_save_experiment)
+
+    with pytest.raises(ValueError, match="future_feature_timestamp"):
+        run_strategy_experiment("buy_and_hold_v1")
+
+    assert calls["save_experiment"] == 0
+
+
+def test_run_strategy_experiment_strict_sanity_failure_prevents_artifact_write(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    feature_frame = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL", "AAPL"], dtype="string"),
+            "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"], utc=True),
+            "timeframe": pd.Series(["1D", "1D"], dtype="string"),
+            "date": pd.Series(["2025-01-01", "2025-01-02"], dtype="string"),
+            "feature_ret_1d": [0.0, 1.0],
+        }
+    )
+    calls = {"save_experiment": 0}
+
+    monkeypatch.setattr(
+        "src.cli.run_strategy.get_strategy_config",
+        lambda strategy_name: {
+            "dataset": "features_daily",
+            "parameters": {},
+            "sanity": {
+                "strict_sanity_checks": True,
+                "max_abs_period_return": 0.5,
+            },
+        },
+    )
+    monkeypatch.setattr("src.cli.run_strategy.load_features", lambda dataset, start=None, end=None: feature_frame)
+    def fake_save_experiment(*args, **kwargs):
+        calls["save_experiment"] += 1
+        return Path("artifacts/strategies/should-not-exist")
+
+    monkeypatch.setattr("src.cli.run_strategy.save_experiment", fake_save_experiment)
+
+    with pytest.raises(ValueError, match="absolute strategy_return exceeds configured maximum"):
+        run_strategy_experiment("buy_and_hold_v1")
+
+    assert calls["save_experiment"] == 0
+
+
+def test_run_strategy_experiment_non_strict_sanity_records_warning(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    feature_frame = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAPL", "AAPL"], dtype="string"),
+            "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"], utc=True),
+            "timeframe": pd.Series(["1D", "1D"], dtype="string"),
+            "date": pd.Series(["2025-01-01", "2025-01-02"], dtype="string"),
+            "feature_ret_1d": [0.0, 1.0],
+        }
+    )
+
+    monkeypatch.setattr(
+        "src.cli.run_strategy.get_strategy_config",
+        lambda strategy_name: {
+            "dataset": "features_daily",
+            "parameters": {},
+            "sanity": {
+                "strict_sanity_checks": False,
+                "max_abs_period_return": 0.5,
+            },
+        },
+    )
+    monkeypatch.setattr("src.cli.run_strategy.load_features", lambda dataset, start=None, end=None: feature_frame)
+    monkeypatch.setattr(
+        "src.cli.run_strategy.save_experiment",
+        lambda *args, **kwargs: Path("artifacts/strategies/non-strict-sanity"),
+    )
+
+    result = run_strategy_experiment("buy_and_hold_v1")
+
+    assert result.metrics["sanity_status"] == "warn"
+    assert result.metrics["sanity_issue_count"] >= 1
+    assert result.qa_summary["sanity"]["status"] == "warn"
+    assert result.qa_summary["overall_status"] == "warn"
+
+
+def test_run_cli_passes_strict_flag_to_single_strategy_run(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("src.cli.run_strategy.get_strategy_config", lambda strategy_name: {"dataset": "features_daily"})
+    calls: dict[str, object] = {}
+
+    def fake_run_strategy_experiment(strategy_name, **kwargs):
+        calls["strategy_name"] = strategy_name
+        calls["kwargs"] = kwargs
+        return StrategyRunResult(
+            strategy_name=strategy_name,
+            run_id="strict-run",
+            metrics={"cumulative_return": 0.0, "sharpe_ratio": 0.0},
+            experiment_dir=Path("artifacts/strategies/strict-run"),
+            results_df=pd.DataFrame({"signal": [], "strategy_return": [], "equity_curve": []}),
+        )
+
+    monkeypatch.setattr("src.cli.run_strategy.run_strategy_experiment", fake_run_strategy_experiment)
+
+    run_cli(["--strategy", "momentum_v1", "--strict"])
+
+    assert calls["strategy_name"] == "momentum_v1"
+    assert calls["kwargs"]["strict"] is True

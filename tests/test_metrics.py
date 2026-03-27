@@ -6,10 +6,12 @@ import pandas as pd
 import pytest
 
 from src.research.metrics import (
+    MetricsAggregationError,
     MINUTE_PERIODS_PER_YEAR,
     TRADING_DAYS_PER_YEAR,
     annualized_return,
     annualized_volatility,
+    compute_benchmark_relative_metrics,
     compute_performance_metrics,
     cumulative_return,
     exposure_pct,
@@ -147,7 +149,33 @@ def test_compute_performance_metrics_includes_expanded_fields_with_known_trade_v
     assert metrics["hit_rate"] == pytest.approx(2.0 / 3.0)
     assert metrics["profit_factor"] == pytest.approx((0.045 + 0.0192) / 0.03)
     assert metrics["turnover"] == pytest.approx(0.75)
+    assert metrics["total_turnover"] == pytest.approx(6.0)
+    assert metrics["average_turnover"] == pytest.approx(0.75)
+    assert metrics["trade_count"] == pytest.approx(5.0)
+    assert metrics["rebalance_count"] == pytest.approx(5.0)
+    assert metrics["percent_periods_traded"] == pytest.approx(62.5)
+    assert metrics["average_trade_size"] == pytest.approx(1.2)
     assert metrics["exposure_pct"] == pytest.approx(62.5)
+
+
+def test_compute_performance_metrics_aggregates_execution_cost_attribution() -> None:
+    results_df = pd.DataFrame(
+        {
+            "timeframe": ["1d"] * 4,
+            "executed_signal": [0.0, 1.0, 1.0, -1.0],
+            "strategy_return": [0.0, 0.01, 0.02, -0.03],
+            "transaction_cost": [0.0, 0.001, 0.0, 0.002],
+            "slippage_cost": [0.0, 0.0005, 0.0, 0.001],
+            "execution_friction": [0.0, 0.0015, 0.0, 0.003],
+        }
+    )
+
+    metrics = compute_performance_metrics(results_df)
+
+    assert metrics["total_transaction_cost"] == pytest.approx(0.003)
+    assert metrics["total_slippage_cost"] == pytest.approx(0.0015)
+    assert metrics["total_execution_friction"] == pytest.approx(0.0045)
+    assert metrics["average_execution_friction_per_trade"] == pytest.approx(0.00225)
 
 
 def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
@@ -185,6 +213,137 @@ def test_compute_performance_metrics_excludes_open_terminal_trade_from_trade_sta
     assert metrics["hit_rate"] == 0.0
     assert metrics["profit_factor"] == 0.0
     assert metrics["exposure_pct"] == pytest.approx(75.0)
+
+
+def test_compute_performance_metrics_aggregates_multi_symbol_returns_by_timestamp_mean() -> None:
+    multi_symbol = pd.DataFrame(
+        {
+            "ts_utc": [
+                "2025-01-01T00:00:00Z",
+                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+            ],
+            "symbol": ["AAPL", "MSFT", "AAPL", "MSFT"],
+            "timeframe": ["1d"] * 4,
+            "signal": [1.0, 1.0, 1.0, 1.0],
+            "strategy_return": [0.10, 0.10, -0.05, -0.05],
+        }
+    )
+    single_stream = pd.DataFrame(
+        {
+            "ts_utc": ["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"],
+            "timeframe": ["1d", "1d"],
+            "signal": [1.0, 1.0],
+            "strategy_return": [0.10, -0.05],
+        }
+    )
+
+    multi_metrics = compute_performance_metrics(multi_symbol)
+    single_metrics = compute_performance_metrics(single_stream)
+
+    assert multi_metrics["total_return"] == pytest.approx(single_metrics["total_return"])
+    assert multi_metrics["max_drawdown"] == pytest.approx(single_metrics["max_drawdown"])
+    assert multi_metrics["win_rate"] == pytest.approx(single_metrics["win_rate"])
+    assert multi_metrics["total_return"] == pytest.approx(0.045)
+
+
+def test_compute_performance_metrics_does_not_scale_with_symbol_count() -> None:
+    two_symbols = pd.DataFrame(
+        {
+            "ts_utc": [
+                "2025-01-01T00:00:00Z",
+                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+            ],
+            "symbol": ["AAPL", "MSFT", "AAPL", "MSFT"],
+            "timeframe": ["1d"] * 4,
+            "signal": [1.0, 1.0, 1.0, 1.0],
+            "strategy_return": [0.10, 0.10, -0.10, -0.10],
+        }
+    )
+    summed_semantics_total = cumulative_return(pd.Series([0.20, -0.20], dtype="float64"))
+
+    metrics = compute_performance_metrics(two_symbols)
+
+    assert metrics["total_return"] == pytest.approx(-0.01)
+    assert metrics["total_return"] != pytest.approx(summed_semantics_total)
+
+
+def test_compute_benchmark_relative_metrics_aggregates_multi_symbol_strategy_and_benchmark() -> None:
+    strategy = pd.DataFrame(
+        {
+            "ts_utc": [
+                "2025-01-01T00:00:00Z",
+                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+            ],
+            "symbol": ["AAPL", "MSFT", "AAPL", "MSFT"],
+            "strategy_return": [0.04, 0.02, 0.00, 0.02],
+        }
+    )
+    benchmark = pd.DataFrame(
+        {
+            "ts_utc": [
+                "2025-01-01T00:00:00Z",
+                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+            ],
+            "symbol": ["AAPL", "MSFT", "AAPL", "MSFT"],
+            "strategy_return": [0.02, 0.02, 0.01, 0.01],
+        }
+    )
+
+    relative = compute_benchmark_relative_metrics(strategy, benchmark)
+
+    assert relative["benchmark_total_return"] == pytest.approx((1.02 * 1.01) - 1.0)
+    assert relative["excess_return"] == pytest.approx(((1.03 * 1.01) - 1.0) - ((1.02 * 1.01) - 1.0))
+    assert relative["benchmark_correlation"] == pytest.approx(1.0)
+
+
+def test_compute_benchmark_relative_metrics_rejects_single_symbol_benchmark_for_multi_symbol_strategy() -> None:
+    strategy = pd.DataFrame(
+        {
+            "ts_utc": ["2025-01-01T00:00:00Z", "2025-01-01T00:00:00Z"],
+            "symbol": ["AAPL", "MSFT"],
+            "strategy_return": [0.01, 0.02],
+        }
+    )
+    benchmark = pd.DataFrame(
+        {
+            "ts_utc": ["2025-01-01T00:00:00Z"],
+            "symbol": ["SPY"],
+            "strategy_return": [0.01],
+        }
+    )
+
+    with pytest.raises(MetricsAggregationError, match="same symbol universe"):
+        compute_benchmark_relative_metrics(strategy, benchmark)
+
+
+def test_compute_performance_metrics_is_deterministic_for_multi_symbol_inputs() -> None:
+    multi_symbol = pd.DataFrame(
+        {
+            "ts_utc": [
+                "2025-01-01T00:00:00Z",
+                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+                "2025-01-02T00:00:00Z",
+            ],
+            "symbol": ["AAPL", "MSFT", "AAPL", "MSFT"],
+            "timeframe": ["1d"] * 4,
+            "signal": [1.0, 1.0, 1.0, 1.0],
+            "strategy_return": [0.03, 0.01, -0.02, 0.00],
+        }
+    )
+
+    first = compute_performance_metrics(multi_symbol)
+    second = compute_performance_metrics(multi_symbol)
+
+    assert first == second
 
 
 def test_infer_periods_per_year_supports_minute_timeframes() -> None:

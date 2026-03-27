@@ -6,7 +6,11 @@ from typing import Any, Mapping, Sequence
 
 import pandas as pd
 
+from src.config.execution import ExecutionConfig
 from src.config.evaluation import EvaluationConfig, load_evaluation_config
+from src.config.runtime import RuntimeConfig, resolve_runtime_config
+from src.config.sanity import SanityCheckConfig, resolve_sanity_check_config
+from src.research.consistency import validate_portfolio_artifact_payload_consistency, validate_portfolio_walk_forward_consistency
 from src.research import experiment_tracker
 from src.research.registry import (
     STRATEGY_RUN_TYPE,
@@ -17,8 +21,11 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
+from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
+from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 
+from .contracts import resolve_portfolio_validation_config
 from .allocators import BaseAllocator
 from .artifacts import (
     _normalize_components,
@@ -48,7 +55,30 @@ PORTFOLIO_WALK_FORWARD_METRIC_KEYS: tuple[str, ...] = (
     "hit_rate",
     "profit_factor",
     "turnover",
+    "total_turnover",
+    "average_turnover",
+    "trade_count",
+    "rebalance_count",
+    "percent_periods_traded",
+    "average_trade_size",
+    "total_transaction_cost",
+    "total_slippage_cost",
+    "total_execution_friction",
+    "average_execution_friction_per_trade",
     "exposure_pct",
+    "average_gross_exposure",
+    "max_gross_exposure",
+    "average_net_exposure",
+    "min_net_exposure",
+    "max_net_exposure",
+    "average_leverage",
+    "max_leverage",
+    "max_single_weight",
+    "max_weight_sum_deviation",
+    "validation_issue_count",
+    "sanity_issue_count",
+    "sanity_warning_count",
+    "flagged_split_count",
 )
 _SPLIT_METADATA_COLUMNS: tuple[str, ...] = (
     "split_id",
@@ -77,6 +107,11 @@ def run_portfolio_walk_forward(
     portfolio_name: str,
     initial_capital: float = 1.0,
     alignment_policy: str = "intersection",
+    runtime_config: RuntimeConfig | None = None,
+    execution_config: ExecutionConfig | None = None,
+    validation_config: Mapping[str, Any] | None = None,
+    sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
+    strict_mode: bool = False,
 ) -> dict[str, Any]:
     """Construct and score one portfolio independently for each evaluation split."""
 
@@ -86,6 +121,14 @@ def run_portfolio_walk_forward(
     evaluation_path = Path(evaluation_config_path)
     evaluation_config = load_evaluation_config(evaluation_path)
     _validate_timeframe_compatibility(normalized_timeframe, evaluation_config)
+    resolved_runtime = runtime_config or resolve_runtime_config(
+        {
+            "execution": None if execution_config is None else execution_config.to_dict(),
+            "validation": validation_config,
+            "sanity": None if sanity_config is None else resolve_sanity_check_config(sanity_config).to_dict(),
+        },
+        cli_strict=strict_mode,
+    )
 
     splits = generate_evaluation_splits(evaluation_config)
     if not splits:
@@ -99,6 +142,7 @@ def run_portfolio_walk_forward(
         initial_capital=initial_capital,
         alignment_policy=alignment_policy,
         evaluation_path=evaluation_path,
+        runtime_config=resolved_runtime,
     )
     run_id = generate_portfolio_run_id(
         portfolio_name=normalized_portfolio_name,
@@ -110,11 +154,6 @@ def run_portfolio_walk_forward(
         config=root_config,
         evaluation_config_path=evaluation_path,
     )
-    experiment_dir = Path(output_dir) / run_id
-    if experiment_dir.exists():
-        shutil.rmtree(experiment_dir)
-    experiment_dir.mkdir(parents=True, exist_ok=False)
-
     split_results = [
         _execute_portfolio_split(
             strategy_returns=strategy_returns,
@@ -123,11 +162,21 @@ def run_portfolio_walk_forward(
             timeframe=normalized_timeframe,
             initial_capital=float(initial_capital),
             portfolio_name=normalized_portfolio_name,
+            execution_config=resolved_runtime.execution,
+            validation_config=resolved_runtime.portfolio_validation.to_dict(),
+            sanity_config=resolved_runtime.sanity.to_dict(),
+            strict_mode=resolved_runtime.strict_mode.enabled,
         )
         for split in splits
     ]
     aggregate_metrics = _build_aggregate_metrics(split_results, timeframe=normalized_timeframe)
     metrics_by_split = _metrics_by_split_frame(split_results)
+    validate_portfolio_walk_forward_consistency(split_results, metrics_by_split, aggregate_metrics)
+
+    experiment_dir = Path(output_dir) / run_id
+    if experiment_dir.exists():
+        shutil.rmtree(experiment_dir)
+    experiment_dir.mkdir(parents=True, exist_ok=False)
 
     _write_json(experiment_dir / "config.json", _normalize_portfolio_config(root_config, components=components))
     _write_json(experiment_dir / "components.json", {"components": _normalize_components(components)})
@@ -242,6 +291,10 @@ def _execute_portfolio_split(
     timeframe: str,
     initial_capital: float,
     portfolio_name: str,
+    execution_config: ExecutionConfig | None,
+    validation_config: Mapping[str, Any] | None,
+    sanity_config: Mapping[str, Any] | None,
+    strict_mode: bool,
 ) -> dict[str, Any]:
     split_returns = _slice_strategy_returns_for_split(strategy_returns, split)
     aligned_returns = build_aligned_return_matrix(split_returns)
@@ -250,12 +303,49 @@ def _execute_portfolio_split(
             f"Split '{split.split_id}' produced an empty aligned return matrix after intersection alignment."
         )
 
-    portfolio_output = construct_portfolio(
-        aligned_returns,
-        allocator,
-        initial_capital=initial_capital,
+    try:
+        portfolio_output = construct_portfolio(
+            aligned_returns,
+            allocator,
+            initial_capital=initial_capital,
+            execution_config=execution_config,
+            validation_config=validation_config,
+        )
+    except ValueError as exc:
+        try:
+            raise_research_validation_error(
+                validator="portfolio_validation",
+                scope=f"portfolio_walk_forward_split:{split.split_id}",
+                exc=exc,
+                strict_mode=strict_mode,
+            )
+        except ResearchStrictModeError as strict_exc:
+            raise PortfolioWalkForwardError(str(strict_exc)) from strict_exc
+    metrics = compute_portfolio_metrics(
+        portfolio_output,
+        timeframe,
+        validation_config=validation_config,
     )
-    metrics = compute_portfolio_metrics(portfolio_output, timeframe)
+    try:
+        sanity_report = validate_portfolio_output_sanity(
+            portfolio_output,
+            metrics,
+            sanity_config,
+            initial_capital=initial_capital,
+            scope=f"portfolio_walk_forward_split:{split.split_id}",
+        )
+    except SanityCheckError as exc:
+        try:
+            raise_research_validation_error(
+                validator="sanity",
+                scope=f"portfolio_walk_forward_split:{split.split_id}",
+                exc=exc,
+                strict_mode=strict_mode,
+            )
+        except ResearchStrictModeError as strict_exc:
+            raise PortfolioWalkForwardError(str(strict_exc)) from strict_exc
+    metrics = sanity_report.apply_to_metrics(metrics)
+    portfolio_output.attrs["sanity_check"] = sanity_report.to_dict()
     split_metadata = _split_metadata(split, row_count=len(portfolio_output))
     return {
         "split_id": split.split_id,
@@ -267,6 +357,13 @@ def _execute_portfolio_split(
         "allocator_name": allocator.name,
         "timeframe": timeframe,
         "initial_capital": float(initial_capital),
+        "execution": (
+            resolve_runtime_config().execution.to_dict()
+            if execution_config is None
+            else execution_config.to_dict()
+        ),
+        "validation": dict(validation_config or {}),
+        "sanity": dict(resolve_sanity_check_config(sanity_config).to_dict()),
     }
 
 
@@ -352,6 +449,25 @@ def _build_aggregate_metrics(
         metric_statistics[metric_name] = stats
         metric_summary[metric_name] = stats["mean"]
 
+    flagged_splits = [
+        str(split_result["split_id"])
+        for split_result in split_results
+        if float(split_result["metrics"].get("sanity_issue_count", 0.0) or 0.0) > 0.0
+    ]
+    failed_splits = [
+        str(split_result["split_id"])
+        for split_result in split_results
+        if split_result["metrics"].get("sanity_status") == "fail"
+    ]
+    metric_summary["flagged_split_count"] = float(len(flagged_splits))
+    metric_statistics["flagged_split_count"] = {
+        "mean": float(len(flagged_splits)),
+        "median": float(len(flagged_splits)),
+        "std": 0.0,
+        "min": float(len(flagged_splits)),
+        "max": float(len(flagged_splits)),
+    }
+
     return {
         "aggregation_method": "descriptive statistics computed across split-level portfolio metrics in split order",
         "mode": first_split["mode"],
@@ -360,6 +476,13 @@ def _build_aggregate_metrics(
         "first_train_start": first_split["train_start"],
         "last_test_end": last_split["test_end"],
         "split_ids": [str(split_result["split_id"]) for split_result in split_results],
+        "sanity": {
+            "status": "fail" if failed_splits else ("warn" if flagged_splits else "pass"),
+            "flagged_split_count": len(flagged_splits),
+            "failed_split_count": len(failed_splits),
+            "flagged_splits": flagged_splits,
+            "failed_splits": failed_splits,
+        },
         "metric_summary": metric_summary,
         "metric_statistics": metric_statistics,
     }
@@ -367,25 +490,48 @@ def _build_aggregate_metrics(
 
 def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) -> None:
     portfolio_output = split_result["portfolio_output"]
+    normalized_metrics = _normalize_mapping(dict(split_result["metrics"]), owner="metrics")
     split_config = {
         "portfolio_name": split_result["portfolio_name"],
         "allocator": split_result["allocator_name"],
         "initial_capital": float(split_result["initial_capital"]),
+        "execution": dict(split_result.get("execution", {})),
         "timeframe": split_result["timeframe"],
+        "validation": dict(split_result.get("validation", {})),
     }
-    _write_json(split_dir / "split.json", dict(split_result["split_metadata"]))
-    _write_csv(split_dir / "weights.csv", _weights_frame(portfolio_output))
-    _write_csv(split_dir / "portfolio_returns.csv", _portfolio_returns_frame(portfolio_output))
-    _write_csv(split_dir / "portfolio_equity_curve.csv", _portfolio_equity_curve_frame(portfolio_output))
-    _write_json(split_dir / "metrics.json", _normalize_mapping(dict(split_result["metrics"]), owner="metrics"))
-    run_portfolio_qa(
+    weights_frame = _weights_frame(portfolio_output)
+    returns_frame = _portfolio_returns_frame(portfolio_output)
+    equity_frame = _portfolio_equity_curve_frame(portfolio_output)
+    qa_summary = run_portfolio_qa(
         portfolio_output,
         dict(split_result["metrics"]),
         split_config,
-        artifacts_dir=split_dir,
         run_id=split_dir.name,
         strict=True,
     )
+    validate_portfolio_artifact_payload_consistency(
+        portfolio_output=portfolio_output,
+        weights_frame=weights_frame,
+        returns_frame=returns_frame,
+        equity_frame=equity_frame,
+        metrics=normalized_metrics,
+        qa_summary=qa_summary,
+        config=split_config,
+        components=[
+            {
+                "strategy_name": column.removeprefix("weight__"),
+                "run_id": column.removeprefix("weight__"),
+            }
+            for column in weights_frame.columns
+            if column.startswith("weight__")
+        ],
+    )
+    _write_json(split_dir / "split.json", dict(split_result["split_metadata"]))
+    _write_csv(split_dir / "weights.csv", weights_frame)
+    _write_csv(split_dir / "portfolio_returns.csv", returns_frame)
+    _write_csv(split_dir / "portfolio_equity_curve.csv", equity_frame)
+    _write_json(split_dir / "metrics.json", normalized_metrics)
+    _write_json(split_dir / "qa_summary.json", qa_summary)
 
 
 def _build_manifest(
@@ -412,6 +558,7 @@ def _build_manifest(
         "allocator": config["allocator"],
         "evaluation_mode": "walk_forward",
         "evaluation_config_path": config["evaluation_config_path"],
+        "strict_mode": config.get("strict_mode"),
         "component_count": len(components),
         "split_count": len(split_results),
         "split_artifact_dirs": list(split_artifact_dirs),
@@ -430,14 +577,20 @@ def _build_root_config(
     initial_capital: float,
     alignment_policy: str,
     evaluation_path: Path,
+    runtime_config: RuntimeConfig,
 ) -> dict[str, Any]:
     return {
         "portfolio_name": portfolio_name,
         "allocator": allocator_name,
         "initial_capital": float(initial_capital),
         "alignment_policy": _normalize_required_string(alignment_policy, field_name="alignment_policy"),
+        "execution": runtime_config.execution.to_dict(),
         "timeframe": timeframe,
         "evaluation_config_path": evaluation_path.as_posix(),
+        "validation": runtime_config.portfolio_validation.to_dict(),
+        "sanity": runtime_config.sanity.to_dict(),
+        "strict_mode": runtime_config.strict_mode.to_dict(),
+        "runtime": runtime_config.to_dict(),
     }
 
 

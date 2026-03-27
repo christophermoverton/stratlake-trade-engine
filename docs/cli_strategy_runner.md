@@ -99,6 +99,13 @@ Optional arguments:
 * `--end` -> exclusive end date in `YYYY-MM-DD`
 * `--evaluation [PATH]` -> enable walk-forward evaluation using
   `configs/evaluation.yml` or a provided evaluation config path
+* `--execution-delay` -> override lagged execution delay in bars
+* `--transaction-cost-bps` -> override deterministic transaction cost
+* `--slippage-bps` -> override deterministic slippage
+* `--execution-enabled` -> force execution frictions on for this run
+* `--disable-execution-model` -> force transaction costs and slippage off for
+  this run
+* `--strict` -> enable strict-mode enforcement for sanity and validation
 
 Date filters are forwarded directly to `load_features()` and use the same
 window semantics as the existing data loaders. `--start` and `--end` are for
@@ -271,6 +278,8 @@ Current artifact contents:
 
 * `config.json`
 * `metrics.json`
+* `signal_diagnostics.json`
+* `qa_summary.json`
 * `equity_curve.csv`
 * `signals.parquet`
 * `equity_curve.parquet`
@@ -312,6 +321,9 @@ See the adjacent research-layer docs for implementation details:
 * [docs/baseline_strategies.md](baseline_strategies.md)
 * [docs/strategy_performance_metrics.md](strategy_performance_metrics.md)
 * [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
+* [docs/execution_model.md](execution_model.md)
+* [docs/strict_mode.md](strict_mode.md)
+* [docs/runtime_configuration.md](runtime_configuration.md)
 * [docs/strategy_comparison_cli.md](strategy_comparison_cli.md)
 * [docs/walk_forward_strategy_runner.md](walk_forward_strategy_runner.md)
 * [configs/strategies.yml](../configs/strategies.yml)

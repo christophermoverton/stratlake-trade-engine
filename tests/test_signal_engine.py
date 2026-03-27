@@ -36,6 +36,22 @@ class MisalignedStrategy(BaseStrategy):
         return pd.Series([1, 0, -1], index=pd.RangeIndex(start=0, stop=len(df)), dtype="int64")
 
 
+class ShortSignalStrategy(BaseStrategy):
+    name = "short_signal_strategy"
+    dataset = "features_daily"
+
+    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
+        return pd.Series([1, 0], index=df.index[:2], dtype="int64")
+
+
+class ReorderedSignalStrategy(BaseStrategy):
+    name = "reordered_signal_strategy"
+    dataset = "features_daily"
+
+    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
+        return pd.Series([1, 0, -1], index=df.index[::-1], dtype="int64")
+
+
 def _feature_frame() -> pd.DataFrame:
     index = pd.Index(["row_a", "row_b", "row_c"], name="row_id")
     ts_utc = pd.date_range("2025-01-01", periods=3, freq="D", tz="UTC")
@@ -106,8 +122,37 @@ def test_generate_signals_requires_matching_index() -> None:
         generate_signals(df, MisalignedStrategy())
 
 
+def test_generate_signals_rejects_shorter_signal_output() -> None:
+    df = _feature_frame()
+
+    with pytest.raises(ValueError, match="row count mismatch"):
+        generate_signals(df, ShortSignalStrategy())
+
+
+def test_generate_signals_rejects_reordered_signal_output() -> None:
+    df = _feature_frame()
+
+    with pytest.raises(ValueError, match="index mismatch"):
+        generate_signals(df, ReorderedSignalStrategy())
+
+
 def test_generate_signals_fails_for_missing_timeframe_column() -> None:
     df = _feature_frame().drop(columns=["timeframe"])
 
     with pytest.raises(ValueError, match="missing required strategy input columns"):
+        generate_signals(df, DummyStrategy())
+
+
+def test_generate_signals_rejects_future_feature_timestamps() -> None:
+    df = _feature_frame()
+    df["feature_source_ts_utc"] = pd.Series(
+        [
+            pd.Timestamp("2025-01-01T00:00:00Z"),
+            pd.Timestamp("2025-01-04T00:00:00Z"),
+            pd.Timestamp("2025-01-03T00:00:00Z"),
+        ],
+        index=df.index,
+    )
+
+    with pytest.raises(ValueError, match="future_feature_timestamp"):
         generate_signals(df, DummyStrategy())

@@ -6,6 +6,8 @@ from typing import Any
 
 import pandas as pd
 
+from src.research.turnover import compute_position_change_frame
+
 TRADING_DAYS_PER_YEAR = 252
 TRADING_MINUTES_PER_DAY = 390
 MINUTE_PERIODS_PER_YEAR = TRADING_DAYS_PER_YEAR * TRADING_MINUTES_PER_DAY
@@ -14,6 +16,10 @@ HIGH_BENCHMARK_CORRELATION_THRESHOLD = 0.9
 LOW_EXCESS_RETURN_THRESHOLD = 0.02
 HIGH_TURNOVER_THRESHOLD = 0.5
 BETA_DOMINATED_RETURN_THRESHOLD = 0.2
+
+
+class MetricsAggregationError(ValueError):
+    """Raised when strategy returns cannot be aggregated into one series safely."""
 
 
 def _normalized_returns(strategy_return: pd.Series) -> pd.Series:
@@ -242,8 +248,7 @@ def turnover(position: pd.Series) -> float:
     if positions.empty:
         return 0.0
 
-    position_change = positions.diff().fillna(positions)
-    return float(position_change.abs().mean())
+    return float(compute_position_change_frame(positions)["turnover"].mean())
 
 
 def exposure_pct(position: pd.Series) -> float:
@@ -282,16 +287,24 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         A JSON-serializable dictionary of metric values.
     """
 
-    strategy_return = results_df["strategy_return"] if "strategy_return" in results_df.columns else pd.Series(dtype="float64")
-    periods_per_year = infer_periods_per_year(results_df)
+    aggregated_returns_frame = aggregate_strategy_returns(results_df)
+    strategy_return = aggregated_returns_frame["strategy_return"]
+    periods_per_year = infer_periods_per_year(aggregated_returns_frame if not aggregated_returns_frame.empty else results_df)
     position = infer_position_series(results_df)
+    position_change = compute_position_change_frame(position)
     closed_trade_returns = extract_closed_trade_returns(results_df)
+    transaction_cost = _optional_numeric_series(results_df, "transaction_cost")
+    slippage_cost = _optional_numeric_series(results_df, "slippage_cost")
+    execution_friction = _optional_numeric_series(results_df, "execution_friction")
 
     total = total_return(strategy_return)
     annual_return = annualized_return(strategy_return, periods_per_year=periods_per_year)
     annual_vol = annualized_volatility(strategy_return, periods_per_year=periods_per_year)
     period_vol = volatility(strategy_return)
     period_win_rate = win_rate(strategy_return)
+    trade_count = int(position_change["trade_event"].sum())
+    total_turnover = float(position_change["turnover"].sum())
+    average_turnover = float(position_change["turnover"].mean()) if not position_change.empty else 0.0
 
     return {
         "cumulative_return": total,
@@ -304,7 +317,17 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         "win_rate": period_win_rate,
         "hit_rate": hit_rate(closed_trade_returns),
         "profit_factor": profit_factor(closed_trade_returns),
-        "turnover": turnover(position),
+        "turnover": average_turnover,
+        "total_turnover": total_turnover,
+        "average_turnover": average_turnover,
+        "trade_count": float(trade_count),
+        "rebalance_count": float(trade_count),
+        "percent_periods_traded": float(position_change["trade_event"].mean() * 100.0) if not position_change.empty else 0.0,
+        "average_trade_size": (total_turnover / trade_count) if trade_count else 0.0,
+        "total_transaction_cost": float(transaction_cost.sum()),
+        "total_slippage_cost": float(slippage_cost.sum()),
+        "total_execution_friction": float(execution_friction.sum()),
+        "average_execution_friction_per_trade": float(execution_friction.sum() / trade_count) if trade_count else 0.0,
         "exposure_pct": exposure_pct(position),
     }
 
@@ -320,13 +343,12 @@ def compute_benchmark_relative_metrics(
     available so the correlation is based on comparable observations.
     """
 
-    strategy_returns = results_df["strategy_return"] if "strategy_return" in results_df.columns else pd.Series(dtype="float64")
-    benchmark_returns = (
-        benchmark_results_df["strategy_return"]
-        if "strategy_return" in benchmark_results_df.columns
-        else pd.Series(dtype="float64")
-    )
-    aligned = _align_return_frames(results_df, benchmark_results_df)
+    _validate_benchmark_comparability(results_df, benchmark_results_df)
+    strategy_frame = aggregate_strategy_returns(results_df)
+    benchmark_frame = aggregate_strategy_returns(benchmark_results_df)
+    strategy_returns = strategy_frame["strategy_return"]
+    benchmark_returns = benchmark_frame["strategy_return"]
+    aligned = _align_return_frames(strategy_frame, benchmark_frame)
     strategy_total = total_return(strategy_returns)
     benchmark_total = total_return(benchmark_returns)
     excess = float(strategy_total - benchmark_total)
@@ -424,12 +446,28 @@ def infer_position_series(results_df: pd.DataFrame) -> pd.Series:
     return, so the executed position is ``signal.shift(1).fillna(0.0)``.
     """
 
+    if "position" in results_df.columns:
+        position = pd.to_numeric(results_df["position"], errors="coerce").fillna(0.0).astype("float64")
+        position.name = "position"
+        return position
+
+    if "executed_signal" in results_df.columns:
+        position = pd.to_numeric(results_df["executed_signal"], errors="coerce").fillna(0.0).astype("float64")
+        position.name = "position"
+        return position
+
     if "signal" not in results_df.columns:
         return pd.Series(0.0, index=results_df.index, dtype="float64", name="position")
 
     position = results_df["signal"].shift(1).fillna(0.0).astype("float64")
     position.name = "position"
     return position
+
+
+def _optional_numeric_series(results_df: pd.DataFrame, column: str) -> pd.Series:
+    if column not in results_df.columns:
+        return pd.Series(0.0, index=results_df.index, dtype="float64")
+    return pd.to_numeric(results_df[column], errors="coerce").fillna(0.0).astype("float64")
 
 
 def extract_closed_trade_returns(results_df: pd.DataFrame) -> pd.Series:
@@ -495,7 +533,7 @@ def _infer_periods_per_year_from_columns(columns: Iterable[str]) -> int | None:
 def _align_return_frames(results_df: pd.DataFrame, benchmark_results_df: pd.DataFrame) -> pd.DataFrame:
     strategy_frame = _return_alignment_frame(results_df, "strategy_return")
     benchmark_frame = _return_alignment_frame(benchmark_results_df, "benchmark_return")
-    join_keys = [column for column in ("symbol", "ts_utc", "date") if column in strategy_frame.columns and column in benchmark_frame.columns]
+    join_keys = [column for column in ("ts_utc", "date") if column in strategy_frame.columns and column in benchmark_frame.columns]
 
     if join_keys:
         return strategy_frame.merge(benchmark_frame, on=join_keys, how="inner", sort=False)
@@ -525,3 +563,173 @@ def _return_alignment_frame(results_df: pd.DataFrame, return_column_name: str) -
 
     frame[return_column_name] = pd.to_numeric(results_df["strategy_return"], errors="coerce")
     return frame.dropna(subset=[return_column_name]).reset_index(drop=True)
+
+
+def aggregate_strategy_returns(results_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Collapse one results frame into one strategy return per timestamp.
+
+    Multi-symbol strategy runs must be aggregated cross-sectionally before
+    compounding into an equity curve or computing benchmark-relative metrics.
+    The current default is explicit equal-weight aggregation via arithmetic mean.
+    """
+
+    if "strategy_return" not in results_df.columns:
+        frame = _empty_aggregated_return_frame(results_df)
+        frame.attrs["aggregation"] = _aggregation_metadata(method="none", aggregated=False, symbol_counts=pd.Series(dtype="int64"))
+        return frame
+
+    time_column = _strategy_time_column(results_df)
+    if time_column is None:
+        if _symbol_count(results_df) > 1:
+            raise MetricsAggregationError(
+                "Multi-symbol returns must include 'ts_utc' or 'date' so metrics can aggregate them safely."
+            )
+        frame = _empty_aggregated_return_frame(results_df)
+        frame["strategy_return"] = pd.to_numeric(results_df["strategy_return"], errors="coerce").astype("float64")
+        frame.attrs["aggregation"] = _aggregation_metadata(method="none", aggregated=False, symbol_counts=pd.Series(dtype="int64"))
+        return frame
+
+    normalized = pd.DataFrame(index=results_df.index)
+    if time_column == "ts_utc":
+        normalized["ts_utc"] = pd.to_datetime(results_df["ts_utc"], utc=True, errors="coerce")
+    else:
+        normalized["date"] = pd.to_datetime(results_df["date"], utc=True, errors="coerce").dt.strftime("%Y-%m-%d")
+    if "timeframe" in results_df.columns:
+        normalized["timeframe"] = results_df["timeframe"]
+    normalized["strategy_return"] = pd.to_numeric(results_df["strategy_return"], errors="coerce").astype("float64")
+    if "symbol" in results_df.columns:
+        normalized["symbol"] = results_df["symbol"].astype("string")
+    normalized["_row_order"] = range(len(normalized))
+    normalized = normalized.dropna(subset=[time_column]).sort_values([time_column, "_row_order"], kind="stable")
+
+    if normalized.empty:
+        frame = normalized.drop(columns="_row_order", errors="ignore").reset_index(drop=True)
+        frame.attrs["aggregation"] = _aggregation_metadata(method="mean", aggregated=False, symbol_counts=pd.Series(dtype="int64"))
+        return frame
+
+    symbol_counts = _symbol_count_by_timestamp(normalized, time_column=time_column)
+    duplicate_timestamps = normalized.duplicated(subset=[time_column], keep=False)
+    requires_aggregation = bool(duplicate_timestamps.any() or symbol_counts.gt(1).any())
+
+    if not requires_aggregation:
+        frame = normalized.drop(columns=["_row_order", "symbol"], errors="ignore").reset_index(drop=True)
+        frame.attrs["aggregation"] = _aggregation_metadata(method="none", aggregated=False, symbol_counts=symbol_counts)
+        return frame
+
+    aggregated = (
+        normalized.groupby(time_column, sort=False, as_index=False)
+        .agg(strategy_return=("strategy_return", "mean"))
+    )
+    if "timeframe" in normalized.columns:
+        aggregated["timeframe"] = (
+            normalized.groupby(time_column, sort=False)["timeframe"].first().reset_index(drop=True)
+        )
+    aggregated.attrs["aggregation"] = _aggregation_metadata(method="mean", aggregated=True, symbol_counts=symbol_counts)
+    return aggregated.reset_index(drop=True)
+
+
+def broadcast_strategy_equity_curve(results_df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Return one strategy-level return/equity stream, broadcast onto the input rows.
+
+    This keeps artifact row identity intact while ensuring each timestamp reflects
+    the explicitly aggregated strategy return instead of raw per-symbol returns.
+    """
+
+    if results_df.empty:
+        return pd.DataFrame(index=results_df.index, columns=["strategy_return", "equity"], dtype="float64")
+
+    aggregated = aggregate_strategy_returns(results_df)
+    if aggregated.empty:
+        return pd.DataFrame(
+            {
+                "strategy_return": pd.Series([0.0] * len(results_df), index=results_df.index, dtype="float64"),
+                "equity": pd.Series([1.0] * len(results_df), index=results_df.index, dtype="float64"),
+            }
+        )
+
+    return_column = pd.to_numeric(aggregated["strategy_return"], errors="coerce").fillna(0.0).astype("float64")
+    equity = (1.0 + return_column).cumprod().astype("float64")
+    time_column = _strategy_time_column(results_df)
+    if time_column is None:
+        return pd.DataFrame({"strategy_return": return_column.reset_index(drop=True), "equity": equity.reset_index(drop=True)})
+
+    if time_column == "ts_utc":
+        left_key = pd.to_datetime(results_df["ts_utc"], utc=True, errors="coerce")
+        right_key = pd.to_datetime(aggregated["ts_utc"], utc=True, errors="coerce")
+    else:
+        left_key = pd.to_datetime(results_df["date"], utc=True, errors="coerce").dt.strftime("%Y-%m-%d")
+        right_key = pd.to_datetime(aggregated["date"], utc=True, errors="coerce").dt.strftime("%Y-%m-%d")
+
+    lookup = pd.DataFrame(
+        {
+            "_metric_time_key": right_key,
+            "strategy_return": return_column.to_numpy(copy=True),
+            "equity": equity.to_numpy(copy=True),
+        }
+    )
+    joined = pd.DataFrame({"_metric_time_key": left_key}, index=results_df.index).merge(
+        lookup,
+        on="_metric_time_key",
+        how="left",
+        sort=False,
+    )
+    return joined.loc[:, ["strategy_return", "equity"]].astype("float64")
+
+
+def _empty_aggregated_return_frame(results_df: pd.DataFrame) -> pd.DataFrame:
+    frame = pd.DataFrame(index=results_df.index)
+    for column in ("ts_utc", "date", "timeframe"):
+        if column in results_df.columns:
+            frame[column] = results_df[column]
+    frame["strategy_return"] = pd.Series(dtype="float64")
+    return frame.reset_index(drop=True)
+
+
+def _strategy_time_column(results_df: pd.DataFrame) -> str | None:
+    if "ts_utc" in results_df.columns:
+        return "ts_utc"
+    if "date" in results_df.columns:
+        return "date"
+    return None
+
+
+def _symbol_count(results_df: pd.DataFrame) -> int:
+    if "symbol" not in results_df.columns:
+        return 0
+    return int(results_df["symbol"].dropna().astype("string").nunique())
+
+
+def _symbol_count_by_timestamp(results_df: pd.DataFrame, *, time_column: str) -> pd.Series:
+    if "symbol" not in results_df.columns:
+        counts = results_df.groupby(time_column, sort=False).size().astype("int64")
+        counts.name = "symbol_count"
+        return counts
+    counts = (
+        results_df.assign(symbol=results_df["symbol"].astype("string"))
+        .groupby(time_column, sort=False)["symbol"]
+        .nunique(dropna=True)
+        .astype("int64")
+    )
+    counts.name = "symbol_count"
+    return counts
+
+
+def _aggregation_metadata(*, method: str, aggregated: bool, symbol_counts: pd.Series) -> dict[str, Any]:
+    max_symbol_count = int(symbol_counts.max()) if not symbol_counts.empty else 0
+    return {
+        "method": method,
+        "aggregated": aggregated,
+        "max_symbol_count": max_symbol_count,
+        "symbol_count_by_timestamp": {str(index): int(value) for index, value in symbol_counts.items()},
+    }
+
+
+def _validate_benchmark_comparability(results_df: pd.DataFrame, benchmark_results_df: pd.DataFrame) -> None:
+    strategy_symbols = _symbol_count(results_df)
+    benchmark_symbols = _symbol_count(benchmark_results_df)
+    if strategy_symbols > 1 and benchmark_symbols == 1:
+        raise MetricsAggregationError(
+            "Benchmark-relative metrics require a benchmark aggregated over the same symbol universe as the strategy."
+        )

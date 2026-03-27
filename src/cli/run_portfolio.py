@@ -10,6 +10,8 @@ from typing import Any, Mapping, Sequence
 import pandas as pd
 import yaml
 
+from src.config.execution import ExecutionConfig
+from src.config.runtime import resolve_runtime_config
 from src.portfolio import (
     EqualWeightAllocator,
     build_aligned_return_matrix,
@@ -28,6 +30,8 @@ from src.research.registry import (
     load_registry,
     register_portfolio_run,
 )
+from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
+from src.research.sanity import validate_portfolio_output_sanity
 
 DEFAULT_PORTFOLIO_ARTIFACTS_ROOT = Path("artifacts") / "portfolios"
 SUPPORTED_TIMEFRAMES = ("1D", "1Min")
@@ -105,6 +109,36 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         required=True,
         help="Portfolio metrics timeframe. Supported values: 1D, 1Min.",
     )
+    parser.add_argument(
+        "--execution-delay",
+        type=int,
+        help="Override execution delay in bars for strategy/portfolio execution settings.",
+    )
+    parser.add_argument(
+        "--transaction-cost-bps",
+        type=float,
+        help="Override deterministic execution transaction cost in basis points.",
+    )
+    parser.add_argument(
+        "--slippage-bps",
+        type=float,
+        help="Override deterministic execution slippage in basis points.",
+    )
+    parser.add_argument(
+        "--execution-enabled",
+        action="store_true",
+        help="Enable execution frictions even when config defaults are disabled.",
+    )
+    parser.add_argument(
+        "--disable-execution-model",
+        action="store_true",
+        help="Disable transaction-cost and slippage frictions for this run.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enable strict research-validity enforcement and block artifact or registry writes on flagged runs.",
+    )
     return parser.parse_args(argv)
 
 
@@ -128,6 +162,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
 
     args = parse_args(argv)
     timeframe = _normalize_timeframe(args.timeframe)
+    execution_override = _execution_override_from_args(args)
     _validate_cli_args(args, timeframe=timeframe)
 
     resolved_config, run_dirs, components = _resolve_portfolio_inputs(
@@ -139,7 +174,13 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
         from_registry=bool(args.from_registry),
         timeframe=timeframe,
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
+        execution_override=execution_override,
     )
+    runtime_config = resolve_runtime_config(
+        resolved_config,
+        cli_strict=args.strict,
+    )
+    resolved_config = runtime_config.apply_to_payload(dict(resolved_config), validation_key="validation")
 
     allocator = _build_allocator(resolved_config["allocator"])
     output_root = DEFAULT_PORTFOLIO_ARTIFACTS_ROOT if args.output_dir is None else Path(args.output_dir)
@@ -154,6 +195,10 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             portfolio_name=str(resolved_config["portfolio_name"]),
             initial_capital=float(resolved_config["initial_capital"]),
             alignment_policy=str(resolved_config["alignment_policy"]),
+            execution_config=runtime_config.execution,
+            validation_config=runtime_config.portfolio_validation.to_dict(),
+            sanity_config=runtime_config.sanity.to_dict(),
+            strict_mode=runtime_config.strict_mode.enabled,
         )
         result = PortfolioWalkForwardRunResult(
             portfolio_name=str(walk_forward_result["portfolio_name"]),
@@ -171,12 +216,42 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
     else:
         strategy_returns = load_strategy_runs_returns(run_dirs)
         aligned_returns = build_aligned_return_matrix(strategy_returns)
-        portfolio_output = construct_portfolio(
-            aligned_returns,
-            allocator,
-            initial_capital=float(resolved_config["initial_capital"]),
+        try:
+            portfolio_output = construct_portfolio(
+                aligned_returns,
+                allocator,
+                initial_capital=float(resolved_config["initial_capital"]),
+                execution_config=runtime_config.execution,
+                validation_config=runtime_config.portfolio_validation,
+            )
+        except ValueError as exc:
+            raise_research_validation_error(
+                validator="portfolio_validation",
+                scope=f"portfolio:{resolved_config['portfolio_name']}",
+                exc=exc,
+                strict_mode=runtime_config.strict_mode.enabled,
+            )
+        metrics = compute_portfolio_metrics(
+            portfolio_output,
+            timeframe,
+            validation_config=runtime_config.portfolio_validation,
         )
-        metrics = compute_portfolio_metrics(portfolio_output, timeframe)
+        try:
+            sanity_report = validate_portfolio_output_sanity(
+                portfolio_output,
+                metrics,
+                runtime_config.sanity,
+                initial_capital=float(resolved_config["initial_capital"]),
+            )
+        except ValueError as exc:
+            raise_research_validation_error(
+                validator="sanity",
+                scope=f"portfolio:{resolved_config['portfolio_name']}",
+                exc=exc,
+                strict_mode=runtime_config.strict_mode.enabled,
+            )
+        metrics = sanity_report.apply_to_metrics(metrics)
+        portfolio_output.attrs["sanity_check"] = sanity_report.to_dict()
 
         start_ts = _format_timestamp(aligned_returns.index.min())
         end_ts = _format_timestamp(aligned_returns.index.max())
@@ -265,7 +340,7 @@ def main() -> None:
 
     try:
         run_cli()
-    except ValueError as exc:
+    except (ResearchStrictModeError, ValueError) as exc:
         print(_format_run_failure(exc), file=sys.stderr)
         raise SystemExit(1) from exc
 
@@ -296,6 +371,7 @@ def _resolve_portfolio_inputs(
     from_registry: bool,
     timeframe: str,
     evaluation_path: Path | None,
+    execution_override: Mapping[str, Any] | None,
 ) -> tuple[dict[str, Any], list[Path], list[dict[str, Any]]]:
     if portfolio_config_path is not None:
         raw_payload = load_portfolio_config(portfolio_config_path)
@@ -324,7 +400,10 @@ def _resolve_portfolio_inputs(
             "alignment_policy": DEFAULT_ALIGNMENT_POLICY,
         }
 
-    resolved_config = {
+    runtime_override = None if execution_override is None else {"execution": execution_override}
+    runtime_config = resolve_runtime_config(base_definition, cli_overrides=runtime_override)
+    resolved_config = runtime_config.apply_to_payload(
+        {
         **base_definition,
         "portfolio_name": _normalize_required_string(
             base_definition.get("portfolio_name"),
@@ -342,8 +421,11 @@ def _resolve_portfolio_inputs(
         ),
         "timeframe": timeframe,
         "evaluation_config_path": None if evaluation_path is None else evaluation_path.as_posix(),
-    }
+        },
+        validation_key="validation",
+    )
     validated_config = validate_portfolio_config(resolved_config)
+    validated_config = runtime_config.apply_to_payload(validated_config, validation_key="validation")
     validated_config["timeframe"] = timeframe
     validated_config["evaluation_config_path"] = (
         None if evaluation_path is None else evaluation_path.as_posix()
@@ -498,6 +580,9 @@ def _normalize_portfolio_definition(
         "components": normalized_components,
         "initial_capital": definition.get("initial_capital", DEFAULT_INITIAL_CAPITAL),
         "alignment_policy": definition.get("alignment_policy", DEFAULT_ALIGNMENT_POLICY),
+        "execution": definition.get("execution"),
+        "validation": definition.get("validation"),
+        "sanity": definition.get("sanity"),
     }
 
 
@@ -685,6 +770,25 @@ def _format_run_failure(exc: Exception) -> str:
     if message.startswith("Run failed:"):
         return message
     return f"Run failed: {message}"
+
+
+def _portfolio_execution_config(config: Mapping[str, Any]) -> ExecutionConfig:
+    return resolve_runtime_config(config).execution
+
+
+def _execution_override_from_args(args: argparse.Namespace) -> dict[str, Any] | None:
+    override: dict[str, Any] = {}
+    if args.execution_delay is not None:
+        override["execution_delay"] = args.execution_delay
+    if args.transaction_cost_bps is not None:
+        override["transaction_cost_bps"] = args.transaction_cost_bps
+    if args.slippage_bps is not None:
+        override["slippage_bps"] = args.slippage_bps
+    if args.execution_enabled:
+        override["enabled"] = True
+    if args.disable_execution_model:
+        override["enabled"] = False
+    return override or None
 
 
 if __name__ == "__main__":

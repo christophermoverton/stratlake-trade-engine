@@ -67,7 +67,31 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "hit_rate",
         "profit_factor",
         "turnover",
+        "total_turnover",
+        "average_turnover",
+        "trade_count",
+        "rebalance_count",
+        "percent_periods_traded",
+        "average_trade_size",
+        "total_transaction_cost",
+        "total_slippage_cost",
+        "total_execution_friction",
+        "average_execution_friction_per_trade",
         "exposure_pct",
+        "average_gross_exposure",
+        "max_gross_exposure",
+        "average_net_exposure",
+        "min_net_exposure",
+        "max_net_exposure",
+        "average_leverage",
+        "max_leverage",
+        "max_single_weight",
+        "max_weight_sum_deviation",
+        "validation_issue_count",
+        "sanity_issue_count",
+        "sanity_warning_count",
+        "sanity_status",
+        "sanity_strict_mode",
     ]
     assert metrics["cumulative_return"] == pytest.approx(metrics["total_return"])
     assert metrics["total_return"] == pytest.approx(expected_total)
@@ -78,8 +102,26 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["win_rate"] == pytest.approx(0.5)
     assert metrics["hit_rate"] == pytest.approx(0.5)
     assert metrics["profit_factor"] == pytest.approx((0.02 + 0.03) / (0.005 + 0.014))
-    assert metrics["turnover"] == pytest.approx(0.2)
+    assert metrics["turnover"] == pytest.approx(0.45)
+    assert metrics["total_turnover"] == pytest.approx(1.8)
+    assert metrics["average_turnover"] == pytest.approx(0.45)
+    assert metrics["trade_count"] == pytest.approx(3.0)
+    assert metrics["rebalance_count"] == pytest.approx(3.0)
+    assert metrics["percent_periods_traded"] == pytest.approx(75.0)
+    assert metrics["average_trade_size"] == pytest.approx(0.6)
+    assert metrics["total_execution_friction"] == pytest.approx(0.0)
     assert metrics["exposure_pct"] == pytest.approx(100.0)
+    assert metrics["average_gross_exposure"] == pytest.approx(1.0)
+    assert metrics["max_gross_exposure"] == pytest.approx(1.0)
+    assert metrics["average_net_exposure"] == pytest.approx(1.0)
+    assert metrics["max_leverage"] == pytest.approx(1.0)
+    assert metrics["max_single_weight"] == pytest.approx(0.8)
+    assert metrics["max_weight_sum_deviation"] == pytest.approx(0.0)
+    assert metrics["validation_issue_count"] == pytest.approx(0.0)
+    assert metrics["sanity_issue_count"] == pytest.approx(0.0)
+    assert metrics["sanity_warning_count"] == pytest.approx(0.0)
+    assert metrics["sanity_status"] == "pass"
+    assert metrics["sanity_strict_mode"] is False
 
 
 def test_compute_portfolio_metrics_matches_research_metric_primitives() -> None:
@@ -117,7 +159,10 @@ def test_compute_portfolio_metrics_omits_weight_based_metrics_without_traceabili
     metrics = compute_portfolio_metrics(portfolio_output, timeframe="1d")
 
     assert metrics["turnover"] is None
+    assert metrics["trade_count"] is None
     assert metrics["exposure_pct"] is None
+    assert metrics["average_gross_exposure"] == pytest.approx(0.0)
+    assert metrics["validation_issue_count"] == pytest.approx(0.0)
 
 
 def test_compute_portfolio_metrics_handles_all_zero_return_streams() -> None:
@@ -142,7 +187,7 @@ def test_compute_portfolio_metrics_handles_all_zero_return_streams() -> None:
     assert metrics["sharpe_ratio"] == 0.0
     assert metrics["max_drawdown"] == 0.0
     assert metrics["profit_factor"] == 0.0
-    assert metrics["turnover"] == 0.0
+    assert metrics["turnover"] == pytest.approx(1.0 / 3.0)
     assert metrics["exposure_pct"] == pytest.approx(100.0)
 
 
@@ -182,3 +227,22 @@ def test_compute_portfolio_metrics_rejects_empty_input() -> None:
 def test_compute_portfolio_metrics_rejects_invalid_timeframe() -> None:
     with pytest.raises(ValueError, match="Unsupported portfolio metrics timeframe"):
         compute_portfolio_metrics(_portfolio_output(), timeframe="4h")
+
+
+def test_compute_portfolio_metrics_counts_non_strict_sanity_issues() -> None:
+    portfolio_output = _portfolio_output()
+    portfolio_output.loc[2, "portfolio_return"] = 0.2
+    running_equity = 100.0
+    recomputed_equity: list[float] = []
+    for portfolio_return in portfolio_output["portfolio_return"].tolist():
+        running_equity *= 1.0 + float(portfolio_return)
+        recomputed_equity.append(running_equity)
+    portfolio_output["portfolio_equity_curve"] = recomputed_equity
+
+    metrics = compute_portfolio_metrics(
+        portfolio_output,
+        timeframe="1d",
+        validation_config={"max_abs_period_return": 0.1, "strict_sanity_checks": False},
+    )
+
+    assert metrics["validation_issue_count"] == pytest.approx(1.0)

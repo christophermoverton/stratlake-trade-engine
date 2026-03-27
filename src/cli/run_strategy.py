@@ -9,14 +9,18 @@ from typing import Any, Sequence
 import pandas as pd
 import yaml
 
+from src.config.execution import ExecutionConfig
 from src.config.evaluation import EVALUATION_CONFIG
+from src.config.runtime import RuntimeConfig, resolve_runtime_config
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.input_validation import StrategyInputError
 from src.research.metrics import compute_benchmark_relative_metrics
+from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
+from src.research.sanity import SanityCheckError, validate_strategy_backtest_sanity
 from src.research.strategies import build_strategy
 from src.research.strategy_qa import generate_strategy_qa_summary
 from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment
@@ -52,6 +56,36 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         nargs="?",
         const=str(EVALUATION_CONFIG),
         help="Enable walk-forward evaluation using configs/evaluation.yml or a provided path.",
+    )
+    parser.add_argument(
+        "--execution-delay",
+        type=int,
+        help="Override execution delay in bars.",
+    )
+    parser.add_argument(
+        "--transaction-cost-bps",
+        type=float,
+        help="Override deterministic transaction cost in basis points.",
+    )
+    parser.add_argument(
+        "--slippage-bps",
+        type=float,
+        help="Override deterministic slippage in basis points.",
+    )
+    parser.add_argument(
+        "--execution-enabled",
+        action="store_true",
+        help="Enable execution frictions even when config defaults are disabled.",
+    )
+    parser.add_argument(
+        "--disable-execution-model",
+        action="store_true",
+        help="Disable transaction-cost and slippage frictions for this run.",
+    )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="Enable strict research-validity enforcement and block artifact or registry writes on flagged runs.",
     )
     return parser.parse_args(argv)
 
@@ -92,6 +126,9 @@ def run_strategy_experiment(
     *,
     start: str | None = None,
     end: str | None = None,
+    runtime_config: RuntimeConfig | None = None,
+    execution_config: ExecutionConfig | None = None,
+    strict: bool = False,
 ) -> StrategyRunResult:
     """Run the full strategy research pipeline and persist experiment artifacts."""
 
@@ -99,19 +136,39 @@ def run_strategy_experiment(
     strategy = build_strategy(strategy_name, config)
     dataset = load_features(strategy.dataset, start=start, end=end)
     signal_frame = generate_signals(dataset, strategy)
-    results_df = run_backtest(signal_frame)
+    resolved_runtime = runtime_config or resolve_runtime_config(
+        config,
+        cli_overrides=None if execution_config is None else {"execution": execution_config.to_dict()},
+        cli_strict=strict,
+    )
+    results_df = run_backtest(signal_frame, resolved_runtime.execution)
     results_df.attrs["dataset"] = strategy.dataset
     metrics = compute_metrics(results_df)
-    metrics.update(_compute_benchmark_metrics(results_df, dataset, strategy.dataset))
+    metrics.update(_compute_benchmark_metrics(results_df, dataset, strategy.dataset, resolved_runtime.execution))
+    try:
+        sanity_report = validate_strategy_backtest_sanity(results_df, metrics, resolved_runtime.sanity)
+    except SanityCheckError as exc:
+        raise_research_validation_error(
+            validator="sanity",
+            scope=f"strategy:{strategy_name}",
+            exc=exc,
+            strict_mode=resolved_runtime.strict_mode.enabled,
+        )
+    metrics = sanity_report.apply_to_metrics(metrics)
+    results_df.attrs["sanity_check"] = sanity_report.to_dict()
+    results_df.attrs["runtime_config"] = resolved_runtime.to_dict()
     signal_diagnostics = compute_signal_diagnostics(results_df["signal"], results_df)
 
-    experiment_config = {
+    experiment_config = resolved_runtime.apply_to_payload(
+        {
         "strategy_name": strategy_name,
         "dataset": strategy.dataset,
         "parameters": dict(config.get("parameters", {})),
         "start": start,
         "end": end,
-    }
+        },
+        include_validation_section=False,
+    )
     experiment_dir = save_experiment(strategy_name, results_df, metrics, experiment_config)
     qa_summary = generate_strategy_qa_summary(
         results_df,
@@ -197,6 +254,11 @@ def summarize_qa_warnings(qa_summary: dict[str, Any]) -> list[str]:
         warnings_list.append("strategy turnover is high relative to its excess return")
     if bool(flags.get("beta_dominated_strategy")):
         warnings_list.append("strategy returns appear largely benchmark-driven")
+    sanity = qa_summary.get("sanity")
+    if isinstance(sanity, dict):
+        for issue in sanity.get("issues", []):
+            if isinstance(issue, dict) and issue.get("message"):
+                warnings_list.append(str(issue["message"]))
     return warnings_list
 
 
@@ -204,10 +266,11 @@ def _compute_benchmark_metrics(
     results_df: pd.DataFrame,
     dataset: pd.DataFrame,
     strategy_dataset: str,
+    execution_config: ExecutionConfig,
 ) -> dict[str, float | dict[str, bool]]:
     benchmark_strategy = build_strategy("buy_and_hold_v1", {"dataset": strategy_dataset, "parameters": {}})
     benchmark_signal_frame = generate_signals(dataset, benchmark_strategy)
-    benchmark_results = run_backtest(benchmark_signal_frame)
+    benchmark_results = run_backtest(benchmark_signal_frame, execution_config)
     return compute_benchmark_relative_metrics(results_df, benchmark_results)
 
 
@@ -246,22 +309,51 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
     """Execute the strategy runner CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
+    execution_override = _execution_override_from_args(args)
+    config = get_strategy_config(args.strategy)
+    runtime_config = resolve_runtime_config(
+        config,
+        cli_overrides=None if execution_override is None else {"execution": execution_override},
+        cli_strict=args.strict,
+    )
     if args.evaluation:
         if args.start or args.end:
             raise ValueError("The --start and --end arguments cannot be combined with --evaluation.")
 
-        config = get_strategy_config(args.strategy)
         strategy = build_strategy(args.strategy, config)
         result = run_walk_forward_experiment(
             args.strategy,
             strategy,
             evaluation_path=Path(args.evaluation),
             strategy_config=config,
+            execution_config=runtime_config.execution,
+            strict=args.strict,
         )
     else:
-        result = run_strategy_experiment(args.strategy, start=args.start, end=args.end)
+        result = run_strategy_experiment(
+            args.strategy,
+            start=args.start,
+            end=args.end,
+            execution_config=runtime_config.execution,
+            strict=args.strict,
+        )
     print_summary(result)
     return result
+
+
+def _execution_override_from_args(args: argparse.Namespace) -> dict[str, Any] | None:
+    override: dict[str, Any] = {}
+    if args.execution_delay is not None:
+        override["execution_delay"] = args.execution_delay
+    if args.transaction_cost_bps is not None:
+        override["transaction_cost_bps"] = args.transaction_cost_bps
+    if args.slippage_bps is not None:
+        override["slippage_bps"] = args.slippage_bps
+    if args.execution_enabled:
+        override["enabled"] = True
+    if args.disable_execution_model:
+        override["enabled"] = False
+    return override or None
 
 
 def main() -> None:
@@ -269,7 +361,7 @@ def main() -> None:
 
     try:
         run_cli()
-    except (StrategyInputError, ValueError) as exc:
+    except (ResearchStrictModeError, StrategyInputError, ValueError) as exc:
         print(_format_run_failure(exc), file=sys.stderr)
         raise SystemExit(1) from exc
 

@@ -57,6 +57,16 @@ def _expected_metric_keys() -> set[str]:
         "hit_rate",
         "profit_factor",
         "turnover",
+        "total_turnover",
+        "average_turnover",
+        "trade_count",
+        "rebalance_count",
+        "percent_periods_traded",
+        "average_trade_size",
+        "total_transaction_cost",
+        "total_slippage_cost",
+        "total_execution_friction",
+        "average_execution_friction_per_trade",
         "exposure_pct",
     }
 
@@ -68,6 +78,9 @@ def _expected_walk_forward_metric_keys() -> set[str]:
         "excess_return",
         "benchmark_correlation",
         "relative_drawdown",
+        "sanity_issue_count",
+        "sanity_warning_count",
+        "flagged_split_count",
     }
 
 

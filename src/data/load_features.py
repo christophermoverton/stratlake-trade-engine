@@ -10,6 +10,7 @@ import pandas as pd
 
 from src.data.catalog import build_where_clause, parquet_scan_sql
 from src.data.loaders import _ensure_duckdb_con
+from src.research.integrity import validate_research_integrity
 
 SUPPORTED_FEATURE_DATASETS = {"features_daily", "features_1m"}
 FEATURE_CORE_COLUMNS = ["symbol", "ts_utc", "timeframe", "date"]
@@ -113,6 +114,7 @@ def load_features(
     con: Optional[duckdb.DuckDBPyConnection] = None,
     paths: Optional[FeaturePaths] = None,
     cfg: Optional[FeatureViewConfig] = None,
+    validate_integrity: bool = True,
 ) -> pd.DataFrame:
     """
     Load an engineered feature dataset from partitioned parquet storage.
@@ -143,10 +145,10 @@ def load_features(
         ORDER BY symbol, ts_utc, timeframe, date
     """
     df = connection.execute(sql, params).df()
-    return _postprocess(df)
+    return _postprocess(df, validate_integrity=validate_integrity)
 
 
-def _postprocess(df: pd.DataFrame) -> pd.DataFrame:
+def _postprocess(df: pd.DataFrame, *, validate_integrity: bool = True) -> pd.DataFrame:
     if df.empty:
         return df.reset_index(drop=True)
 
@@ -164,4 +166,7 @@ def _postprocess(df: pd.DataFrame) -> pd.DataFrame:
     if sort_columns:
         df = df.sort_values(sort_columns, kind="mergesort", na_position="last")
 
-    return df.reset_index(drop=True)
+    df = df.reset_index(drop=True)
+    if validate_integrity:
+        validate_research_integrity(df)
+    return df

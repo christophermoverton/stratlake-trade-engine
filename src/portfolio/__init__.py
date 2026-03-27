@@ -56,11 +56,6 @@ from .qa import (
     validate_portfolio_return_consistency,
     validate_weights_behavior,
 )
-from .walk_forward import (
-    PORTFOLIO_WALK_FORWARD_METRIC_KEYS,
-    PortfolioWalkForwardError,
-    run_portfolio_walk_forward,
-)
 from .validation import (
     PortfolioValidationError,
     summarize_weight_diagnostics,
@@ -123,3 +118,24 @@ __all__ = [
     "volatility_target_diagnostics",
     "summarize_portfolio_risk",
 ]
+
+
+def __getattr__(name: str):
+    if name in {
+        "PORTFOLIO_WALK_FORWARD_METRIC_KEYS",
+        "PortfolioWalkForwardError",
+        "run_portfolio_walk_forward",
+    }:
+        from .walk_forward import (
+            PORTFOLIO_WALK_FORWARD_METRIC_KEYS,
+            PortfolioWalkForwardError,
+            run_portfolio_walk_forward,
+        )
+
+        exports = {
+            "PORTFOLIO_WALK_FORWARD_METRIC_KEYS": PORTFOLIO_WALK_FORWARD_METRIC_KEYS,
+            "PortfolioWalkForwardError": PortfolioWalkForwardError,
+            "run_portfolio_walk_forward": run_portfolio_walk_forward,
+        }
+        return exports[name]
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

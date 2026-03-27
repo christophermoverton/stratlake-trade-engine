@@ -45,6 +45,40 @@ def test_parse_args_accepts_portfolio_runner_flags() -> None:
     assert args.strict is False
 
 
+def test_parse_args_accepts_optimizer_and_risk_overrides() -> None:
+    args = parse_args(
+        [
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-a",
+            "--timeframe",
+            "1D",
+            "--optimizer-method",
+            "max_sharpe",
+            "--risk-target-volatility",
+            "0.12",
+            "--risk-volatility-window",
+            "30",
+            "--risk-var-confidence-level",
+            "0.9",
+            "--risk-cvar-confidence-level",
+            "0.9",
+            "--risk-allow-scale-up",
+            "--risk-max-volatility-scale",
+            "1.5",
+        ]
+    )
+
+    assert args.optimizer_method == "max_sharpe"
+    assert args.risk_target_volatility == pytest.approx(0.12)
+    assert args.risk_volatility_window == 30
+    assert args.risk_var_confidence_level == pytest.approx(0.9)
+    assert args.risk_cvar_confidence_level == pytest.approx(0.9)
+    assert args.risk_allow_scale_up is True
+    assert args.risk_max_volatility_scale == pytest.approx(1.5)
+
+
 def test_parse_args_accepts_portfolio_strict_flag() -> None:
     args = parse_args(
         [
@@ -146,14 +180,18 @@ def test_run_cli_builds_portfolio_from_explicit_run_ids(
     stdout = capsys.readouterr().out
     assert "Portfolio: core_portfolio" in stdout
     assert f"Run ID: {result.run_id}" in stdout
+    assert f"Artifact Dir: {result.experiment_dir.as_posix()}" in stdout
     assert "Allocator: equal_weight" in stdout
+    assert "Optimizer Method: equal_weight" in stdout
     assert "Components: 2 strategies" in stdout
     assert "Timeframe: 1D" in stdout
     assert "Total Return:" in stdout
     assert "Sharpe Ratio:" in stdout
+    assert "Realized Volatility:" in stdout
     assert "Max Drawdown:" in stdout
     assert "VaR:" in stdout
     assert "CVaR:" in stdout
+    assert "Simulation: disabled" in stdout
     assert alpha_run.exists()
 
 
@@ -245,6 +283,100 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
         "periods_per_year_override": None,
     }
     assert result.config["timeframe"] == "1D"
+
+
+def test_run_cli_applies_optimizer_and_risk_cli_overrides_deterministically(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-alpha",
+        strategy_name="alpha_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.01},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.02},
+            {"ts_utc": "2025-01-03T00:00:00Z", "strategy_return": 0.01},
+        ],
+    )
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-beta",
+        strategy_name="beta_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.00},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.01},
+            {"ts_utc": "2025-01-03T00:00:00Z", "strategy_return": 0.03},
+        ],
+    )
+    config_path = tmp_path / "portfolio.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "portfolio_name": "override_portfolio",
+                "allocator": "equal_weight",
+                "optimizer": {"method": "equal_weight"},
+                "risk": {
+                    "volatility_window": 20,
+                    "target_volatility": None,
+                    "allow_scale_up": False,
+                    "max_volatility_scale": 1.0,
+                    "var_confidence_level": 0.95,
+                    "cvar_confidence_level": 0.95,
+                },
+                "components": [
+                    {"strategy_name": "alpha_v1", "run_id": "run-alpha"},
+                    {"strategy_name": "beta_v1", "run_id": "run-beta"},
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_portfolio.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.cli.run_portfolio.DEFAULT_PORTFOLIO_ARTIFACTS_ROOT", portfolio_root)
+
+    result = run_cli(
+        [
+            "--portfolio-config",
+            str(config_path),
+            "--timeframe",
+            "1D",
+            "--optimizer-method",
+            "max_sharpe",
+            "--risk-target-volatility",
+            "0.12",
+            "--risk-volatility-window",
+            "30",
+            "--risk-var-confidence-level",
+            "0.9",
+            "--risk-cvar-confidence-level",
+            "0.9",
+            "--risk-allow-scale-up",
+            "--risk-max-volatility-scale",
+            "1.5",
+        ]
+    )
+
+    assert result.allocator_name == "max_sharpe"
+    assert result.config["allocator"] == "max_sharpe"
+    assert result.config["optimizer"]["method"] == "max_sharpe"
+    assert result.config["risk"]["target_volatility"] == pytest.approx(0.12)
+    assert result.config["risk"]["volatility_window"] == 30
+    assert result.config["risk"]["allow_scale_up"] is True
+    assert result.config["risk"]["max_volatility_scale"] == pytest.approx(1.5)
+    assert result.config["risk"]["var_confidence_level"] == pytest.approx(0.9)
+    assert result.config["risk"]["cvar_confidence_level"] == pytest.approx(0.9)
+
+    config_payload = json.loads((result.experiment_dir / "config.json").read_text(encoding="utf-8"))
+    assert config_payload["allocator"] == "max_sharpe"
+    assert config_payload["optimizer"]["method"] == "max_sharpe"
+    assert config_payload["risk"]["target_volatility"] == pytest.approx(0.12)
+    assert config_payload["runtime"]["risk"]["volatility_window"] == 30
 
 
 def test_run_cli_selects_latest_registry_run_per_strategy_deterministically(
@@ -516,11 +648,16 @@ def test_run_cli_supports_walk_forward_portfolios(
     stdout = capsys.readouterr().out
     assert "Portfolio: core_portfolio" in stdout
     assert f"Run ID: {result.run_id}" in stdout
+    assert f"Artifact Dir: {result.experiment_dir.as_posix()}" in stdout
+    assert "Optimizer Method: equal_weight" in stdout
     assert "Splits: 2" in stdout
     assert "Mean Total Return:" in stdout
     assert "Mean Sharpe Ratio:" in stdout
+    assert "Mean Realized Volatility:" in stdout
     assert "Worst Max Drawdown:" in stdout
+    assert "Mean VaR:" in stdout
     assert "Mean CVaR:" in stdout
+    assert "Simulation: disabled" in stdout
 
 
 def test_run_cli_rejects_missing_run_ids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -555,6 +692,51 @@ def test_run_cli_rejects_invalid_argument_combinations() -> None:
                 "--from-registry",
                 "--timeframe",
                 "1D",
+            ]
+        )
+
+    with pytest.raises(ValueError, match="mutually exclusive"):
+        run_cli(
+            [
+                "--portfolio-name",
+                "core_portfolio",
+                "--run-ids",
+                "run-a",
+                "--timeframe",
+                "1D",
+                "--execution-enabled",
+                "--disable-execution-model",
+            ]
+        )
+
+    with pytest.raises(ValueError, match="cannot be combined with --evaluation"):
+        run_cli(
+            [
+                "--portfolio-name",
+                "core_portfolio",
+                "--run-ids",
+                "run-a",
+                "--timeframe",
+                "1D",
+                "--evaluation",
+                "configs/evaluation.yml",
+                "--simulation",
+                "configs/simulation.yml",
+            ]
+        )
+
+    with pytest.raises(ValueError, match="requires --risk-max-volatility-scale > 1.0"):
+        run_cli(
+            [
+                "--portfolio-name",
+                "core_portfolio",
+                "--run-ids",
+                "run-a",
+                "--timeframe",
+                "1D",
+                "--risk-allow-scale-up",
+                "--risk-max-volatility-scale",
+                "1.0",
             ]
         )
 

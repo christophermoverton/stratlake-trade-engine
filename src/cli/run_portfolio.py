@@ -16,6 +16,7 @@ from src.config.runtime import resolve_runtime_config
 from src.portfolio import (
     EqualWeightAllocator,
     OptimizerAllocator,
+    SUPPORTED_PORTFOLIO_OPTIMIZERS,
     build_aligned_return_matrix,
     compute_portfolio_metrics,
     construct_portfolio,
@@ -79,6 +80,12 @@ class PortfolioWalkForwardRunResult:
     simulation_result: SimulationRunResult | None = None
 
 
+@dataclass(frozen=True)
+class PortfolioCliOverrides:
+    optimizer: dict[str, Any] | None = None
+    runtime: dict[str, Any] | None = None
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     """Parse command-line arguments for a portfolio construction run."""
 
@@ -118,6 +125,44 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--timeframe",
         required=True,
         help="Portfolio metrics timeframe. Supported values: 1D, 1Min.",
+    )
+    parser.add_argument(
+        "--optimizer-method",
+        choices=SUPPORTED_PORTFOLIO_OPTIMIZERS,
+        help=(
+            "Override the effective portfolio allocator/optimizer method for this run. "
+            "Use equal_weight to keep deterministic equal-weight construction."
+        ),
+    )
+    parser.add_argument(
+        "--risk-target-volatility",
+        type=float,
+        help="Override the effective portfolio risk target volatility.",
+    )
+    parser.add_argument(
+        "--risk-volatility-window",
+        type=int,
+        help="Override the rolling volatility window used by portfolio risk diagnostics.",
+    )
+    parser.add_argument(
+        "--risk-var-confidence-level",
+        type=float,
+        help="Override the portfolio historical VaR confidence level.",
+    )
+    parser.add_argument(
+        "--risk-cvar-confidence-level",
+        type=float,
+        help="Override the portfolio historical CVaR confidence level.",
+    )
+    parser.add_argument(
+        "--risk-allow-scale-up",
+        action="store_true",
+        help="Allow portfolio volatility targeting diagnostics to recommend leverage scaling above 1x.",
+    )
+    parser.add_argument(
+        "--risk-max-volatility-scale",
+        type=float,
+        help="Override the portfolio volatility scaling cap used by risk diagnostics.",
     )
     parser.add_argument(
         "--execution-delay",
@@ -177,6 +222,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
     args = parse_args(argv)
     timeframe = _normalize_timeframe(args.timeframe)
     execution_override = _execution_override_from_args(args)
+    cli_overrides = _milestone_11_overrides_from_args(args)
     _validate_cli_args(args, timeframe=timeframe)
 
     resolved_config, run_dirs, components = _resolve_portfolio_inputs(
@@ -189,6 +235,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
         timeframe=timeframe,
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
         execution_override=execution_override,
+        cli_overrides=cli_overrides,
     )
     resolved_simulation = resolve_simulation_config(
         None if args.simulation is None else load_simulation_config(Path(args.simulation)).to_dict(),
@@ -357,21 +404,27 @@ def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) ->
 
     print(f"Portfolio: {result.portfolio_name}")
     print(f"Run ID: {result.run_id}")
+    print(f"Artifact Dir: {result.experiment_dir.as_posix()}")
     print(f"Allocator: {result.allocator_name}")
+    print(f"Optimizer Method: {_summary_optimizer_method(result.config, fallback=result.allocator_name)}")
     print(f"Components: {result.component_count} strategies")
     print(f"Timeframe: {result.timeframe}")
     if isinstance(result, PortfolioWalkForwardRunResult):
         stats = result.aggregate_metrics["metric_statistics"]
         print(f"Splits: {result.split_count}")
         print()
-        print(f"Mean Total Return: {_format_pct(stats['total_return']['mean'])}")
-        print(f"Mean Sharpe Ratio: {_format_decimal(stats['sharpe_ratio']['mean'])}")
-        print(f"Worst Max Drawdown: {_format_pct(stats['max_drawdown']['min'])}")
-        print(f"Mean CVaR: {_format_pct(stats['conditional_value_at_risk']['mean'])}")
+        print(f"Mean Total Return: {_format_pct(_nested_metric_stat(stats, 'total_return', 'mean'))}")
+        print(f"Mean Sharpe Ratio: {_format_decimal(_nested_metric_stat(stats, 'sharpe_ratio', 'mean'))}")
+        print(f"Mean Realized Volatility: {_format_pct(_nested_metric_stat(stats, 'realized_volatility', 'mean'))}")
+        print(f"Worst Max Drawdown: {_format_pct(_nested_metric_stat(stats, 'max_drawdown', 'min'))}")
+        print(f"Mean VaR: {_format_pct(_nested_metric_stat(stats, 'value_at_risk', 'mean'))}")
+        print(f"Mean CVaR: {_format_pct(_nested_metric_stat(stats, 'conditional_value_at_risk', 'mean'))}")
+        print("Simulation: disabled")
         return
     print()
     print(f"Total Return: {_format_pct(result.metrics.get('total_return'))}")
     print(f"Sharpe Ratio: {_format_decimal(result.metrics.get('sharpe_ratio'))}")
+    print(f"Realized Volatility: {_format_pct(result.metrics.get('realized_volatility'))}")
     print(f"Max Drawdown: {_format_pct(result.metrics.get('max_drawdown'))}")
     print(f"VaR: {_format_pct(result.metrics.get('value_at_risk'))}")
     print(f"CVaR: {_format_pct(result.metrics.get('conditional_value_at_risk'))}")
@@ -387,6 +440,8 @@ def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) ->
         print(f"Mean Sim Return: {_format_pct(stats['mean'])}")
         print(f"Median Sim Return: {_format_pct(stats['median'])}")
         print(f"P05 Sim Return: {_format_pct(stats['p05'])}")
+    else:
+        print("Simulation: disabled")
 
 
 def main() -> None:
@@ -415,6 +470,17 @@ def _validate_cli_args(args: argparse.Namespace, *, timeframe: str) -> None:
     if timeframe not in SUPPORTED_TIMEFRAMES:
         supported = ", ".join(SUPPORTED_TIMEFRAMES)
         raise ValueError(f"Unsupported timeframe {timeframe!r}. Supported values: {supported}.")
+    if args.execution_enabled and args.disable_execution_model:
+        raise ValueError(
+            "The --execution-enabled and --disable-execution-model arguments are mutually exclusive."
+        )
+    if args.simulation is not None and args.evaluation is not None:
+        raise ValueError("The --simulation argument cannot be combined with --evaluation.")
+    if args.risk_allow_scale_up and args.risk_max_volatility_scale is not None:
+        if float(args.risk_max_volatility_scale) <= 1.0:
+            raise ValueError(
+                "The --risk-allow-scale-up flag requires --risk-max-volatility-scale > 1.0 when provided."
+            )
 
 
 def _resolve_portfolio_inputs(
@@ -426,6 +492,7 @@ def _resolve_portfolio_inputs(
     timeframe: str,
     evaluation_path: Path | None,
     execution_override: Mapping[str, Any] | None,
+    cli_overrides: PortfolioCliOverrides | None,
 ) -> tuple[dict[str, Any], list[Path], list[dict[str, Any]]]:
     if portfolio_config_path is not None:
         raw_payload = load_portfolio_config(portfolio_config_path)
@@ -454,7 +521,11 @@ def _resolve_portfolio_inputs(
             "alignment_policy": DEFAULT_ALIGNMENT_POLICY,
         }
 
-    runtime_override = None if execution_override is None else {"execution": execution_override}
+    base_definition = _apply_cli_portfolio_overrides(base_definition, cli_overrides)
+    runtime_override = _compose_runtime_override(
+        execution_override=execution_override,
+        milestone_11_overrides=cli_overrides,
+    )
     runtime_config = resolve_runtime_config(base_definition, cli_overrides=runtime_override)
     resolved_config = runtime_config.apply_to_payload(
         {
@@ -780,7 +851,7 @@ def _build_allocator(
     optimizer_config: Mapping[str, Any] | None = None,
 ) -> EqualWeightAllocator | OptimizerAllocator:
     normalized = _normalize_required_string(name, field_name="allocator").lower()
-    supported = {"equal_weight", "max_sharpe", "risk_parity"}
+    supported = set(SUPPORTED_PORTFOLIO_OPTIMIZERS)
     if normalized not in supported:
         raise ValueError(
             f"Unsupported portfolio allocator '{name}'. Supported allocators: {', '.join(sorted(supported))}."
@@ -866,6 +937,87 @@ def _execution_override_from_args(args: argparse.Namespace) -> dict[str, Any] | 
     if args.disable_execution_model:
         override["enabled"] = False
     return override or None
+
+
+def _milestone_11_overrides_from_args(args: argparse.Namespace) -> PortfolioCliOverrides | None:
+    optimizer_override: dict[str, Any] | None = None
+    if args.optimizer_method is not None:
+        optimizer_override = {"method": str(args.optimizer_method).strip().lower()}
+
+    risk_override: dict[str, Any] = {}
+    if args.risk_target_volatility is not None:
+        risk_override["target_volatility"] = float(args.risk_target_volatility)
+    if args.risk_volatility_window is not None:
+        risk_override["volatility_window"] = int(args.risk_volatility_window)
+    if args.risk_var_confidence_level is not None:
+        risk_override["var_confidence_level"] = float(args.risk_var_confidence_level)
+    if args.risk_cvar_confidence_level is not None:
+        risk_override["cvar_confidence_level"] = float(args.risk_cvar_confidence_level)
+    if args.risk_allow_scale_up:
+        risk_override["allow_scale_up"] = True
+    if args.risk_max_volatility_scale is not None:
+        risk_override["max_volatility_scale"] = float(args.risk_max_volatility_scale)
+
+    runtime_override = None if not risk_override else {"risk": risk_override}
+    if optimizer_override is None and runtime_override is None:
+        return None
+    return PortfolioCliOverrides(optimizer=optimizer_override, runtime=runtime_override)
+
+
+def _apply_cli_portfolio_overrides(
+    base_definition: Mapping[str, Any],
+    cli_overrides: PortfolioCliOverrides | None,
+) -> dict[str, Any]:
+    resolved = dict(base_definition)
+    if cli_overrides is None or cli_overrides.optimizer is None:
+        return resolved
+
+    optimizer_override = dict(cli_overrides.optimizer)
+    optimizer_method = _normalize_required_string(
+        optimizer_override["method"],
+        field_name="optimizer.method",
+    ).lower()
+    configured_optimizer = (
+        dict(resolved["optimizer"])
+        if isinstance(resolved.get("optimizer"), Mapping)
+        else {}
+    )
+    configured_optimizer["method"] = optimizer_method
+    resolved["optimizer"] = configured_optimizer
+    resolved["allocator"] = optimizer_method
+    return resolved
+
+
+def _compose_runtime_override(
+    *,
+    execution_override: Mapping[str, Any] | None,
+    milestone_11_overrides: PortfolioCliOverrides | None,
+) -> dict[str, Any] | None:
+    merged: dict[str, Any] = {}
+    if execution_override is not None:
+        merged["execution"] = dict(execution_override)
+    if milestone_11_overrides is not None and milestone_11_overrides.runtime is not None:
+        for key, value in milestone_11_overrides.runtime.items():
+            merged[key] = dict(value) if isinstance(value, Mapping) else value
+    return merged or None
+
+
+def _summary_optimizer_method(config: Mapping[str, Any], *, fallback: str) -> str:
+    optimizer = config.get("optimizer")
+    if isinstance(optimizer, Mapping) and optimizer.get("method") is not None:
+        return str(optimizer["method"])
+    return fallback
+
+
+def _nested_metric_stat(
+    stats: Mapping[str, Any],
+    metric_name: str,
+    stat_name: str,
+) -> object:
+    metric_stats = stats.get(metric_name)
+    if not isinstance(metric_stats, Mapping):
+        return None
+    return metric_stats.get(stat_name)
 
 
 if __name__ == "__main__":

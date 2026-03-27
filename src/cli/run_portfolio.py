@@ -201,6 +201,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             alignment_policy=str(resolved_config["alignment_policy"]),
             execution_config=runtime_config.execution,
             validation_config=runtime_config.portfolio_validation.to_dict(),
+            risk_config=runtime_config.risk.to_dict(),
             sanity_config=runtime_config.sanity.to_dict(),
             strict_mode=runtime_config.strict_mode.enabled,
         )
@@ -240,6 +241,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             portfolio_output,
             timeframe,
             validation_config=runtime_config.portfolio_validation,
+            risk_config=runtime_config.risk,
         )
         try:
             sanity_report = validate_portfolio_output_sanity(
@@ -338,11 +340,14 @@ def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) ->
         print(f"Mean Total Return: {_format_pct(stats['total_return']['mean'])}")
         print(f"Mean Sharpe Ratio: {_format_decimal(stats['sharpe_ratio']['mean'])}")
         print(f"Worst Max Drawdown: {_format_pct(stats['max_drawdown']['min'])}")
+        print(f"Mean CVaR: {_format_pct(stats['conditional_value_at_risk']['mean'])}")
         return
     print()
     print(f"Total Return: {_format_pct(result.metrics.get('total_return'))}")
     print(f"Sharpe Ratio: {_format_decimal(result.metrics.get('sharpe_ratio'))}")
     print(f"Max Drawdown: {_format_pct(result.metrics.get('max_drawdown'))}")
+    print(f"VaR: {_format_pct(result.metrics.get('value_at_risk'))}")
+    print(f"CVaR: {_format_pct(result.metrics.get('conditional_value_at_risk'))}")
 
 
 def main() -> None:
@@ -595,6 +600,7 @@ def _normalize_portfolio_definition(
         "optimizer": definition.get("optimizer"),
         "execution": definition.get("execution"),
         "validation": definition.get("validation"),
+        "risk": definition.get("risk"),
         "sanity": definition.get("sanity"),
     }
 

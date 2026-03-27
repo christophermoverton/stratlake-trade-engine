@@ -7,6 +7,8 @@ from typing import Any
 
 import pandas as pd
 
+from .risk import PortfolioRiskError, resolve_portfolio_risk_config
+
 _STRATEGY_ID_CANDIDATES: tuple[str, ...] = ("strategy_name", "strategy_id", "strategy")
 _PORTFOLIO_REQUIRED_COLUMNS: tuple[str, ...] = ("ts_utc", "portfolio_return")
 _WEIGHT_SUM_TOLERANCE = 1e-8
@@ -384,6 +386,7 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
         config_dict.get("validation"),
         optimizer=optimizer,
     )
+    risk = _resolve_risk_config(config_dict.get("risk"))
 
     normalized_config = {
         "portfolio_name": portfolio_name,
@@ -396,6 +399,7 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
         "alignment_policy": alignment_policy,
         "optimizer": optimizer,
         "validation": validation.to_dict(),
+        "risk": risk,
     }
 
     try:
@@ -677,6 +681,13 @@ def _resolve_validation_with_optimizer(
     for key, value in optimizer_validation_overrides(optimizer_config).items():
         merged[key] = value
     return resolve_portfolio_validation_config(merged)
+
+
+def _resolve_risk_config(payload: Any) -> dict[str, Any]:
+    try:
+        return resolve_portfolio_risk_config(payload).to_dict()
+    except PortfolioRiskError as exc:
+        raise PortfolioContractError(str(exc)) from exc
 
 
 def _normalize_column_index(columns: pd.Index, *, owner: str) -> pd.Index:

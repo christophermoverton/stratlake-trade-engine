@@ -48,8 +48,24 @@ PORTFOLIO_WALK_FORWARD_METRIC_KEYS: tuple[str, ...] = (
     "volatility",
     "annualized_return",
     "annualized_volatility",
+    "rolling_volatility_window",
+    "rolling_volatility_latest",
+    "rolling_volatility_mean",
+    "rolling_volatility_max",
+    "target_volatility",
+    "realized_volatility",
+    "latest_rolling_volatility",
+    "volatility_target_scale",
+    "volatility_target_scale_capped",
     "sharpe_ratio",
     "max_drawdown",
+    "current_drawdown",
+    "max_drawdown_duration",
+    "current_drawdown_duration",
+    "value_at_risk",
+    "value_at_risk_confidence_level",
+    "conditional_value_at_risk",
+    "conditional_value_at_risk_confidence_level",
     "win_rate",
     "hit_rate",
     "profit_factor",
@@ -109,6 +125,7 @@ def run_portfolio_walk_forward(
     runtime_config: RuntimeConfig | None = None,
     execution_config: ExecutionConfig | None = None,
     validation_config: Mapping[str, Any] | None = None,
+    risk_config: Mapping[str, Any] | None = None,
     sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
     strict_mode: bool = False,
 ) -> dict[str, Any]:
@@ -124,6 +141,7 @@ def run_portfolio_walk_forward(
         {
             "execution": None if execution_config is None else execution_config.to_dict(),
             "validation": validation_config,
+            "risk": risk_config,
             "sanity": None if sanity_config is None else resolve_sanity_check_config(sanity_config).to_dict(),
         },
         cli_strict=strict_mode,
@@ -168,6 +186,7 @@ def run_portfolio_walk_forward(
             portfolio_name=normalized_portfolio_name,
             execution_config=resolved_runtime.execution,
             validation_config=resolved_runtime.portfolio_validation.to_dict(),
+            risk_config=resolved_runtime.risk.to_dict(),
             sanity_config=resolved_runtime.sanity.to_dict(),
             strict_mode=resolved_runtime.strict_mode.enabled,
         )
@@ -297,6 +316,7 @@ def _execute_portfolio_split(
     portfolio_name: str,
     execution_config: ExecutionConfig | None,
     validation_config: Mapping[str, Any] | None,
+    risk_config: Mapping[str, Any] | None,
     sanity_config: Mapping[str, Any] | None,
     strict_mode: bool,
 ) -> dict[str, Any]:
@@ -335,6 +355,7 @@ def _execute_portfolio_split(
         portfolio_output,
         timeframe,
         validation_config=validation_config,
+        risk_config=dict(risk_config or {}),
     )
     try:
         sanity_report = validate_portfolio_output_sanity(
@@ -373,6 +394,7 @@ def _execute_portfolio_split(
             else execution_config.to_dict()
         ),
         "validation": dict(validation_config or {}),
+        "risk": dict(risk_config or {}),
         "optimizer": portfolio_output.attrs.get("portfolio_constructor", {}).get("optimizer"),
         "sanity": dict(resolve_sanity_check_config(sanity_config).to_dict()),
     }
@@ -523,6 +545,7 @@ def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) 
         "execution": dict(split_result.get("execution", {})),
         "timeframe": split_result["timeframe"],
         "validation": dict(split_result.get("validation", {})),
+        "risk": dict(split_result.get("risk", {})),
     }
     weights_frame = _weights_frame(portfolio_output)
     returns_frame = _portfolio_returns_frame(portfolio_output)
@@ -616,6 +639,7 @@ def _build_root_config(
         "timeframe": timeframe,
         "evaluation_config_path": evaluation_path.as_posix(),
         "validation": runtime_config.portfolio_validation.to_dict(),
+        "risk": runtime_config.risk.to_dict(),
         "sanity": runtime_config.sanity.to_dict(),
         "strict_mode": runtime_config.strict_mode.to_dict(),
         "runtime": runtime_config.to_dict(),

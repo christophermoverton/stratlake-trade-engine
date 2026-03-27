@@ -168,6 +168,17 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
             "smoothness_min_sharpe": 3.0,
             "strict_sanity_checks": False,
         },
+        "risk": {
+            "volatility_window": 20,
+            "target_volatility": None,
+            "min_volatility_scale": 0.0,
+            "max_volatility_scale": 1.0,
+            "allow_scale_up": False,
+            "var_confidence_level": 0.95,
+            "cvar_confidence_level": 0.95,
+            "volatility_epsilon": 1e-12,
+            "periods_per_year_override": None,
+        },
         "strict_mode": {
             "enabled": False,
             "source": "default",
@@ -194,6 +205,7 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
                 "strict_sanity_checks": False,
             },
             "portfolio_validation": {
+                "long_only": False,
                 "target_weight_sum": 1.0,
                 "weight_sum_tolerance": 1e-08,
                 "target_net_exposure": 1.0,
@@ -205,6 +217,17 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
                 "max_abs_period_return": 1.0,
                 "max_equity_multiple": 1000000.0,
                 "strict_sanity_checks": False,
+            },
+            "risk": {
+                "volatility_window": 20,
+                "target_volatility": None,
+                "min_volatility_scale": 0.0,
+                "max_volatility_scale": 1.0,
+                "allow_scale_up": False,
+                "var_confidence_level": 0.95,
+                "cvar_confidence_level": 0.95,
+                "volatility_epsilon": 1e-12,
+                "periods_per_year_override": None,
             },
             "strict_mode": {
                 "enabled": False,

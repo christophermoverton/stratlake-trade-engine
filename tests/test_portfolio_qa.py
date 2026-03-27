@@ -90,6 +90,8 @@ def test_portfolio_qa_accepts_valid_output() -> None:
     assert summary["row_count"] == 3
     assert summary["strategy_count"] == 2
     assert summary["metrics"]["trade_count"] == pytest.approx(1.0)
+    assert summary["risk"]["value_at_risk"] == pytest.approx(0.005)
+    assert summary["risk"]["conditional_value_at_risk"] == pytest.approx(0.005)
 
 
 def test_portfolio_qa_fails_for_incorrect_weighted_return() -> None:

@@ -135,6 +135,8 @@ def test_run_cli_builds_portfolio_from_explicit_run_ids(
     assert "Total Return:" in stdout
     assert "Sharpe Ratio:" in stdout
     assert "Max Drawdown:" in stdout
+    assert "VaR:" in stdout
+    assert "CVaR:" in stdout
     assert alpha_run.exists()
 
 
@@ -214,6 +216,17 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
         "source": "default",
     }
     assert result.config["validation"]["long_only"] is True
+    assert result.config["risk"] == {
+        "volatility_window": 20,
+        "target_volatility": None,
+        "min_volatility_scale": 0.0,
+        "max_volatility_scale": 1.0,
+        "allow_scale_up": False,
+        "var_confidence_level": 0.95,
+        "cvar_confidence_level": 0.95,
+        "volatility_epsilon": 1e-12,
+        "periods_per_year_override": None,
+    }
     assert result.config["timeframe"] == "1D"
 
 
@@ -490,6 +503,7 @@ def test_run_cli_supports_walk_forward_portfolios(
     assert "Mean Total Return:" in stdout
     assert "Mean Sharpe Ratio:" in stdout
     assert "Worst Max Drawdown:" in stdout
+    assert "Mean CVaR:" in stdout
 
 
 def test_run_cli_rejects_missing_run_ids(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -725,6 +739,7 @@ def test_run_cli_passes_strict_flag_to_portfolio_walk_forward(
                     "total_return": {"mean": 0.0},
                     "sharpe_ratio": {"mean": 0.0},
                     "max_drawdown": {"min": 0.0},
+                    "conditional_value_at_risk": {"mean": 0.0},
                 }
             },
             "experiment_dir": Path("artifacts/portfolios/wf-portfolio"),
@@ -750,6 +765,7 @@ def test_run_cli_passes_strict_flag_to_portfolio_walk_forward(
 
     assert calls["strict_mode"] is True
     assert calls["validation_config"]["strict_sanity_checks"] is True
+    assert calls["risk_config"]["volatility_window"] == 20
     assert calls["sanity_config"]["strict_sanity_checks"] is True
 
 
@@ -861,6 +877,7 @@ def test_run_cli_strict_portfolio_config_from_registry_succeeds_and_persists_aud
     }
     assert config_payload["runtime"]["portfolio_validation"]["strict_sanity_checks"] is True
     assert config_payload["runtime"]["sanity"]["strict_sanity_checks"] is True
+    assert config_payload["runtime"]["risk"]["volatility_window"] == 20
     assert config_payload["validation"] == config_payload["runtime"]["portfolio_validation"]
     assert config_payload["optimizer"]["method"] == "equal_weight"
     assert config_payload["validation"]["long_only"] is True

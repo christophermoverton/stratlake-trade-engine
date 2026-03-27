@@ -352,6 +352,7 @@ def test_save_experiment_persists_effective_runtime_config(tmp_path: Path, monke
                 "smoothness_min_positive_return_fraction": 0.95,
             },
             "portfolio_validation": {
+                "long_only": False,
                 "target_weight_sum": 1.0,
                 "weight_sum_tolerance": 1e-8,
                 "target_net_exposure": 1.0,
@@ -363,6 +364,17 @@ def test_save_experiment_persists_effective_runtime_config(tmp_path: Path, monke
                 "max_abs_period_return": 1.0,
                 "max_equity_multiple": 1000000.0,
                 "strict_sanity_checks": True,
+            },
+            "risk": {
+                "volatility_window": 20,
+                "target_volatility": None,
+                "min_volatility_scale": 0.0,
+                "max_volatility_scale": 1.0,
+                "allow_scale_up": False,
+                "var_confidence_level": 0.95,
+                "cvar_confidence_level": 0.95,
+                "volatility_epsilon": 1e-12,
+                "periods_per_year_override": None,
             },
             "strict_mode": {
                 "enabled": True,
@@ -378,6 +390,7 @@ def test_save_experiment_persists_effective_runtime_config(tmp_path: Path, monke
     assert persisted["runtime"]["execution"]["execution_delay"] == 2
     assert persisted["runtime"]["execution"]["transaction_cost_bps"] == pytest.approx(5.0)
     assert persisted["runtime"]["sanity"]["strict_sanity_checks"] is True
+    assert persisted["runtime"]["risk"]["volatility_window"] == 20
     assert persisted["runtime"]["strict_mode"] == {"enabled": True, "source": "config"}
 
 

@@ -428,6 +428,17 @@ def test_write_portfolio_artifacts_persists_effective_runtime_config(tmp_path: P
                 "max_equity_multiple": 1000000.0,
                 "strict_sanity_checks": False,
             },
+            "risk": {
+                "volatility_window": 20,
+                "target_volatility": 0.12,
+                "min_volatility_scale": 0.0,
+                "max_volatility_scale": 1.0,
+                "allow_scale_up": False,
+                "var_confidence_level": 0.95,
+                "cvar_confidence_level": 0.95,
+                "volatility_epsilon": 1e-12,
+                "periods_per_year_override": None,
+            },
             "strict_mode": {
                 "enabled": False,
                 "source": "default",
@@ -446,3 +457,4 @@ def test_write_portfolio_artifacts_persists_effective_runtime_config(tmp_path: P
     config_payload = _load_json(output_dir / "config.json")
     assert config_payload["runtime"]["execution"]["transaction_cost_bps"] == pytest.approx(10.0)
     assert config_payload["runtime"]["portfolio_validation"]["max_leverage"] == pytest.approx(1.0)
+    assert config_payload["runtime"]["risk"]["target_volatility"] == pytest.approx(0.12)

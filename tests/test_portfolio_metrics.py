@@ -61,8 +61,24 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "volatility",
         "annualized_return",
         "annualized_volatility",
+        "rolling_volatility_window",
+        "rolling_volatility_latest",
+        "rolling_volatility_mean",
+        "rolling_volatility_max",
+        "target_volatility",
+        "realized_volatility",
+        "latest_rolling_volatility",
+        "volatility_target_scale",
+        "volatility_target_scale_capped",
         "sharpe_ratio",
         "max_drawdown",
+        "current_drawdown",
+        "max_drawdown_duration",
+        "current_drawdown_duration",
+        "value_at_risk",
+        "value_at_risk_confidence_level",
+        "conditional_value_at_risk",
+        "conditional_value_at_risk_confidence_level",
         "win_rate",
         "hit_rate",
         "profit_factor",
@@ -97,8 +113,24 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["total_return"] == pytest.approx(expected_total)
     assert metrics["volatility"] == pytest.approx(expected_period_volatility)
     assert metrics["annualized_volatility"] == pytest.approx(expected_annual_volatility)
+    assert metrics["rolling_volatility_window"] == pytest.approx(20.0)
+    assert metrics["rolling_volatility_latest"] is None
+    assert metrics["rolling_volatility_mean"] is None
+    assert metrics["rolling_volatility_max"] is None
+    assert metrics["target_volatility"] is None
+    assert metrics["realized_volatility"] == pytest.approx(expected_annual_volatility)
+    assert metrics["latest_rolling_volatility"] is None
+    assert metrics["volatility_target_scale"] is None
+    assert metrics["volatility_target_scale_capped"] == pytest.approx(0.0)
     assert metrics["sharpe_ratio"] == pytest.approx(expected_sharpe)
     assert metrics["max_drawdown"] == pytest.approx(expected_drawdown)
+    assert metrics["current_drawdown"] == pytest.approx(expected_drawdown)
+    assert metrics["max_drawdown_duration"] == pytest.approx(1.0)
+    assert metrics["current_drawdown_duration"] == pytest.approx(1.0)
+    assert metrics["value_at_risk"] == pytest.approx(0.014)
+    assert metrics["value_at_risk_confidence_level"] == pytest.approx(0.95)
+    assert metrics["conditional_value_at_risk"] == pytest.approx(0.014)
+    assert metrics["conditional_value_at_risk_confidence_level"] == pytest.approx(0.95)
     assert metrics["win_rate"] == pytest.approx(0.5)
     assert metrics["hit_rate"] == pytest.approx(0.5)
     assert metrics["profit_factor"] == pytest.approx((0.02 + 0.03) / (0.005 + 0.014))
@@ -138,6 +170,8 @@ def test_compute_portfolio_metrics_matches_research_metric_primitives() -> None:
         sharpe_ratio(portfolio_returns, periods_per_year=TRADING_DAYS_PER_YEAR)
     )
     assert metrics["max_drawdown"] == pytest.approx(max_drawdown(portfolio_returns))
+    assert metrics["value_at_risk"] == pytest.approx(0.014)
+    assert metrics["conditional_value_at_risk"] == pytest.approx(0.014)
 
 
 def test_compute_portfolio_metrics_omits_weight_based_metrics_without_traceability() -> None:
@@ -162,6 +196,8 @@ def test_compute_portfolio_metrics_omits_weight_based_metrics_without_traceabili
     assert metrics["trade_count"] is None
     assert metrics["exposure_pct"] is None
     assert metrics["average_gross_exposure"] == pytest.approx(0.0)
+    assert metrics["value_at_risk"] == pytest.approx(0.02)
+    assert metrics["conditional_value_at_risk"] == pytest.approx(0.02)
     assert metrics["validation_issue_count"] == pytest.approx(0.0)
 
 
@@ -186,6 +222,9 @@ def test_compute_portfolio_metrics_handles_all_zero_return_streams() -> None:
     assert metrics["annualized_volatility"] == 0.0
     assert metrics["sharpe_ratio"] == 0.0
     assert metrics["max_drawdown"] == 0.0
+    assert metrics["current_drawdown"] == 0.0
+    assert metrics["value_at_risk"] == 0.0
+    assert metrics["conditional_value_at_risk"] == 0.0
     assert metrics["profit_factor"] == 0.0
     assert metrics["turnover"] == pytest.approx(1.0 / 3.0)
     assert metrics["exposure_pct"] == pytest.approx(100.0)
@@ -208,6 +247,7 @@ def test_compute_portfolio_metrics_handles_zero_volatility_non_zero_returns() ->
     metrics = compute_portfolio_metrics(portfolio_output, timeframe="1d")
 
     assert metrics["annualized_volatility"] == 0.0
+    assert metrics["realized_volatility"] == 0.0
     assert metrics["sharpe_ratio"] == 0.0
     assert metrics["total_return"] == pytest.approx((1.01**3) - 1.0)
 

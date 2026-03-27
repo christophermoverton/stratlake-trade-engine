@@ -21,6 +21,7 @@ def test_resolve_runtime_config_loads_repository_defaults() -> None:
     }
     assert runtime.sanity.strict_sanity_checks is False
     assert runtime.portfolio_validation.to_dict() == {
+        "long_only": False,
         "target_weight_sum": 1.0,
         "weight_sum_tolerance": 1e-8,
         "target_net_exposure": 1.0,
@@ -32,6 +33,17 @@ def test_resolve_runtime_config_loads_repository_defaults() -> None:
         "max_abs_period_return": 1.0,
         "max_equity_multiple": 1_000_000.0,
         "strict_sanity_checks": False,
+    }
+    assert runtime.risk.to_dict() == {
+        "volatility_window": 20,
+        "target_volatility": None,
+        "min_volatility_scale": 0.0,
+        "max_volatility_scale": 1.0,
+        "allow_scale_up": False,
+        "var_confidence_level": 0.95,
+        "cvar_confidence_level": 0.95,
+        "volatility_epsilon": 1e-12,
+        "periods_per_year_override": None,
     }
     assert runtime.strict_mode.to_dict() == {"enabled": False, "source": "default"}
 
@@ -48,6 +60,7 @@ def test_resolve_runtime_config_applies_precedence_deterministically() -> None:
             "execution": {"transaction_cost_bps": 12.0},
             "sanity": {"strict_sanity_checks": True},
             "portfolio_validation": {"max_leverage": 0.75},
+            "risk": {"target_volatility": 0.12, "allow_scale_up": True, "max_volatility_scale": 1.5},
         },
         cli_strict=True,
     )
@@ -62,6 +75,9 @@ def test_resolve_runtime_config_applies_precedence_deterministically() -> None:
     assert runtime.sanity.strict_sanity_checks is True
     assert runtime.portfolio_validation.max_leverage == pytest.approx(0.75)
     assert runtime.portfolio_validation.strict_sanity_checks is True
+    assert runtime.risk.target_volatility == pytest.approx(0.12)
+    assert runtime.risk.allow_scale_up is True
+    assert runtime.risk.max_volatility_scale == pytest.approx(1.5)
     assert runtime.strict_mode.to_dict() == {"enabled": True, "source": "cli"}
 
 
@@ -82,6 +98,7 @@ def test_resolve_runtime_config_accepts_runtime_and_legacy_validation_aliases() 
             "runtime": {
                 "execution": {"execution_delay": 3},
                 "portfolio_validation": {"max_single_sleeve_weight": 0.4},
+                "risk": {"volatility_window": 10},
                 "strict_mode": {"enabled": True, "source": "config"},
             }
         }
@@ -89,4 +106,5 @@ def test_resolve_runtime_config_accepts_runtime_and_legacy_validation_aliases() 
 
     assert runtime.execution.execution_delay == 3
     assert runtime.portfolio_validation.max_single_sleeve_weight == pytest.approx(0.4)
+    assert runtime.risk.volatility_window == 10
     assert runtime.strict_mode.to_dict() == {"enabled": True, "source": "config"}

@@ -92,6 +92,8 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
     assert metrics_by_split["end"].tolist() == ["2025-01-04", "2025-01-05"]
     assert metrics_by_split["row_count"].tolist() == [1, 1]
     assert metrics_by_split["total_return"].tolist() == pytest.approx([0.01, 0.025])
+    assert "value_at_risk" in metrics_by_split.columns
+    assert "conditional_value_at_risk" in metrics_by_split.columns
     assert "total_turnover" in metrics_by_split.columns
     assert "trade_count" in metrics_by_split.columns
 
@@ -114,6 +116,7 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
     }
     assert config_payload["runtime"]["execution"]["execution_delay"] == 1
     assert config_payload["runtime"]["portfolio_validation"]["max_leverage"] == pytest.approx(1.0)
+    assert config_payload["runtime"]["risk"]["volatility_window"] == 20
 
     split_metadata = json.loads(
         (experiment_dir / "splits" / "rolling_0000" / "split.json").read_text(encoding="utf-8")
@@ -419,6 +422,7 @@ def test_run_portfolio_walk_forward_records_enabled_strict_mode(
         "enabled": True,
         "source": "cli",
     }
+    assert config_payload["runtime"]["risk"]["volatility_window"] == 20
 
 
 def _write_strategy_run(

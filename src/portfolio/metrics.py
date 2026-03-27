@@ -8,6 +8,7 @@ from src.portfolio.contracts import (
     resolve_portfolio_validation_config,
     validate_portfolio_output,
 )
+from src.portfolio.risk import resolve_portfolio_risk_config, summarize_portfolio_risk
 from src.portfolio.validation import summarize_weight_diagnostics, validate_portfolio_output_constraints
 from src.research.metrics import (
     MINUTE_PERIODS_PER_YEAR,
@@ -15,7 +16,6 @@ from src.research.metrics import (
     annualized_return,
     annualized_volatility,
     hit_rate,
-    max_drawdown,
     profit_factor,
     sharpe_ratio,
     total_return,
@@ -32,6 +32,7 @@ def compute_portfolio_metrics(
     portfolio_output: pd.DataFrame,
     timeframe: str,
     validation_config: PortfolioValidationConfig | dict[str, object] | None = None,
+    risk_config: dict[str, object] | None = None,
 ) -> dict[str, float | None]:
     """
     Compute deterministic standardized metrics for validated portfolio output.
@@ -55,6 +56,7 @@ def compute_portfolio_metrics(
     normalized = _validate_portfolio_metrics_input(portfolio_output, validation_config=validation_config)
     periods_per_year = _resolve_periods_per_year(timeframe)
     portfolio_returns = normalized["portfolio_return"]
+    resolved_risk = resolve_portfolio_risk_config(risk_config)
 
     total = total_return(portfolio_returns)
     weight_frame = _extract_weight_frame(normalized)
@@ -76,6 +78,22 @@ def compute_portfolio_metrics(
     research_sanity_warning_count = float(research_sanity.get("warning_count", 0.0)) if isinstance(research_sanity, dict) else 0.0
     research_sanity_status = str(research_sanity.get("status", "pass")) if isinstance(research_sanity, dict) else "pass"
     research_sanity_strict_mode = bool(research_sanity.get("strict_sanity_checks", False)) if isinstance(research_sanity, dict) else False
+    equity_curve = (
+        _optional_numeric_series(normalized, "portfolio_equity_curve")
+        if "portfolio_equity_curve" in normalized.columns
+        else None
+    )
+    risk_summary = summarize_portfolio_risk(
+        portfolio_returns,
+        equity_curve=equity_curve,
+        config=resolved_risk,
+        periods_per_year=periods_per_year,
+        leverage_ceiling=float(weight_diagnostics["max_leverage"]) if weight_frame is not None else None,
+    )
+    drawdown = risk_summary["drawdown"]
+    rolling_volatility = risk_summary["rolling_volatility"]
+    tail_risk = risk_summary["tail_risk"]
+    vol_target = risk_summary["volatility_targeting"]
 
     return {
         "cumulative_return": total,
@@ -86,8 +104,24 @@ def compute_portfolio_metrics(
             portfolio_returns,
             periods_per_year=periods_per_year,
         ),
+        "rolling_volatility_window": float(rolling_volatility["window"]),
+        "rolling_volatility_latest": _optional_float(rolling_volatility["latest"]),
+        "rolling_volatility_mean": _optional_float(rolling_volatility["mean"]),
+        "rolling_volatility_max": _optional_float(rolling_volatility["max"]),
+        "target_volatility": _optional_float(vol_target["target_volatility"]),
+        "realized_volatility": _optional_float(vol_target["realized_volatility"]),
+        "latest_rolling_volatility": _optional_float(vol_target["latest_rolling_volatility"]),
+        "volatility_target_scale": _optional_float(vol_target["recommended_scale"]),
+        "volatility_target_scale_capped": float(1.0 if vol_target["scale_was_capped"] else 0.0),
         "sharpe_ratio": sharpe_ratio(portfolio_returns, periods_per_year=periods_per_year),
-        "max_drawdown": max_drawdown(portfolio_returns),
+        "max_drawdown": float(drawdown["max_drawdown"]),
+        "current_drawdown": float(drawdown["current_drawdown"]),
+        "max_drawdown_duration": float(drawdown["max_drawdown_duration"]),
+        "current_drawdown_duration": float(drawdown["current_drawdown_duration"]),
+        "value_at_risk": float(tail_risk["var"]),
+        "value_at_risk_confidence_level": float(tail_risk["var_confidence_level"]),
+        "conditional_value_at_risk": float(tail_risk["cvar"]),
+        "conditional_value_at_risk_confidence_level": float(tail_risk["cvar_confidence_level"]),
         "win_rate": win_rate(portfolio_returns),
         "hit_rate": hit_rate(portfolio_returns),
         "profit_factor": profit_factor(portfolio_returns),
@@ -190,6 +224,12 @@ def _optional_numeric_series(portfolio_output: pd.DataFrame, column: str) -> pd.
     if column not in portfolio_output.columns:
         return pd.Series(0.0, index=portfolio_output.index, dtype="float64")
     return pd.to_numeric(portfolio_output[column], errors="coerce").fillna(0.0).astype("float64")
+
+
+def _optional_float(value: object) -> float | None:
+    if value is None:
+        return None
+    return float(value)
 
 
 __all__ = ["compute_portfolio_metrics"]

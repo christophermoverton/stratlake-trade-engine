@@ -331,6 +331,7 @@ def _build_manifest(
         "optimizer_method": None
         if not isinstance(config.get("optimizer"), dict)
         else config["optimizer"].get("method"),
+        "risk": config.get("risk"),
         "artifact_files": sorted(artifact_inventory),
         "artifacts": artifact_inventory,
         "component_count": len(components),
@@ -339,6 +340,13 @@ def _build_manifest(
         "metric_summary": metrics,
         "qa_summary_status": qa_summary.get("validation_status"),
         "portfolio_name": config.get("portfolio_name"),
+        "risk_summary": {
+            "target_volatility": metrics.get("target_volatility"),
+            "realized_volatility": metrics.get("realized_volatility"),
+            "value_at_risk": metrics.get("value_at_risk"),
+            "conditional_value_at_risk": metrics.get("conditional_value_at_risk"),
+            "max_drawdown": metrics.get("max_drawdown"),
+        },
         "strict_mode": config.get("strict_mode"),
         "row_counts": {
             "components": len(components),

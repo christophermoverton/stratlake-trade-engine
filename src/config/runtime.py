@@ -15,9 +15,10 @@ from src.research.strict_mode import (
 
 if TYPE_CHECKING:
     from src.portfolio.contracts import PortfolioValidationConfig
+    from src.portfolio.risk import PortfolioRiskConfig
 
 
-_RUNTIME_SECTION_KEYS = frozenset(("execution", "sanity", "validation", "portfolio_validation", "strict_mode"))
+_RUNTIME_SECTION_KEYS = frozenset(("execution", "sanity", "validation", "portfolio_validation", "risk", "strict_mode"))
 _STRICT_MODE_KEYS = frozenset(("enabled", "source"))
 _EXECUTION_OVERRIDE_KEYS = frozenset(("enabled", "execution_delay", "transaction_cost_bps", "slippage_bps"))
 _SANITY_KEYS = frozenset(
@@ -52,6 +53,19 @@ _PORTFOLIO_VALIDATION_KEYS = frozenset(
         "strict_sanity_checks",
     )
 )
+_PORTFOLIO_RISK_KEYS = frozenset(
+    (
+        "volatility_window",
+        "target_volatility",
+        "min_volatility_scale",
+        "max_volatility_scale",
+        "allow_scale_up",
+        "var_confidence_level",
+        "cvar_confidence_level",
+        "volatility_epsilon",
+        "periods_per_year_override",
+    )
+)
 
 
 @dataclass(frozen=True)
@@ -61,6 +75,7 @@ class RuntimeConfig:
     execution: ExecutionConfig
     sanity: SanityCheckConfig
     portfolio_validation: "PortfolioValidationConfig"
+    risk: "PortfolioRiskConfig"
     strict_mode: StrictModePolicy
 
     def to_dict(self) -> dict[str, Any]:
@@ -68,6 +83,7 @@ class RuntimeConfig:
             "execution": self.execution.to_dict(),
             "sanity": self.sanity.to_dict(),
             "portfolio_validation": self.portfolio_validation.to_dict(),
+            "risk": self.risk.to_dict(),
             "strict_mode": self.strict_mode.to_dict(),
         }
 
@@ -84,6 +100,7 @@ class RuntimeConfig:
         merged["sanity"] = self.sanity.to_dict()
         if include_validation_section:
             merged[validation_key] = self.portfolio_validation.to_dict()
+        merged["risk"] = self.risk.to_dict()
         merged["strict_mode"] = self.strict_mode.to_dict()
         if include_runtime_section:
             merged["runtime"] = self.to_dict()
@@ -106,6 +123,7 @@ def resolve_runtime_config(
     execution = load_execution_config() if execution_defaults_path is None else load_execution_config(execution_defaults_path)
     sanity = load_sanity_config() if sanity_defaults_path is None else load_sanity_config(sanity_defaults_path)
     portfolio_validation = _default_portfolio_validation_config()
+    risk = _default_portfolio_risk_config()
     strict_mode_payload: Mapping[str, Any] | None = None
 
     for source in runtime_sources:
@@ -121,6 +139,11 @@ def resolve_runtime_config(
                 extracted["portfolio_validation"],
                 base=portfolio_validation,
             )
+        if extracted["risk"] is not None:
+            risk = _resolve_portfolio_risk_with_base(
+                extracted["risk"],
+                base=risk,
+            )
         if extracted["strict_mode"] is not None:
             strict_mode_payload = extracted["strict_mode"]
 
@@ -135,6 +158,11 @@ def resolve_runtime_config(
                 extracted_overrides["portfolio_validation"],
                 base=portfolio_validation,
             )
+        if extracted_overrides["risk"] is not None:
+            risk = _resolve_portfolio_risk_with_base(
+                extracted_overrides["risk"],
+                base=risk,
+            )
         if extracted_overrides["strict_mode"] is not None:
             strict_mode_payload = extracted_overrides["strict_mode"]
 
@@ -148,6 +176,7 @@ def resolve_runtime_config(
         execution=execution,
         sanity=apply_strict_mode_to_sanity_config(sanity, strict_policy),
         portfolio_validation=apply_strict_mode_to_validation_config(portfolio_validation, strict_policy),
+        risk=risk,
         strict_mode=strict_policy,
     )
 
@@ -186,6 +215,12 @@ def _extract_runtime_sections(
         owner=owner,
     )
     validation_payload = _resolve_portfolio_validation_section(container, owner=owner)
+    risk_payload = _resolve_section_mapping(
+        container,
+        primary_key="risk",
+        allowed_keys=_PORTFOLIO_RISK_KEYS,
+        owner=owner,
+    )
     strict_mode_payload = _resolve_section_mapping(
         container,
         primary_key="strict_mode",
@@ -196,6 +231,7 @@ def _extract_runtime_sections(
         "execution": execution_payload,
         "sanity": sanity_payload,
         "portfolio_validation": validation_payload,
+        "risk": risk_payload,
         "strict_mode": strict_mode_payload,
     }
 
@@ -267,3 +303,26 @@ def _default_portfolio_validation_config() -> "PortfolioValidationConfig":
     from src.portfolio.contracts import PortfolioValidationConfig
 
     return PortfolioValidationConfig()
+
+
+def _resolve_portfolio_risk_with_base(
+    payload: Mapping[str, Any],
+    *,
+    base: "PortfolioRiskConfig",
+) -> "PortfolioRiskConfig":
+    from src.portfolio.risk import PortfolioRiskError, resolve_portfolio_risk_config
+
+    if not isinstance(payload, Mapping):
+        raise PortfolioRiskError("portfolio risk config must be a dictionary when provided.")
+
+    merged = {
+        **base.to_dict(),
+        **dict(payload),
+    }
+    return resolve_portfolio_risk_config(merged)
+
+
+def _default_portfolio_risk_config() -> "PortfolioRiskConfig":
+    from src.portfolio.risk import PortfolioRiskConfig
+
+    return PortfolioRiskConfig()

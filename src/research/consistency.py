@@ -354,6 +354,7 @@ def validate_portfolio_artifact_payload_consistency(
         portfolio_output,
         str(config.get("timeframe")),
         validation_config=config.get("validation"),
+        risk_config=config.get("risk"),
     )
     errors: list[str] = []
     for key in sorted(set(expected_metrics) | set(metrics)):

@@ -137,4 +137,3 @@ def _coerce_non_negative_float(value: Any, *, field_name: str) -> float:
     if numeric < 0.0:
         raise ValueError(f"Execution configuration field '{field_name}' must be non-negative.")
     return numeric
-

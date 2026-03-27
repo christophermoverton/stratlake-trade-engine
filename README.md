@@ -255,6 +255,7 @@ Milestone 10 references:
 Supporting references:
 
 * [docs/cli_strategy_runner.md](docs/cli_strategy_runner.md)
+* [docs/milestone_10_merge_readiness.md](docs/milestone_10_merge_readiness.md)
 * [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 * [docs/portfolio_configuration.md](docs/portfolio_configuration.md)
 * [docs/strategy_comparison_cli.md](docs/strategy_comparison_cli.md)

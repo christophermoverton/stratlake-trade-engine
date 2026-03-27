@@ -166,4 +166,3 @@ def _coerce_optional_probability(value: Any, *, field_name: str) -> float | None
     if numeric > 1.0:
         raise ValueError(f"Sanity configuration field '{field_name}' must be between 0.0 and 1.0.")
     return numeric
-

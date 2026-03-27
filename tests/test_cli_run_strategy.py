@@ -20,6 +20,20 @@ from src.cli.run_strategy import (
 from src.research.strategies import build_strategy
 
 
+def _default_execution_config_dict() -> dict[str, float | bool | str]:
+    return {
+        "enabled": False,
+        "execution_delay": 1,
+        "transaction_cost_bps": 0.0,
+        "slippage_bps": 0.0,
+        "fixed_fee": 0.0,
+        "fixed_fee_model": "per_rebalance",
+        "slippage_model": "constant",
+        "slippage_turnover_scale": 1.0,
+        "slippage_volatility_scale": 1.0,
+    }
+
+
 def _results_frame() -> pd.DataFrame:
     return pd.DataFrame(
         {
@@ -162,12 +176,7 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
         "parameters": {"lookback_short": 5, "lookback_long": 20},
         "start": "2025-01-01",
         "end": "2025-02-01",
-        "execution": {
-            "enabled": False,
-            "execution_delay": 1,
-            "transaction_cost_bps": 0.0,
-            "slippage_bps": 0.0,
-        },
+        "execution": _default_execution_config_dict(),
         "sanity": {
             "max_abs_period_return": 1.0,
             "max_annualized_return": 25.0,
@@ -203,6 +212,11 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
                 "execution_delay": 1,
                 "transaction_cost_bps": 0.0,
                 "slippage_bps": 0.0,
+                "fixed_fee": 0.0,
+                "fixed_fee_model": "per_rebalance",
+                "slippage_model": "constant",
+                "slippage_turnover_scale": 1.0,
+                "slippage_volatility_scale": 1.0,
             },
             "sanity": {
                 "max_abs_period_return": 1.0,
@@ -321,12 +335,7 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
     assert calls["walk_forward"]["dataset"] == "features_daily"
     assert calls["walk_forward"]["evaluation_path"] == Path("configs/evaluation.yml")
     assert calls["walk_forward"]["strategy_config"] == strategy_config["momentum_v1"]
-    assert calls["walk_forward"]["execution_config"] == {
-        "enabled": False,
-        "execution_delay": 1,
-        "transaction_cost_bps": 0.0,
-        "slippage_bps": 0.0,
-    }
+    assert calls["walk_forward"]["execution_config"] == _default_execution_config_dict()
     assert calls["walk_forward"]["strict"] is False
 
     stdout = capsys.readouterr().out
@@ -383,12 +392,7 @@ def test_run_cli_invokes_robustness_mode(monkeypatch, capsys) -> None:
 
     assert result is robustness_result
     assert calls["strategy_name"] == "momentum_v1"
-    assert calls["kwargs"]["execution_config"].to_dict() == {
-        "enabled": False,
-        "execution_delay": 1,
-        "transaction_cost_bps": 0.0,
-        "slippage_bps": 0.0,
-    }
+    assert calls["kwargs"]["execution_config"].to_dict() == _default_execution_config_dict()
     stdout = capsys.readouterr().out
     assert "variant_count: 4" in stdout
     assert "ranking_metric: sharpe_ratio" in stdout

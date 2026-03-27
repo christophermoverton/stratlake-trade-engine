@@ -6,7 +6,6 @@ from src.portfolio.contracts import (
     PortfolioContractError,
     PortfolioValidationConfig,
     resolve_portfolio_validation_config,
-    validate_portfolio_output,
 )
 from src.portfolio.risk import resolve_portfolio_risk_config, summarize_portfolio_risk
 from src.portfolio.validation import summarize_weight_diagnostics, validate_portfolio_output_constraints

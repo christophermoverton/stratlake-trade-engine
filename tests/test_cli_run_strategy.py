@@ -9,6 +9,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.cli.run_strategy import (
+    RobustnessRunResult,
     StrategyRunResult,
     WalkForwardRunResult,
     get_strategy_config,
@@ -63,6 +64,13 @@ def test_parse_args_accepts_evaluation_flag_without_path() -> None:
 
     assert args.strategy == "momentum_v1"
     assert args.evaluation.endswith("configs\\evaluation.yml")
+
+
+def test_parse_args_accepts_robustness_flag_without_path() -> None:
+    args = parse_args(["--strategy", "momentum_v1", "--robustness"])
+
+    assert args.strategy == "momentum_v1"
+    assert args.robustness.endswith("configs\\robustness.yml")
 
 
 def test_parse_args_accepts_strict_flag() -> None:
@@ -319,6 +327,68 @@ def test_run_cli_invokes_walk_forward_mode(monkeypatch, capsys) -> None:
     assert "strategy: momentum_v1" in stdout
     assert "run_id: wf-123" in stdout
     assert "split_count: 2" in stdout
+
+
+def test_run_cli_invokes_robustness_mode(monkeypatch, capsys) -> None:
+    strategy_config = {
+        "momentum_v1": {
+            "dataset": "features_daily",
+            "parameters": {"lookback_short": 5, "lookback_long": 20},
+        }
+    }
+    robustness_result = RobustnessRunResult(
+        strategy_name="momentum_v1",
+        run_id="robust-123",
+        experiment_dir=Path("artifacts/strategies/robustness/robust-123"),
+        summary={
+            "variant_count": 4,
+            "ranking_metric": "sharpe_ratio",
+            "best_variant_id": "variant_0000",
+            "best_metric_value": 1.25,
+            "metric_spread": 0.3,
+            "split_count": 3,
+            "threshold_pass_rate": 0.75,
+        },
+        variants=[],
+        variant_metrics=pd.DataFrame(),
+    )
+    calls: dict[str, object] = {}
+
+    monkeypatch.setattr("src.cli.run_strategy.load_strategies_config", lambda path=None: strategy_config)
+    monkeypatch.setattr(
+        "src.cli.run_strategy.load_robustness_config",
+        lambda path: type(
+            "FakeRobustnessConfig",
+            (),
+            {
+                "resolve_strategy_name": staticmethod(lambda strategy_name: strategy_name or "momentum_v1"),
+            },
+        )(),
+    )
+
+    def fake_run_robustness_experiment(strategy_name, **kwargs):
+        calls["strategy_name"] = strategy_name
+        calls["kwargs"] = kwargs
+        return robustness_result
+
+    monkeypatch.setattr("src.cli.run_strategy.run_robustness_experiment", fake_run_robustness_experiment)
+
+    result = run_cli(["--strategy", "momentum_v1", "--robustness"])
+
+    assert result is robustness_result
+    assert calls["strategy_name"] == "momentum_v1"
+    assert calls["kwargs"]["execution_config"].to_dict() == {
+        "enabled": False,
+        "execution_delay": 1,
+        "transaction_cost_bps": 0.0,
+        "slippage_bps": 0.0,
+    }
+    stdout = capsys.readouterr().out
+    assert "variant_count: 4" in stdout
+    assert "ranking_metric: sharpe_ratio" in stdout
+    assert "best_variant: variant_0000" in stdout
+    assert "split_count: 3" in stdout
+    assert "threshold_pass_rate: 75.00%" in stdout
 
 
 def test_run_cli_rejects_date_filters_in_evaluation_mode() -> None:

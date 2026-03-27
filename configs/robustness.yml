@@ -1,0 +1,11 @@
+robustness:
+  strategy_name: momentum_v1
+  ranking_metric: sharpe_ratio
+  sweep:
+    - parameter: lookback_short
+      values: [5, 10]
+    - parameter: lookback_long
+      values: [20, 30]
+  stability:
+    mode: subperiods
+    periods: 3

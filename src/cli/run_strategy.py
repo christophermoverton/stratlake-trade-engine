@@ -11,12 +11,14 @@ import yaml
 
 from src.config.execution import ExecutionConfig
 from src.config.evaluation import EVALUATION_CONFIG
+from src.config.robustness import ROBUSTNESS_CONFIG, load_robustness_config
 from src.config.runtime import RuntimeConfig, resolve_runtime_config
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.input_validation import StrategyInputError
 from src.research.metrics import compute_benchmark_relative_metrics
+from src.research.robustness import RobustnessRunResult, run_robustness_experiment
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.signal_engine import generate_signals
@@ -48,7 +50,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a full strategy experiment using the StratLake research pipeline."
     )
-    parser.add_argument("--strategy", required=True, help="Strategy name defined in configs/strategies.yml.")
+    parser.add_argument("--strategy", help="Strategy name defined in configs/strategies.yml.")
     parser.add_argument("--start", dest="start", help="Inclusive experiment start date (YYYY-MM-DD).")
     parser.add_argument("--end", dest="end", help="Exclusive experiment end date (YYYY-MM-DD).")
     parser.add_argument(
@@ -56,6 +58,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         nargs="?",
         const=str(EVALUATION_CONFIG),
         help="Enable walk-forward evaluation using configs/evaluation.yml or a provided path.",
+    )
+    parser.add_argument(
+        "--robustness",
+        nargs="?",
+        const=str(ROBUSTNESS_CONFIG),
+        help="Run deterministic parameter robustness analysis using configs/robustness.yml or a provided path.",
     )
     parser.add_argument(
         "--execution-delay",
@@ -190,8 +198,26 @@ def run_strategy_experiment(
     )
 
 
-def print_summary(result: StrategyRunResult | WalkForwardRunResult) -> None:
+def print_summary(result: StrategyRunResult | WalkForwardRunResult | RobustnessRunResult) -> None:
     """Print a concise experiment summary for CLI users."""
+
+    if isinstance(result, RobustnessRunResult):
+        print(f"strategy: {result.strategy_name}")
+        print(f"run_id: {result.run_id}")
+        print(f"variant_count: {result.summary['variant_count']}")
+        print(f"ranking_metric: {result.summary['ranking_metric']}")
+        print(f"best_variant: {result.summary['best_variant_id']}")
+        print(f"best_metric_value: {result.summary['best_metric_value']:.6f}")
+        metric_spread = result.summary.get("metric_spread")
+        if metric_spread is not None:
+            print(f"metric_spread: {float(metric_spread):.6f}")
+        split_count = result.summary.get("split_count")
+        if split_count:
+            print(f"split_count: {int(split_count)}")
+        threshold_pass_rate = result.summary.get("threshold_pass_rate")
+        if threshold_pass_rate is not None:
+            print(f"threshold_pass_rate: {float(threshold_pass_rate):.2%}")
+        return
 
     print(f"strategy: {result.strategy_name}")
     print(f"run_id: {result.run_id}")
@@ -305,24 +331,42 @@ def _format_decimal(value: Any) -> str:
     return f"{float(value):.2f}"
 
 
-def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult:
+def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult | RobustnessRunResult:
     """Execute the strategy runner CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
     execution_override = _execution_override_from_args(args)
-    config = get_strategy_config(args.strategy)
+    robustness_config = None if not args.robustness else load_robustness_config(Path(args.robustness))
+    strategy_name = args.strategy
+    if robustness_config is not None:
+        strategy_name = robustness_config.resolve_strategy_name(strategy_name)
+
+    if strategy_name is None:
+        raise ValueError("A strategy must be provided via --strategy or the robustness config.")
+
+    config = get_strategy_config(strategy_name)
     runtime_config = resolve_runtime_config(
         config,
         cli_overrides=None if execution_override is None else {"execution": execution_override},
         cli_strict=args.strict,
     )
-    if args.evaluation:
+    if robustness_config is not None:
+        result = run_robustness_experiment(
+            strategy_name,
+            robustness_config=robustness_config,
+            start=args.start,
+            end=args.end,
+            evaluation_path=None if not args.evaluation else Path(args.evaluation),
+            execution_config=runtime_config.execution,
+            strict=args.strict,
+        )
+    elif args.evaluation:
         if args.start or args.end:
             raise ValueError("The --start and --end arguments cannot be combined with --evaluation.")
 
-        strategy = build_strategy(args.strategy, config)
+        strategy = build_strategy(strategy_name, config)
         result = run_walk_forward_experiment(
-            args.strategy,
+            strategy_name,
             strategy,
             evaluation_path=Path(args.evaluation),
             strategy_config=config,
@@ -331,7 +375,7 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
         )
     else:
         result = run_strategy_experiment(
-            args.strategy,
+            strategy_name,
             start=args.start,
             end=args.end,
             execution_config=runtime_config.execution,

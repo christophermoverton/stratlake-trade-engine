@@ -19,6 +19,7 @@ from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_qa import generate_strategy_qa_summary
 
 ARTIFACTS_ROOT = Path("artifacts") / "strategies"
+ROBUSTNESS_ARTIFACTS_ROOT = ARTIFACTS_ROOT / "robustness"
 _BACKTEST_COLUMNS = ("strategy_return", "equity_curve")
 _METRIC_KEYS = (
     "cumulative_return",
@@ -252,14 +253,14 @@ def _normalize_run_payload(value: Any) -> Any:
         return value
     if isinstance(value, pd.Series):
         return [_normalize_run_payload(item) for item in value.tolist()]
-    if pd.isna(value):
-        return None
-    if isinstance(value, dict):
-        return {key: _normalize_run_payload(value[key]) for key in sorted(value)}
     if isinstance(value, list):
         return [_normalize_run_payload(item) for item in value]
     if isinstance(value, tuple):
         return [_normalize_run_payload(item) for item in value]
+    if isinstance(value, dict):
+        return {key: _normalize_run_payload(value[key]) for key in sorted(value)}
+    if pd.isna(value):
+        return None
     return value
 
 
@@ -316,6 +317,46 @@ def resolve_experiment_dir(
         config=config,
         results_df=results_df,
     )
+
+
+def _build_robustness_run_id(
+    strategy_name: str,
+    *,
+    config: dict[str, Any],
+    variant_metrics: pd.DataFrame,
+    stability_metrics: pd.DataFrame,
+    summary: dict[str, Any],
+) -> str:
+    payload = {
+        "strategy_name": strategy_name,
+        "evaluation_mode": "robustness",
+        "config": _normalize_run_payload(config),
+        "variant_metrics": _normalize_run_payload(variant_metrics),
+        "stability_metrics": _normalize_run_payload(stability_metrics),
+        "summary": _normalize_run_payload(summary),
+    }
+    digest = hashlib.sha256(serialize_canonical_json(payload).encode("utf-8")).hexdigest()[:12]
+    return f"{_sanitize_strategy_name(strategy_name)}_robustness_{digest}"
+
+
+def resolve_robustness_experiment_dir(
+    strategy_name: str,
+    *,
+    config: dict[str, Any],
+    variant_metrics: pd.DataFrame,
+    stability_metrics: pd.DataFrame,
+    summary: dict[str, Any],
+) -> Path:
+    """Return the deterministic experiment directory path for a robustness run."""
+
+    run_id = _build_robustness_run_id(
+        strategy_name,
+        config=config,
+        variant_metrics=variant_metrics,
+        stability_metrics=stability_metrics,
+        summary=summary,
+    )
+    return ROBUSTNESS_ARTIFACTS_ROOT / run_id
 
 
 def _normalize_artifact_frame(df: pd.DataFrame) -> pd.DataFrame:
@@ -800,6 +841,73 @@ def save_walk_forward_experiment(
         )
     )
     validate_run_consistency(experiment_dir)
+    return experiment_dir
+
+
+def save_robustness_experiment(
+    strategy_name: str,
+    *,
+    config: dict[str, Any],
+    variants: list[Any],
+    variant_metrics: pd.DataFrame,
+    stability_metrics: pd.DataFrame,
+    neighbor_metrics: pd.DataFrame,
+    summary: dict[str, Any],
+) -> Path:
+    """Persist robustness artifacts under a dedicated deterministic artifact root."""
+
+    experiment_dir = resolve_robustness_experiment_dir(
+        strategy_name,
+        config=config,
+        variant_metrics=variant_metrics,
+        stability_metrics=stability_metrics,
+        summary=summary,
+    )
+    if experiment_dir.exists():
+        shutil.rmtree(experiment_dir)
+    experiment_dir.mkdir(parents=True, exist_ok=False)
+
+    _write_json(experiment_dir / "config.json", dict(config))
+    _write_json(
+        experiment_dir / "variants.json",
+        {
+            "variants": [
+                variant.to_record() if hasattr(variant, "to_record") else dict(variant)
+                for variant in variants
+            ]
+        },
+    )
+    _write_json(experiment_dir / "summary.json", dict(summary))
+    variant_metrics.to_csv(experiment_dir / "metrics_by_variant.csv", index=False)
+
+    artifact_files = {
+        "config.json",
+        "variants.json",
+        "summary.json",
+        "metrics_by_variant.csv",
+    }
+    if not stability_metrics.empty:
+        stability_metrics.to_csv(experiment_dir / "stability_metrics.csv", index=False)
+        artifact_files.add("stability_metrics.csv")
+    if not neighbor_metrics.empty:
+        neighbor_metrics.to_csv(experiment_dir / "neighbor_metrics.csv", index=False)
+        artifact_files.add("neighbor_metrics.csv")
+
+    _write_json(
+        experiment_dir / "manifest.json",
+        {
+            "run_id": experiment_dir.name,
+            "timestamp": _utc_timestamp_from_run_id(experiment_dir.name),
+            "strategy_name": strategy_name,
+            "evaluation_mode": "robustness",
+            "artifact_files": sorted(artifact_files),
+            "primary_metric": str(summary.get("ranking_metric", "sharpe_ratio")),
+            "metric_summary": dict(summary),
+            "variant_count": int(summary.get("variant_count", len(variant_metrics))),
+            "split_count": summary.get("split_count"),
+            "stability_mode": summary.get("stability_mode"),
+        },
+    )
     return experiment_dir
 
 

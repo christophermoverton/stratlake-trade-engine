@@ -239,6 +239,8 @@ def _collect_sanity_issues(
         expected_net = portfolio_output["gross_portfolio_return"].astype("float64")
         if "portfolio_transaction_cost" in portfolio_output.columns:
             expected_net = expected_net - portfolio_output["portfolio_transaction_cost"].astype("float64")
+        if "portfolio_fixed_fee" in portfolio_output.columns:
+            expected_net = expected_net - portfolio_output["portfolio_fixed_fee"].astype("float64")
         if "portfolio_slippage_cost" in portfolio_output.columns:
             expected_net = expected_net - portfolio_output["portfolio_slippage_cost"].astype("float64")
         mismatch = (expected_net - portfolio_output["net_portfolio_return"].astype("float64")).abs() > 1e-10

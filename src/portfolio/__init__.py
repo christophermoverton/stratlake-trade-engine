@@ -19,6 +19,10 @@ from .constructor import (
     compute_portfolio_returns,
     construct_portfolio,
 )
+from .execution import (
+    PortfolioExecutionError,
+    apply_portfolio_execution_model,
+)
 from .loaders import (
     build_aligned_return_matrix,
     load_strategy_run_returns,
@@ -85,6 +89,8 @@ __all__ = [
     "compute_portfolio_returns",
     "compute_portfolio_equity_curve",
     "construct_portfolio",
+    "PortfolioExecutionError",
+    "apply_portfolio_execution_model",
     "PortfolioQAError",
     "generate_portfolio_qa_summary",
     "run_portfolio_qa",

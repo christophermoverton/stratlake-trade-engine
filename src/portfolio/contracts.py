@@ -208,7 +208,10 @@ def validate_portfolio_output(df: pd.DataFrame) -> pd.DataFrame:
         "portfolio_weight_change",
         "portfolio_abs_weight_change",
         "portfolio_turnover",
+        "portfolio_changed_sleeve_count",
         "portfolio_transaction_cost",
+        "portfolio_fixed_fee",
+        "portfolio_slippage_proxy",
         "portfolio_slippage_cost",
         "portfolio_execution_friction",
         "net_portfolio_return",
@@ -247,6 +250,18 @@ def validate_portfolio_output(df: pd.DataFrame) -> pd.DataFrame:
 
     if "portfolio_turnover" in normalized.columns and (normalized["portfolio_turnover"] < 0.0).any():
         raise PortfolioContractError("portfolio output column 'portfolio_turnover' must be non-negative.")
+    for non_negative_column in (
+        "portfolio_changed_sleeve_count",
+        "portfolio_transaction_cost",
+        "portfolio_fixed_fee",
+        "portfolio_slippage_proxy",
+        "portfolio_slippage_cost",
+        "portfolio_execution_friction",
+    ):
+        if non_negative_column in normalized.columns and (normalized[non_negative_column] < 0.0).any():
+            raise PortfolioContractError(
+                f"portfolio output column {non_negative_column!r} must be non-negative."
+            )
     if "portfolio_abs_weight_change" in normalized.columns and "portfolio_turnover" in normalized.columns:
         if not normalized["portfolio_abs_weight_change"].equals(normalized["portfolio_turnover"]):
             raise PortfolioContractError(
@@ -270,7 +285,10 @@ def validate_portfolio_output(df: pd.DataFrame) -> pd.DataFrame:
             "portfolio_abs_weight_change",
             "portfolio_turnover",
             "portfolio_rebalance_event",
+            "portfolio_changed_sleeve_count",
             "portfolio_transaction_cost",
+            "portfolio_fixed_fee",
+            "portfolio_slippage_proxy",
             "portfolio_slippage_cost",
             "portfolio_execution_friction",
             "net_portfolio_return",

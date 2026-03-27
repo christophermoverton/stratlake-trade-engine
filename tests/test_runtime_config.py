@@ -18,6 +18,11 @@ def test_resolve_runtime_config_loads_repository_defaults() -> None:
         "execution_delay": 1,
         "transaction_cost_bps": 0.0,
         "slippage_bps": 0.0,
+        "fixed_fee": 0.0,
+        "fixed_fee_model": "per_rebalance",
+        "slippage_model": "constant",
+        "slippage_turnover_scale": 1.0,
+        "slippage_volatility_scale": 1.0,
     }
     assert runtime.sanity.strict_sanity_checks is False
     assert runtime.portfolio_validation.to_dict() == {
@@ -70,6 +75,11 @@ def test_resolve_runtime_config_applies_precedence_deterministically() -> None:
         "execution_delay": 2,
         "transaction_cost_bps": 12.0,
         "slippage_bps": 0.0,
+        "fixed_fee": 0.0,
+        "fixed_fee_model": "per_rebalance",
+        "slippage_model": "constant",
+        "slippage_turnover_scale": 1.0,
+        "slippage_volatility_scale": 1.0,
     }
     assert runtime.sanity.max_abs_period_return == pytest.approx(0.8)
     assert runtime.sanity.strict_sanity_checks is True
@@ -108,3 +118,19 @@ def test_resolve_runtime_config_accepts_runtime_and_legacy_validation_aliases() 
     assert runtime.portfolio_validation.max_single_sleeve_weight == pytest.approx(0.4)
     assert runtime.risk.volatility_window == 10
     assert runtime.strict_mode.to_dict() == {"enabled": True, "source": "config"}
+
+
+def test_resolve_runtime_config_accepts_extended_execution_fields() -> None:
+    runtime = resolve_runtime_config(
+        {
+            "execution": {
+                "fixed_fee": 0.0003,
+                "slippage_model": "turnover_scaled",
+                "slippage_turnover_scale": 2.5,
+            }
+        }
+    )
+
+    assert runtime.execution.fixed_fee == pytest.approx(0.0003)
+    assert runtime.execution.slippage_model == "turnover_scaled"
+    assert runtime.execution.slippage_turnover_scale == pytest.approx(2.5)

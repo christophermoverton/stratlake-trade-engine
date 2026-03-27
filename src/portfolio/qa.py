@@ -90,6 +90,11 @@ def validate_portfolio_return_consistency(
             index=normalized.index,
             dtype="float64",
         ) if "portfolio_transaction_cost" in normalized.columns else pd.Series(0.0, index=normalized.index, dtype="float64")
+        fixed_fee = pd.Series(
+            normalized["portfolio_fixed_fee"].to_numpy(dtype="float64", copy=True),
+            index=normalized.index,
+            dtype="float64",
+        ) if "portfolio_fixed_fee" in normalized.columns else pd.Series(0.0, index=normalized.index, dtype="float64")
         slippage_cost = pd.Series(
             normalized["portfolio_slippage_cost"].to_numpy(dtype="float64", copy=True),
             index=normalized.index,
@@ -98,18 +103,25 @@ def validate_portfolio_return_consistency(
         friction_match = (
             normalized["portfolio_execution_friction"]
             - transaction_cost
+            - fixed_fee
             - slippage_cost
         ).abs() > tolerance
         if friction_match.any():
             failing_index = normalized.index[friction_match][0]
             raise PortfolioQAError(
                 "Portfolio QA failed: portfolio_execution_friction must equal "
-                "portfolio_transaction_cost + portfolio_slippage_cost "
+                "portfolio_transaction_cost + portfolio_fixed_fee + portfolio_slippage_cost "
                 f"at row index {failing_index}."
             )
     if "portfolio_transaction_cost" in normalized.columns:
         recomputed_returns = recomputed_returns - pd.Series(
             normalized["portfolio_transaction_cost"].to_numpy(dtype="float64", copy=True),
+            index=normalized.index,
+            dtype="float64",
+        )
+    if "portfolio_fixed_fee" in normalized.columns:
+        recomputed_returns = recomputed_returns - pd.Series(
+            normalized["portfolio_fixed_fee"].to_numpy(dtype="float64", copy=True),
             index=normalized.index,
             dtype="float64",
         )
@@ -321,6 +333,7 @@ def generate_portfolio_qa_summary(
     portfolio_name: str | None,
     allocator_name: str | None,
     timeframe: str | None,
+    execution_config: dict[str, Any] | None = None,
     risk_config: dict[str, Any] | None = None,
     run_id: str | None = None,
     issues: list[str] | None = None,
@@ -342,6 +355,7 @@ def generate_portfolio_qa_summary(
     else:
         ending_equity = None
 
+    resolved_execution = _execution_config(execution_config or {})
     status = "fail" if issue_list else ("warn" if sanity["issue_count"] > 0 else "pass")
     return {
         "run_id": run_id,
@@ -360,6 +374,8 @@ def generate_portfolio_qa_summary(
         "ending_equity": ending_equity,
         "metrics": {
             "total_return": _coerce_number(metrics.get("total_return")),
+            "gross_total_return": _coerce_number(metrics.get("gross_total_return")),
+            "net_total_return": _coerce_number(metrics.get("net_total_return", metrics.get("total_return"))),
             "sharpe_ratio": _coerce_number(metrics.get("sharpe_ratio")),
             "max_drawdown": _coerce_number(metrics.get("max_drawdown")),
             "realized_volatility": _coerce_number(metrics.get("realized_volatility")),
@@ -369,6 +385,19 @@ def generate_portfolio_qa_summary(
             "trade_count": _coerce_number(metrics.get("trade_count")),
             "total_execution_friction": _coerce_number(metrics.get("total_execution_friction")),
             "exposure_pct": _coerce_number(metrics.get("exposure_pct")),
+        },
+        "execution": {
+            "enabled": bool(resolved_execution.enabled),
+            "transaction_cost_bps": _coerce_number(resolved_execution.transaction_cost_bps),
+            "fixed_fee": _coerce_number(resolved_execution.fixed_fee),
+            "fixed_fee_model": resolved_execution.fixed_fee_model,
+            "slippage_bps": _coerce_number(resolved_execution.slippage_bps),
+            "slippage_model": resolved_execution.slippage_model,
+            "total_transaction_cost": _coerce_number(metrics.get("total_transaction_cost")),
+            "total_fixed_fee": _coerce_number(metrics.get("total_fixed_fee")),
+            "total_slippage_cost": _coerce_number(metrics.get("total_slippage_cost")),
+            "total_execution_friction": _coerce_number(metrics.get("total_execution_friction")),
+            "execution_drag_total_return": _coerce_number(metrics.get("execution_drag_total_return")),
         },
         "diagnostics": {
             "optimizer_method": None,
@@ -463,6 +492,7 @@ def run_portfolio_qa(
         portfolio_name=config.get("portfolio_name"),
         allocator_name=config.get("allocator"),
         timeframe=config.get("timeframe"),
+        execution_config=config.get("execution") if isinstance(config, dict) else None,
         risk_config=config.get("risk") if isinstance(config, dict) else None,
         run_id=run_id,
         issues=issues,
@@ -494,6 +524,12 @@ def _normalize_portfolio_output(
         return validate_portfolio_output(portfolio_df)
     except PortfolioContractError as exc:
         raise PortfolioQAError(f"Portfolio QA failed: {owner} must be valid portfolio output: {exc}") from exc
+
+
+def _execution_config(config: dict[str, Any]) -> Any:
+    from src.config.execution import resolve_execution_config
+
+    return resolve_execution_config(config.get("execution") if isinstance(config, dict) else None)
 
 
 def _required_traceability_columns(portfolio_df: pd.DataFrame) -> dict[str, list[str]]:

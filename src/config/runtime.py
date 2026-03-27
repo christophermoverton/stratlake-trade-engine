@@ -20,7 +20,21 @@ if TYPE_CHECKING:
 
 _RUNTIME_SECTION_KEYS = frozenset(("execution", "sanity", "validation", "portfolio_validation", "risk", "strict_mode"))
 _STRICT_MODE_KEYS = frozenset(("enabled", "source"))
-_EXECUTION_OVERRIDE_KEYS = frozenset(("enabled", "execution_delay", "transaction_cost_bps", "slippage_bps"))
+_EXECUTION_OVERRIDE_KEYS = frozenset(
+    (
+        "enabled",
+        "execution_delay",
+        "transaction_cost_bps",
+        "proportional_transaction_cost_bps",
+        "slippage_bps",
+        "slippage_rate_bps",
+        "fixed_fee",
+        "fixed_fee_model",
+        "slippage_model",
+        "slippage_turnover_scale",
+        "slippage_volatility_scale",
+    )
+)
 _SANITY_KEYS = frozenset(
     (
         "max_abs_period_return",

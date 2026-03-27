@@ -180,6 +180,26 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Override deterministic execution slippage in basis points.",
     )
     parser.add_argument(
+        "--fixed-fee",
+        type=float,
+        help="Override deterministic fixed execution fee deducted per rebalance event.",
+    )
+    parser.add_argument(
+        "--slippage-model",
+        choices=("constant", "turnover_scaled", "volatility_scaled"),
+        help="Override the deterministic portfolio slippage model.",
+    )
+    parser.add_argument(
+        "--slippage-turnover-scale",
+        type=float,
+        help="Override the turnover scale multiplier used by turnover-scaled slippage.",
+    )
+    parser.add_argument(
+        "--slippage-volatility-scale",
+        type=float,
+        help="Override the volatility proxy scale multiplier used by volatility-scaled slippage.",
+    )
+    parser.add_argument(
         "--execution-enabled",
         action="store_true",
         help="Enable execution frictions even when config defaults are disabled.",
@@ -402,6 +422,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
 def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) -> None:
     """Print a concise deterministic portfolio run summary."""
 
+    execution_config = _portfolio_execution_config(result.config)
     print(f"Portfolio: {result.portfolio_name}")
     print(f"Run ID: {result.run_id}")
     print(f"Artifact Dir: {result.experiment_dir.as_posix()}")
@@ -412,8 +433,17 @@ def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) ->
     if isinstance(result, PortfolioWalkForwardRunResult):
         stats = result.aggregate_metrics["metric_statistics"]
         print(f"Splits: {result.split_count}")
+        print(
+            "Execution Model: "
+            f"{'enabled' if execution_config.enabled else 'disabled'} | "
+            f"TCost {execution_config.transaction_cost_bps:.2f} bps | "
+            f"Fixed Fee {_format_decimal(execution_config.fixed_fee)} | "
+            f"Slippage {execution_config.slippage_model} @ {execution_config.slippage_bps:.2f} bps"
+        )
         print()
         print(f"Mean Total Return: {_format_pct(_nested_metric_stat(stats, 'total_return', 'mean'))}")
+        print(f"Mean Gross Total Return: {_format_pct(_nested_metric_stat(stats, 'gross_total_return', 'mean'))}")
+        print(f"Mean Execution Drag: {_format_pct(_nested_metric_stat(stats, 'execution_drag_total_return', 'mean'))}")
         print(f"Mean Sharpe Ratio: {_format_decimal(_nested_metric_stat(stats, 'sharpe_ratio', 'mean'))}")
         print(f"Mean Realized Volatility: {_format_pct(_nested_metric_stat(stats, 'realized_volatility', 'mean'))}")
         print(f"Worst Max Drawdown: {_format_pct(_nested_metric_stat(stats, 'max_drawdown', 'min'))}")
@@ -422,7 +452,17 @@ def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) ->
         print("Simulation: disabled")
         return
     print()
+    print(
+        "Execution Model: "
+        f"{'enabled' if execution_config.enabled else 'disabled'} | "
+        f"TCost {execution_config.transaction_cost_bps:.2f} bps | "
+        f"Fixed Fee {_format_decimal(execution_config.fixed_fee)} | "
+        f"Slippage {execution_config.slippage_model} @ {execution_config.slippage_bps:.2f} bps"
+    )
     print(f"Total Return: {_format_pct(result.metrics.get('total_return'))}")
+    print(f"Gross Total Return: {_format_pct(result.metrics.get('gross_total_return'))}")
+    print(f"Execution Drag: {_format_pct(result.metrics.get('execution_drag_total_return'))}")
+    print(f"Total Execution Friction: {_format_pct(result.metrics.get('total_execution_friction'))}")
     print(f"Sharpe Ratio: {_format_decimal(result.metrics.get('sharpe_ratio'))}")
     print(f"Realized Volatility: {_format_pct(result.metrics.get('realized_volatility'))}")
     print(f"Max Drawdown: {_format_pct(result.metrics.get('max_drawdown'))}")
@@ -932,6 +972,14 @@ def _execution_override_from_args(args: argparse.Namespace) -> dict[str, Any] | 
         override["transaction_cost_bps"] = args.transaction_cost_bps
     if args.slippage_bps is not None:
         override["slippage_bps"] = args.slippage_bps
+    if args.fixed_fee is not None:
+        override["fixed_fee"] = args.fixed_fee
+    if args.slippage_model is not None:
+        override["slippage_model"] = args.slippage_model
+    if args.slippage_turnover_scale is not None:
+        override["slippage_turnover_scale"] = args.slippage_turnover_scale
+    if args.slippage_volatility_scale is not None:
+        override["slippage_volatility_scale"] = args.slippage_volatility_scale
     if args.execution_enabled:
         override["enabled"] = True
     if args.disable_execution_model:

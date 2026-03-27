@@ -56,13 +56,16 @@ def compute_portfolio_metrics(
     normalized = _validate_portfolio_metrics_input(portfolio_output, validation_config=validation_config)
     periods_per_year = _resolve_periods_per_year(timeframe)
     portfolio_returns = normalized["portfolio_return"]
+    gross_portfolio_returns = _optional_numeric_series(normalized, "gross_portfolio_return")
     resolved_risk = resolve_portfolio_risk_config(risk_config)
 
     total = total_return(portfolio_returns)
+    gross_total = total_return(gross_portfolio_returns)
     weight_frame = _extract_weight_frame(normalized)
     weight_change = None if weight_frame is None else compute_weight_change_frame(weight_frame)
     trade_count = 0 if weight_change is None else int(weight_change["portfolio_rebalance_event"].sum())
     transaction_cost = _optional_numeric_series(normalized, "portfolio_transaction_cost")
+    fixed_fee = _optional_numeric_series(normalized, "portfolio_fixed_fee")
     slippage_cost = _optional_numeric_series(normalized, "portfolio_slippage_cost")
     execution_friction = _optional_numeric_series(normalized, "portfolio_execution_friction")
     weight_diagnostics = (
@@ -97,9 +100,14 @@ def compute_portfolio_metrics(
 
     return {
         "cumulative_return": total,
+        "gross_cumulative_return": gross_total,
         "total_return": total,
+        "gross_total_return": gross_total,
+        "net_total_return": total,
+        "execution_drag_total_return": float(gross_total - total),
         "volatility": volatility(portfolio_returns),
         "annualized_return": annualized_return(portfolio_returns, periods_per_year=periods_per_year),
+        "gross_annualized_return": annualized_return(gross_portfolio_returns, periods_per_year=periods_per_year),
         "annualized_volatility": annualized_volatility(
             portfolio_returns,
             periods_per_year=periods_per_year,
@@ -133,9 +141,11 @@ def compute_portfolio_metrics(
         "percent_periods_traded": None if weight_change is None else float(weight_change["portfolio_rebalance_event"].mean() * 100.0),
         "average_trade_size": None if weight_change is None else (float(weight_change["portfolio_turnover"].sum()) / trade_count if trade_count else 0.0),
         "total_transaction_cost": float(transaction_cost.sum()),
+        "total_fixed_fee": float(fixed_fee.sum()),
         "total_slippage_cost": float(slippage_cost.sum()),
         "total_execution_friction": float(execution_friction.sum()),
         "average_execution_friction_per_trade": float(execution_friction.sum() / trade_count) if trade_count else 0.0,
+        "average_fixed_fee_per_trade": float(fixed_fee.sum() / trade_count) if trade_count else 0.0,
         "exposure_pct": _portfolio_exposure_pct(weight_frame),
         "average_gross_exposure": float(weight_diagnostics["average_gross_exposure"]),
         "max_gross_exposure": float(weight_diagnostics["max_gross_exposure"]),

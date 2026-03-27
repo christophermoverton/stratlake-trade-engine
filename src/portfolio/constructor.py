@@ -4,7 +4,6 @@ import pandas as pd
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.research.consistency import validate_portfolio_sleeve_aggregation_consistency
-from src.research.turnover import compute_weight_change_frame, validate_weight_change_frame
 from .allocators import BaseAllocator
 from .contracts import (
     PortfolioContractError,
@@ -13,6 +12,7 @@ from .contracts import (
     validate_aligned_returns,
     validate_portfolio_output,
 )
+from .execution import PortfolioExecutionError, apply_portfolio_execution_model
 from .validation import validate_portfolio_output_constraints, validate_portfolio_weights
 
 
@@ -53,20 +53,20 @@ def compute_portfolio_returns(
         output[f"weight__{strategy_name}"] = normalized_weights[strategy_name].to_numpy(copy=True)
 
     gross_returns = (normalized_returns * normalized_weights).sum(axis=1).astype("float64")
-    weight_change = compute_weight_change_frame(normalized_weights)
-    validate_weight_change_frame(weight_change)
-    transaction_cost = _weight_execution_cost(weight_change["portfolio_turnover"], config.transaction_cost_bps, enabled=config.enabled)
-    slippage_cost = _weight_execution_cost(weight_change["portfolio_turnover"], config.slippage_bps, enabled=config.enabled)
+    try:
+        execution_result = apply_portfolio_execution_model(
+            normalized_returns,
+            normalized_weights,
+            config,
+        )
+    except PortfolioExecutionError as exc:
+        raise ValueError(f"Portfolio execution accounting failed: {exc}") from exc
+
     output["gross_portfolio_return"] = gross_returns.to_numpy(copy=True)
-    output["portfolio_weight_change"] = weight_change["portfolio_weight_change"].to_numpy(copy=True)
-    output["portfolio_abs_weight_change"] = weight_change["portfolio_abs_weight_change"].to_numpy(copy=True)
-    output["portfolio_turnover"] = weight_change["portfolio_turnover"].to_numpy(copy=True)
-    output["portfolio_rebalance_event"] = weight_change["portfolio_rebalance_event"].astype("int64").to_numpy(copy=True)
-    output["portfolio_transaction_cost"] = transaction_cost.to_numpy(copy=True)
-    output["portfolio_slippage_cost"] = slippage_cost.to_numpy(copy=True)
-    output["portfolio_execution_friction"] = (transaction_cost + slippage_cost).to_numpy(copy=True)
+    for column in execution_result.frame.columns:
+        output[column] = execution_result.frame[column].to_numpy(copy=True)
     output["net_portfolio_return"] = (
-        gross_returns - transaction_cost - slippage_cost
+        gross_returns - execution_result.frame["portfolio_execution_friction"]
     ).to_numpy(copy=True)
     output["portfolio_return"] = output["net_portfolio_return"]
 
@@ -84,8 +84,10 @@ def compute_portfolio_returns(
         "strategy_count": len(normalized_returns.columns),
         "timestamp_count": len(normalized_returns.index),
         "execution": config.to_dict(),
+        "execution_summary": execution_result.summary,
         "validation": config_validation.to_dict(),
     }
+    validated.attrs["portfolio_execution"] = execution_result.summary
     validate_portfolio_sleeve_aggregation_consistency(
         normalized_returns,
         normalized_weights,
@@ -193,15 +195,10 @@ def construct_portfolio(
         "timestamp_count": len(normalized_returns.index),
         "initial_capital": float(initial_capital),
         "execution": (execution_config or resolve_execution_config()).to_dict(),
+        "execution_summary": portfolio_returns.attrs.get("portfolio_execution", {}),
         "validation": config_validation.to_dict(),
     }
     return portfolio_output
-
-
-def _weight_execution_cost(weight_turnover: pd.Series, bps: float, *, enabled: bool) -> pd.Series:
-    if not enabled or bps == 0.0:
-        return pd.Series(0.0, index=weight_turnover.index, dtype="float64")
-    return (weight_turnover * (float(bps) / 10_000.0)).astype("float64")
 
 
 __all__ = [

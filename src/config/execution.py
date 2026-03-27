@@ -8,6 +8,8 @@ from src.config.settings import load_yaml_config
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 EXECUTION_CONFIG = REPO_ROOT / "configs" / "execution.yml"
+SUPPORTED_FIXED_FEE_MODELS = frozenset({"per_rebalance"})
+SUPPORTED_SLIPPAGE_MODELS = frozenset({"constant", "turnover_scaled", "volatility_scaled"})
 
 
 @dataclass(frozen=True)
@@ -18,6 +20,11 @@ class ExecutionConfig:
     execution_delay: int
     transaction_cost_bps: float
     slippage_bps: float
+    fixed_fee: float = 0.0
+    fixed_fee_model: str = "per_rebalance"
+    slippage_model: str = "constant"
+    slippage_turnover_scale: float = 1.0
+    slippage_volatility_scale: float = 1.0
 
     @property
     def friction_bps(self) -> float:
@@ -27,12 +34,28 @@ class ExecutionConfig:
     def friction_rate(self) -> float:
         return float(self.friction_bps / 10_000.0)
 
+    @property
+    def has_execution_friction(self) -> bool:
+        return bool(
+            self.enabled
+            and (
+                self.transaction_cost_bps > 0.0
+                or self.slippage_bps > 0.0
+                or self.fixed_fee > 0.0
+            )
+        )
+
     def to_dict(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "execution_delay": self.execution_delay,
             "transaction_cost_bps": self.transaction_cost_bps,
             "slippage_bps": self.slippage_bps,
+            "fixed_fee": self.fixed_fee,
+            "fixed_fee_model": self.fixed_fee_model,
+            "slippage_model": self.slippage_model,
+            "slippage_turnover_scale": self.slippage_turnover_scale,
+            "slippage_volatility_scale": self.slippage_volatility_scale,
         }
 
     @classmethod
@@ -42,6 +65,11 @@ class ExecutionConfig:
             execution_delay=1,
             transaction_cost_bps=0.0,
             slippage_bps=0.0,
+            fixed_fee=0.0,
+            fixed_fee_model="per_rebalance",
+            slippage_model="constant",
+            slippage_turnover_scale=1.0,
+            slippage_volatility_scale=1.0,
         )
 
     @classmethod
@@ -58,20 +86,53 @@ class ExecutionConfig:
 
         seed = base or cls.default()
         transaction_cost_bps = _coerce_non_negative_float(
-            payload.get("transaction_cost_bps", seed.transaction_cost_bps),
+            payload.get(
+                "transaction_cost_bps",
+                payload.get("proportional_transaction_cost_bps", seed.transaction_cost_bps),
+            ),
             field_name="transaction_cost_bps",
         )
         slippage_bps = _coerce_non_negative_float(
-            payload.get("slippage_bps", seed.slippage_bps),
+            payload.get(
+                "slippage_bps",
+                payload.get("slippage_rate_bps", seed.slippage_bps),
+            ),
             field_name="slippage_bps",
+        )
+        fixed_fee = _coerce_non_negative_float(
+            payload.get("fixed_fee", seed.fixed_fee),
+            field_name="fixed_fee",
         )
         execution_delay = _coerce_execution_delay(
             payload.get("execution_delay", seed.execution_delay),
         )
+        fixed_fee_model = _coerce_choice(
+            payload.get("fixed_fee_model", seed.fixed_fee_model),
+            field_name="fixed_fee_model",
+            supported_values=SUPPORTED_FIXED_FEE_MODELS,
+        )
+        slippage_model = _coerce_choice(
+            payload.get("slippage_model", seed.slippage_model),
+            field_name="slippage_model",
+            supported_values=SUPPORTED_SLIPPAGE_MODELS,
+        )
+        slippage_turnover_scale = _coerce_non_negative_float(
+            payload.get("slippage_turnover_scale", seed.slippage_turnover_scale),
+            field_name="slippage_turnover_scale",
+        )
+        slippage_volatility_scale = _coerce_non_negative_float(
+            payload.get("slippage_volatility_scale", seed.slippage_volatility_scale),
+            field_name="slippage_volatility_scale",
+        )
 
         enabled_value = payload.get("enabled")
         if enabled_value is None:
-            enabled = bool(seed.enabled or transaction_cost_bps > 0.0 or slippage_bps > 0.0)
+            enabled = bool(
+                seed.enabled
+                or transaction_cost_bps > 0.0
+                or slippage_bps > 0.0
+                or fixed_fee > 0.0
+            )
         elif isinstance(enabled_value, bool):
             enabled = enabled_value
         else:
@@ -82,6 +143,11 @@ class ExecutionConfig:
             execution_delay=execution_delay,
             transaction_cost_bps=transaction_cost_bps,
             slippage_bps=slippage_bps,
+            fixed_fee=fixed_fee,
+            fixed_fee_model=fixed_fee_model,
+            slippage_model=slippage_model,
+            slippage_turnover_scale=slippage_turnover_scale,
+            slippage_volatility_scale=slippage_volatility_scale,
         )
 
 
@@ -137,3 +203,21 @@ def _coerce_non_negative_float(value: Any, *, field_name: str) -> float:
     if numeric < 0.0:
         raise ValueError(f"Execution configuration field '{field_name}' must be non-negative.")
     return numeric
+
+
+def _coerce_choice(
+    value: Any,
+    *,
+    field_name: str,
+    supported_values: frozenset[str],
+) -> str:
+    if not isinstance(value, str):
+        raise ValueError(
+            f"Execution configuration field '{field_name}' must be one of {sorted(supported_values)}."
+        )
+    normalized = value.strip().lower()
+    if normalized not in supported_values:
+        raise ValueError(
+            f"Execution configuration field '{field_name}' must be one of {sorted(supported_values)}."
+        )
+    return normalized

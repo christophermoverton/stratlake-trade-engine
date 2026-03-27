@@ -35,6 +35,11 @@ def _portfolio_output() -> pd.DataFrame:
             "strategy_return__beta": [0.005, 0.00, 0.04, -0.01],
             "weight__alpha": [0.60, 0.50, 0.50, 0.20],
             "weight__beta": [0.40, 0.50, 0.50, 0.80],
+            "gross_portfolio_return": [0.02, -0.005, 0.03, -0.014],
+            "portfolio_transaction_cost": [0.0, 0.0, 0.0, 0.0],
+            "portfolio_fixed_fee": [0.0, 0.0, 0.0, 0.0],
+            "portfolio_slippage_cost": [0.0, 0.0, 0.0, 0.0],
+            "portfolio_execution_friction": [0.0, 0.0, 0.0, 0.0],
             "portfolio_return": [0.02, -0.005, 0.03, -0.014],
             "portfolio_equity_curve": [102.0, 101.49, 104.5347, 103.0712142],
         }
@@ -57,9 +62,14 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
 
     assert list(metrics.keys()) == [
         "cumulative_return",
+        "gross_cumulative_return",
         "total_return",
+        "gross_total_return",
+        "net_total_return",
+        "execution_drag_total_return",
         "volatility",
         "annualized_return",
+        "gross_annualized_return",
         "annualized_volatility",
         "rolling_volatility_window",
         "rolling_volatility_latest",
@@ -90,9 +100,11 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "percent_periods_traded",
         "average_trade_size",
         "total_transaction_cost",
+        "total_fixed_fee",
         "total_slippage_cost",
         "total_execution_friction",
         "average_execution_friction_per_trade",
+        "average_fixed_fee_per_trade",
         "exposure_pct",
         "average_gross_exposure",
         "max_gross_exposure",
@@ -110,6 +122,9 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "sanity_strict_mode",
     ]
     assert metrics["cumulative_return"] == pytest.approx(metrics["total_return"])
+    assert metrics["gross_total_return"] == pytest.approx(expected_total)
+    assert metrics["net_total_return"] == pytest.approx(expected_total)
+    assert metrics["execution_drag_total_return"] == pytest.approx(0.0)
     assert metrics["total_return"] == pytest.approx(expected_total)
     assert metrics["volatility"] == pytest.approx(expected_period_volatility)
     assert metrics["annualized_volatility"] == pytest.approx(expected_annual_volatility)
@@ -142,6 +157,7 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["percent_periods_traded"] == pytest.approx(75.0)
     assert metrics["average_trade_size"] == pytest.approx(0.6)
     assert metrics["total_execution_friction"] == pytest.approx(0.0)
+    assert metrics["total_fixed_fee"] == pytest.approx(0.0)
     assert metrics["exposure_pct"] == pytest.approx(100.0)
     assert metrics["average_gross_exposure"] == pytest.approx(1.0)
     assert metrics["max_gross_exposure"] == pytest.approx(1.0)

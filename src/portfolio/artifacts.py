@@ -245,7 +245,10 @@ def _portfolio_returns_frame(portfolio_output: pd.DataFrame) -> pd.DataFrame:
             "portfolio_abs_weight_change",
             "portfolio_turnover",
             "portfolio_rebalance_event",
+            "portfolio_changed_sleeve_count",
             "portfolio_transaction_cost",
+            "portfolio_fixed_fee",
+            "portfolio_slippage_proxy",
             "portfolio_slippage_cost",
             "portfolio_execution_friction",
             "net_portfolio_return",
@@ -314,6 +317,11 @@ def _build_manifest(
         config=config,
         metrics=metrics,
     )
+    execution_metadata = _execution_manifest_metadata(
+        portfolio_output=portfolio_output,
+        config=config,
+        metrics=metrics,
+    )
     artifact_inventory = {
         _COMPONENTS_FILENAME: {"path": _COMPONENTS_FILENAME, "rows": len(components)},
         _CONFIG_FILENAME: {"path": _CONFIG_FILENAME},
@@ -378,6 +386,7 @@ def _build_manifest(
         "initial_capital": config.get("initial_capital"),
         "metric_summary": metrics,
         "metrics_path": _METRICS_FILENAME,
+        "execution": execution_metadata,
         "optimizer": optimizer_metadata,
         "optimizer_method": optimizer_metadata.get("method"),
         "qa_summary_status": qa_summary.get("validation_status"),
@@ -521,6 +530,41 @@ def _risk_manifest_metadata(
     }
 
 
+def _execution_manifest_metadata(
+    *,
+    portfolio_output: pd.DataFrame,
+    config: dict[str, object],
+    metrics: dict[str, object],
+) -> dict[str, object]:
+    constructor_payload = portfolio_output.attrs.get("portfolio_constructor", {})
+    execution_summary = (
+        constructor_payload.get("execution_summary")
+        if isinstance(constructor_payload, dict) and isinstance(constructor_payload.get("execution_summary"), dict)
+        else portfolio_output.attrs.get("portfolio_execution", {})
+    )
+    normalized_execution_summary = (
+        _normalize_mapping(dict(execution_summary), owner="execution.summary")
+        if isinstance(execution_summary, dict)
+        else {}
+    )
+    execution_config = config.get("execution") if isinstance(config.get("execution"), dict) else {}
+    return {
+        "config": _normalize_mapping(dict(execution_config), owner="execution.config") if execution_config else {},
+        "summary": {
+            "gross_total_return": metrics.get("gross_total_return"),
+            "net_total_return": metrics.get("net_total_return", metrics.get("total_return")),
+            "execution_drag_total_return": metrics.get("execution_drag_total_return"),
+            "total_transaction_cost": metrics.get("total_transaction_cost"),
+            "total_fixed_fee": metrics.get("total_fixed_fee"),
+            "total_slippage_cost": metrics.get("total_slippage_cost"),
+            "total_execution_friction": metrics.get("total_execution_friction"),
+            "turnover": metrics.get("turnover"),
+            "rebalance_count": metrics.get("rebalance_count"),
+        },
+        "model_summary": normalized_execution_summary or None,
+    }
+
+
 def _periods_per_year_from_timeframe(timeframe: str) -> int:
     normalized = timeframe.strip().lower()
     if normalized in {"1d", "1day", "day", "daily"}:
@@ -573,12 +617,18 @@ def build_portfolio_registry_metadata(
         "risk_summary": manifest.get("risk_summary"),
         "metrics_summary": {
             "total_return": metrics.get("total_return"),
+            "gross_total_return": metrics.get("gross_total_return"),
             "sharpe_ratio": metrics.get("sharpe_ratio"),
             "max_drawdown": metrics.get("max_drawdown"),
             "realized_volatility": metrics.get("realized_volatility"),
             "value_at_risk": metrics.get("value_at_risk"),
             "conditional_value_at_risk": metrics.get("conditional_value_at_risk"),
+            "total_execution_friction": metrics.get("total_execution_friction"),
+            "execution_drag_total_return": metrics.get("execution_drag_total_return"),
         },
+        "execution_summary": manifest.get("execution", {}).get("summary")
+        if isinstance(manifest.get("execution"), dict)
+        else None,
     }
     if isinstance(extra_metadata, dict):
         for key, value in sorted(extra_metadata.items()):

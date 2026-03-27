@@ -23,7 +23,10 @@ def _portfolio_output() -> pd.DataFrame:
             "portfolio_abs_weight_change": [1.0, 0.0],
             "portfolio_turnover": [1.0, 0.0],
             "portfolio_rebalance_event": [1, 0],
+            "portfolio_changed_sleeve_count": [2, 0],
             "portfolio_transaction_cost": [0.0, 0.0],
+            "portfolio_fixed_fee": [0.0, 0.0],
+            "portfolio_slippage_proxy": [0.02, 0.0],
             "portfolio_slippage_cost": [0.0, 0.0],
             "portfolio_execution_friction": [0.0, 0.0],
             "net_portfolio_return": [0.02, 0.01],
@@ -71,8 +74,13 @@ def _config() -> dict[str, object]:
         "execution": {
             "enabled": True,
             "execution_delay": 1,
+            "fixed_fee": 0.0,
+            "fixed_fee_model": "per_rebalance",
+            "slippage_model": "constant",
             "transaction_cost_bps": 10.0,
             "slippage_bps": 5.0,
+            "slippage_turnover_scale": 1.0,
+            "slippage_volatility_scale": 1.0,
         },
     }
 
@@ -130,7 +138,12 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "execution": {
             "enabled": True,
             "execution_delay": 1,
+            "fixed_fee": 0.0,
+            "fixed_fee_model": "per_rebalance",
+            "slippage_model": "constant",
             "slippage_bps": 5.0,
+            "slippage_turnover_scale": 1.0,
+            "slippage_volatility_scale": 1.0,
             "transaction_cost_bps": 10.0,
         },
         "initial_capital": 100.0,
@@ -189,7 +202,10 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "portfolio_abs_weight_change",
         "portfolio_turnover",
         "portfolio_rebalance_event",
+        "portfolio_changed_sleeve_count",
         "portfolio_transaction_cost",
+        "portfolio_fixed_fee",
+        "portfolio_slippage_proxy",
         "portfolio_slippage_cost",
         "portfolio_execution_friction",
         "net_portfolio_return",
@@ -229,6 +245,9 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     assert manifest_payload["risk"]["summary"]["max_drawdown"] == pytest.approx(
         metrics_payload["max_drawdown"]
     )
+    assert manifest_payload["execution"]["summary"]["total_fixed_fee"] == pytest.approx(
+        metrics_payload["total_fixed_fee"]
+    )
     assert manifest_payload["simulation"] == {
         "artifact_path": None,
         "enabled": False,
@@ -256,7 +275,10 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "portfolio_abs_weight_change",
         "portfolio_turnover",
         "portfolio_rebalance_event",
+        "portfolio_changed_sleeve_count",
         "portfolio_transaction_cost",
+        "portfolio_fixed_fee",
+        "portfolio_slippage_proxy",
         "portfolio_slippage_cost",
         "portfolio_execution_friction",
         "net_portfolio_return",
@@ -421,8 +443,13 @@ def test_write_portfolio_artifacts_persists_effective_runtime_config(tmp_path: P
             "execution": {
                 "enabled": True,
                 "execution_delay": 1,
+                "fixed_fee": 0.0,
+                "fixed_fee_model": "per_rebalance",
+                "slippage_model": "constant",
                 "transaction_cost_bps": 10.0,
                 "slippage_bps": 5.0,
+                "slippage_turnover_scale": 1.0,
+                "slippage_volatility_scale": 1.0,
             },
             "sanity": {
                 "max_abs_period_return": 1.0,

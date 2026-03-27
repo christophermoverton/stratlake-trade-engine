@@ -265,6 +265,11 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
         "execution_delay": 1,
         "transaction_cost_bps": 0.0,
         "slippage_bps": 0.0,
+        "fixed_fee": 0.0,
+        "fixed_fee_model": "per_rebalance",
+        "slippage_model": "constant",
+        "slippage_turnover_scale": 1.0,
+        "slippage_volatility_scale": 1.0,
     }
     assert result.config["strict_mode"] == {
         "enabled": False,
@@ -1073,6 +1078,11 @@ def test_run_cli_strict_portfolio_config_from_registry_succeeds_and_persists_aud
         "execution_delay": 1,
         "transaction_cost_bps": 0.0,
         "slippage_bps": 0.0,
+        "fixed_fee": 0.0,
+        "fixed_fee_model": "per_rebalance",
+        "slippage_model": "constant",
+        "slippage_turnover_scale": 1.0,
+        "slippage_volatility_scale": 1.0,
     }
     assert config_payload["runtime"]["portfolio_validation"]["strict_sanity_checks"] is True
     assert config_payload["runtime"]["sanity"]["strict_sanity_checks"] is True

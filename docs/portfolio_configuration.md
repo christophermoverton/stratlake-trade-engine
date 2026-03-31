@@ -81,6 +81,10 @@ portfolios:
       target_volatility: 0.12
       var_confidence_level: 0.95
       cvar_confidence_level: 0.95
+    volatility_targeting:
+      enabled: true
+      target_volatility: 0.10
+      lookback_periods: 20
     execution:
       enabled: true
       transaction_cost_bps: 5
@@ -245,7 +249,30 @@ Supported fields:
 Current behavior:
 
 * these settings control risk diagnostics and summary outputs
-* they do not automatically rescale realized portfolio returns
+* `target_volatility` under `risk` does not execute post-optimizer scaling by
+  itself
+
+### `volatility_targeting`
+
+Optional operational post-optimizer portfolio scaling.
+
+Supported fields:
+
+* `enabled`
+* `target_volatility`
+* `lookback_periods`
+* `volatility_epsilon`
+
+Current behavior:
+
+* this section is separate from `risk`
+* when enabled, the constructor computes a deterministic scale factor as
+  `target_volatility / estimated_portfolio_volatility`
+* scaling is applied directly to the optimizer-produced base weights before
+  execution-cost modeling and portfolio evaluation
+* scaling is literal and uncapped in the current milestone
+* metrics and manifests surface the enabled flag plus pre-target, post-target,
+  and applied-scale metadata
 
 ### `sanity`
 
@@ -300,6 +327,9 @@ python -m src.cli.run_portfolio \
   --from-registry \
   --timeframe 1D \
   --optimizer-method max_sharpe \
+  --enable-volatility-targeting \
+  --volatility-target-volatility 0.10 \
+  --volatility-target-lookback 20 \
   --risk-target-volatility 0.12 \
   --execution-enabled \
   --transaction-cost-bps 5 \

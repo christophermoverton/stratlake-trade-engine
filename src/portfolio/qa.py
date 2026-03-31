@@ -8,7 +8,11 @@ import warnings
 import pandas as pd
 import numpy as np
 
-from .contracts import PortfolioContractError, validate_portfolio_output
+from .contracts import (
+    PortfolioContractError,
+    resolve_portfolio_validation_config,
+    validate_portfolio_output,
+)
 from .metrics import compute_portfolio_metrics
 from .validation import (
     summarize_weight_diagnostics,
@@ -58,13 +62,18 @@ def validate_portfolio_return_consistency(
     )
 
     weight_frame = _weight_frame(normalized)
+    resolved_validation = _resolve_effective_validation_config(
+        normalized,
+        validation_config=validation_config,
+    )
     row_sums = weight_frame.sum(axis=1)
-    invalid_weight_sums = (row_sums - 1.0).abs() > tolerance
+    invalid_weight_sums = (row_sums - resolved_validation.target_weight_sum).abs() > tolerance
     if invalid_weight_sums.any():
         failing_index = row_sums.index[invalid_weight_sums][0]
         raise PortfolioQAError(
-            "Portfolio QA failed: weights must sum to 1.0 within tolerance "
-            f"{tolerance}. First failing row index={failing_index}, row_sum={row_sums.iloc[failing_index]}."
+            "Portfolio QA failed: weights must sum to "
+            f"{resolved_validation.target_weight_sum} within tolerance {tolerance}. "
+            f"First failing row index={failing_index}, row_sum={row_sums.iloc[failing_index]}."
         )
 
     recomputed_gross_returns = pd.Series(
@@ -224,7 +233,13 @@ def validate_weights_behavior(
     if not np.isfinite(weights.to_numpy(dtype="float64")).all():
         raise PortfolioQAError("Portfolio QA failed: weights contain infinite values.")
     try:
-        validate_portfolio_weights(weights, validation_config=validation_config)
+        validate_portfolio_weights(
+            weights,
+            validation_config=_resolve_effective_validation_config(
+                normalized,
+                validation_config=validation_config,
+            ),
+        )
     except ValueError as exc:
         raise PortfolioQAError(str(exc)) from exc
 
@@ -315,7 +330,10 @@ def validate_portfolio_artifact_consistency(
     recomputed_metrics = compute_portfolio_metrics(
         normalized_output,
         timeframe=_timeframe_from_config(config),
-        validation_config=config.get("validation") if isinstance(config, dict) else None,
+        validation_config=_resolve_effective_validation_config(
+            normalized_output,
+            validation_config=(config.get("validation") if isinstance(config, dict) else None),
+        ).to_dict(),
         risk_config=config.get("risk") if isinstance(config, dict) else None,
     )
     _assert_metrics_match(
@@ -744,6 +762,22 @@ def _timeframe_from_config(config: dict[str, Any]) -> str:
     if not isinstance(value, str) or not value.strip():
         raise PortfolioQAError("Portfolio QA failed: config must include a non-empty timeframe for metric validation.")
     return value
+
+
+def _resolve_effective_validation_config(
+    portfolio_df: pd.DataFrame,
+    *,
+    validation_config: dict[str, Any] | None,
+):
+    constructor_payload = portfolio_df.attrs.get("portfolio_constructor", {})
+    effective_validation = (
+        constructor_payload.get("effective_validation")
+        if isinstance(constructor_payload, dict)
+        else None
+    )
+    return resolve_portfolio_validation_config(
+        effective_validation if effective_validation is not None else validation_config
+    )
 
 
 def _date_range(portfolio_df: pd.DataFrame) -> list[str | None]:

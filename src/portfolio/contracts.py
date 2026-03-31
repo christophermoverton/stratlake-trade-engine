@@ -7,7 +7,11 @@ from typing import Any
 
 import pandas as pd
 
-from .risk import PortfolioRiskError, resolve_portfolio_risk_config
+from .risk import (
+    PortfolioRiskError,
+    resolve_portfolio_risk_config,
+    resolve_portfolio_volatility_targeting_config,
+)
 
 _STRATEGY_ID_CANDIDATES: tuple[str, ...] = ("strategy_name", "strategy_id", "strategy")
 _PORTFOLIO_REQUIRED_COLUMNS: tuple[str, ...] = ("ts_utc", "portfolio_return")
@@ -405,6 +409,9 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
         optimizer=optimizer,
     )
     risk = _resolve_risk_config(config_dict.get("risk"))
+    volatility_targeting = _resolve_volatility_targeting_config(
+        config_dict.get("volatility_targeting")
+    )
 
     normalized_config = {
         "portfolio_name": portfolio_name,
@@ -418,6 +425,7 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
         "optimizer": optimizer,
         "validation": validation.to_dict(),
         "risk": risk,
+        "volatility_targeting": volatility_targeting,
     }
 
     try:
@@ -704,6 +712,13 @@ def _resolve_validation_with_optimizer(
 def _resolve_risk_config(payload: Any) -> dict[str, Any]:
     try:
         return resolve_portfolio_risk_config(payload).to_dict()
+    except PortfolioRiskError as exc:
+        raise PortfolioContractError(str(exc)) from exc
+
+
+def _resolve_volatility_targeting_config(payload: Any) -> dict[str, Any]:
+    try:
+        return resolve_portfolio_volatility_targeting_config(payload).to_dict()
     except PortfolioRiskError as exc:
         raise PortfolioContractError(str(exc)) from exc
 

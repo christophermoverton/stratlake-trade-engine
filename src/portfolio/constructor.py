@@ -13,6 +13,11 @@ from .contracts import (
     validate_portfolio_output,
 )
 from .execution import PortfolioExecutionError, apply_portfolio_execution_model
+from .risk import (
+    PortfolioRiskConfig,
+    PortfolioVolatilityTargetingConfig,
+    apply_volatility_targeting,
+)
 from .validation import validate_portfolio_output_constraints, validate_portfolio_weights
 
 
@@ -148,6 +153,9 @@ def construct_portfolio(
     execution_config: ExecutionConfig | None = None,
     validation_config: PortfolioValidationConfig | dict[str, object] | None = None,
     optimization_returns: pd.DataFrame | None = None,
+    risk_config: PortfolioRiskConfig | dict[str, object] | None = None,
+    volatility_targeting_config: PortfolioVolatilityTargetingConfig | dict[str, object] | None = None,
+    periods_per_year: int = 252,
 ) -> pd.DataFrame:
     """Construct a complete in-memory portfolio output from aligned strategy returns."""
 
@@ -171,33 +179,53 @@ def construct_portfolio(
             )
 
     config_validation = resolve_portfolio_validation_config(validation_config)
-    weights = allocator.allocate_for_application(
+    base_weights = allocator.allocate_for_application(
         normalized_optimization_returns,
         normalized_returns,
     )
-    optimizer_payload = weights.attrs.get("portfolio_optimizer")
+    optimizer_payload = base_weights.attrs.get("portfolio_optimizer")
+    targeted_weights, targeting_metadata = apply_volatility_targeting(
+        base_weights,
+        normalized_returns,
+        config=volatility_targeting_config,
+        periods_per_year=periods_per_year,
+    )
+    effective_validation = _effective_validation_config_for_targeting(
+        config_validation,
+        targeting_metadata=targeting_metadata,
+    )
     portfolio_returns = compute_portfolio_returns(
         normalized_returns,
-        weights,
+        targeted_weights,
         execution_config=execution_config,
-        validation_config=config_validation,
+        validation_config=effective_validation,
     )
     portfolio_output = compute_portfolio_equity_curve(
         portfolio_returns,
         initial_capital=initial_capital,
-        validation_config=config_validation,
+        validation_config=effective_validation,
     )
     portfolio_output.attrs["portfolio_constructor"] = {
         "stage": "complete",
         "allocator": allocator.name,
         "optimizer": optimizer_payload,
+        "risk": None if risk_config is None else (
+            risk_config.to_dict() if hasattr(risk_config, "to_dict") else dict(risk_config)
+        ),
+        "volatility_targeting": {
+            key: value
+            for key, value in targeting_metadata.items()
+            if key not in {"base_weights", "targeted_weights"}
+        },
         "strategy_count": len(normalized_returns.columns),
         "timestamp_count": len(normalized_returns.index),
         "initial_capital": float(initial_capital),
         "execution": (execution_config or resolve_execution_config()).to_dict(),
         "execution_summary": portfolio_returns.attrs.get("portfolio_execution", {}),
         "validation": config_validation.to_dict(),
+        "effective_validation": effective_validation.to_dict(),
     }
+    portfolio_output.attrs["portfolio_volatility_targeting"] = targeting_metadata
     return portfolio_output
 
 
@@ -206,3 +234,37 @@ __all__ = [
     "compute_portfolio_returns",
     "construct_portfolio",
 ]
+
+
+def _effective_validation_config_for_targeting(
+    validation_config: PortfolioValidationConfig,
+    *,
+    targeting_metadata: dict[str, object],
+) -> PortfolioValidationConfig:
+    scaling_factor = targeting_metadata.get("volatility_scaling_factor")
+    if scaling_factor is None:
+        return validation_config
+
+    scale = float(scaling_factor)
+    return PortfolioValidationConfig(
+        long_only=validation_config.long_only,
+        target_weight_sum=float(validation_config.target_weight_sum * scale),
+        weight_sum_tolerance=validation_config.weight_sum_tolerance,
+        target_net_exposure=float(validation_config.target_net_exposure * scale),
+        net_exposure_tolerance=validation_config.net_exposure_tolerance,
+        max_gross_exposure=float(validation_config.max_gross_exposure * scale),
+        max_leverage=float(validation_config.max_leverage * scale),
+        max_single_sleeve_weight=(
+            None
+            if validation_config.max_single_sleeve_weight is None
+            else float(validation_config.max_single_sleeve_weight * scale)
+        ),
+        min_single_sleeve_weight=(
+            None
+            if validation_config.min_single_sleeve_weight is None
+            else float(validation_config.min_single_sleeve_weight * scale)
+        ),
+        max_abs_period_return=validation_config.max_abs_period_return,
+        max_equity_multiple=validation_config.max_equity_multiple,
+        strict_sanity_checks=validation_config.strict_sanity_checks,
+    )

@@ -47,6 +47,6 @@ Documented current limits include:
 * simulation does not ship with a default `configs/simulation.yml`
 * simulation is not supported for strategy walk-forward, strategy robustness,
   or portfolio walk-forward runs
-* volatility targeting is diagnostic-only and is not automatically applied to
-  realized portfolio returns
+* volatility targeting is now available as an optional post-optimizer scaling
+  step; leverage caps and regime-aware targeting remain future work
 * fixed-fee support currently exposes only the `per_rebalance` model

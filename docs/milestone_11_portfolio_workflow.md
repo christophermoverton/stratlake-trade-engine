@@ -32,6 +32,8 @@ aligned return matrix
         ->
 allocator / optimizer
         ->
+optional volatility targeting
+        ->
 portfolio returns + execution friction
         ->
 portfolio metrics + risk summaries
@@ -198,6 +200,11 @@ The centralized portfolio risk layer summarizes:
 * historical VaR
 * historical CVaR
 
+The portfolio workflow can also apply optional operational volatility targeting
+through a top-level `volatility_targeting` section or the CLI flags
+`--enable-volatility-targeting`, `--volatility-target-volatility`, and
+`--volatility-target-lookback`.
+
 CLI example with risk overrides:
 
 ```bash
@@ -242,21 +249,51 @@ risk:
   cvar_confidence_level: 0.95
 ```
 
+Operational volatility targeting is configured separately:
+
+```yaml
+volatility_targeting:
+  enabled: true
+  target_volatility: 0.10
+  lookback_periods: 20
+```
+
+CLI example:
+
+```bash
+python -m src.cli.run_portfolio \
+  --portfolio-config configs/portfolios.yml \
+  --portfolio-name momentum_meanrev_targeted \
+  --from-registry \
+  --timeframe 1D \
+  --enable-volatility-targeting \
+  --volatility-target-volatility 0.10 \
+  --volatility-target-lookback 20
+```
+
 ### How to interpret the risk outputs
 
 Current behavior is important:
 
-* volatility targeting is diagnostic only
-* `recommended_scale` is reported in metrics and manifests
-* the current portfolio constructor does not automatically rescale weights or
-  returns to hit the target volatility
+* `risk.target_volatility` still controls diagnostic risk summaries
+* top-level `volatility_targeting` applies an operational post-optimizer
+  scaling step before execution and portfolio evaluation
+* the operational scaling factor is computed as
+  `target_volatility / estimated_portfolio_volatility`
+* scaling is literal and uncapped in this milestone; there is no hidden
+  clipping or leverage cap
+* when enabled, the estimated pre-target volatility uses the configured
+  `lookback_periods` rolling volatility and falls back to realized volatility
+  only when the rolling window has not warmed up yet
+* if the estimated pre-target volatility is effectively zero, the run fails
+  clearly instead of silently inventing leverage behavior
 
 That means:
 
-* realized backtest results remain the realized portfolio path
-* risk artifacts help interpretation and review
-* changing `target_volatility` changes diagnostics, not the underlying return
-  path
+* base optimizer weights remain auditable
+* `weight__<strategy>` columns in the realized portfolio output are the final
+  targeted weights when targeting is enabled
+* metrics and manifests now expose both pre-target and post-target visibility
 
 Risk metrics appear in:
 
@@ -266,6 +303,10 @@ Risk metrics appear in:
 
 Key fields include:
 
+* `volatility_targeting_enabled`
+* `estimated_pre_target_volatility`
+* `estimated_post_target_volatility`
+* `volatility_scaling_factor`
 * `realized_volatility`
 * `rolling_volatility_latest`
 * `rolling_volatility_mean`

@@ -9,10 +9,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.portfolio.risk import (
+    apply_volatility_targeting,
     PortfolioRiskError,
     historical_cvar,
     historical_var,
     resolve_portfolio_risk_config,
+    resolve_portfolio_volatility_targeting_config,
     rolling_volatility,
     summarize_drawdown,
     summarize_portfolio_risk,
@@ -115,3 +117,58 @@ def test_risk_functions_reject_non_finite_returns() -> None:
             pd.Series([0.01, float("nan")], dtype="float64"),
             periods_per_year=252,
         )
+
+
+def test_resolve_volatility_targeting_config_requires_target_when_enabled() -> None:
+    with pytest.raises(PortfolioRiskError, match="target_volatility is required"):
+        resolve_portfolio_volatility_targeting_config({"enabled": True})
+
+
+def test_apply_volatility_targeting_scales_weights_and_surfaces_metadata() -> None:
+    index = pd.date_range("2025-02-01", periods=4, tz="UTC", name="ts_utc")
+    returns = pd.DataFrame(
+        {
+            "alpha": [0.02, 0.01, -0.01, 0.02],
+            "beta": [0.01, 0.00, 0.01, -0.01],
+        },
+        index=index,
+        dtype="float64",
+    )
+    weights = pd.DataFrame(
+        {
+            "alpha": [0.5, 0.5, 0.5, 0.5],
+            "beta": [0.5, 0.5, 0.5, 0.5],
+        },
+        index=index,
+        dtype="float64",
+    )
+
+    scaled, metadata = apply_volatility_targeting(
+        weights,
+        returns,
+        config={"enabled": True, "target_volatility": 0.10, "lookback_periods": 3},
+        periods_per_year=252,
+    )
+
+    assert metadata["enabled"] is True
+    assert metadata["estimated_pre_target_volatility"] is not None
+    assert metadata["volatility_scaling_factor"] is not None
+    assert metadata["estimated_post_target_volatility"] == pytest.approx(0.10)
+    assert scaled.equals(weights * float(metadata["volatility_scaling_factor"]))
+
+
+def test_apply_volatility_targeting_disabled_preserves_weights() -> None:
+    index = pd.date_range("2025-03-01", periods=3, tz="UTC", name="ts_utc")
+    returns = pd.DataFrame({"alpha": [0.01, 0.02, 0.00]}, index=index, dtype="float64")
+    weights = pd.DataFrame({"alpha": [1.0, 1.0, 1.0]}, index=index, dtype="float64")
+
+    scaled, metadata = apply_volatility_targeting(
+        weights,
+        returns,
+        config={"enabled": False, "target_volatility": 0.10, "lookback_periods": 2},
+        periods_per_year=252,
+    )
+
+    assert scaled.equals(weights)
+    assert metadata["enabled"] is False
+    assert metadata["volatility_scaling_factor"] is None

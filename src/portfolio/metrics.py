@@ -96,6 +96,32 @@ def compute_portfolio_metrics(
     rolling_volatility = risk_summary["rolling_volatility"]
     tail_risk = risk_summary["tail_risk"]
     vol_target = risk_summary["volatility_targeting"]
+    operational_targeting = normalized.attrs.get("portfolio_volatility_targeting", {})
+    operational_enabled = bool(
+        operational_targeting.get("enabled", False)
+        if isinstance(operational_targeting, dict)
+        else False
+    )
+    operational_target_volatility = (
+        operational_targeting.get("target_volatility")
+        if isinstance(operational_targeting, dict)
+        else None
+    )
+    estimated_pre_target_volatility = (
+        operational_targeting.get("estimated_pre_target_volatility")
+        if isinstance(operational_targeting, dict)
+        else None
+    )
+    estimated_post_target_volatility = (
+        operational_targeting.get("estimated_post_target_volatility")
+        if isinstance(operational_targeting, dict)
+        else None
+    )
+    volatility_scaling_factor = (
+        operational_targeting.get("volatility_scaling_factor")
+        if isinstance(operational_targeting, dict)
+        else None
+    )
 
     return {
         "cumulative_return": total,
@@ -115,7 +141,15 @@ def compute_portfolio_metrics(
         "rolling_volatility_latest": _optional_float(rolling_volatility["latest"]),
         "rolling_volatility_mean": _optional_float(rolling_volatility["mean"]),
         "rolling_volatility_max": _optional_float(rolling_volatility["max"]),
-        "target_volatility": _optional_float(vol_target["target_volatility"]),
+        "target_volatility": _optional_float(
+            operational_target_volatility
+            if operational_target_volatility is not None
+            else vol_target["target_volatility"]
+        ),
+        "volatility_targeting_enabled": float(1.0 if operational_enabled else 0.0),
+        "estimated_pre_target_volatility": _optional_float(estimated_pre_target_volatility),
+        "estimated_post_target_volatility": _optional_float(estimated_post_target_volatility),
+        "volatility_scaling_factor": _optional_float(volatility_scaling_factor),
         "realized_volatility": _optional_float(vol_target["realized_volatility"]),
         "latest_rolling_volatility": _optional_float(vol_target["latest_rolling_volatility"]),
         "volatility_target_scale": _optional_float(vol_target["recommended_scale"]),
@@ -168,7 +202,15 @@ def _validate_portfolio_metrics_input(
     *,
     validation_config: PortfolioValidationConfig | dict[str, object] | None,
 ) -> pd.DataFrame:
-    resolved_validation = resolve_portfolio_validation_config(validation_config)
+    constructor_payload = portfolio_output.attrs.get("portfolio_constructor", {})
+    effective_validation_payload = (
+        constructor_payload.get("effective_validation")
+        if isinstance(constructor_payload, dict)
+        else None
+    )
+    resolved_validation = resolve_portfolio_validation_config(
+        effective_validation_payload if effective_validation_payload is not None else validation_config
+    )
     try:
         normalized = validate_portfolio_output_constraints(
             portfolio_output,

@@ -31,6 +31,8 @@ aligned return matrix
         ->
 allocator / optimizer
         ->
+optional volatility targeting
+        ->
 portfolio constructor
         ->
 portfolio metrics + risk summaries
@@ -100,6 +102,12 @@ src/portfolio/execution.py
 The constructor combines aligned component returns, weights, and execution
 frictions into the in-memory portfolio output.
 
+When top-level `volatility_targeting` is enabled, the constructor keeps the
+optimizer-produced base weights for auditability, applies a deterministic
+post-optimizer scaling factor to create the final executable weights, and then
+passes those targeted weights into execution accounting and portfolio
+evaluation.
+
 It produces:
 
 * `strategy_return__<strategy>` traceability columns
@@ -147,13 +155,20 @@ Current risk metrics include:
 * `current_drawdown`
 * `value_at_risk`
 * `conditional_value_at_risk`
+* `volatility_targeting_enabled`
+* `estimated_pre_target_volatility`
+* `estimated_post_target_volatility`
+* `volatility_scaling_factor`
 * `volatility_target_scale`
 
 Important current behavior:
 
-* volatility targeting is diagnostic-only
-* the risk layer reports a recommended scale but does not automatically
-  transform the realized portfolio return path
+* `risk.target_volatility` remains a diagnostic setting
+* top-level `volatility_targeting` activates executable post-optimizer scaling
+* the operational scaling factor is literal and uncapped in the current
+  milestone
+* downstream execution, metrics, QA, manifests, and registry metadata all use
+  the final targeted weights when targeting is enabled
 
 ### Simulation
 
@@ -206,18 +221,21 @@ artifact contract.
    `build_aligned_return_matrix()` keeps only shared timestamps.
 3. Allocate weights.
    The allocator or optimizer produces a deterministic static weight matrix.
-4. Apply execution-friction accounting.
+4. Optionally apply volatility targeting.
+   A deterministic post-optimizer scaling factor can transform the base weights
+   toward a configured target volatility before downstream evaluation.
+5. Apply execution-friction accounting.
    The constructor computes turnover, costs, fees, slippage, and net portfolio
    returns.
-5. Compute equity and metrics.
+6. Compute equity and metrics.
    `compute_portfolio_metrics()` calculates return, execution, exposure, and
    risk summary metrics.
-6. Optionally run simulation.
+7. Optionally run simulation.
    Single-run portfolios can write bootstrap or Monte Carlo simulation outputs.
-7. Write artifacts.
+8. Write artifacts.
    `write_portfolio_artifacts()` persists normalized files and validates
    consistency.
-8. Register the run.
+9. Register the run.
    `register_portfolio_run()` appends one deterministic portfolio row to the
    shared registry model.
 

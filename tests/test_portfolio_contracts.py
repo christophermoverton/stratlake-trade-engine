@@ -292,6 +292,12 @@ def test_validate_portfolio_config_accepts_and_normalizes_defaults() -> None:
             "volatility_epsilon": 1e-12,
             "periods_per_year_override": None,
         },
+        "volatility_targeting": {
+            "enabled": False,
+            "target_volatility": None,
+            "lookback_periods": 20,
+            "volatility_epsilon": 1e-12,
+        },
     }
 
 
@@ -331,3 +337,21 @@ def test_validate_portfolio_config_rejects_non_string_allocator() -> None:
 
     with pytest.raises(PortfolioContractError, match="allocator"):
         validate_portfolio_config(config)
+
+
+def test_validate_portfolio_config_accepts_explicit_volatility_targeting() -> None:
+    config = _portfolio_config()
+    config["volatility_targeting"] = {
+        "enabled": True,
+        "target_volatility": 0.10,
+        "lookback_periods": 15,
+    }
+
+    normalized = validate_portfolio_config(config)
+
+    assert normalized["volatility_targeting"] == {
+        "enabled": True,
+        "target_volatility": pytest.approx(0.10),
+        "lookback_periods": 15,
+        "volatility_epsilon": pytest.approx(1e-12),
+    }

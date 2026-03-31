@@ -6,6 +6,17 @@ portfolios:
     components:
       - strategy_name: momentum_v1
       - strategy_name: mean_reversion_v1
+  momentum_meanrev_targeted:
+    allocator: equal_weight
+    initial_capital: 1.0
+    alignment_policy: intersection
+    components:
+      - strategy_name: momentum_v1
+      - strategy_name: mean_reversion_v1
+    volatility_targeting:
+      enabled: true
+      target_volatility: 0.10
+      lookback_periods: 20
   strict_valid_builtin_pair:
     allocator: equal_weight
     initial_capital: 1.0

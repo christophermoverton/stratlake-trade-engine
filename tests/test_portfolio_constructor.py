@@ -4,6 +4,7 @@ from pathlib import Path
 import sys
 
 import pandas as pd
+import pandas.testing as pdt
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
@@ -315,3 +316,51 @@ def test_compute_portfolio_equity_curve_rejects_non_positive_initial_capital() -
 
     with pytest.raises(ValueError, match="initial_capital must be positive"):
         compute_portfolio_equity_curve(portfolio_returns, initial_capital=0.0)
+
+
+def test_construct_portfolio_keeps_legacy_behavior_when_volatility_targeting_disabled() -> None:
+    baseline = construct_portfolio(
+        _returns_two_strategies(),
+        allocator=EqualWeightAllocator(),
+        initial_capital=10.0,
+    )
+
+    targeted_disabled = construct_portfolio(
+        _returns_two_strategies(),
+        allocator=EqualWeightAllocator(),
+        initial_capital=10.0,
+        volatility_targeting_config={"enabled": False, "target_volatility": 0.10, "lookback_periods": 2},
+    )
+
+    pdt.assert_frame_equal(baseline, targeted_disabled)
+    assert targeted_disabled.attrs["portfolio_volatility_targeting"]["enabled"] is False
+    pdt.assert_frame_equal(
+        baseline.filter(regex=r"^weight__").rename(columns=lambda value: value.removeprefix("weight__")),
+        targeted_disabled.attrs["portfolio_volatility_targeting"]["base_weights"].reset_index(drop=True),
+    )
+
+
+def test_construct_portfolio_applies_deterministic_volatility_targeting_to_weights() -> None:
+    returns = pd.DataFrame(
+        {
+            "alpha": [0.02, 0.01, -0.01, 0.02],
+            "beta": [0.01, 0.00, 0.01, -0.01],
+        },
+        index=pd.date_range("2025-04-01", periods=4, tz="UTC", name="ts_utc"),
+        dtype="float64",
+    )
+
+    output = construct_portfolio(
+        returns,
+        allocator=EqualWeightAllocator(),
+        initial_capital=1.0,
+        volatility_targeting_config={"enabled": True, "target_volatility": 0.10, "lookback_periods": 3},
+    )
+
+    targeting = output.attrs["portfolio_volatility_targeting"]
+    scale = float(targeting["volatility_scaling_factor"])
+    assert scale > 0.0
+    assert targeting["estimated_pre_target_volatility"] is not None
+    assert targeting["estimated_post_target_volatility"] == pytest.approx(0.10)
+    assert output["weight__alpha"].iloc[0] == pytest.approx(0.5 * scale)
+    assert output["weight__beta"].iloc[0] == pytest.approx(0.5 * scale)

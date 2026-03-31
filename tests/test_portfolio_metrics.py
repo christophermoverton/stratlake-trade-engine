@@ -76,6 +76,10 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "rolling_volatility_mean",
         "rolling_volatility_max",
         "target_volatility",
+        "volatility_targeting_enabled",
+        "estimated_pre_target_volatility",
+        "estimated_post_target_volatility",
+        "volatility_scaling_factor",
         "realized_volatility",
         "latest_rolling_volatility",
         "volatility_target_scale",
@@ -133,6 +137,10 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["rolling_volatility_mean"] is None
     assert metrics["rolling_volatility_max"] is None
     assert metrics["target_volatility"] is None
+    assert metrics["volatility_targeting_enabled"] == pytest.approx(0.0)
+    assert metrics["estimated_pre_target_volatility"] is None
+    assert metrics["estimated_post_target_volatility"] is None
+    assert metrics["volatility_scaling_factor"] is None
     assert metrics["realized_volatility"] == pytest.approx(expected_annual_volatility)
     assert metrics["latest_rolling_volatility"] is None
     assert metrics["volatility_target_scale"] is None
@@ -302,3 +310,22 @@ def test_compute_portfolio_metrics_counts_non_strict_sanity_issues() -> None:
     )
 
     assert metrics["validation_issue_count"] == pytest.approx(1.0)
+
+
+def test_compute_portfolio_metrics_surfaces_operational_volatility_targeting_metadata() -> None:
+    portfolio_output = _portfolio_output()
+    portfolio_output.attrs["portfolio_volatility_targeting"] = {
+        "enabled": True,
+        "target_volatility": 0.10,
+        "estimated_pre_target_volatility": 0.08,
+        "estimated_post_target_volatility": 0.10,
+        "volatility_scaling_factor": 1.25,
+    }
+
+    metrics = compute_portfolio_metrics(portfolio_output, timeframe="1d")
+
+    assert metrics["target_volatility"] == pytest.approx(0.10)
+    assert metrics["volatility_targeting_enabled"] == pytest.approx(1.0)
+    assert metrics["estimated_pre_target_volatility"] == pytest.approx(0.08)
+    assert metrics["estimated_post_target_volatility"] == pytest.approx(0.10)
+    assert metrics["volatility_scaling_factor"] == pytest.approx(1.25)

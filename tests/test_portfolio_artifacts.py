@@ -49,6 +49,12 @@ def _config() -> dict[str, object]:
     return {
         "portfolio_name": "Core Portfolio",
         "allocator": "equal_weight",
+        "volatility_targeting": {
+            "enabled": False,
+            "lookback_periods": 20,
+            "target_volatility": None,
+            "volatility_epsilon": 1e-12,
+        },
         "optimizer": {
             "method": "equal_weight",
             "long_only": True,
@@ -165,6 +171,12 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "portfolio_name": "Core Portfolio",
         "settings": {"long_only": True, "rebalance": "daily"},
         "timeframe": "1D",
+        "volatility_targeting": {
+            "enabled": False,
+            "lookback_periods": 20,
+            "target_volatility": None,
+            "volatility_epsilon": 1e-12,
+        },
     }
 
     components_payload = _load_json(output_dir / "components.json")
@@ -242,6 +254,7 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     }
     assert manifest_payload["qa_summary_status"] == "pass"
     assert manifest_payload["risk"]["config"]["volatility_window"] == 20
+    assert manifest_payload["risk_summary"]["volatility_targeting_enabled"] == pytest.approx(0.0)
     assert manifest_payload["risk"]["summary"]["max_drawdown"] == pytest.approx(
         metrics_payload["max_drawdown"]
     )
@@ -439,6 +452,12 @@ def test_write_portfolio_artifacts_surfaces_non_strict_sanity_in_qa_summary(tmp_
 def test_write_portfolio_artifacts_persists_effective_runtime_config(tmp_path: Path) -> None:
     output_dir = tmp_path / "portfolio_runtime_abcd1234"
     config = _config() | {
+        "volatility_targeting": {
+            "enabled": True,
+            "target_volatility": 0.10,
+            "lookback_periods": 20,
+            "volatility_epsilon": 1e-12,
+        },
         "runtime": {
             "execution": {
                 "enabled": True,
@@ -509,3 +528,4 @@ def test_write_portfolio_artifacts_persists_effective_runtime_config(tmp_path: P
     assert config_payload["runtime"]["execution"]["transaction_cost_bps"] == pytest.approx(10.0)
     assert config_payload["runtime"]["portfolio_validation"]["max_leverage"] == pytest.approx(1.0)
     assert config_payload["runtime"]["risk"]["target_volatility"] == pytest.approx(0.12)
+    assert config_payload["volatility_targeting"]["enabled"] is True

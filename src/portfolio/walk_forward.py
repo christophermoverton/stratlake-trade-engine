@@ -23,6 +23,7 @@ from src.research.registry import (
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
+from src.research.metrics import MINUTE_PERIODS_PER_YEAR, TRADING_DAYS_PER_YEAR
 
 from .allocators import BaseAllocator
 from .artifacts import (
@@ -58,6 +59,10 @@ PORTFOLIO_WALK_FORWARD_METRIC_KEYS: tuple[str, ...] = (
     "rolling_volatility_mean",
     "rolling_volatility_max",
     "target_volatility",
+    "volatility_targeting_enabled",
+    "estimated_pre_target_volatility",
+    "estimated_post_target_volatility",
+    "volatility_scaling_factor",
     "realized_volatility",
     "latest_rolling_volatility",
     "volatility_target_scale",
@@ -133,6 +138,7 @@ def run_portfolio_walk_forward(
     execution_config: ExecutionConfig | None = None,
     validation_config: Mapping[str, Any] | None = None,
     risk_config: Mapping[str, Any] | None = None,
+    volatility_targeting_config: Mapping[str, Any] | None = None,
     sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
     strict_mode: bool = False,
 ) -> dict[str, Any]:
@@ -172,6 +178,7 @@ def run_portfolio_walk_forward(
         alignment_policy=alignment_policy,
         evaluation_path=evaluation_path,
         runtime_config=resolved_runtime,
+        volatility_targeting_config=volatility_targeting_config,
     )
     run_id = generate_portfolio_run_id(
         portfolio_name=normalized_portfolio_name,
@@ -194,6 +201,7 @@ def run_portfolio_walk_forward(
             execution_config=resolved_runtime.execution,
             validation_config=resolved_runtime.portfolio_validation.to_dict(),
             risk_config=resolved_runtime.risk.to_dict(),
+            volatility_targeting_config=volatility_targeting_config,
             sanity_config=resolved_runtime.sanity.to_dict(),
             strict_mode=resolved_runtime.strict_mode.enabled,
         )
@@ -319,6 +327,7 @@ def _execute_portfolio_split(
     execution_config: ExecutionConfig | None,
     validation_config: Mapping[str, Any] | None,
     risk_config: Mapping[str, Any] | None,
+    volatility_targeting_config: Mapping[str, Any] | None,
     sanity_config: Mapping[str, Any] | None,
     strict_mode: bool,
 ) -> dict[str, Any]:
@@ -342,6 +351,9 @@ def _execute_portfolio_split(
             execution_config=execution_config,
             validation_config=validation_config,
             optimization_returns=optimization_returns,
+            risk_config=risk_config,
+            volatility_targeting_config=volatility_targeting_config,
+            periods_per_year=_periods_per_year_from_timeframe(timeframe),
         )
     except ValueError as exc:
         try:
@@ -397,6 +409,7 @@ def _execute_portfolio_split(
         ),
         "validation": dict(validation_config or {}),
         "risk": dict(risk_config or {}),
+        "volatility_targeting": dict(volatility_targeting_config or {}),
         "optimizer": portfolio_output.attrs.get("portfolio_constructor", {}).get("optimizer"),
         "sanity": dict(resolve_sanity_check_config(sanity_config).to_dict()),
     }
@@ -548,6 +561,7 @@ def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) 
         "timeframe": split_result["timeframe"],
         "validation": dict(split_result.get("validation", {})),
         "risk": dict(split_result.get("risk", {})),
+        "volatility_targeting": dict(split_result.get("volatility_targeting", {})),
     }
     weights_frame = _weights_frame(portfolio_output)
     returns_frame = _portfolio_returns_frame(portfolio_output)
@@ -646,6 +660,7 @@ def _build_manifest(
             "sanity": config.get("sanity"),
             "strict_mode": config.get("strict_mode"),
             "validation": config.get("validation"),
+            "volatility_targeting": config.get("volatility_targeting"),
         },
         "execution": {
             "config": config.get("execution"),
@@ -666,12 +681,24 @@ def _build_manifest(
                 "conditional_value_at_risk_confidence_level": aggregate_metrics["metric_summary"].get(
                     "conditional_value_at_risk_confidence_level"
                 ),
+                "estimated_post_target_volatility": aggregate_metrics["metric_summary"].get(
+                    "estimated_post_target_volatility"
+                ),
+                "estimated_pre_target_volatility": aggregate_metrics["metric_summary"].get(
+                    "estimated_pre_target_volatility"
+                ),
                 "max_drawdown": aggregate_metrics["metric_summary"].get("max_drawdown"),
                 "realized_volatility": aggregate_metrics["metric_summary"].get("realized_volatility"),
                 "target_volatility": aggregate_metrics["metric_summary"].get("target_volatility"),
                 "value_at_risk": aggregate_metrics["metric_summary"].get("value_at_risk"),
                 "value_at_risk_confidence_level": aggregate_metrics["metric_summary"].get(
                     "value_at_risk_confidence_level"
+                ),
+                "volatility_scaling_factor": aggregate_metrics["metric_summary"].get(
+                    "volatility_scaling_factor"
+                ),
+                "volatility_targeting_enabled": aggregate_metrics["metric_summary"].get(
+                    "volatility_targeting_enabled"
                 ),
             },
         },
@@ -698,6 +725,7 @@ def _build_root_config(
     alignment_policy: str,
     evaluation_path: Path,
     runtime_config: RuntimeConfig,
+    volatility_targeting_config: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     return {
         "portfolio_name": portfolio_name,
@@ -710,6 +738,7 @@ def _build_root_config(
         "evaluation_config_path": evaluation_path.as_posix(),
         "validation": runtime_config.portfolio_validation.to_dict(),
         "risk": runtime_config.risk.to_dict(),
+        "volatility_targeting": None if volatility_targeting_config is None else dict(volatility_targeting_config),
         "sanity": runtime_config.sanity.to_dict(),
         "strict_mode": runtime_config.strict_mode.to_dict(),
         "runtime": runtime_config.to_dict(),
@@ -764,6 +793,15 @@ def _normalize_timeframe(timeframe: str) -> str:
     if normalized in {"1m", "1min", "1minute", "minute", "minutes"}:
         return "1Min"
     raise PortfolioWalkForwardError("timeframe must be one of: 1D, 1Min.")
+
+
+def _periods_per_year_from_timeframe(timeframe: str) -> int:
+    normalized = _normalize_timeframe(timeframe)
+    if normalized == "1D":
+        return TRADING_DAYS_PER_YEAR
+    if normalized == "1Min":
+        return MINUTE_PERIODS_PER_YEAR
+    raise PortfolioWalkForwardError(f"Unsupported portfolio timeframe: {timeframe!r}.")
 
 
 def _validate_timeframe_compatibility(timeframe: str, evaluation_config: EvaluationConfig) -> None:

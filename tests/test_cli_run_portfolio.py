@@ -56,6 +56,11 @@ def test_parse_args_accepts_optimizer_and_risk_overrides() -> None:
             "1D",
             "--optimizer-method",
             "max_sharpe",
+            "--enable-volatility-targeting",
+            "--volatility-target-volatility",
+            "0.10",
+            "--volatility-target-lookback",
+            "15",
             "--risk-target-volatility",
             "0.12",
             "--risk-volatility-window",
@@ -71,6 +76,9 @@ def test_parse_args_accepts_optimizer_and_risk_overrides() -> None:
     )
 
     assert args.optimizer_method == "max_sharpe"
+    assert args.enable_volatility_targeting is True
+    assert args.volatility_target_volatility == pytest.approx(0.10)
+    assert args.volatility_target_lookback == 15
     assert args.risk_target_volatility == pytest.approx(0.12)
     assert args.risk_volatility_window == 30
     assert args.risk_var_confidence_level == pytest.approx(0.9)
@@ -287,6 +295,12 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
         "volatility_epsilon": 1e-12,
         "periods_per_year_override": None,
     }
+    assert result.config["volatility_targeting"] == {
+        "enabled": False,
+        "target_volatility": None,
+        "lookback_periods": 20,
+        "volatility_epsilon": 1e-12,
+    }
     assert result.config["timeframe"] == "1D"
 
 
@@ -353,6 +367,11 @@ def test_run_cli_applies_optimizer_and_risk_cli_overrides_deterministically(
             "1D",
             "--optimizer-method",
             "max_sharpe",
+            "--enable-volatility-targeting",
+            "--volatility-target-volatility",
+            "0.10",
+            "--volatility-target-lookback",
+            "15",
             "--risk-target-volatility",
             "0.12",
             "--risk-volatility-window",
@@ -370,6 +389,9 @@ def test_run_cli_applies_optimizer_and_risk_cli_overrides_deterministically(
     assert result.allocator_name == "max_sharpe"
     assert result.config["allocator"] == "max_sharpe"
     assert result.config["optimizer"]["method"] == "max_sharpe"
+    assert result.config["volatility_targeting"]["enabled"] is True
+    assert result.config["volatility_targeting"]["target_volatility"] == pytest.approx(0.10)
+    assert result.config["volatility_targeting"]["lookback_periods"] == 15
     assert result.config["risk"]["target_volatility"] == pytest.approx(0.12)
     assert result.config["risk"]["volatility_window"] == 30
     assert result.config["risk"]["allow_scale_up"] is True
@@ -380,6 +402,8 @@ def test_run_cli_applies_optimizer_and_risk_cli_overrides_deterministically(
     config_payload = json.loads((result.experiment_dir / "config.json").read_text(encoding="utf-8"))
     assert config_payload["allocator"] == "max_sharpe"
     assert config_payload["optimizer"]["method"] == "max_sharpe"
+    assert config_payload["volatility_targeting"]["enabled"] is True
+    assert config_payload["volatility_targeting"]["target_volatility"] == pytest.approx(0.10)
     assert config_payload["risk"]["target_volatility"] == pytest.approx(0.12)
     assert config_payload["runtime"]["risk"]["volatility_window"] == 30
 

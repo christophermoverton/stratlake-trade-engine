@@ -47,6 +47,24 @@ class PortfolioRiskConfig:
         }
 
 
+@dataclass(frozen=True)
+class PortfolioVolatilityTargetingConfig:
+    """Deterministic post-optimizer volatility-targeting controls."""
+
+    enabled: bool = False
+    target_volatility: float | None = None
+    lookback_periods: int = _DEFAULT_VOLATILITY_WINDOW
+    volatility_epsilon: float = _DEFAULT_VOLATILITY_EPSILON
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "target_volatility": self.target_volatility,
+            "lookback_periods": self.lookback_periods,
+            "volatility_epsilon": self.volatility_epsilon,
+        }
+
+
 def resolve_portfolio_risk_config(
     payload: PortfolioRiskConfig | dict[str, Any] | None,
 ) -> PortfolioRiskConfig:
@@ -112,6 +130,63 @@ def resolve_portfolio_risk_config(
         cvar_confidence_level=cvar_confidence_level,
         volatility_epsilon=volatility_epsilon,
         periods_per_year_override=periods_per_year_override,
+    )
+
+
+def resolve_portfolio_volatility_targeting_config(
+    payload: PortfolioVolatilityTargetingConfig | dict[str, Any] | None,
+) -> PortfolioVolatilityTargetingConfig:
+    if payload is None:
+        return PortfolioVolatilityTargetingConfig()
+    if isinstance(payload, PortfolioVolatilityTargetingConfig):
+        return payload
+    if not isinstance(payload, dict):
+        raise PortfolioRiskError(
+            "portfolio volatility targeting config must be a dictionary when provided."
+        )
+
+    enabled = payload.get("enabled", False)
+    if not isinstance(enabled, bool):
+        raise PortfolioRiskError(
+            "portfolio volatility targeting field 'enabled' must be a boolean."
+        )
+    lookback_periods = _coerce_positive_int(
+        payload.get("lookback_periods", _DEFAULT_VOLATILITY_WINDOW),
+        field_name="volatility_targeting.lookback_periods",
+    )
+    if lookback_periods <= 1:
+        raise PortfolioRiskError(
+            "volatility_targeting.lookback_periods must be an integer greater than 1."
+        )
+    volatility_epsilon = _coerce_positive_float(
+        payload.get("volatility_epsilon", _DEFAULT_VOLATILITY_EPSILON),
+        field_name="volatility_targeting.volatility_epsilon",
+    )
+    target_volatility_value = payload.get("target_volatility")
+    if enabled:
+        if target_volatility_value is None:
+            raise PortfolioRiskError(
+                "volatility_targeting.target_volatility is required when volatility targeting is enabled."
+            )
+        target_volatility = _coerce_positive_float(
+            target_volatility_value,
+            field_name="volatility_targeting.target_volatility",
+        )
+    else:
+        target_volatility = (
+            None
+            if target_volatility_value is None
+            else _coerce_positive_float(
+                target_volatility_value,
+                field_name="volatility_targeting.target_volatility",
+            )
+        )
+
+    return PortfolioVolatilityTargetingConfig(
+        enabled=enabled,
+        target_volatility=target_volatility,
+        lookback_periods=lookback_periods,
+        volatility_epsilon=volatility_epsilon,
     )
 
 
@@ -379,6 +454,79 @@ def summarize_portfolio_risk(
     return summary
 
 
+def apply_volatility_targeting(
+    weights_wide: pd.DataFrame,
+    returns_wide: pd.DataFrame,
+    *,
+    config: PortfolioVolatilityTargetingConfig | dict[str, Any] | None = None,
+    periods_per_year: int,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
+    resolved = resolve_portfolio_volatility_targeting_config(config)
+    normalized_weights = _validate_targeting_matrix(weights_wide, owner="weights_wide")
+    normalized_returns = _validate_targeting_matrix(returns_wide, owner="returns_wide")
+
+    if not normalized_weights.index.equals(normalized_returns.index):
+        raise PortfolioRiskError(
+            "weights_wide and returns_wide must have exactly matching indices for volatility targeting."
+        )
+    if not normalized_weights.columns.equals(normalized_returns.columns):
+        raise PortfolioRiskError(
+            "weights_wide and returns_wide must have exactly matching columns for volatility targeting."
+        )
+
+    base_weights = normalized_weights.copy()
+    base_portfolio_returns = (normalized_returns * base_weights).sum(axis=1).astype("float64")
+    diagnostics = volatility_target_diagnostics(
+        base_portfolio_returns,
+        config={
+            "volatility_window": resolved.lookback_periods,
+            "target_volatility": resolved.target_volatility,
+            "volatility_epsilon": resolved.volatility_epsilon,
+            "min_volatility_scale": 0.0,
+            "max_volatility_scale": 1_000_000_000_000.0,
+            "allow_scale_up": True,
+        },
+        periods_per_year=periods_per_year,
+        leverage_ceiling=None,
+    )
+
+    metadata: dict[str, Any] = {
+        "enabled": bool(resolved.enabled),
+        "config": resolved.to_dict(),
+        "target_volatility": resolved.target_volatility,
+        "lookback_periods": int(resolved.lookback_periods),
+        "base_weights": base_weights.copy(),
+        "estimated_pre_target_volatility": diagnostics["latest_rolling_volatility"]
+        if diagnostics["latest_rolling_volatility"] is not None
+        else diagnostics["realized_volatility"],
+        "estimated_post_target_volatility": None,
+        "volatility_scaling_factor": None,
+        "scaling_limited_by_zero_volatility": False,
+    }
+
+    if not resolved.enabled:
+        metadata["targeted_weights"] = base_weights.copy()
+        return base_weights, metadata
+
+    estimated_pre_target_volatility = metadata["estimated_pre_target_volatility"]
+    if estimated_pre_target_volatility is None or float(estimated_pre_target_volatility) <= resolved.volatility_epsilon:
+        raise PortfolioRiskError(
+            "cannot apply volatility targeting when estimated portfolio volatility is effectively zero."
+        )
+
+    scaling_factor = float(resolved.target_volatility / float(estimated_pre_target_volatility))
+    if not math.isfinite(scaling_factor) or scaling_factor < 0.0:
+        raise PortfolioRiskError("volatility targeting scaling factor must be finite and non-negative.")
+
+    targeted_weights = (base_weights * scaling_factor).astype("float64")
+    metadata["volatility_scaling_factor"] = scaling_factor
+    metadata["estimated_post_target_volatility"] = float(
+        float(estimated_pre_target_volatility) * scaling_factor
+    )
+    metadata["targeted_weights"] = targeted_weights.copy()
+    return targeted_weights, metadata
+
+
 def _validate_risk_summary(summary: dict[str, Any]) -> None:
     rolling = summary.get("rolling_volatility", {})
     tail_risk = summary.get("tail_risk", {})
@@ -508,11 +656,14 @@ def _coerce_float(value: Any, *, field_name: str) -> float:
 __all__ = [
     "PortfolioRiskConfig",
     "PortfolioRiskError",
+    "PortfolioVolatilityTargetingConfig",
+    "apply_volatility_targeting",
     "drawdown_series_from_equity",
     "drawdown_series_from_returns",
     "historical_cvar",
     "historical_var",
     "resolve_portfolio_risk_config",
+    "resolve_portfolio_volatility_targeting_config",
     "rolling_volatility",
     "summarize_drawdown",
     "summarize_portfolio_risk",
@@ -520,3 +671,32 @@ __all__ = [
     "validate_return_series",
     "volatility_target_diagnostics",
 ]
+
+
+def _validate_targeting_matrix(df: pd.DataFrame, *, owner: str) -> pd.DataFrame:
+    if not isinstance(df, pd.DataFrame):
+        raise PortfolioRiskError(f"{owner} must be provided as a pandas DataFrame.")
+    if not isinstance(df.index, pd.DatetimeIndex):
+        raise PortfolioRiskError(f"{owner} must use a DatetimeIndex.")
+    if df.index.name != "ts_utc":
+        raise PortfolioRiskError(f"{owner} index must be named 'ts_utc'.")
+    if df.index.tz is None or str(df.index.tz) != "UTC":
+        raise PortfolioRiskError(f"{owner} index must be timezone-aware UTC.")
+    if df.columns.empty:
+        raise PortfolioRiskError(f"{owner} must contain at least one strategy column.")
+    if not df.columns.is_unique:
+        raise PortfolioRiskError(f"{owner} must contain unique strategy columns.")
+
+    normalized = df.copy()
+    normalized = normalized.sort_index(kind="stable")
+    normalized = normalized.loc[:, sorted(str(column) for column in normalized.columns)]
+    for column in normalized.columns:
+        normalized[column] = pd.to_numeric(normalized[column], errors="coerce").astype("float64")
+    if normalized.isna().any().any():
+        bad_index, bad_column = normalized.isna().stack()[lambda values: values].index[0]
+        raise PortfolioRiskError(
+            f"{owner} must contain only finite numeric values. First invalid location=({bad_index!r}, {bad_column!r})."
+        )
+    if not normalized.map(lambda value: math.isfinite(float(value))).all().all():
+        raise PortfolioRiskError(f"{owner} must contain only finite numeric values.")
+    return normalized

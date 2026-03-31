@@ -84,6 +84,7 @@ class PortfolioWalkForwardRunResult:
 class PortfolioCliOverrides:
     optimizer: dict[str, Any] | None = None
     runtime: dict[str, Any] | None = None
+    volatility_targeting: dict[str, Any] | None = None
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -133,6 +134,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "Override the effective portfolio allocator/optimizer method for this run. "
             "Use equal_weight to keep deterministic equal-weight construction."
         ),
+    )
+    parser.add_argument(
+        "--enable-volatility-targeting",
+        action="store_true",
+        help="Apply explicit post-optimizer volatility targeting to portfolio weights.",
+    )
+    parser.add_argument(
+        "--volatility-target-volatility",
+        type=float,
+        help="Override the operational target volatility used when volatility targeting is enabled.",
+    )
+    parser.add_argument(
+        "--volatility-target-lookback",
+        type=int,
+        help="Override the lookback window used by operational volatility targeting.",
     )
     parser.add_argument(
         "--risk-target-volatility",
@@ -290,6 +306,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             execution_config=runtime_config.execution,
             validation_config=runtime_config.portfolio_validation.to_dict(),
             risk_config=runtime_config.risk.to_dict(),
+            volatility_targeting_config=resolved_config.get("volatility_targeting"),
             sanity_config=runtime_config.sanity.to_dict(),
             strict_mode=runtime_config.strict_mode.enabled,
         )
@@ -318,6 +335,9 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
                 execution_config=runtime_config.execution,
                 validation_config=runtime_config.portfolio_validation,
                 optimization_returns=aligned_returns,
+                risk_config=runtime_config.risk,
+                volatility_targeting_config=resolved_config.get("volatility_targeting"),
+                periods_per_year=_periods_per_year_from_timeframe(timeframe),
             )
         except ValueError as exc:
             raise_research_validation_error(
@@ -465,6 +485,13 @@ def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) ->
     print(f"Total Execution Friction: {_format_pct(result.metrics.get('total_execution_friction'))}")
     print(f"Sharpe Ratio: {_format_decimal(result.metrics.get('sharpe_ratio'))}")
     print(f"Realized Volatility: {_format_pct(result.metrics.get('realized_volatility'))}")
+    if float(result.metrics.get("volatility_targeting_enabled") or 0.0) > 0.0:
+        print(
+            "Volatility Targeting: "
+            f"enabled | Target {_format_pct(result.metrics.get('target_volatility'))}"
+            f" | Pre {_format_pct(result.metrics.get('estimated_pre_target_volatility'))}"
+            f" | Scale {_format_decimal(result.metrics.get('volatility_scaling_factor'))}"
+        )
     print(f"Max Drawdown: {_format_pct(result.metrics.get('max_drawdown'))}")
     print(f"VaR: {_format_pct(result.metrics.get('value_at_risk'))}")
     print(f"CVaR: {_format_pct(result.metrics.get('conditional_value_at_risk'))}")
@@ -753,6 +780,7 @@ def _normalize_portfolio_definition(
         "execution": definition.get("execution"),
         "validation": definition.get("validation"),
         "risk": definition.get("risk"),
+        "volatility_targeting": definition.get("volatility_targeting"),
         "sanity": definition.get("sanity"),
         "simulation": definition.get("simulation"),
     }
@@ -1006,10 +1034,26 @@ def _milestone_11_overrides_from_args(args: argparse.Namespace) -> PortfolioCliO
     if args.risk_max_volatility_scale is not None:
         risk_override["max_volatility_scale"] = float(args.risk_max_volatility_scale)
 
+    volatility_targeting_override: dict[str, Any] = {}
+    if args.enable_volatility_targeting:
+        volatility_targeting_override["enabled"] = True
+    if args.volatility_target_volatility is not None:
+        volatility_targeting_override["target_volatility"] = float(args.volatility_target_volatility)
+    if args.volatility_target_lookback is not None:
+        volatility_targeting_override["lookback_periods"] = int(args.volatility_target_lookback)
+
     runtime_override = None if not risk_override else {"risk": risk_override}
-    if optimizer_override is None and runtime_override is None:
+    if (
+        optimizer_override is None
+        and runtime_override is None
+        and not volatility_targeting_override
+    ):
         return None
-    return PortfolioCliOverrides(optimizer=optimizer_override, runtime=runtime_override)
+    return PortfolioCliOverrides(
+        optimizer=optimizer_override,
+        runtime=runtime_override,
+        volatility_targeting=(None if not volatility_targeting_override else volatility_targeting_override),
+    )
 
 
 def _apply_cli_portfolio_overrides(
@@ -1017,22 +1061,32 @@ def _apply_cli_portfolio_overrides(
     cli_overrides: PortfolioCliOverrides | None,
 ) -> dict[str, Any]:
     resolved = dict(base_definition)
-    if cli_overrides is None or cli_overrides.optimizer is None:
+    if cli_overrides is None:
         return resolved
 
-    optimizer_override = dict(cli_overrides.optimizer)
-    optimizer_method = _normalize_required_string(
-        optimizer_override["method"],
-        field_name="optimizer.method",
-    ).lower()
-    configured_optimizer = (
-        dict(resolved["optimizer"])
-        if isinstance(resolved.get("optimizer"), Mapping)
-        else {}
-    )
-    configured_optimizer["method"] = optimizer_method
-    resolved["optimizer"] = configured_optimizer
-    resolved["allocator"] = optimizer_method
+    if cli_overrides.optimizer is not None:
+        optimizer_override = dict(cli_overrides.optimizer)
+        optimizer_method = _normalize_required_string(
+            optimizer_override["method"],
+            field_name="optimizer.method",
+        ).lower()
+        configured_optimizer = (
+            dict(resolved["optimizer"])
+            if isinstance(resolved.get("optimizer"), Mapping)
+            else {}
+        )
+        configured_optimizer["method"] = optimizer_method
+        resolved["optimizer"] = configured_optimizer
+        resolved["allocator"] = optimizer_method
+
+    if cli_overrides.volatility_targeting is not None:
+        configured_volatility_targeting = (
+            dict(resolved["volatility_targeting"])
+            if isinstance(resolved.get("volatility_targeting"), Mapping)
+            else {}
+        )
+        configured_volatility_targeting.update(dict(cli_overrides.volatility_targeting))
+        resolved["volatility_targeting"] = configured_volatility_targeting
     return resolved
 
 

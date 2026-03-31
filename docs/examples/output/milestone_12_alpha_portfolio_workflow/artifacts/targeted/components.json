@@ -1,0 +1,16 @@
+{
+  "components": [
+    {
+      "run_id": "example_aapl",
+      "strategy_name": "AAPL"
+    },
+    {
+      "run_id": "example_msft",
+      "strategy_name": "MSFT"
+    },
+    {
+      "run_id": "example_nvda",
+      "strategy_name": "NVDA"
+    }
+  ]
+}

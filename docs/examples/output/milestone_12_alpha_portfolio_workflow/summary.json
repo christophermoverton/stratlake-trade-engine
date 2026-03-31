@@ -1,0 +1,234 @@
+{
+  "backtest": {
+    "final_equity_curve": 1.0220155183,
+    "row_count": 4,
+    "sample": [
+      {
+        "equity_curve": 1.0,
+        "executed_signal": 0.0,
+        "feature_ret_1d": -0.004,
+        "signal": 1.4575,
+        "strategy_return": -0.0,
+        "symbol": "NVDA",
+        "ts_utc": "2025-01-05T00:00:00Z"
+      },
+      {
+        "equity_curve": 1.0131175,
+        "executed_signal": 1.4575,
+        "feature_ret_1d": 0.009,
+        "signal": 1.6675,
+        "strategy_return": 0.0131175,
+        "symbol": "NVDA",
+        "ts_utc": "2025-01-06T00:00:00Z"
+      },
+      {
+        "equity_curve": 1.0317006077,
+        "executed_signal": 1.6675,
+        "feature_ret_1d": 0.011,
+        "signal": 1.8775,
+        "strategy_return": 0.0183425,
+        "symbol": "NVDA",
+        "ts_utc": "2025-01-07T00:00:00Z"
+      },
+      {
+        "equity_curve": 1.0220155183,
+        "executed_signal": 1.8775,
+        "feature_ret_1d": -0.005,
+        "signal": 1.7875,
+        "strategy_return": -0.0093875,
+        "symbol": "NVDA",
+        "ts_utc": "2025-01-08T00:00:00Z"
+      }
+    ],
+    "strategy_return_sum": 0.0220725,
+    "symbol": "NVDA"
+  },
+  "cross_section": {
+    "sample": [
+      {
+        "continuous_signal": 0.0775,
+        "prediction_score": 0.0775,
+        "signal": 1.0,
+        "symbol": "AAPL",
+        "ts_utc": "2025-01-05T00:00:00Z"
+      },
+      {
+        "continuous_signal": -0.6425,
+        "prediction_score": -0.6425,
+        "signal": -1.0,
+        "symbol": "MSFT",
+        "ts_utc": "2025-01-05T00:00:00Z"
+      },
+      {
+        "continuous_signal": 1.4575,
+        "prediction_score": 1.4575,
+        "signal": 1.0,
+        "symbol": "NVDA",
+        "ts_utc": "2025-01-05T00:00:00Z"
+      }
+    ],
+    "timestamp_count": 4
+  },
+  "dataset": {
+    "prediction_row_count": 12,
+    "row_count": 24,
+    "symbols": [
+      "AAPL",
+      "MSFT",
+      "NVDA"
+    ]
+  },
+  "portfolio": {
+    "baseline": {
+      "metrics": {
+        "annualized_volatility": 0.0631722067,
+        "total_return": 0.0061378539
+      },
+      "weights": {
+        "AAPL": 0.33333333,
+        "MSFT": 0.33333333,
+        "NVDA": 0.33333333
+      }
+    },
+    "baseline_targeting_enabled": false,
+    "return_matrix_columns": [
+      "AAPL",
+      "MSFT",
+      "NVDA"
+    ],
+    "return_matrix_rows": 4,
+    "targeted": {
+      "metrics": {
+        "annualized_volatility": 0.0634121405,
+        "total_return": 0.006161129
+      },
+      "targeting": {
+        "estimated_post_target_volatility": 0.1,
+        "estimated_pre_target_volatility": 0.0996216279,
+        "scaling_factor": 1.0037980917,
+        "target_volatility": 0.1
+      },
+      "weights": {
+        "AAPL": 0.33459936,
+        "MSFT": 0.33459936,
+        "NVDA": 0.33459936
+      }
+    }
+  },
+  "predictions": {
+    "sample": [
+      {
+        "continuous_signal": 0.0775,
+        "prediction_score": 0.0775,
+        "signal": 1.0,
+        "symbol": "AAPL",
+        "ts_utc": "2025-01-05T00:00:00Z"
+      },
+      {
+        "continuous_signal": -0.0125,
+        "prediction_score": -0.0125,
+        "signal": -1.0,
+        "symbol": "AAPL",
+        "ts_utc": "2025-01-06T00:00:00Z"
+      },
+      {
+        "continuous_signal": 0.1675,
+        "prediction_score": 0.1675,
+        "signal": 1.0,
+        "symbol": "AAPL",
+        "ts_utc": "2025-01-07T00:00:00Z"
+      },
+      {
+        "continuous_signal": 0.2875,
+        "prediction_score": 0.2875,
+        "signal": 1.0,
+        "symbol": "AAPL",
+        "ts_utc": "2025-01-08T00:00:00Z"
+      },
+      {
+        "continuous_signal": -0.6425,
+        "prediction_score": -0.6425,
+        "signal": -1.0,
+        "symbol": "MSFT",
+        "ts_utc": "2025-01-05T00:00:00Z"
+      },
+      {
+        "continuous_signal": -0.4325,
+        "prediction_score": -0.4325,
+        "signal": -1.0,
+        "symbol": "MSFT",
+        "ts_utc": "2025-01-06T00:00:00Z"
+      }
+    ]
+  },
+  "splits": {
+    "fixed": {
+      "metadata": {
+        "example": "milestone_12",
+        "mode": "fixed",
+        "predict_duration_seconds": 345600,
+        "predict_end": "2025-01-09T00:00:00Z",
+        "predict_start": "2025-01-05T00:00:00Z",
+        "train_duration_seconds": 345600,
+        "train_end": "2025-01-05T00:00:00Z",
+        "train_start": "2025-01-01T00:00:00Z",
+        "window_semantics": {
+          "predict": "[predict_start, predict_end)",
+          "train": "[train_start, train_end)"
+        }
+      },
+      "mode": "fixed",
+      "predict_end": "2025-01-09T00:00:00Z",
+      "predict_start": "2025-01-05T00:00:00Z",
+      "split_id": "fixed_demo_split",
+      "train_end": "2025-01-05T00:00:00Z",
+      "train_start": "2025-01-01T00:00:00Z"
+    },
+    "rolling": [
+      {
+        "metadata": {
+          "mode": "rolling",
+          "predict_duration_seconds": 172800,
+          "predict_end": "2025-01-07T00:00:00Z",
+          "predict_start": "2025-01-05T00:00:00Z",
+          "sequence_index": 0,
+          "train_duration_seconds": 345600,
+          "train_end": "2025-01-05T00:00:00Z",
+          "train_start": "2025-01-01T00:00:00Z",
+          "window_semantics": {
+            "predict": "[predict_start, predict_end)",
+            "train": "[train_start, train_end)"
+          }
+        },
+        "mode": "rolling",
+        "predict_end": "2025-01-07T00:00:00Z",
+        "predict_start": "2025-01-05T00:00:00Z",
+        "split_id": "rolling_0000",
+        "train_end": "2025-01-05T00:00:00Z",
+        "train_start": "2025-01-01T00:00:00Z"
+      },
+      {
+        "metadata": {
+          "mode": "rolling",
+          "predict_duration_seconds": 172800,
+          "predict_end": "2025-01-09T00:00:00Z",
+          "predict_start": "2025-01-07T00:00:00Z",
+          "sequence_index": 1,
+          "train_duration_seconds": 345600,
+          "train_end": "2025-01-07T00:00:00Z",
+          "train_start": "2025-01-03T00:00:00Z",
+          "window_semantics": {
+            "predict": "[predict_start, predict_end)",
+            "train": "[train_start, train_end)"
+          }
+        },
+        "mode": "rolling",
+        "predict_end": "2025-01-09T00:00:00Z",
+        "predict_start": "2025-01-07T00:00:00Z",
+        "split_id": "rolling_0001",
+        "train_end": "2025-01-07T00:00:00Z",
+        "train_start": "2025-01-03T00:00:00Z"
+      }
+    ]
+  }
+}

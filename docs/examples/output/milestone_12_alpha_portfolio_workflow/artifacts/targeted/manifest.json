@@ -1,0 +1,421 @@
+{
+  "alignment_policy": null,
+  "allocator": "equal_weight",
+  "artifact_files": [
+    "components.json",
+    "config.json",
+    "manifest.json",
+    "metrics.json",
+    "portfolio_equity_curve.csv",
+    "portfolio_returns.csv",
+    "qa_summary.json",
+    "weights.csv"
+  ],
+  "artifact_groups": {
+    "core": [
+      "components.json",
+      "config.json",
+      "manifest.json",
+      "metrics.json",
+      "portfolio_equity_curve.csv",
+      "portfolio_returns.csv",
+      "qa_summary.json",
+      "weights.csv"
+    ],
+    "metrics": [
+      "metrics.json"
+    ],
+    "qa": [
+      "qa_summary.json"
+    ],
+    "risk": [],
+    "simulation": [],
+    "walk_forward": []
+  },
+  "artifacts": {
+    "components.json": {
+      "path": "components.json",
+      "rows": 3
+    },
+    "config.json": {
+      "path": "config.json"
+    },
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "metrics.json": {
+      "path": "metrics.json"
+    },
+    "portfolio_equity_curve.csv": {
+      "columns": [
+        "ts_utc",
+        "portfolio_equity_curve"
+      ],
+      "path": "portfolio_equity_curve.csv",
+      "rows": 4
+    },
+    "portfolio_returns.csv": {
+      "columns": [
+        "ts_utc",
+        "strategy_return__AAPL",
+        "strategy_return__MSFT",
+        "strategy_return__NVDA",
+        "weight__AAPL",
+        "weight__MSFT",
+        "weight__NVDA",
+        "gross_portfolio_return",
+        "portfolio_weight_change",
+        "portfolio_abs_weight_change",
+        "portfolio_turnover",
+        "portfolio_rebalance_event",
+        "portfolio_changed_sleeve_count",
+        "portfolio_transaction_cost",
+        "portfolio_fixed_fee",
+        "portfolio_slippage_proxy",
+        "portfolio_slippage_cost",
+        "portfolio_execution_friction",
+        "net_portfolio_return",
+        "portfolio_return"
+      ],
+      "path": "portfolio_returns.csv",
+      "rows": 4
+    },
+    "qa_summary.json": {
+      "path": "qa_summary.json"
+    },
+    "weights.csv": {
+      "columns": [
+        "ts_utc",
+        "weight__AAPL",
+        "weight__MSFT",
+        "weight__NVDA"
+      ],
+      "path": "weights.csv",
+      "rows": 4
+    }
+  },
+  "component_count": 3,
+  "components_path": "components.json",
+  "config_path": "config.json",
+  "config_snapshot": {
+    "execution": {
+      "enabled": true,
+      "execution_delay": 1,
+      "fixed_fee": 0.0,
+      "fixed_fee_model": "per_rebalance",
+      "slippage_bps": 1.0,
+      "slippage_model": "constant",
+      "slippage_turnover_scale": 1.0,
+      "slippage_volatility_scale": 1.0,
+      "transaction_cost_bps": 2.0
+    },
+    "risk": {
+      "allow_scale_up": true,
+      "max_volatility_scale": 100.0,
+      "target_volatility": 0.1,
+      "volatility_window": 2
+    },
+    "runtime": null,
+    "sanity": null,
+    "strict_mode": null,
+    "validation": {
+      "target_weight_sum": 1.0
+    }
+  },
+  "evaluation_config_path": null,
+  "evaluation_mode": "single",
+  "execution": {
+    "config": {
+      "enabled": true,
+      "execution_delay": 1,
+      "fixed_fee": 0.0,
+      "fixed_fee_model": "per_rebalance",
+      "slippage_bps": 1.0,
+      "slippage_model": "constant",
+      "slippage_turnover_scale": 1.0,
+      "slippage_volatility_scale": 1.0,
+      "transaction_cost_bps": 2.0
+    },
+    "model_summary": {
+      "enabled": true,
+      "fixed_fee_model": {
+        "amount": 0.0,
+        "charge_unit": "per_rebalance",
+        "charged_rebalance_count": 0
+      },
+      "slippage_model": {
+        "method": "constant",
+        "proxy": null,
+        "rate_bps": 1.0,
+        "turnover_scale": 1.0,
+        "volatility_scale": 1.0
+      },
+      "totals": {
+        "changed_sleeve_events": 3,
+        "rebalance_count": 1,
+        "total_execution_friction": 0.0003011394275069571,
+        "total_fixed_fee": 0.0,
+        "total_slippage_cost": 0.0001003798091689857,
+        "total_transaction_cost": 0.0002007596183379714,
+        "total_turnover": 1.003798091689857
+      },
+      "transaction_cost_model": {
+        "basis": "portfolio_turnover",
+        "rate_bps": 2.0
+      }
+    },
+    "summary": {
+      "execution_drag_total_return": 0.00030308605753859297,
+      "gross_total_return": 0.006464215090476566,
+      "net_total_return": 0.006161129032937973,
+      "rebalance_count": 1.0,
+      "total_execution_friction": 0.0003011394275069571,
+      "total_fixed_fee": 0.0,
+      "total_slippage_cost": 0.0001003798091689857,
+      "total_transaction_cost": 0.0002007596183379714,
+      "turnover": 0.25094952292246425
+    }
+  },
+  "files_written": 8,
+  "initial_capital": 1.0,
+  "metric_summary": {
+    "annualized_return": 0.47249802198516533,
+    "annualized_volatility": 0.06341214048882522,
+    "average_execution_friction_per_trade": 0.0003011394275069571,
+    "average_fixed_fee_per_trade": 0.0,
+    "average_gross_exposure": 1.003798091689857,
+    "average_leverage": 1.003798091689857,
+    "average_net_exposure": 1.003798091689857,
+    "average_trade_size": 1.003798091689857,
+    "average_turnover": 0.25094952292246425,
+    "conditional_value_at_risk": 0.003077477649439154,
+    "conditional_value_at_risk_confidence_level": 0.95,
+    "cumulative_return": 0.006161129032937973,
+    "current_drawdown": 0.0030774776494391087,
+    "current_drawdown_duration": 1.0,
+    "estimated_post_target_volatility": 0.1,
+    "estimated_pre_target_volatility": 0.09962162792276559,
+    "execution_drag_total_return": 0.00030308605753859297,
+    "exposure_pct": 100.0,
+    "gross_annualized_return": 0.500704904898496,
+    "gross_cumulative_return": 0.006464215090476566,
+    "gross_total_return": 0.006464215090476566,
+    "hit_rate": 0.5,
+    "latest_rolling_volatility": 0.10000000000000003,
+    "max_drawdown": 0.0030774776494391087,
+    "max_drawdown_duration": 1.0,
+    "max_gross_exposure": 1.003798091689857,
+    "max_leverage": 1.003798091689857,
+    "max_net_exposure": 1.003798091689857,
+    "max_single_weight": 0.334599363896619,
+    "max_weight_sum_deviation": 0.0037980916898570083,
+    "min_net_exposure": 1.003798091689857,
+    "net_total_return": 0.006161129032937973,
+    "percent_periods_traded": 25.0,
+    "profit_factor": 2.826442188660559,
+    "realized_volatility": 0.06341214048882522,
+    "rebalance_count": 1.0,
+    "rolling_volatility_latest": 0.10000000000000003,
+    "rolling_volatility_max": 0.10000000000000003,
+    "rolling_volatility_mean": 0.05627856025039125,
+    "rolling_volatility_window": 2.0,
+    "sanity_issue_count": 0.0,
+    "sanity_status": "pass",
+    "sanity_strict_mode": false,
+    "sanity_warning_count": 0.0,
+    "sharpe_ratio": 6.130741990870084,
+    "target_volatility": 0.1,
+    "total_execution_friction": 0.0003011394275069571,
+    "total_fixed_fee": 0.0,
+    "total_return": 0.006161129032937973,
+    "total_slippage_cost": 0.0001003798091689857,
+    "total_transaction_cost": 0.0002007596183379714,
+    "total_turnover": 1.003798091689857,
+    "trade_count": 1.0,
+    "turnover": 0.25094952292246425,
+    "validation_issue_count": 0.0,
+    "value_at_risk": 0.003077477649439154,
+    "value_at_risk_confidence_level": 0.95,
+    "volatility": 0.003994589377040984,
+    "volatility_scaling_factor": 1.0037980916907698,
+    "volatility_target_scale": 0.9999999999999998,
+    "volatility_target_scale_capped": 0.0,
+    "volatility_targeting_enabled": 1.0,
+    "win_rate": 0.5
+  },
+  "metrics_path": "metrics.json",
+  "optimizer": {
+    "config": {
+      "covariance_ridge": 1e-08,
+      "full_investment": true,
+      "leverage_ceiling": 1.0,
+      "long_only": true,
+      "max_iterations": 500,
+      "max_single_weight": null,
+      "max_turnover": null,
+      "max_weight": null,
+      "method": "equal_weight",
+      "min_weight": 0.0,
+      "risk_free_rate": 0.0,
+      "target_weight_sum": 1.0,
+      "tolerance": 1e-08
+    },
+    "constraint_summary": {
+      "full_investment": true,
+      "leverage_ceiling": 1.0,
+      "long_only": true,
+      "max_single_weight": null,
+      "max_turnover": null,
+      "max_weight": null,
+      "min_weight": 0.0,
+      "target_weight_sum": 1.0
+    },
+    "diagnostic_summary": {
+      "converged": true,
+      "gross_exposure": 0.9999999999990905,
+      "iterations": 1,
+      "max_single_weight": 0.33333333333303017,
+      "net_exposure": 0.9999999999990905,
+      "objective_expected_return": 0.0016118749999985342,
+      "objective_sharpe_ratio": 0.4728178462392159,
+      "objective_volatility": 0.0034090824041845226,
+      "observation_count": 4,
+      "strategy_count": 3,
+      "turnover_vs_previous": null,
+      "weight_sum": 0.9999999999990905
+    },
+    "diagnostics": {
+      "converged": true,
+      "covariance_estimator": "sample_covariance_ddof_0_plus_diagonal_ridge",
+      "covariance_ridge": 1e-08,
+      "expected_return_estimator": "historical_mean_excess_return_per_period",
+      "gross_exposure": 0.9999999999990905,
+      "iterations": 1,
+      "max_single_weight": 0.33333333333303017,
+      "method": "equal_weight",
+      "min_single_weight": 0.33333333333303017,
+      "net_exposure": 0.9999999999990905,
+      "objective_expected_return": 0.0016118749999985342,
+      "objective_sharpe_ratio": 0.4728178462392159,
+      "objective_volatility": 0.0034090824041845226,
+      "observation_count": 4,
+      "risk_free_rate": 0.0,
+      "strategy_count": 3,
+      "strategy_order": [
+        "AAPL",
+        "MSFT",
+        "NVDA"
+      ],
+      "turnover_vs_previous": null,
+      "weight_sum": 0.9999999999990905
+    },
+    "method": "equal_weight"
+  },
+  "optimizer_method": "equal_weight",
+  "portfolio_name": "milestone_12_example_targeted",
+  "qa_summary_path": "qa_summary.json",
+  "qa_summary_status": "pass",
+  "risk": {
+    "config": {
+      "allow_scale_up": true,
+      "cvar_confidence_level": 0.95,
+      "max_volatility_scale": 100.0,
+      "min_volatility_scale": 0.0,
+      "periods_per_year_override": null,
+      "target_volatility": 0.1,
+      "var_confidence_level": 0.95,
+      "volatility_epsilon": 1e-12,
+      "volatility_window": 2
+    },
+    "operational_volatility_targeting": {
+      "enabled": 1.0,
+      "estimated_post_target_volatility": 0.1,
+      "estimated_pre_target_volatility": 0.09962162792276559,
+      "target_volatility": 0.1,
+      "volatility_scaling_factor": 1.0037980916907698
+    },
+    "rolling_volatility": {
+      "latest": 0.10000000000000003,
+      "max": 0.10000000000000003,
+      "mean": 0.05627856025039125,
+      "min": 0.023718309859154928,
+      "warmup_periods": 1,
+      "window": 2
+    },
+    "summary": {
+      "conditional_value_at_risk": 0.003077477649439154,
+      "conditional_value_at_risk_confidence_level": 0.95,
+      "current_drawdown": 0.0030774776494391087,
+      "current_drawdown_duration": 1.0,
+      "estimated_post_target_volatility": 0.1,
+      "estimated_pre_target_volatility": 0.09962162792276559,
+      "latest_rolling_volatility": 0.10000000000000003,
+      "max_drawdown": 0.0030774776494391087,
+      "max_drawdown_duration": 1.0,
+      "periods_per_year": 252,
+      "realized_volatility": 0.06341214048882522,
+      "rolling_volatility_latest": 0.10000000000000003,
+      "rolling_volatility_max": 0.10000000000000003,
+      "rolling_volatility_mean": 0.05627856025039125,
+      "rolling_volatility_window": 2.0,
+      "target_volatility": 0.1,
+      "value_at_risk": 0.003077477649439154,
+      "value_at_risk_confidence_level": 0.95,
+      "volatility_scaling_factor": 1.0037980916907698,
+      "volatility_target_scale": 0.9999999999999998,
+      "volatility_target_scale_capped": 0.0,
+      "volatility_targeting_enabled": 1.0
+    },
+    "tail_risk": {
+      "cvar": 0.003077477649439154,
+      "cvar_confidence_level": 0.95,
+      "loss_sign_convention": "positive_loss_fraction",
+      "quantile_method": "historical_empirical_lower_tail",
+      "var": 0.003077477649439154,
+      "var_confidence_level": 0.95
+    },
+    "volatility_targeting": {
+      "allow_scale_up": true,
+      "latest_rolling_volatility": 0.10000000000000003,
+      "realized_volatility": 0.06341214048882522,
+      "recommended_scale": 0.9999999999999998,
+      "recommended_scale_unclipped": 0.9999999999999998,
+      "scale_cap": 1.003798091689857,
+      "scale_floor": 0.0,
+      "scale_was_capped": false,
+      "scaling_limited_by_zero_volatility": false,
+      "target_volatility": 0.1,
+      "volatility_window": 2
+    }
+  },
+  "risk_summary": {
+    "conditional_value_at_risk": 0.003077477649439154,
+    "estimated_post_target_volatility": 0.1,
+    "estimated_pre_target_volatility": 0.09962162792276559,
+    "max_drawdown": 0.0030774776494391087,
+    "realized_volatility": 0.06341214048882522,
+    "target_volatility": 0.1,
+    "value_at_risk": 0.003077477649439154,
+    "volatility_scaling_factor": 1.0037980916907698,
+    "volatility_targeting_enabled": 1.0
+  },
+  "row_counts": {
+    "components": 3,
+    "portfolio_equity_curve": 4,
+    "portfolio_returns": 4,
+    "weights": 4
+  },
+  "run_id": "targeted",
+  "simulation": {
+    "artifact_path": null,
+    "enabled": false,
+    "method": null,
+    "num_paths": null,
+    "path_length": null,
+    "probability_of_loss": null,
+    "seed": null,
+    "summary_path": null
+  },
+  "strict_mode": null,
+  "timestamp": "2018-06-19T00:25:19Z"
+}

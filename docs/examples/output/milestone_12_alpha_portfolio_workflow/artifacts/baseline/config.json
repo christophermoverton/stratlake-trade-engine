@@ -1,0 +1,31 @@
+{
+  "allocator": "equal_weight",
+  "execution": {
+    "enabled": true,
+    "execution_delay": 1,
+    "fixed_fee": 0.0,
+    "fixed_fee_model": "per_rebalance",
+    "slippage_bps": 1.0,
+    "slippage_model": "constant",
+    "slippage_turnover_scale": 1.0,
+    "slippage_volatility_scale": 1.0,
+    "transaction_cost_bps": 2.0
+  },
+  "initial_capital": 1.0,
+  "portfolio_name": "milestone_12_example_baseline",
+  "risk": {
+    "allow_scale_up": true,
+    "max_volatility_scale": 100.0,
+    "target_volatility": 0.1,
+    "volatility_window": 2
+  },
+  "timeframe": "1D",
+  "validation": {
+    "target_weight_sum": 1.0
+  },
+  "volatility_targeting": {
+    "enabled": false,
+    "lookback_periods": 2,
+    "target_volatility": 0.1
+  }
+}

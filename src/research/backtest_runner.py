@@ -41,6 +41,34 @@ def _validate_return_column(df: pd.DataFrame, column: str) -> None:
     )
 
 
+def _validate_backtest_signal_column(df: pd.DataFrame) -> pd.Series:
+    normalized_signal = pd.to_numeric(df["signal"], errors="coerce")
+    invalid_signal = normalized_signal.isna() | normalized_signal.isin([float("-inf"), float("inf")])
+    if invalid_signal.any():
+        bad_index = invalid_signal[invalid_signal].index[0]
+        bad_value = df.loc[bad_index, "signal"]
+        raise ValueError(
+            "Backtest input contains invalid 'signal' values. Signals must be finite numeric exposures. "
+            f"First invalid index: {bad_index!r}, value={bad_value!r}."
+        )
+    return normalized_signal.astype("float64")
+
+
+def _compute_executed_signal(
+    df: pd.DataFrame,
+    signal: pd.Series,
+    *,
+    execution_delay: int,
+) -> pd.Series:
+    symbol_keys = df["symbol"].astype("string")
+    return (
+        signal.groupby(symbol_keys, sort=False, dropna=False)
+        .shift(execution_delay)
+        .fillna(0.0)
+        .astype("float64")
+    )
+
+
 def run_backtest(
     df: pd.DataFrame,
     execution_config: ExecutionConfig | None = None,
@@ -49,7 +77,9 @@ def run_backtest(
     Compute deterministic strategy returns and an equity curve from strategy signals.
 
     The strategy return uses the previous period's signal so the backtest does not
-    look ahead at the same row's realized return.
+    look ahead at the same row's realized return. Signals may be canonical discrete
+    values in ``{-1, 0, 1}`` or any finite numeric exposure interpreted literally
+    as lagged position size. This runner does not clip or normalize exposure values.
 
     Args:
         df: Feature dataset containing a standardized ``signal`` column and a
@@ -73,16 +103,24 @@ def run_backtest(
 
     result = df.copy()
     result[return_column] = pd.to_numeric(result[return_column], errors="coerce").fillna(0.0).astype("float64")
-    result["signal"] = pd.to_numeric(result["signal"], errors="coerce").fillna(0.0).astype("float64")
-    executed_signal = result["signal"].shift(config.execution_delay).fillna(0.0).astype("float64")
+    result["signal"] = _validate_backtest_signal_column(result)
+    executed_signal = _compute_executed_signal(
+        result,
+        result["signal"],
+        execution_delay=config.execution_delay,
+    )
     validate_research_integrity(
         result,
         result["signal"],
         positions=executed_signal,
         execution_delay=config.execution_delay,
+        allow_continuous_signals=True,
     )
 
-    position_change_frame = compute_position_change_frame(executed_signal)
+    position_change_frame = compute_position_change_frame(
+        executed_signal,
+        group_keys=result["symbol"],
+    )
     validate_position_change_frame(position_change_frame)
     gross_strategy_return = (executed_signal * result[return_column]).astype("float64")
     transaction_cost = _execution_cost(position_change_frame["delta_position"], config.transaction_cost_bps, enabled=config.enabled)

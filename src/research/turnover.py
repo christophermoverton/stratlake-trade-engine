@@ -3,11 +3,24 @@ from __future__ import annotations
 import pandas as pd
 
 
-def compute_position_change_frame(position: pd.Series) -> pd.DataFrame:
+def compute_position_change_frame(
+    position: pd.Series,
+    *,
+    group_keys: pd.Series | None = None,
+) -> pd.DataFrame:
     """Return deterministic row-level change accounting for an executed position series."""
 
     executed_position = pd.to_numeric(position, errors="coerce").fillna(0.0).astype("float64")
-    delta_position = executed_position.diff().fillna(executed_position).astype("float64")
+    normalized_group_keys = _normalize_group_keys(group_keys, executed_position.index)
+    if normalized_group_keys is None:
+        delta_position = executed_position.diff().fillna(executed_position).astype("float64")
+    else:
+        delta_position = (
+            executed_position.groupby(normalized_group_keys, sort=False, dropna=False)
+            .diff()
+            .fillna(executed_position)
+            .astype("float64")
+        )
     abs_delta_position = delta_position.abs().astype("float64")
     trade_event = abs_delta_position.gt(0.0)
 
@@ -21,6 +34,16 @@ def compute_position_change_frame(position: pd.Series) -> pd.DataFrame:
         },
         index=executed_position.index,
     )
+
+
+def _normalize_group_keys(group_keys: pd.Series | None, index: pd.Index) -> pd.Series | None:
+    if group_keys is None:
+        return None
+    if not isinstance(group_keys, pd.Series):
+        raise TypeError("group_keys must be a pandas Series when provided.")
+    if not group_keys.index.equals(index):
+        raise ValueError("group_keys must align exactly with the position index.")
+    return group_keys.astype("string")
 
 
 def compute_weight_change_frame(weights: pd.DataFrame) -> pd.DataFrame:

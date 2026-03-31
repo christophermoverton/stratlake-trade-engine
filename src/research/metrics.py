@@ -233,7 +233,7 @@ def profit_factor(trade_returns: pd.Series) -> float | None:
     return float(gross_profit / gross_loss)
 
 
-def turnover(position: pd.Series) -> float:
+def turnover(position: pd.Series, *, group_keys: pd.Series | None = None) -> float:
     """
     Compute average absolute position change per observation.
 
@@ -248,7 +248,7 @@ def turnover(position: pd.Series) -> float:
     if positions.empty:
         return 0.0
 
-    return float(compute_position_change_frame(positions)["turnover"].mean())
+    return float(compute_position_change_frame(positions, group_keys=group_keys)["turnover"].mean())
 
 
 def exposure_pct(position: pd.Series) -> float:
@@ -291,7 +291,8 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
     strategy_return = aggregated_returns_frame["strategy_return"]
     periods_per_year = infer_periods_per_year(aggregated_returns_frame if not aggregated_returns_frame.empty else results_df)
     position = infer_position_series(results_df)
-    position_change = compute_position_change_frame(position)
+    group_keys = results_df["symbol"] if "symbol" in results_df.columns else None
+    position_change = compute_position_change_frame(position, group_keys=group_keys)
     closed_trade_returns = extract_closed_trade_returns(results_df)
     transaction_cost = _optional_numeric_series(results_df, "transaction_cost")
     slippage_cost = _optional_numeric_series(results_df, "slippage_cost")
@@ -358,7 +359,10 @@ def compute_benchmark_relative_metrics(
         total_return_value=strategy_total,
         excess_return=excess,
         benchmark_correlation_value=correlation,
-        turnover_value=turnover(infer_position_series(results_df)),
+        turnover_value=turnover(
+            infer_position_series(results_df),
+            group_keys=results_df["symbol"] if "symbol" in results_df.columns else None,
+        ),
     )
 
     return {
@@ -459,7 +463,16 @@ def infer_position_series(results_df: pd.DataFrame) -> pd.Series:
     if "signal" not in results_df.columns:
         return pd.Series(0.0, index=results_df.index, dtype="float64", name="position")
 
-    position = results_df["signal"].shift(1).fillna(0.0).astype("float64")
+    signal = pd.to_numeric(results_df["signal"], errors="coerce").fillna(0.0).astype("float64")
+    if "symbol" in results_df.columns:
+        position = (
+            signal.groupby(results_df["symbol"].astype("string"), sort=False, dropna=False)
+            .shift(1)
+            .fillna(0.0)
+            .astype("float64")
+        )
+    else:
+        position = signal.shift(1).fillna(0.0).astype("float64")
     position.name = "position"
     return position
 

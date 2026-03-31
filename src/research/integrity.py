@@ -54,6 +54,7 @@ def validate_research_integrity(
     positions: pd.Series | None = None,
     execution_delay: int = 1,
     warmup_rows: int = 3,
+    allow_continuous_signals: bool = False,
 ) -> None:
     """
     Validate deterministic research integrity constraints for strategy execution.
@@ -61,13 +62,16 @@ def validate_research_integrity(
     Args:
         df: Canonical research frame expected to contain ``symbol`` and ``ts_utc``.
         signals: Optional signal series that must align exactly to ``df.index`` and
-            only contain ``-1``, ``0``, or ``1``.
+            contain either canonical discrete values or finite numeric exposures.
         positions: Optional executed position series. When provided, it must equal
             ``signals.shift(execution_delay).fillna(0.0)`` to enforce lagged execution.
         execution_delay: Explicit deterministic bar delay required between signal
             generation and executed positions.
         warmup_rows: Number of earliest rows per symbol inspected by the warm-up
             leakage heuristic.
+        allow_continuous_signals: When ``True``, signals may contain any finite
+            numeric exposure values. When ``False``, signals must remain in the
+            canonical discrete set ``{-1, 0, 1}``.
 
     Raises:
         TemporalIntegrityError: If structural integrity, signal integrity, or
@@ -83,7 +87,7 @@ def validate_research_integrity(
 
     if signals is not None:
         _validate_signal_alignment(df, signals)
-        _validate_signal_values(signals)
+        _validate_signal_values(signals, allow_continuous_signals=allow_continuous_signals)
 
     if positions is not None:
         if signals is None:
@@ -177,8 +181,23 @@ def _validate_signal_alignment(df: pd.DataFrame, signals: pd.Series) -> None:
         )
 
 
-def _validate_signal_values(signals: pd.Series) -> None:
-    invalid = signals[~signals.isin(_VALID_SIGNAL_VALUES)]
+def _validate_signal_values(signals: pd.Series, *, allow_continuous_signals: bool) -> None:
+    normalized = pd.to_numeric(signals, errors="coerce")
+    invalid_numeric = normalized.isna()
+    invalid_finite = normalized.isin([float("-inf"), float("inf")])
+
+    if invalid_numeric.any() or invalid_finite.any():
+        bad_index = signals.index[(invalid_numeric | invalid_finite)][0]
+        bad_value = signals.loc[bad_index]
+        raise TemporalIntegrityError(
+            "Strategy signals must be finite numeric values aligned to the research frame. "
+            f"First invalid signal at index {bad_index!r}: {bad_value!r}."
+        )
+
+    if allow_continuous_signals:
+        return
+
+    invalid = normalized[~normalized.isin(_VALID_SIGNAL_VALUES)]
     if invalid.empty:
         return
 
@@ -198,7 +217,7 @@ def _validate_lagged_execution(
 ) -> None:
     normalized_signals = signals.astype("float64")
     normalized_positions = positions.astype("float64")
-    expected_positions = normalized_signals.shift(execution_delay).fillna(0.0)
+    expected_positions = _lag_positions_by_symbol(df, normalized_signals, execution_delay=execution_delay)
 
     if normalized_positions.equals(expected_positions):
         return
@@ -216,8 +235,7 @@ def _validate_lagged_execution(
         raise TemporalIntegrityError(
             "Temporal integrity violation [same_bar_execution]: "
             f"symbol={context['symbol']}, ts_utc={context['ts_utc']}. "
-            "Backtests must use lagged positions computed as "
-            f"signals.shift({execution_delay}).fillna(0.0)."
+            "Backtests must use lagged positions computed within symbol groups."
         )
 
     mismatched = normalized_positions.ne(expected_positions)
@@ -233,6 +251,21 @@ def _validate_lagged_execution(
         f"symbol={context['symbol']}, ts_utc={context['ts_utc']}, index={first_bad_label!r}: "
         f"expected {expected_positions.loc[first_bad_label]}, "
         f"got {normalized_positions.loc[first_bad_label]}."
+    )
+
+
+def _lag_positions_by_symbol(
+    df: pd.DataFrame,
+    signals: pd.Series,
+    *,
+    execution_delay: int,
+) -> pd.Series:
+    symbol_keys = df["symbol"].astype("string")
+    return (
+        signals.groupby(symbol_keys, sort=False, dropna=False)
+        .shift(execution_delay)
+        .fillna(0.0)
+        .astype("float64")
     )
 
 

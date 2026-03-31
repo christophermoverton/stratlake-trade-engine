@@ -287,7 +287,8 @@ def _csv_ready_frame(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def _write_csv(path: Path, frame: pd.DataFrame) -> None:
-    frame.to_csv(path, index=False, lineterminator="\n")
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        frame.to_csv(handle, index=False, lineterminator="\n")
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:

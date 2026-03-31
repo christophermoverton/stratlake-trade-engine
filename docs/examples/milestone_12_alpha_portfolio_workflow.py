@@ -302,11 +302,16 @@ def write_summary(
 
     summary = _rounded(summary)
     (output_root / "summary.json").write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
-    predictions.to_csv(output_root / "predictions.csv", index=False, lineterminator="\n")
-    cross_section.to_csv(output_root / "cross_section.csv", index=False, lineterminator="\n")
-    single_symbol_backtest.to_csv(output_root / "single_symbol_backtest.csv", index=False, lineterminator="\n")
-    returns_wide.reset_index().to_csv(output_root / "portfolio_returns_matrix.csv", index=False, lineterminator="\n")
+    write_csv(output_root / "predictions.csv", predictions)
+    write_csv(output_root / "cross_section.csv", cross_section)
+    write_csv(output_root / "single_symbol_backtest.csv", single_symbol_backtest)
+    write_csv(output_root / "portfolio_returns_matrix.csv", returns_wide.reset_index())
     return summary
+
+
+def write_csv(path: Path, frame: pd.DataFrame) -> None:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        frame.to_csv(handle, index=False, lineterminator="\n")
 
 
 def print_summary(summary: dict[str, Any], output_root: Path) -> None:

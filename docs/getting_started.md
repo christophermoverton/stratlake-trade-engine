@@ -13,11 +13,13 @@ This guide walks through the current repository workflow:
 2. point the repo at curated data
 3. build or verify features
 4. run a strategy
-5. run a strict strategy
-6. build a portfolio from saved runs
+5. run an alpha-to-portfolio example
+6. run a strict strategy
+7. build a portfolio from saved runs
 
 For deeper detail, continue with:
 
+* [alpha_workflow.md](alpha_workflow.md)
 * [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
 * [portfolio_construction_workflow.md](portfolio_construction_workflow.md)
 * [research_validity_framework.md](research_validity_framework.md)
@@ -134,6 +136,21 @@ The strategy CLI prints:
 
 It also writes artifacts under `artifacts/strategies/<run_id>/`.
 
+## Run The Alpha Example Workflow
+
+The repository includes an end-to-end alpha example that demonstrates model
+registration, deterministic train/predict helpers, cross-sectional inspection,
+continuous-signal backtesting, and portfolio construction.
+
+```powershell
+python docs/examples/milestone_12_alpha_portfolio_workflow.py
+```
+
+See:
+
+* [alpha_workflow.md](alpha_workflow.md)
+* [examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md)
+
 ## Run With Strict Mode And Execution Frictions
 
 Example strict run with deterministic execution realism:
@@ -172,6 +189,12 @@ python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --port
 ```
 
 Portfolio artifacts are written under `artifacts/portfolios/<run_id>/`.
+
+To exercise operational volatility targeting from the shipped config:
+
+```powershell
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name momentum_meanrev_targeted --from-registry --timeframe 1D
+```
 
 ## What Gets Written
 

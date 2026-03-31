@@ -10,10 +10,12 @@ Current implementation:
 
 * reads a single-asset return series from the input dataset
 * applies the previous period's signal to the realized return
+* interprets finite numeric `signal` values as literal exposures
 * compounds the resulting strategy returns into an equity curve
 
 This module is intentionally small and deterministic. It does not yet model
-portfolio weights, transaction costs, slippage, or multi-asset interactions.
+portfolio weights or multi-asset interactions, but it now supports the shared
+execution configuration used by the strategy workflow.
 
 ---
 
@@ -38,10 +40,15 @@ run_backtest(df: pandas.DataFrame) -> pandas.DataFrame
 * a `signal` column produced by the research signal engine
 * a supported one-period asset return column
 
+`signal` may be discrete or continuous. Any finite numeric value is accepted
+and interpreted literally as exposure after lagged execution.
+
 Supported return column names are currently:
 
 * `ret_1`
+* `ret_1m`
 * `ret_1d`
+* `feature_ret_1m`
 * `feature_ret_1d`
 * `asset_return`
 * `return`
@@ -65,6 +72,8 @@ This means:
 
 * the first row always has zero strategy exposure
 * a signal generated at time `t` affects returns at time `t+1`
+* `signal=0.5` contributes half the underlying return at execution time
+* the runner does not clip or normalize exposure values implicitly
 * the output is deterministic for a fixed input DataFrame
 
 The equity curve is then computed with cumulative compounding:
@@ -77,10 +86,20 @@ equity_curve = (1.0 + strategy_return).cumprod()
 
 ## Output Columns
 
-The returned DataFrame is a copy of the input with two added columns:
+The returned DataFrame is a copy of the input with deterministic execution and
+traceability columns, including:
 
-* `strategy_return`: realized strategy return after applying the lagged signal
-* `equity_curve`: cumulative compounded value of the strategy starting at `1.0`
+* `executed_signal`
+* `position`
+* `delta_position`
+* `turnover`
+* `gross_strategy_return`
+* `transaction_cost`
+* `slippage_cost`
+* `execution_friction`
+* `net_strategy_return`
+* `strategy_return`
+* `equity_curve`
 
 All original columns and the input index are preserved.
 
@@ -95,7 +114,7 @@ from src.research.backtest_runner import run_backtest
 
 df = pd.DataFrame(
     {
-        "signal": [1, 1, -1, 0],
+        "signal": [1.0, 0.5, -1.0, 0.0],
         "feature_ret_1d": [0.01, -0.02, 0.03, -0.01],
     }
 )
@@ -108,13 +127,13 @@ print(result[["signal", "feature_ret_1d", "strategy_return", "equity_curve"]])
 Expected strategy returns:
 
 ```text
-[0.00, -0.02, 0.03, 0.01]
+[0.00, -0.02, 0.015, 0.01]
 ```
 
 Expected equity curve:
 
 ```text
-[1.0, 0.98, 1.0094, 1.019494]
+[1.0, 0.98, 0.9947, 1.004647]
 ```
 
 ---
@@ -126,9 +145,9 @@ The current research flow is:
 ```text
 feature dataset
         ->
-strategy.generate_signals(...)
+alpha prediction or strategy signal generation
         ->
-signal_engine.generate_signals(...)
+mapped signal exposures
         ->
 backtest_runner.run_backtest(...)
         ->

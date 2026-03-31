@@ -9,6 +9,7 @@ The portfolio workflow answers questions that a single strategy run cannot:
 
 * Which completed strategy runs should be combined?
 * How are those return streams aligned and weighted?
+* How do alpha-derived sleeves flow into the same portfolio constructor?
 * How do optimizer choice, risk diagnostics, simulation, and execution
   friction affect the review?
 * What portfolio-level artifacts should be persisted for reproducibility?
@@ -165,6 +166,10 @@ Important current behavior:
 
 * `risk.target_volatility` remains a diagnostic setting
 * top-level `volatility_targeting` activates executable post-optimizer scaling
+* `volatility_targeting.lookback_periods` controls the operational volatility
+  estimate used to compute the scaling factor
+* `volatility_targeting.volatility_epsilon` defines the effective zero-volatility
+  guardrail for operational targeting
 * the operational scaling factor is literal and uncapped in the current
   milestone
 * downstream execution, metrics, QA, manifests, and registry metadata all use
@@ -238,6 +243,25 @@ artifact contract.
 9. Register the run.
    `register_portfolio_run()` appends one deterministic portfolio row to the
    shared registry model.
+
+## Alpha-To-Portfolio Integration
+
+The portfolio layer does not require components to come only from the shipped
+strategy registry. Any deterministic return matrix with aligned UTC timestamps
+can feed `construct_portfolio(...)`.
+
+That makes the current alpha integration pattern:
+
+1. train and predict with the alpha helpers
+2. map predictions into backtestable exposures
+3. backtest one or more sleeves
+4. align those sleeve return streams
+5. call `construct_portfolio(...)`
+
+The repository's end-to-end example follows exactly that pattern:
+
+* [examples/milestone_12_alpha_portfolio_workflow.py](examples/milestone_12_alpha_portfolio_workflow.py)
+* [examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md)
 
 ## CLI Usage
 

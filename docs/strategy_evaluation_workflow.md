@@ -9,12 +9,13 @@ The system now supports:
 
 * running one configured strategy end to end
 * evaluating a strategy across deterministic walk-forward splits
+* backtesting discrete or continuous finite signal exposures
 * logging reproducible artifacts and registry records
 * comparing multiple strategies with a shared leaderboard
 
 At a high level, the evaluation framework answers three questions:
 
-* What signals did the strategy generate from a feature dataset?
+* What signals or exposures did the strategy generate from a feature dataset?
 * How did those signals perform in a deterministic backtest?
 * How does that result compare with baselines and other strategies?
 
@@ -27,6 +28,7 @@ details:
 * [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
 * [docs/evaluation_split_configuration.md](evaluation_split_configuration.md)
 * [docs/baseline_strategies.md](baseline_strategies.md)
+* [docs/alpha_workflow.md](alpha_workflow.md)
 
 ## End-To-End Workflow
 
@@ -35,7 +37,7 @@ The full research pipeline is:
 ```text
 feature dataset
     ->
-signals
+signals or alpha-derived exposures
     ->
 backtest
     ->
@@ -56,7 +58,8 @@ Each stage maps to the current implementation:
    declare which dataset to use.
 2. `signals`
    `generate_signals()` applies a strategy and adds a standardized `signal`
-   column. Signals must stay in `{-1, 0, 1}`.
+   column. Discrete `{-1, 0, 1}` signals remain common, but the backtest layer
+   accepts any finite numeric exposure.
 3. `backtest`
    `run_backtest()` converts signals into realized returns using lagged signal
    application:
@@ -65,6 +68,8 @@ Each stage maps to the current implementation:
    strategy_return = signal.shift(1).fillna(0.0) * asset_return
    equity_curve = (1.0 + strategy_return).cumprod()
    ```
+   Continuous exposures are interpreted literally, so `signal=0.5` contributes
+   half the underlying return after lagged execution.
 4. `metrics`
    `compute_performance_metrics()` summarizes return, risk, trade, and activity
    metrics from the backtest output.
@@ -237,6 +242,20 @@ Parameters:
 
 See [docs/baseline_strategies.md](baseline_strategies.md)
 for behavior details.
+
+## Alpha Relationship
+
+The strategy evaluation workflow remains the main CLI path for registered
+strategies, but it now sits beside a deterministic alpha workflow documented in
+[alpha_workflow.md](alpha_workflow.md).
+
+That relationship is:
+
+* strategies can emit `signal` directly from features
+* alpha workflows can emit `prediction_score`, then map those predictions into
+  backtestable `signal` exposures
+* both paths converge at `run_backtest(...)`, metrics, artifacts, and optional
+  downstream portfolio construction
 
 ## Metrics
 

@@ -85,6 +85,7 @@ portfolios:
       enabled: true
       target_volatility: 0.10
       lookback_periods: 20
+      volatility_epsilon: 1e-8
     execution:
       enabled: true
       transaction_cost_bps: 5
@@ -251,6 +252,8 @@ Current behavior:
 * these settings control risk diagnostics and summary outputs
 * `target_volatility` under `risk` does not execute post-optimizer scaling by
   itself
+* use `risk` when you want review-time volatility summaries and recommended
+  scaling diagnostics without changing executable weights
 
 ### `volatility_targeting`
 
@@ -268,11 +271,22 @@ Current behavior:
 * this section is separate from `risk`
 * when enabled, the constructor computes a deterministic scale factor as
   `target_volatility / estimated_portfolio_volatility`
+* `lookback_periods` controls the rolling volatility estimate used for that
+  operational scaling step
+* `volatility_epsilon` defines the effective zero-volatility cutoff that blocks
+  unsafe scaling
 * scaling is applied directly to the optimizer-produced base weights before
   execution-cost modeling and portfolio evaluation
 * scaling is literal and uncapped in the current milestone
 * metrics and manifests surface the enabled flag plus pre-target, post-target,
   and applied-scale metadata
+
+Operational versus diagnostic behavior:
+
+* `risk.target_volatility` affects diagnostics only
+* `volatility_targeting.enabled: true` activates executable scaling
+* when `volatility_targeting.enabled: false`, the base optimizer weights flow
+  through unchanged even if `risk.target_volatility` is set
 
 ### `sanity`
 

@@ -17,6 +17,7 @@ portfolios:
       enabled: true
       target_volatility: 0.10
       lookback_periods: 20
+      volatility_epsilon: 1e-8
   strict_valid_builtin_pair:
     allocator: equal_weight
     initial_capital: 1.0

@@ -15,6 +15,7 @@ deterministic workflow that can include:
 This document is the main practical guide for using those features end to end.
 For repository-level context, see [../README.md](../README.md). For detailed
 artifact and config references, see
+[alpha_workflow.md](alpha_workflow.md),
 [portfolio_artifact_logging.md](portfolio_artifact_logging.md),
 [portfolio_configuration.md](portfolio_configuration.md), and
 [research_integrity_and_qa.md](research_integrity_and_qa.md).
@@ -45,6 +46,10 @@ artifacts + manifest + registry row
 
 The portfolio CLI does not rerun strategies. It loads saved strategy artifacts,
 which keeps the workflow deterministic and auditable.
+
+Alpha-derived sleeves can also feed the same constructor once they have been
+backtested into aligned return streams. See
+[examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md).
 
 ## What To Run First
 
@@ -256,6 +261,7 @@ volatility_targeting:
   enabled: true
   target_volatility: 0.10
   lookback_periods: 20
+  volatility_epsilon: 1e-8
 ```
 
 CLI example:
@@ -280,6 +286,10 @@ Current behavior is important:
   scaling step before execution and portfolio evaluation
 * the operational scaling factor is computed as
   `target_volatility / estimated_portfolio_volatility`
+* `lookback_periods` controls the rolling volatility estimate used by the
+  operational scaling step
+* `volatility_epsilon` defines the effective zero-volatility cutoff for that
+  operational targeting path
 * scaling is literal and uncapped in this milestone; there is no hidden
   clipping or leverage cap
 * when enabled, the estimated pre-target volatility uses the configured
@@ -607,3 +617,4 @@ What each file is best for:
 * [research_integrity_and_qa.md](research_integrity_and_qa.md)
 * [execution_model.md](execution_model.md)
 * [runtime_configuration.md](runtime_configuration.md)
+* [examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md)

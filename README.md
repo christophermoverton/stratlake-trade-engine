@@ -8,17 +8,23 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 11.5 Summary
+## Milestone 12 Summary
 
-Milestone 11.5 extends StratLake into a deterministic research stack that now
-connects feature engineering, alpha modeling, backtesting, and portfolio
-construction in one auditable workflow. The repository now supports:
+Milestone 12 promotes StratLake into a deterministic alpha-research platform
+that now evaluates predictive quality before downstream signal mapping,
+backtesting, and portfolio construction. The repository now supports:
 
 * alpha model registration through a deterministic `BaseAlphaModel` interface
 * deterministic alpha training and prediction helpers with explicit half-open
   time windows
 * time-aware alpha split utilities for fixed and rolling train/predict windows
 * cross-sectional helpers for same-timestamp alpha inspection
+* deterministic alpha evaluation with forward-return alignment before signal
+  mapping
+* per-period and aggregate alpha metrics including IC, Rank IC, coverage, and
+  leaderboard-ready summaries
+* registry-backed alpha-evaluation persistence, comparison, and reproducible
+  artifact manifests
 * continuous-signal backtesting where finite numeric exposures are interpreted
   literally after lagged execution
 * centralized portfolio optimization with `equal_weight`, `max_sharpe`, and
@@ -31,13 +37,9 @@ construction in one auditable workflow. The repository now supports:
 Start with:
 
 * [docs/alpha_workflow.md](docs/alpha_workflow.md)
+* [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
-
-Milestone 11.5 stops at deterministic alpha modeling, cross-sectional review,
-prediction-backed backtesting, and portfolio construction. Milestone 12 starts
-before signal mapping and adds alpha-evaluation metrics, persistence, registry
-tracking, and comparison.
 
 ## Overview
 

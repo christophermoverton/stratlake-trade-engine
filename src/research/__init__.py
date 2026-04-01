@@ -32,6 +32,13 @@ from src.research.reporting import (
     print_quick_report,
     summarize_run,
 )
+from src.research.review import (
+    ResearchReviewEntry,
+    ResearchReviewError,
+    ResearchReviewResult,
+    compare_research_runs,
+    render_research_review_table,
+)
 from src.research.signal_engine import generate_signals
 from src.research.simulation import (
     SimulationError,
@@ -75,13 +82,18 @@ __all__ = [
     "max_drawdown",
     "print_quick_report",
     "profit_factor",
+    "ResearchReviewEntry",
+    "ResearchReviewError",
+    "ResearchReviewResult",
     "run_backtest",
+    "compare_research_runs",
     "run_return_simulation",
     "save_experiment",
     "sharpe_ratio",
     "SimulationError",
     "SimulationRunResult",
     "summarize_run",
+    "render_research_review_table",
     "total_return",
     "turnover",
     "validate_strategy_input",

@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import src.research.alpha.registry as alpha_registry
 from src.cli.run_alpha_evaluation import (
     AlphaEvaluationRunResult,
+    import_model_class,
     load_alpha_evaluation_config,
     parse_args,
     run_cli,
@@ -159,6 +160,18 @@ def test_load_alpha_evaluation_config_supports_nested_section(tmp_path: Path) ->
         "target_column": TARGET_COLUMN,
         "price_column": "close",
     }
+
+
+def test_import_model_class_supports_windows_style_file_paths() -> None:
+    if sys.platform != "win32":
+        pytest.skip("Windows path parsing is only relevant on Windows.")
+
+    import_target = f"{Path(__file__).resolve().as_posix()}:CliAlphaEvalWeightedModel"
+
+    model_cls = import_model_class(import_target)
+
+    assert model_cls.__name__ == "CliAlphaEvalWeightedModel"
+    assert issubclass(model_cls, BaseAlphaModel)
 
 
 def test_run_cli_executes_full_alpha_evaluation_pipeline_and_persists_artifacts(

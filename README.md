@@ -34,6 +34,11 @@ Start with:
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 
+Milestone 11.5 stops at deterministic alpha modeling, cross-sectional review,
+prediction-backed backtesting, and portfolio construction. Milestone 12 starts
+before signal mapping and adds alpha-evaluation metrics, persistence, registry
+tracking, and comparison.
+
 ## Overview
 
 StratLake helps answer three practical research questions:
@@ -176,6 +181,13 @@ python docs/examples/alpha_evaluation_end_to_end.py
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
 python -m src.cli.compare_alpha --from-registry
 ```
+
+Notes:
+
+* pass exactly one of `--price-column` or `--realized-return-column`
+* `--model-class` accepts either `module:Class` or `path.py:Class`
+* the end-to-end example writes reproducible outputs under
+  `docs/examples/output/alpha_evaluation_end_to_end/`
 
 ## Cross-Sectional Utilities
 

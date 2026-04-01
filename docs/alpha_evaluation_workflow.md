@@ -11,6 +11,31 @@ question before downstream signal mapping or portfolio construction:
 Alpha -> Predict -> Align -> Validate -> Evaluate -> Aggregate -> Persist -> Register -> Compare
 ```
 
+Milestone 11.5 covers deterministic alpha modeling, backtesting, and portfolio
+construction. This Milestone 12 workflow is the evaluation layer that sits
+between prediction and downstream signal mapping.
+
+## Quick Start
+
+Run the committed end-to-end example:
+
+```powershell
+python docs/examples/alpha_evaluation_end_to_end.py
+```
+
+Run the CLI directly:
+
+```powershell
+python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
+python -m src.cli.compare_alpha --from-registry
+```
+
+The example writes deterministic outputs under:
+
+```text
+docs/examples/output/alpha_evaluation_end_to_end/
+```
+
 ## Stage By Stage
 
 ### Predict

@@ -7,7 +7,7 @@ python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
 ```
 
 This example uses the committed deterministic dataset at
-`docs/examples/data/milestone_12_alpha_portfolio_dataset.csv` and exercises:
+`docs/examples/data/milestone_11_5_alpha_portfolio_dataset.csv` and exercises:
 
 * alpha model registration through `register_alpha_model(...)`
 * alpha training with `train_alpha_model(...)`

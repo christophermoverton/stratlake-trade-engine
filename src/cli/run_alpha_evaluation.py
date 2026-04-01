@@ -320,7 +320,7 @@ def ensure_model_registered(
 def import_model_class(import_target: str) -> type[BaseAlphaModel]:
     """Import one alpha model class from a module path or Python file path."""
 
-    module_target, _, class_name = import_target.partition(":")
+    module_target, _, class_name = import_target.rpartition(":")
     if not module_target or not class_name:
         raise ValueError("model_class must use the format module:Class or path.py:Class.")
 

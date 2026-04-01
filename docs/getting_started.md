@@ -13,9 +13,10 @@ This guide walks through the current repository workflow:
 2. point the repo at curated data
 3. build or verify features
 4. run a strategy
-5. run an alpha-to-portfolio example
-6. run a strict strategy
-7. build a portfolio from saved runs
+5. run the Milestone 11.5 alpha-to-portfolio example
+6. run the Milestone 12 alpha-evaluation example
+7. run a strict strategy
+8. build a portfolio from saved runs
 
 For deeper detail, continue with:
 
@@ -136,7 +137,7 @@ The strategy CLI prints:
 
 It also writes artifacts under `artifacts/strategies/<run_id>/`.
 
-## Run The Alpha Example Workflow
+## Run The Milestone 11.5 Alpha Example Workflow
 
 The repository includes an end-to-end alpha example that demonstrates model
 registration, deterministic train/predict helpers, cross-sectional inspection,
@@ -150,6 +151,20 @@ See:
 
 * [alpha_workflow.md](alpha_workflow.md)
 * [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
+* [milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md)
+
+## Run The Milestone 12 Alpha-Evaluation Example
+
+Milestone 12 adds deterministic alpha evaluation before signal mapping,
+including forward-return alignment, IC and Rank IC scoring, artifact
+persistence, registry-backed tracking, and leaderboard comparison.
+
+```powershell
+python docs/examples/alpha_evaluation_end_to_end.py
+```
+
+See:
+
 * [alpha_evaluation_workflow.md](alpha_evaluation_workflow.md)
 
 ## Run With Strict Mode And Execution Frictions

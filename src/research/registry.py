@@ -499,6 +499,11 @@ def _build_portfolio_registry_entry(
             "split_count",
         }
     }
+    promotion_gate_summary = (
+        canonicalize_value(dict(metadata["promotion_gate_summary"]))
+        if isinstance(metadata.get("promotion_gate_summary"), dict)
+        else None
+    )
     metrics_summary = _portfolio_metrics_summary(metrics)
     optimizer_summary = _portfolio_optimizer_summary(config, extra_metadata)
     risk_summary = _portfolio_risk_summary(metrics)
@@ -529,6 +534,12 @@ def _build_portfolio_registry_entry(
         "simulation_summary": simulation_summary,
         "evaluation_config_path": evaluation_config_path,
         "split_count": split_count,
+        "promotion_status": (
+            promotion_gate_summary.get("promotion_status")
+            if isinstance(promotion_gate_summary, dict)
+            else None
+        ),
+        "promotion_gate_summary": promotion_gate_summary,
         "config": canonicalize_value(config),
         "components": normalized_components,
         "metadata": extra_metadata,

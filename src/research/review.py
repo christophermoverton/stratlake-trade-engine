@@ -39,6 +39,9 @@ _LEADERBOARD_COLUMNS = [
     "secondary_metric_value",
     "timeframe",
     "evaluation_mode",
+    "promotion_status",
+    "passed_gate_count",
+    "gate_count",
     "artifact_path",
 ]
 
@@ -59,6 +62,9 @@ class ResearchReviewEntry:
     secondary_metric_value: float | None
     timeframe: str | None
     evaluation_mode: str | None
+    promotion_status: str | None
+    passed_gate_count: int | None
+    gate_count: int | None
     artifact_path: str
 
 
@@ -199,6 +205,7 @@ def render_research_review_table(entries: Iterable[ResearchReviewEntry]) -> str:
         ("entity_name", "name"),
         ("selected_metric_name", "metric"),
         ("selected_metric_value", "value"),
+        ("promotion_status", "promotion"),
         ("timeframe", "timeframe"),
         ("run_id", "run_id"),
     ]
@@ -209,6 +216,7 @@ def render_research_review_table(entries: Iterable[ResearchReviewEntry]) -> str:
             "entity_name": entry.entity_name,
             "selected_metric_name": entry.selected_metric_name,
             "selected_metric_value": _format_metric(entry.selected_metric_value),
+            "promotion_status": entry.promotion_status or "-",
             "timeframe": entry.timeframe or "-",
             "run_id": entry.run_id,
         }
@@ -315,6 +323,9 @@ def _alpha_review_entries(*, alpha_artifacts_root: Path, filters: Mapping[str, A
             secondary_metric_value=_coerce_metric(_metrics_summary(row).get("mean_ic")),
             timeframe=_coerce_optional_string(row.get("timeframe")),
             evaluation_mode=ALPHA_REVIEW_RUN_TYPE,
+            promotion_status=_promotion_status(row),
+            passed_gate_count=_promotion_gate_count(row, key="passed_gate_count"),
+            gate_count=_promotion_gate_count(row, key="gate_count"),
             artifact_path=str(row["artifact_path"]),
         )
         for index, row in enumerate(_limit_rows(ranked, filters["top_k_per_type"]), start=1)
@@ -346,6 +357,9 @@ def _strategy_review_entries(*, strategy_artifacts_root: Path, filters: Mapping[
             secondary_metric_value=_coerce_metric(_metrics_summary(row).get("total_return")),
             timeframe=_coerce_optional_string(row.get("timeframe")),
             evaluation_mode=_coerce_optional_string(row.get("evaluation_mode")),
+            promotion_status=_promotion_status(row),
+            passed_gate_count=_promotion_gate_count(row, key="passed_gate_count"),
+            gate_count=_promotion_gate_count(row, key="gate_count"),
             artifact_path=str(row["artifact_path"]),
         )
         for index, row in enumerate(_limit_rows(ranked, filters["top_k_per_type"]), start=1)
@@ -376,6 +390,9 @@ def _portfolio_review_entries(*, portfolio_artifacts_root: Path, filters: Mappin
             secondary_metric_value=_coerce_metric(_metrics_summary(row).get("total_return")),
             timeframe=_coerce_optional_string(row.get("timeframe")),
             evaluation_mode="walk_forward" if row.get("split_count") else "single",
+            promotion_status=_promotion_status(row),
+            passed_gate_count=_promotion_gate_count(row, key="passed_gate_count"),
+            gate_count=_promotion_gate_count(row, key="gate_count"),
             artifact_path=str(row["artifact_path"]),
         )
         for index, row in enumerate(_limit_rows(ranked, filters["top_k_per_type"]), start=1)
@@ -467,6 +484,30 @@ def _limit_rows(rows: list[dict[str, Any]], limit: int | None) -> list[dict[str,
 
 def _persisted_entry(entry: ResearchReviewEntry) -> dict[str, Any]:
     return asdict(entry)
+
+
+def _promotion_status(row: Mapping[str, Any]) -> str | None:
+    direct = row.get("promotion_status")
+    if isinstance(direct, str) and direct.strip():
+        return direct.strip()
+    summary = row.get("promotion_gate_summary")
+    if isinstance(summary, dict):
+        value = summary.get("promotion_status")
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return None
+
+
+def _promotion_gate_count(row: Mapping[str, Any], *, key: str) -> int | None:
+    summary = row.get("promotion_gate_summary")
+    if not isinstance(summary, dict):
+        return None
+    value = summary.get(key)
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
 
 
 def _counts_by_run_type(entries: Iterable[ResearchReviewEntry]) -> dict[str, int]:

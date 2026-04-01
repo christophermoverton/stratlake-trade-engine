@@ -8,6 +8,11 @@ from typing import Any
 import pandas as pd
 
 from src.research.alpha_eval.evaluator import AlphaEvaluationResult
+from src.research.promotion import (
+    DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+    evaluate_promotion_gates,
+    write_promotion_gate_artifact,
+)
 
 DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT = Path("artifacts") / "alpha"
 _IC_TIMESERIES_FILENAME = "ic_timeseries.csv"
@@ -32,6 +37,7 @@ def write_alpha_evaluation_artifacts(
     parent_manifest_dir: str | Path | None = None,
     run_id: str | None = None,
     alpha_name: str | None = None,
+    promotion_gate_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Persist deterministic alpha-evaluation artifacts and return a manifest payload."""
 
@@ -40,9 +46,19 @@ def write_alpha_evaluation_artifacts(
 
     ic_timeseries = _artifact_ic_timeseries_frame(result.ic_timeseries)
     metrics_payload = _alpha_metrics_payload(result, run_id=run_id, alpha_name=alpha_name)
+    promotion_evaluation = evaluate_promotion_gates(
+        run_type="alpha_evaluation",
+        config=promotion_gate_config,
+        sources={
+            "metrics": dict(result.summary),
+            "metadata": dict(result.metadata),
+            "timeseries": ic_timeseries,
+        },
+    )
 
     _write_csv(resolved_output_dir / _IC_TIMESERIES_FILENAME, ic_timeseries)
     _write_json(resolved_output_dir / _ALPHA_METRICS_FILENAME, metrics_payload)
+    write_promotion_gate_artifact(resolved_output_dir, promotion_evaluation)
 
     manifest = _build_manifest(
         output_dir=resolved_output_dir,
@@ -50,6 +66,7 @@ def write_alpha_evaluation_artifacts(
         metrics_payload=metrics_payload,
         run_id=run_id,
         alpha_name=alpha_name,
+        promotion_evaluation=promotion_evaluation,
     )
     _write_json(resolved_output_dir / _MANIFEST_FILENAME, manifest)
 
@@ -117,24 +134,36 @@ def _build_manifest(
     metrics_payload: dict[str, Any],
     run_id: str | None,
     alpha_name: str | None,
+    promotion_evaluation: Any,
 ) -> dict[str, Any]:
     artifact_files = sorted(
         set([*(path.name for path in output_dir.iterdir() if path.is_file()), _MANIFEST_FILENAME])
     )
     metadata = metrics_payload.get("metadata", {})
     timeframe = metadata.get("timeframe") if isinstance(metadata, dict) else None
+    artifact_group = sorted(
+        [
+            _ALPHA_METRICS_FILENAME,
+            _IC_TIMESERIES_FILENAME,
+            _MANIFEST_FILENAME,
+            *(
+                [DEFAULT_PROMOTION_ARTIFACT_FILENAME]
+                if promotion_evaluation is not None
+                else []
+            ),
+        ]
+    )
     return _normalize_mapping({
         "alpha_name": alpha_name,
         "artifact_files": artifact_files,
         "artifact_groups": {
-            "alpha_evaluation": sorted(
-                [_ALPHA_METRICS_FILENAME, _IC_TIMESERIES_FILENAME, _MANIFEST_FILENAME]
-            )
+            "alpha_evaluation": artifact_group
         },
         "evaluation_mode": "alpha",
         "files_written": len(artifact_files),
         "metrics_path": _ALPHA_METRICS_FILENAME,
         "metric_summary": dict(result.summary),
+        "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
         "row_count": result.row_count,
         "run_id": run_id if run_id is not None else output_dir.name,
         "timeframe": timeframe,

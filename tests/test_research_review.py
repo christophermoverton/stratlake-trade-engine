@@ -46,6 +46,12 @@ def _strategy_entry(
         "timeframe": timeframe,
         "evaluation_mode": evaluation_mode,
         "artifact_path": f"artifacts/strategies/{run_id}",
+        "promotion_status": "eligible",
+        "promotion_gate_summary": {
+            "promotion_status": "eligible",
+            "passed_gate_count": 2,
+            "gate_count": 2,
+        },
         "metrics_summary": {
             "sharpe_ratio": sharpe_ratio,
             "total_return": total_return,
@@ -71,6 +77,12 @@ def _portfolio_entry(
         "timeframe": timeframe,
         "artifact_path": f"artifacts/portfolios/{run_id}",
         "split_count": split_count,
+        "promotion_status": "blocked",
+        "promotion_gate_summary": {
+            "promotion_status": "blocked",
+            "passed_gate_count": 1,
+            "gate_count": 2,
+        },
         "metrics_summary": {
             "sharpe_ratio": sharpe_ratio,
             "total_return": total_return,
@@ -97,6 +109,12 @@ def _alpha_entry(
         "timeframe": timeframe,
         "evaluation_horizon": 1,
         "artifact_path": f"artifacts/alpha/{run_id}",
+        "promotion_status": "eligible",
+        "promotion_gate_summary": {
+            "promotion_status": "eligible",
+            "passed_gate_count": 1,
+            "gate_count": 1,
+        },
         "metrics_summary": {
             "ic_ir": ic_ir,
             "mean_ic": mean_ic,
@@ -218,6 +236,9 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
         "secondary_metric_value",
         "timeframe",
         "evaluation_mode",
+        "promotion_status",
+        "passed_gate_count",
+        "gate_count",
         "artifact_path",
     ]
     payload = json.loads(result.json_path.read_text(encoding="utf-8"))
@@ -226,6 +247,14 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
         "strategy": 2,
         "portfolio": 2,
     }
+    assert frame["promotion_status"].tolist() == [
+        "eligible",
+        "eligible",
+        "eligible",
+        "eligible",
+        "blocked",
+        "blocked",
+    ]
 
 
 def test_compare_research_runs_applies_filters_and_top_k_per_type(tmp_path: Path) -> None:

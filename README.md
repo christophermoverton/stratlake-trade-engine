@@ -66,6 +66,7 @@ The repository currently supports:
   operational volatility targeting
 * deterministic return simulation for strategy or portfolio outputs
 * strict-mode enforcement across strategy and portfolio CLIs
+* deterministic promotion gates for alpha, strategy, and portfolio review
 * unified runtime configuration with auditable persisted settings
 * deterministic artifacts, manifests, and registry-backed reuse
 
@@ -246,6 +247,15 @@ strategy and portfolio workflows.
   portfolio-validation, risk, and strict-mode settings.
 * Precedence is deterministic: repository defaults < config < CLI.
 * Effective runtime settings are persisted with completed runs for auditability.
+
+### Promotion gates
+
+* Optional `promotion_gates` configs can be attached to alpha, strategy, and
+  portfolio runs.
+* Completed runs persist `promotion_gates.json` plus a compact promotion summary
+  in the manifest and registry.
+* The unified research review surface now exposes each run's promotion status
+  alongside leaderboard metrics.
 
 See:
 
@@ -459,6 +469,7 @@ Core files:
 * `metrics.json`
 * `signal_diagnostics.json`
 * `qa_summary.json`
+* `promotion_gates.json` when promotion gates are configured
 * `equity_curve.csv`
 * `signals.parquet`
 * `manifest.json`
@@ -486,6 +497,7 @@ Core files:
 * `portfolio_equity_curve.csv`
 * `metrics.json`
 * `qa_summary.json`
+* `promotion_gates.json` when promotion gates are configured
 * `manifest.json`
 
 Optional Milestone 11 additions:

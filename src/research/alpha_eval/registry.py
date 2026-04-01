@@ -87,6 +87,16 @@ def build_alpha_evaluation_registry_entry(
         "manifest_path": resolved_artifact_dir.joinpath("manifest.json").as_posix(),
         "artifact_files": list(manifest_payload.get("artifact_files", [])),
         "metrics_summary": summary_metrics,
+        "promotion_status": (
+            manifest_payload.get("promotion_gate_summary", {}).get("promotion_status")
+            if isinstance(manifest_payload.get("promotion_gate_summary"), dict)
+            else None
+        ),
+        "promotion_gate_summary": (
+            canonicalize_value(dict(manifest_payload["promotion_gate_summary"]))
+            if isinstance(manifest_payload.get("promotion_gate_summary"), dict)
+            else None
+        ),
         "row_count": evaluation_result.row_count,
         "timestamp_count": evaluation_result.timestamp_count,
         "symbol_count": evaluation_result.symbol_count,

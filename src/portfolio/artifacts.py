@@ -11,6 +11,11 @@ from src.portfolio.contracts import PortfolioContractError, validate_portfolio_o
 from src.portfolio.qa import run_portfolio_qa
 from src.portfolio.risk import resolve_portfolio_risk_config, summarize_portfolio_risk
 from src.research.consistency import validate_portfolio_artifact_payload_consistency
+from src.research.promotion import (
+    DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+    evaluate_promotion_gates,
+    write_promotion_gate_artifact,
+)
 from src.research.registry import canonicalize_value, register_portfolio_run
 
 _CONFIG_FILENAME = "config.json"
@@ -57,6 +62,15 @@ def write_portfolio_artifacts(
         normalized_config,
         strict=True,
     )
+    promotion_evaluation = evaluate_promotion_gates(
+        run_type="portfolio",
+        config=_promotion_gate_config(normalized_config),
+        sources={
+            "metrics": normalized_metrics,
+            "qa_summary": qa_summary,
+            "config": normalized_config,
+        },
+    )
     manifest = _build_manifest(
         output_dir=resolved_output_dir,
         portfolio_output=normalized_portfolio_output,
@@ -67,6 +81,7 @@ def write_portfolio_artifacts(
         weights_frame=weights_frame,
         returns_frame=returns_frame,
         equity_frame=equity_frame,
+        promotion_evaluation=promotion_evaluation,
     )
     validate_portfolio_artifact_payload_consistency(
         portfolio_output=normalized_portfolio_output,
@@ -88,6 +103,7 @@ def write_portfolio_artifacts(
     _write_csv(resolved_output_dir / _PORTFOLIO_EQUITY_FILENAME, equity_frame)
     _write_json(resolved_output_dir / _METRICS_FILENAME, normalized_metrics)
     _write_json(resolved_output_dir / _QA_SUMMARY_FILENAME, qa_summary)
+    write_promotion_gate_artifact(resolved_output_dir, promotion_evaluation)
     _write_json(resolved_output_dir / _MANIFEST_FILENAME, manifest)
     return manifest
 
@@ -306,6 +322,7 @@ def _build_manifest(
     weights_frame: pd.DataFrame,
     returns_frame: pd.DataFrame,
     equity_frame: pd.DataFrame,
+    promotion_evaluation: object | None,
 ) -> dict[str, object]:
     run_id = output_dir.name
     optimizer_metadata = _optimizer_manifest_metadata(
@@ -329,6 +346,11 @@ def _build_manifest(
         _MANIFEST_FILENAME: {"path": _MANIFEST_FILENAME},
         _METRICS_FILENAME: {"path": _METRICS_FILENAME},
         _QA_SUMMARY_FILENAME: {"path": _QA_SUMMARY_FILENAME},
+        **(
+            {DEFAULT_PROMOTION_ARTIFACT_FILENAME: {"path": DEFAULT_PROMOTION_ARTIFACT_FILENAME}}
+            if promotion_evaluation is not None
+            else {}
+        ),
         _PORTFOLIO_EQUITY_FILENAME: {
             "columns": equity_frame.columns.tolist(),
             "path": _PORTFOLIO_EQUITY_FILENAME,
@@ -362,10 +384,24 @@ def _build_manifest(
                     _PORTFOLIO_RETURNS_FILENAME,
                     _QA_SUMMARY_FILENAME,
                     _WEIGHTS_FILENAME,
+                    *(
+                        [DEFAULT_PROMOTION_ARTIFACT_FILENAME]
+                        if promotion_evaluation is not None
+                        else []
+                    ),
                 ]
             ),
             "metrics": [_METRICS_FILENAME],
-            "qa": [_QA_SUMMARY_FILENAME],
+            "qa": sorted(
+                [
+                    _QA_SUMMARY_FILENAME,
+                    *(
+                        [DEFAULT_PROMOTION_ARTIFACT_FILENAME]
+                        if promotion_evaluation is not None
+                        else []
+                    ),
+                ]
+            ),
             "risk": [],
             "simulation": [],
             "walk_forward": [],
@@ -387,6 +423,7 @@ def _build_manifest(
         "initial_capital": config.get("initial_capital"),
         "metric_summary": metrics,
         "metrics_path": _METRICS_FILENAME,
+        "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
         "execution": execution_metadata,
         "optimizer": optimizer_metadata,
         "optimizer_method": optimizer_metadata.get("method"),
@@ -653,6 +690,7 @@ def build_portfolio_registry_metadata(
         "execution_summary": manifest.get("execution", {}).get("summary")
         if isinstance(manifest.get("execution"), dict)
         else None,
+        "promotion_gate_summary": manifest.get("promotion_gate_summary"),
     }
     if isinstance(extra_metadata, dict):
         for key, value in sorted(extra_metadata.items()):
@@ -720,6 +758,11 @@ def _format_timestamp(value: object) -> str:
     else:
         timestamp = timestamp.tz_convert("UTC")
     return timestamp.isoformat().replace("+00:00", "Z")
+
+
+def _promotion_gate_config(config: dict[str, object]) -> dict[str, object] | None:
+    payload = config.get("promotion_gates")
+    return dict(payload) if isinstance(payload, dict) else None
 
 
 __all__ = [

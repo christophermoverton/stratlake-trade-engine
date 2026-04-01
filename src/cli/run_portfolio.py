@@ -27,6 +27,7 @@ from src.portfolio import (
 )
 from src.research import experiment_tracker
 from src.research.metrics import MINUTE_PERIODS_PER_YEAR, TRADING_DAYS_PER_YEAR
+from src.research.promotion import load_promotion_gate_config
 from src.research.registry import (
     STRATEGY_RUN_TYPE,
     default_registry_path,
@@ -234,6 +235,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--simulation",
         help="Optional simulation config path for deterministic bootstrap/Monte Carlo return analysis.",
     )
+    parser.add_argument(
+        "--promotion-gates",
+        help="Optional YAML/JSON promotion gate config override.",
+    )
     return parser.parse_args(argv)
 
 
@@ -277,6 +282,9 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
         None if args.simulation is None else load_simulation_config(Path(args.simulation)).to_dict(),
         base=resolved_config.get("simulation"),
     )
+    if args.promotion_gates is not None:
+        resolved_config = dict(resolved_config)
+        resolved_config["promotion_gates"] = load_promotion_gate_config(args.promotion_gates)
     runtime_config = resolve_runtime_config(
         resolved_config,
         cli_strict=args.strict,
@@ -307,6 +315,7 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             validation_config=runtime_config.portfolio_validation.to_dict(),
             risk_config=runtime_config.risk.to_dict(),
             volatility_targeting_config=resolved_config.get("volatility_targeting"),
+            promotion_gates=resolved_config.get("promotion_gates"),
             sanity_config=runtime_config.sanity.to_dict(),
             strict_mode=runtime_config.strict_mode.enabled,
         )
@@ -770,7 +779,7 @@ def _normalize_portfolio_definition(
             raise ValueError(f"Portfolio component at index {index} must be a mapping.")
         normalized_components.append(dict(component))
 
-    return {
+    normalized = {
         "portfolio_name": definition.get("portfolio_name", portfolio_name),
         "allocator": definition.get("allocator", DEFAULT_ALLOCATOR),
         "components": normalized_components,
@@ -784,6 +793,9 @@ def _normalize_portfolio_definition(
         "sanity": definition.get("sanity"),
         "simulation": definition.get("simulation"),
     }
+    if definition.get("promotion_gates") is not None:
+        normalized["promotion_gates"] = definition.get("promotion_gates")
+    return normalized
 
 
 def _resolve_config_components(raw_components: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:

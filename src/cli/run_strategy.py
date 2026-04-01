@@ -19,6 +19,7 @@ from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.input_validation import StrategyInputError
 from src.research.metrics import aggregate_strategy_returns, compute_benchmark_relative_metrics, infer_periods_per_year
+from src.research.promotion import load_promotion_gate_config
 from src.research.robustness import RobustnessRunResult, run_robustness_experiment
 from src.research.simulation import SimulationRunResult, run_return_simulation, write_simulation_artifacts
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
@@ -102,6 +103,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--simulation",
         help="Optional simulation config path for deterministic bootstrap/Monte Carlo return analysis.",
     )
+    parser.add_argument(
+        "--promotion-gates",
+        help="Optional YAML/JSON promotion gate config override.",
+    )
     return parser.parse_args(argv)
 
 
@@ -176,14 +181,17 @@ def run_strategy_experiment(
     signal_diagnostics = compute_signal_diagnostics(results_df["signal"], results_df)
     resolved_simulation = resolve_simulation_config(simulation_config, base=config.get("simulation"))
 
-    experiment_config = resolved_runtime.apply_to_payload(
-        {
+    experiment_payload = {
         "strategy_name": strategy_name,
         "dataset": strategy.dataset,
         "parameters": dict(config.get("parameters", {})),
         "start": start,
         "end": end,
-        },
+    }
+    if config.get("promotion_gates") is not None:
+        experiment_payload["promotion_gates"] = config.get("promotion_gates")
+    experiment_config = resolved_runtime.apply_to_payload(
+        experiment_payload,
         include_validation_section=False,
     )
     if resolved_simulation is not None:
@@ -386,6 +394,9 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
         raise ValueError("A strategy must be provided via --strategy or the robustness config.")
 
     config = get_strategy_config(strategy_name)
+    if args.promotion_gates is not None:
+        config = dict(config)
+        config["promotion_gates"] = load_promotion_gate_config(args.promotion_gates)
     runtime_config = resolve_runtime_config(
         config,
         cli_overrides=None if execution_override is None else {"execution": execution_override},

@@ -114,17 +114,24 @@ def generate_research_review_plots(
             continue
 
         metric_name = run_entries[0].selected_metric_name
+        plot_rows = [
+            {
+                "strategy": entry.entity_name,
+                metric_name: entry.selected_metric_value,
+            }
+            for entry in run_entries
+            if entry.selected_metric_value is not None
+        ]
+        if len(plot_rows) < 2:
+            skipped_plots[plot_key] = (
+                f"Skipped {run_type} metric comparison because at least 2 numeric metric rows are required."
+            )
+            continue
         run_type_dir = plots_dir / run_type
         run_type_dir.mkdir(parents=True, exist_ok=True)
         output_path = run_type_dir / get_plot_filename("metric_comparison", metric_name=metric_name)
         plot_metric_comparison(
-            [
-                {
-                    "strategy": entry.entity_name,
-                    metric_name: entry.selected_metric_value,
-                }
-                for entry in run_entries
-            ],
+            plot_rows,
             metric_name=metric_name,
             title=f"{run_type.replace('_', ' ').title()} {metric_name} Comparison",
             output_path=output_path,

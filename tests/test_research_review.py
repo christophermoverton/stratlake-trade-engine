@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sys
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -25,6 +26,20 @@ def _write_registry(path: Path, rows: list[dict[str, object]]) -> None:
         "".join(json.dumps(row, separators=(",", ":"), sort_keys=True) + "\n" for row in rows),
         encoding="utf-8",
     )
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _without_output_path(payload: dict[str, Any]) -> dict[str, Any]:
+    normalized = json.loads(json.dumps(payload))
+    review_config = normalized.get("review_config")
+    if isinstance(review_config, dict):
+        output = review_config.get("output")
+        if isinstance(output, dict):
+            output.pop("path", None)
+    return normalized
 
 
 def _strategy_entry(
@@ -650,6 +665,185 @@ def test_compare_research_runs_applies_review_config_precedence_and_persists_eff
 
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     assert manifest["review_config"] == result.review_config
+
+
+def test_compare_research_runs_handles_missing_metrics_and_nested_review_metadata_counts(tmp_path: Path) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    nested_review = _strategy_entry(
+        run_id="strategy-nested",
+        strategy_name="carry_v1",
+        timestamp="2026-03-19T00:06:00Z",
+        sharpe_ratio=None,
+        total_return=0.12,
+    )
+    nested_review.pop("promotion_gate_summary")
+    nested_review.pop("promotion_status")
+    nested_review["review_metadata"] = {
+        "decision_reason": "committee deferred to candidate queue",
+        "decision_source": "manual_review",
+        "promotion_gate_summary": {
+            "promotion_status": "eligible",
+            "passed_gate_count": 1,
+            "gate_count": 3,
+        },
+        "promotion_status": "eligible",
+        "reviewed_at": "2026-03-19T00:11:00Z",
+        "schema_version": 1,
+        "status": "candidate",
+    }
+    _write_registry(
+        strategy_root / "registry.jsonl",
+        [
+            _strategy_entry(
+                run_id="strategy-strong",
+                strategy_name="momentum_v1",
+                timestamp="2026-03-19T00:05:00Z",
+                sharpe_ratio=1.4,
+                total_return=0.08,
+            ),
+            nested_review,
+            _strategy_entry(
+                run_id="strategy-missing",
+                strategy_name="value_v1",
+                timestamp="2026-03-19T00:04:00Z",
+                sharpe_ratio=None,
+                total_return=0.02,
+            ),
+        ],
+    )
+
+    result = compare_research_runs(
+        run_types=["strategy"],
+        strategy_artifacts_root=strategy_root,
+        portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+        alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+        output_path=tmp_path,
+    )
+
+    assert [entry.run_id for entry in result.entries] == [
+        "strategy-strong",
+        "strategy-nested",
+        "strategy-missing",
+    ]
+    assert [entry.selected_metric_value for entry in result.entries] == [1.4, None, None]
+    assert [entry.secondary_metric_value for entry in result.entries] == [0.08, 0.12, 0.02]
+    assert result.entries[1].promotion_status == "candidate"
+    assert result.entries[1].passed_gate_count == 1
+    assert result.entries[1].gate_count == 3
+
+    payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    assert [row["selected_metric_value"] for row in payload["entries"]] == [1.4, None, None]
+    assert payload["entries"][1]["promotion_status"] == "candidate"
+    assert result.skipped_plots == {
+        "strategy_metric_comparison": "Skipped strategy metric comparison because at least 2 numeric metric rows are required."
+    }
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["review_metrics"] == {
+        "alpha_entry_count": 0,
+        "blocked_entry_count": 0,
+        "eligible_entry_count": 2,
+        "entry_count": 3,
+        "portfolio_entry_count": 0,
+        "promoted_entry_count": 0,
+        "reviewed_entry_count": 3,
+        "strategy_entry_count": 3,
+    }
+
+
+def test_compare_research_runs_is_deterministic_across_output_paths_with_review_decisions_and_gates(tmp_path: Path) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    _write_registry(
+        strategy_root / "registry.jsonl",
+        [
+            _strategy_entry_with_review(
+                run_id="strategy-promoted",
+                strategy_name="momentum_v1",
+                timestamp="2026-03-19T00:05:00Z",
+                review_status="promoted",
+                decision_reason="committee approved",
+            ),
+            _strategy_entry(
+                run_id="strategy-candidate",
+                strategy_name="carry_v1",
+                timestamp="2026-03-19T00:04:00Z",
+                sharpe_ratio=1.05,
+                total_return=0.07,
+            ),
+        ],
+    )
+
+    first = compare_research_runs(
+        run_types=["strategy"],
+        strategy_artifacts_root=strategy_root,
+        portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+        alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+        output_path=tmp_path / "run_one",
+        emit_plots=False,
+        promotion_gate_config={
+            "status_on_pass": "review_ready",
+            "status_on_fail": "needs_work",
+            "gates": [
+                {
+                    "gate_id": "minimum_rows",
+                    "source": "metrics",
+                    "metric_path": "entry_count",
+                    "comparator": "gte",
+                    "threshold": 2,
+                },
+                {
+                    "gate_id": "promoted_present",
+                    "source": "metrics",
+                    "metric_path": "promoted_entry_count",
+                    "comparator": "gte",
+                    "threshold": 1,
+                },
+            ],
+        },
+    )
+    second = compare_research_runs(
+        run_types=["strategy"],
+        strategy_artifacts_root=strategy_root,
+        portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+        alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+        output_path=tmp_path / "run_two",
+        emit_plots=False,
+        promotion_gate_config={
+            "status_on_pass": "review_ready",
+            "status_on_fail": "needs_work",
+            "gates": [
+                {
+                    "gate_id": "minimum_rows",
+                    "source": "metrics",
+                    "metric_path": "entry_count",
+                    "comparator": "gte",
+                    "threshold": 2,
+                },
+                {
+                    "gate_id": "promoted_present",
+                    "source": "metrics",
+                    "metric_path": "promoted_entry_count",
+                    "comparator": "gte",
+                    "threshold": 1,
+                },
+            ],
+        },
+    )
+
+    assert first.review_id == second.review_id
+    assert [entry.run_id for entry in first.entries] == [entry.run_id for entry in second.entries]
+    assert [entry.promotion_status for entry in first.entries] == ["promoted", "eligible"]
+    assert first.csv_path.read_bytes() == second.csv_path.read_bytes()
+    assert first.promotion_gate_path is not None
+    assert second.promotion_gate_path is not None
+    assert first.promotion_gate_path.read_bytes() == second.promotion_gate_path.read_bytes()
+    assert _without_output_path(_read_json(first.json_path)) == _without_output_path(_read_json(second.json_path))
+    assert _without_output_path(_read_json(first.manifest_path)) == _without_output_path(_read_json(second.manifest_path))
+
+    promotion_payload = json.loads(first.promotion_gate_path.read_text(encoding="utf-8"))
+    assert promotion_payload["promotion_status"] == "review_ready"
+    assert promotion_payload["passed_gate_count"] == 2
+    assert promotion_payload["results"][1]["actual_value"] == pytest.approx(1.0)
 
 
 def test_parse_args_supports_unified_review_inputs() -> None:

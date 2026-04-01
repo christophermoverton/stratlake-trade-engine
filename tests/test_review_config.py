@@ -84,3 +84,73 @@ def test_resolve_review_config_validates_fields_explicitly() -> None:
 
     with pytest.raises(ReviewConfigError, match="unsupported keys"):
         resolve_review_config({"review": {"filters": {}, "mystery": {}}})
+
+
+def test_resolve_review_config_prefers_nested_promotion_gates_and_allows_cli_override(tmp_path: Path) -> None:
+    config_path = tmp_path / "review.yml"
+    config_path.write_text(
+        """
+promotion_gates:
+  gates:
+    - gate_id: top_level_gate
+      source: metrics
+      metric_path: entry_count
+      comparator: gte
+      threshold: 99
+review:
+  promotion_gates:
+    gates:
+      - gate_id: nested_gate
+        source: metrics
+        metric_path: entry_count
+        comparator: gte
+        threshold: 2
+""".strip(),
+        encoding="utf-8",
+    )
+
+    loaded = load_review_config(config_path)
+    assert loaded.promotion_gates == {
+        "gates": [
+            {
+                "comparator": "gte",
+                "gate_id": "nested_gate",
+                "metric_path": "entry_count",
+                "source": "metrics",
+                "threshold": 2,
+            }
+        ]
+    }
+
+    resolved = resolve_review_config(
+        loaded.to_dict(),
+        cli_overrides={
+            "promotion_gates": {
+                "status_on_pass": "review_ready",
+                "status_on_fail": "needs_work",
+                "gates": [
+                    {
+                        "gate_id": "cli_gate",
+                        "source": "metrics",
+                        "metric_path": "promoted_entry_count",
+                        "comparator": "gte",
+                        "threshold": 1,
+                    }
+                ],
+            }
+        },
+    )
+
+    assert resolved.promotion_gates == {
+        "gates": [
+            {
+                "comparator": "gte",
+                "gate_id": "cli_gate",
+                "metric_path": "promoted_entry_count",
+                "source": "metrics",
+                "threshold": 1,
+            }
+        ],
+        "status_on_fail": "needs_work",
+        "status_on_pass": "review_ready",
+    }

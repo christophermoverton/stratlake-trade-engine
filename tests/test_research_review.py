@@ -234,6 +234,11 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
     assert result.json_path == tmp_path / "review_summary.json"
     assert result.manifest_path == tmp_path / "manifest.json"
     assert result.promotion_gate_path is None
+    assert result.plot_paths == {
+        "alpha_evaluation_metric_comparison": tmp_path / "plots" / "alpha_evaluation" / "metric_comparison_ic_ir.png",
+        "portfolio_metric_comparison": tmp_path / "plots" / "portfolio" / "metric_comparison_sharpe_ratio.png",
+        "strategy_metric_comparison": tmp_path / "plots" / "strategy" / "metric_comparison_sharpe_ratio.png",
+    }
     assert [entry.run_type for entry in result.entries] == [
         "alpha_evaluation",
         "alpha_evaluation",
@@ -278,6 +283,12 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
         "portfolio": 2,
     }
     assert payload["entry_count"] == 6
+    assert payload["plot_paths"] == {
+        "alpha_evaluation_metric_comparison": "plots/alpha_evaluation/metric_comparison_ic_ir.png",
+        "portfolio_metric_comparison": "plots/portfolio/metric_comparison_sharpe_ratio.png",
+        "strategy_metric_comparison": "plots/strategy/metric_comparison_sharpe_ratio.png",
+    }
+    assert payload["skipped_plots"] == {}
     assert frame["promotion_status"].tolist() == [
         "eligible",
         "eligible",
@@ -291,7 +302,15 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
     assert manifest["artifact_files"] == [
         "leaderboard.csv",
         "manifest.json",
+        "plots/alpha_evaluation/metric_comparison_ic_ir.png",
+        "plots/portfolio/metric_comparison_sharpe_ratio.png",
+        "plots/strategy/metric_comparison_sharpe_ratio.png",
         "review_summary.json",
+    ]
+    assert manifest["artifact_groups"]["plots"] == [
+        "plots/alpha_evaluation/metric_comparison_ic_ir.png",
+        "plots/portfolio/metric_comparison_sharpe_ratio.png",
+        "plots/strategy/metric_comparison_sharpe_ratio.png",
     ]
     assert manifest["artifact_groups"]["review"] == [
         "leaderboard.csv",
@@ -391,6 +410,11 @@ def test_compare_research_runs_applies_filters_and_top_k_per_type(tmp_path: Path
         "review_summary.json",
     ]
     assert manifest["leaderboard_path"] == "filtered.csv"
+    assert result.plot_paths == {}
+    assert result.skipped_plots == {
+        "alpha_evaluation_metric_comparison": "Skipped alpha_evaluation metric comparison because at least 2 rows are required.",
+        "strategy_metric_comparison": "Skipped strategy metric comparison because at least 2 rows are required.",
+    }
 
 
 def test_compare_research_runs_writes_stable_artifacts_and_review_id(tmp_path: Path) -> None:
@@ -551,6 +575,7 @@ def test_compare_research_runs_writes_review_level_promotion_artifact_when_confi
     assert manifest["artifact_files"] == [
         "leaderboard.csv",
         "manifest.json",
+        "plots/strategy/metric_comparison_sharpe_ratio.png",
         "promotion_gates.json",
         "review_summary.json",
     ]
@@ -565,6 +590,9 @@ def test_compare_research_runs_writes_review_level_promotion_artifact_when_confi
         "promotion_status": "review_ready",
         "status_on_fail": "needs_work",
         "status_on_pass": "review_ready",
+    }
+    assert manifest["plot_paths"] == {
+        "strategy_metric_comparison": "plots/strategy/metric_comparison_sharpe_ratio.png",
     }
 
 
@@ -654,6 +682,7 @@ def test_run_cli_prints_unified_review_summary(monkeypatch, capsys, tmp_path: Pa
     assert result is expected_result
     stdout = capsys.readouterr().out
     assert "review_id: registry_review_deadbeefcafe" in stdout
+    assert "plot_count: 0" in stdout
     assert "rows: 0" in stdout
     assert "leaderboard_csv:" in stdout
 

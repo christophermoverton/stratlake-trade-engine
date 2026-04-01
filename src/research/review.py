@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import hashlib
 import json
 import math
@@ -10,6 +10,7 @@ from typing import Any, Iterable, Mapping
 import pandas as pd
 
 from src.research.alpha_eval import DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT, load_alpha_evaluation_registry
+from src.research.comparison_plots import generate_research_review_plots
 from src.research.experiment_tracker import ARTIFACTS_ROOT as DEFAULT_STRATEGY_ARTIFACTS_ROOT
 from src.research.promotion import (
     DEFAULT_PROMOTION_ARTIFACT_FILENAME,
@@ -86,6 +87,8 @@ class ResearchReviewResult:
     json_path: Path
     manifest_path: Path
     promotion_gate_path: Path | None
+    plot_paths: dict[str, Path] = field(default_factory=dict)
+    skipped_plots: dict[str, str] = field(default_factory=dict)
 
 
 def compare_research_runs(
@@ -128,12 +131,16 @@ def compare_research_runs(
         entries=entries,
     )
     resolved_output_path = default_research_review_output_path(review_id) if output_path is None else Path(output_path)
+    output_dir = resolve_research_review_csv_path(resolved_output_path).parent
+    plot_paths, skipped_plots = generate_research_review_plots(entries=entries, review_dir=output_dir)
     csv_path, json_path, manifest_path, promotion_gate_path = write_research_review_artifacts(
         entries=entries,
         review_id=review_id,
         filters=normalized_filters,
         output_path=resolved_output_path,
         promotion_gate_config=promotion_gate_config,
+        plot_paths=plot_paths,
+        skipped_plots=skipped_plots,
     )
     return ResearchReviewResult(
         review_id=review_id,
@@ -143,6 +150,8 @@ def compare_research_runs(
         json_path=json_path,
         manifest_path=manifest_path,
         promotion_gate_path=promotion_gate_path,
+        plot_paths=plot_paths,
+        skipped_plots=skipped_plots,
     )
 
 
@@ -153,6 +162,8 @@ def write_research_review_artifacts(
     filters: Mapping[str, Any],
     output_path: str | Path,
     promotion_gate_config: Mapping[str, Any] | None = None,
+    plot_paths: Mapping[str, Path] | None = None,
+    skipped_plots: Mapping[str, str] | None = None,
 ) -> tuple[Path, Path, Path, Path | None]:
     """Persist one deterministic unified review artifact set with a manifest."""
 
@@ -162,6 +173,8 @@ def write_research_review_artifacts(
     manifest_path = output_dir / _MANIFEST_FILENAME
     output_dir.mkdir(parents=True, exist_ok=True)
 
+    normalized_plot_paths = dict(sorted((plot_paths or {}).items()))
+    normalized_skipped_plots = dict(sorted((skipped_plots or {}).items()))
     persisted_rows = [_persisted_entry(entry) for entry in entries]
     frame = pd.DataFrame(persisted_rows, columns=_LEADERBOARD_COLUMNS)
     with csv_path.open("w", encoding="utf-8", newline="\n") as handle:
@@ -171,6 +184,8 @@ def write_research_review_artifacts(
         review_id=review_id,
         filters=filters,
         persisted_rows=persisted_rows,
+        plot_paths=_relative_plot_paths(output_dir, normalized_plot_paths),
+        skipped_plots=normalized_skipped_plots,
     )
     json_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8")
 
@@ -197,6 +212,9 @@ def write_research_review_artifacts(
         leaderboard_frame=frame,
         leaderboard_filename=csv_path.name,
         promotion_evaluation=promotion_evaluation,
+        output_dir=output_dir,
+        plot_paths=normalized_plot_paths,
+        skipped_plots=normalized_skipped_plots,
     )
     manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
     return csv_path, json_path, manifest_path, promotion_gate_path
@@ -207,6 +225,8 @@ def _review_summary_payload(
     review_id: str,
     filters: Mapping[str, Any],
     persisted_rows: list[dict[str, Any]],
+    plot_paths: Mapping[str, str],
+    skipped_plots: Mapping[str, str],
 ) -> dict[str, Any]:
     payload = {
         "review_id": review_id,
@@ -214,7 +234,9 @@ def _review_summary_payload(
         "counts_by_run_type": _counts_by_run_type_from_rows(persisted_rows),
         "entry_count": len(persisted_rows),
         "entries": persisted_rows,
+        "plot_paths": dict(plot_paths),
         "run_ids": [row["run_id"] for row in persisted_rows],
+        "skipped_plots": dict(skipped_plots),
     }
     return canonicalize_value(payload)
 
@@ -655,7 +677,11 @@ def _build_review_manifest(
     leaderboard_frame: pd.DataFrame,
     leaderboard_filename: str,
     promotion_evaluation: Any,
+    output_dir: Path,
+    plot_paths: Mapping[str, Path],
+    skipped_plots: Mapping[str, str],
 ) -> dict[str, Any]:
+    relative_plot_paths = _relative_plot_paths(output_dir, plot_paths)
     artifact_inventory = {
         leaderboard_filename: {
             "path": leaderboard_filename,
@@ -667,6 +693,7 @@ def _build_review_manifest(
             "path": _REVIEW_SUMMARY_FILENAME,
             "rows": len(entries),
         },
+        **{path: {"path": path, "plot_key": key} for key, path in relative_plot_paths.items()},
         **(
             {DEFAULT_PROMOTION_ARTIFACT_FILENAME: {"path": DEFAULT_PROMOTION_ARTIFACT_FILENAME}}
             if promotion_evaluation is not None
@@ -687,6 +714,7 @@ def _build_review_manifest(
         "artifact_groups": {
             "core": review_group,
             "leaderboard": [leaderboard_filename],
+            "plots": list(relative_plot_paths.values()),
             "qa": (
                 [DEFAULT_PROMOTION_ARTIFACT_FILENAME]
                 if promotion_evaluation is not None
@@ -699,6 +727,7 @@ def _build_review_manifest(
         "evaluation_mode": "registry_review",
         "files_written": len(artifact_inventory),
         "leaderboard_path": leaderboard_filename,
+        "plot_paths": dict(relative_plot_paths),
         "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
         "review_filters": canonicalize_value(dict(filters)),
         "review_id": review_id,
@@ -706,6 +735,7 @@ def _build_review_manifest(
         "review_summary_path": _REVIEW_SUMMARY_FILENAME,
         "row_count": len(entries),
         "selected_metrics": _selected_metric_names_by_run_type(entries),
+        "skipped_plots": dict(skipped_plots),
         "timestamp": _utc_timestamp_from_review_id(review_id),
     }
     return canonicalize_value(payload)
@@ -771,3 +801,10 @@ def _utc_timestamp_from_review_id(review_id: str) -> str:
     minute = int(digest[8:10], 16) % 60
     second = int(digest[10:12], 16) % 60
     return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z"
+
+
+def _relative_plot_paths(base_dir: Path, plot_paths: Mapping[str, Path]) -> dict[str, str]:
+    return {
+        key: path.relative_to(base_dir).as_posix()
+        for key, path in sorted(plot_paths.items())
+    }

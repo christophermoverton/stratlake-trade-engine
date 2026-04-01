@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 import hashlib
 import json
 from pathlib import Path
@@ -10,6 +10,7 @@ import pandas as pd
 
 from src.cli.run_strategy import StrategyRunResult as StrategyRunResult  # noqa: F401
 from src.cli.run_strategy import get_strategy_config, run_strategy_experiment
+from src.research.comparison_plots import generate_strategy_comparison_plots
 from src.research import experiment_tracker
 from src.research.registry import default_registry_path, load_registry
 from src.research.strategies import build_strategy
@@ -52,6 +53,8 @@ class ComparisonResult:
     leaderboard: list[LeaderboardEntry]
     csv_path: Path
     json_path: Path
+    plot_paths: dict[str, Path] = field(default_factory=dict)
+    skipped_plots: dict[str, str] = field(default_factory=dict)
 
 
 def compare_strategies(
@@ -118,6 +121,26 @@ def compare_strategies(
         end=end,
         top_k=top_k,
     )
+    run_dirs_by_run_id = {
+        str(row["run_id"]): Path(str(row["artifact_path"]))
+        for row in rows
+        if row.get("artifact_path") is not None
+    }
+    output_dir = resolve_output_csv_path(resolved_output_path).parent
+    plot_paths, skipped_plots = generate_strategy_comparison_plots(
+        comparison_result=ComparisonResult(
+            comparison_id=comparison_id,
+            metric=metric,
+            evaluation_mode=evaluation_mode,
+            selection_mode=selection_mode,
+            selection_rule=selection_rule,
+            leaderboard=leaderboard,
+            csv_path=resolve_output_csv_path(resolved_output_path),
+            json_path=resolve_output_csv_path(resolved_output_path).with_suffix(".json"),
+        ),
+        run_dirs_by_run_id=run_dirs_by_run_id,
+        comparison_dir=output_dir,
+    )
     csv_path, json_path = write_leaderboard_artifacts(
         leaderboard,
         comparison_id=comparison_id,
@@ -126,6 +149,8 @@ def compare_strategies(
         selection_mode=selection_mode,
         selection_rule=selection_rule,
         output_path=resolved_output_path,
+        plot_paths=plot_paths,
+        skipped_plots=skipped_plots,
     )
     return ComparisonResult(
         comparison_id=comparison_id,
@@ -136,6 +161,8 @@ def compare_strategies(
         leaderboard=leaderboard,
         csv_path=csv_path,
         json_path=json_path,
+        plot_paths=plot_paths,
+        skipped_plots=skipped_plots,
     )
 
 
@@ -148,6 +175,8 @@ def write_leaderboard_artifacts(
     selection_mode: str,
     selection_rule: str,
     output_path: Path | None = None,
+    plot_paths: dict[str, Path] | None = None,
+    skipped_plots: dict[str, str] | None = None,
 ) -> tuple[Path, Path]:
     """Persist leaderboard CSV and JSON artifacts using a stable schema."""
 
@@ -168,6 +197,8 @@ def write_leaderboard_artifacts(
         "selection_mode": selection_mode,
         "selection_rule": selection_rule,
         "leaderboard": persisted_rows,
+        "plot_paths": _relative_plot_paths(csv_path.parent, plot_paths or {}),
+        "skipped_plots": dict(sorted((skipped_plots or {}).items())),
     }
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return csv_path, json_path
@@ -308,6 +339,7 @@ def _execute_rows(
                 "run_id": result.run_id,
                 "evaluation_mode": evaluation_mode,
                 "metrics_summary": dict(result.metrics),
+                "artifact_path": result.experiment_dir.as_posix(),
             }
         )
     return rows
@@ -347,6 +379,7 @@ def _load_rows_from_registry(
                 "evaluation_mode": str(selected.get("evaluation_mode") or evaluation_mode),
                 "metrics_summary": dict(selected.get("metrics_summary") or {}),
                 "selected_metric_name": metric,
+                "artifact_path": str(selected.get("artifact_path") or ""),
             }
         )
     return rows
@@ -452,3 +485,10 @@ def _persisted_entry(entry: LeaderboardEntry) -> dict[str, Any]:
     payload = asdict(entry)
     payload.pop("run_id", None)
     return {column: payload.get(column) for column in _persisted_entry_columns()}
+
+
+def _relative_plot_paths(output_dir: Path, plot_paths: dict[str, Path]) -> dict[str, str]:
+    return {
+        name: path.relative_to(output_dir).as_posix()
+        for name, path in sorted(plot_paths.items())
+    }

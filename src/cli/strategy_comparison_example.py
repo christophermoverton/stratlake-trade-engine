@@ -5,12 +5,10 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-import pandas as pd
-
 from src.research.compare import ComparisonResult, compare_strategies
+from src.research.comparison_plots import generate_strategy_comparison_plots
 from src.research.experiment_tracker import ARTIFACTS_ROOT
 from src.research.reporting import generate_strategy_plots, generate_strategy_report
-from src.research.visualization import get_plot_filename, plot_equity_comparison, plot_metric_comparison
 
 DEFAULT_STRATEGIES = ("momentum_v1", "mean_reversion_v1", "buy_and_hold_v1")
 DEFAULT_START = "2025-01-01"
@@ -135,62 +133,15 @@ def _generate_comparison_plots(
     run_dirs: dict[str, Path],
     comparison_dir: Path,
 ) -> dict[str, Path]:
-    plots_dir = comparison_dir / "plots"
-    plots_dir.mkdir(parents=True, exist_ok=True)
-
-    equity_inputs: list[tuple[str, pd.Series]] = []
-    metric_rows: list[dict[str, object]] = []
-    metric_name = comparison_result.metric
-
-    for entry in comparison_result.leaderboard:
-        run_dir = run_dirs[entry.strategy_name]
-        equity_curve = pd.read_csv(run_dir / "equity_curve.csv")
-        equity_series = _select_equity_series(equity_curve)
-        equity_inputs.append((entry.strategy_name, equity_series))
-        metric_rows.append(
-            {
-                "strategy_name": entry.strategy_name,
-                metric_name: entry.selected_metric_value,
-            }
-        )
-
-    equity_plot_path = plots_dir / get_plot_filename("equity_comparison")
-    plot_equity_comparison(
-        equity_inputs,
-        title="Strategy Equity Comparison",
-        output_path=equity_plot_path,
-        input_type="equity",
+    plot_paths, _skipped_plots = generate_strategy_comparison_plots(
+        comparison_result=comparison_result,
+        run_dirs_by_run_id={
+            entry.run_id: run_dirs[entry.strategy_name]
+            for entry in comparison_result.leaderboard
+        },
+        comparison_dir=comparison_dir,
     )
-    equity_debug_plot_path = plots_dir / get_plot_filename("equity_comparison_debug")
-    plot_equity_comparison(
-        equity_inputs,
-        title="Strategy Equity Comparison (Debug Overlay)",
-        output_path=equity_debug_plot_path,
-        input_type="equity",
-        view="raw",
-    )
-
-    metric_plot_path = plots_dir / get_plot_filename("metric_comparison", metric_name=metric_name)
-    plot_metric_comparison(
-        metric_rows,
-        metric_name=metric_name,
-        title=f"Strategy {metric_name} Comparison",
-        output_path=metric_plot_path,
-    )
-
-    return {
-        "equity_comparison": equity_plot_path,
-        "equity_comparison_debug": equity_debug_plot_path,
-        "metric_comparison": metric_plot_path,
-    }
-
-
-def _select_equity_series(frame: pd.DataFrame) -> pd.Series:
-    column = "equity" if "equity" in frame.columns else "equity_curve"
-    index = pd.to_datetime(frame["ts_utc"], utc=True, errors="coerce")
-    values = pd.to_numeric(frame[column], errors="coerce").to_numpy(dtype="float64", na_value=float("nan"))
-    series = pd.Series(values, index=index, name=column)
-    return series.dropna()
+    return plot_paths
 
 
 def main() -> None:

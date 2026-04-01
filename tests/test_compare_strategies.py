@@ -77,6 +77,14 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
         calls.append(strategy_name)
         assert start == "2025-01-01"
         assert end == "2025-03-01"
+        experiment_dir = tmp_path / f"run-{strategy_name}"
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(
+            {
+                "ts_utc": pd.date_range("2025-01-01", periods=3, freq="D", tz="UTC"),
+                "equity_curve": [1.0, 1.05, 1.08] if strategy_name == "momentum_v1" else [1.0, 1.01, 1.02],
+            }
+        ).to_csv(experiment_dir / "equity_curve.csv", index=False)
         return compare.StrategyRunResult(
             strategy_name=strategy_name,
             run_id=f"run-{strategy_name}",
@@ -88,7 +96,7 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
                 "max_drawdown": 0.07 if strategy_name == "momentum_v1" else 0.03,
                 "win_rate": 0.62 if strategy_name == "momentum_v1" else 0.51,
             },
-            experiment_dir=tmp_path / f"run-{strategy_name}",
+            experiment_dir=experiment_dir,
             results_df=None,  # type: ignore[arg-type]
         )
 
@@ -110,6 +118,10 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
     assert result.json_path == tmp_path / "leaderboard.json"
     assert result.csv_path.exists()
     assert result.json_path.exists()
+    assert result.plot_paths == {
+        "equity_comparison": tmp_path / "plots" / "equity_comparison.png",
+        "metric_comparison": tmp_path / "plots" / "metric_comparison_sharpe_ratio.png",
+    }
 
     payload = json.loads(result.json_path.read_text(encoding="utf-8"))
     assert payload["comparison_id"] == result.comparison_id
@@ -119,6 +131,11 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
     assert "run_id" not in payload["leaderboard"][0]
     assert payload["leaderboard"][0]["annualized_return"] == pytest.approx(0.18)
     assert payload["leaderboard"][0]["win_rate"] == pytest.approx(0.62)
+    assert payload["plot_paths"] == {
+        "equity_comparison": "plots/equity_comparison.png",
+        "metric_comparison": "plots/metric_comparison_sharpe_ratio.png",
+    }
+    assert payload["skipped_plots"] == {}
 
     leaderboard_frame = pd.read_csv(result.csv_path)
     assert list(leaderboard_frame.columns) == [
@@ -281,6 +298,14 @@ def test_compare_strategies_uses_deterministic_default_output_path_and_stable_fi
 
     def fake_run_strategy_experiment(strategy_name: str, start=None, end=None):
         run_counts[strategy_name] = run_counts.get(strategy_name, 0) + 1
+        experiment_dir = tmp_path / f"run-{strategy_name}"
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(
+            {
+                "ts_utc": pd.date_range("2025-01-01", periods=3, freq="D", tz="UTC"),
+                "equity_curve": [1.0, 1.03, 1.06] if strategy_name == "momentum_v1" else [1.0, 1.01, 1.02],
+            }
+        ).to_csv(experiment_dir / "equity_curve.csv", index=False)
         return compare.StrategyRunResult(
             strategy_name=strategy_name,
             run_id=f"ephemeral-{run_counts[strategy_name]}-{strategy_name}",
@@ -292,7 +317,7 @@ def test_compare_strategies_uses_deterministic_default_output_path_and_stable_fi
                 "max_drawdown": 0.04 if strategy_name == "momentum_v1" else 0.03,
                 "win_rate": 0.58 if strategy_name == "momentum_v1" else 0.53,
             },
-            experiment_dir=tmp_path / f"run-{strategy_name}",
+            experiment_dir=experiment_dir,
             results_df=None,  # type: ignore[arg-type]
         )
 
@@ -397,6 +422,7 @@ def test_run_cli_prints_leaderboard_summary(monkeypatch, capsys, tmp_path: Path)
     stdout = capsys.readouterr().out
     assert "comparison_id: fresh_single_sharpe_ratio_deadbeefcafe" in stdout
     assert "metric: sharpe_ratio" in stdout
+    assert "plot_count: 0" in stdout
     assert "rows: 1" in stdout
     assert "strategy" in stdout
     assert "momentum_v1" in stdout
@@ -521,6 +547,14 @@ def test_compare_strategies_repeated_runs_keep_leaderboard_bytes_identical(
 
     def fake_run_strategy_experiment(strategy_name: str, start=None, end=None):
         run_counts[strategy_name] = run_counts.get(strategy_name, 0) + 1
+        experiment_dir = tmp_path / f"run-{strategy_name}"
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(
+            {
+                "ts_utc": pd.date_range("2025-01-01", periods=4, freq="D", tz="UTC"),
+                "equity_curve": [1.0, 1.04, 1.07, 1.1] if strategy_name == "momentum_v1" else [1.0, 1.01, 1.02, 1.03],
+            }
+        ).to_csv(experiment_dir / "equity_curve.csv", index=False)
         return compare.StrategyRunResult(
             strategy_name=strategy_name,
             run_id=f"ephemeral-{run_counts[strategy_name]}-{strategy_name}",
@@ -538,7 +572,7 @@ def test_compare_strategies_repeated_runs_keep_leaderboard_bytes_identical(
                 "turnover": 0.2 if strategy_name == "momentum_v1" else 0.1,
                 "exposure_pct": 80.0 if strategy_name == "momentum_v1" else 75.0,
             },
-            experiment_dir=tmp_path / f"run-{strategy_name}",
+            experiment_dir=experiment_dir,
             results_df=None,  # type: ignore[arg-type]
         )
 
@@ -564,3 +598,35 @@ def test_compare_strategies_repeated_runs_keep_leaderboard_bytes_identical(
     ]
     assert first_csv == second.csv_path.read_bytes()
     assert first_json == second.json_path.read_bytes()
+
+
+def test_compare_strategies_skips_equity_plot_for_large_leaderboard_but_keeps_metric_plot(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fake_run_strategy_experiment(strategy_name: str, start=None, end=None):
+        experiment_dir = tmp_path / strategy_name
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        pd.DataFrame(
+            {
+                "ts_utc": pd.date_range("2025-01-01", periods=3, freq="D", tz="UTC"),
+                "equity_curve": [1.0, 1.01, 1.02],
+            }
+        ).to_csv(experiment_dir / "equity_curve.csv", index=False)
+        return compare.StrategyRunResult(
+            strategy_name=strategy_name,
+            run_id=f"run-{strategy_name}",
+            metrics={"sharpe_ratio": 1.0, "total_return": 0.02, "cumulative_return": 0.02, "max_drawdown": 0.01},
+            experiment_dir=experiment_dir,
+            results_df=None,  # type: ignore[arg-type]
+        )
+
+    monkeypatch.setattr(compare, "run_strategy_experiment", fake_run_strategy_experiment)
+
+    result = compare.compare_strategies(
+        [f"strategy_{index}" for index in range(7)],
+        output_path=tmp_path,
+    )
+
+    assert "metric_comparison" in result.plot_paths
+    assert "equity_comparison" not in result.plot_paths
+    assert "equity_comparison" in result.skipped_plots

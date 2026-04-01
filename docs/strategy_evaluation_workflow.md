@@ -455,6 +455,8 @@ Leaderboard outputs:
 
 * `artifacts/comparisons/<comparison_id>/leaderboard.csv`
 * `artifacts/comparisons/<comparison_id>/leaderboard.json`
+* `artifacts/comparisons/<comparison_id>/plots/metric_comparison_<metric>.png`
+* `artifacts/comparisons/<comparison_id>/plots/equity_comparison.png` for small leaderboards with available run equity artifacts
 
 Each leaderboard row includes:
 
@@ -466,6 +468,17 @@ Each leaderboard row includes:
 * `selected_metric_value`
 * the core metric columns such as `total_return`, `sharpe_ratio`, and
   `max_drawdown`
+
+The comparison JSON summary now also records emitted plot paths and any
+intentionally skipped plots. The first-pass plot policy is deliberately
+bounded:
+
+* metric comparison bars are emitted only when the leaderboard has between `2`
+  and `10` rows
+* equity overlays are emitted only when the leaderboard has between `2` and
+  `6` rows
+* larger leaderboards keep the CSV/JSON artifacts and record the skipped plot
+  reason instead of writing dense plots that do not review well
 
 Ranking behavior:
 

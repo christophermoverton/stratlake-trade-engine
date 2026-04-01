@@ -101,7 +101,7 @@ def run_cli(argv: Sequence[str] | None = None) -> ResearchReviewResult:
         table=render_research_review_table(result.entries),
         csv_path=result.csv_path,
         json_path=result.json_path,
-        extra_fields=(("filters", result.filters),),
+        extra_fields=(("filters", result.filters), ("plot_count", len(result.plot_paths))),
     )
     return result
 

@@ -158,9 +158,20 @@ Default outputs:
 
 * `artifacts/comparisons/<comparison_id>/leaderboard.csv`
 * `artifacts/comparisons/<comparison_id>/leaderboard.json`
+* `artifacts/comparisons/<comparison_id>/plots/metric_comparison_<metric>.png`
+* `artifacts/comparisons/<comparison_id>/plots/equity_comparison.png` when the comparison set stays intentionally small
 
 `<comparison_id>` is deterministic for the same strategy list, metric,
 evaluation mode, selection mode, evaluation path, and `top_k` inputs.
+
+Comparison plots now come from the primary `compare_strategies` workflow rather
+than the example-only flow. The default policy stays restrained:
+
+* the metric bar chart is emitted only for leaderboards with `2` to `10` rows
+* the equity overlay is emitted only for leaderboards with `2` to `6` rows and
+  requires each selected run to have `equity_curve.csv`
+* skipped plots are recorded in `leaderboard.json` so large review surfaces
+  stay artifact-first without silently dropping context
 
 ## Alpha And Unified Review
 
@@ -192,13 +203,15 @@ Unified review artifact contract:
 * `artifacts/reviews/<review_id>/leaderboard.csv`
 * `artifacts/reviews/<review_id>/review_summary.json`
 * `artifacts/reviews/<review_id>/manifest.json`
+* `artifacts/reviews/<review_id>/plots/<run_type>/metric_comparison_<metric>.png`
+  for run types with review-sized groups
 * `artifacts/reviews/<review_id>/promotion_gates.json` when review-level
   promotion gates are configured
 
 `review_summary.json` is the canonical JSON summary for unified review runs.
 `manifest.json` inventories the written files, row counts, selected review
-metrics, and optional promotion-gate summary so review outputs are explicitly
-auditable across reruns.
+metrics, plot paths, skipped plot reasons, and optional promotion-gate summary
+so review outputs are explicitly auditable across reruns.
 
 ## Compatibility Notes
 

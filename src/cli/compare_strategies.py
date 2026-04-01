@@ -103,6 +103,7 @@ def run_cli(argv: Sequence[str] | None = None) -> ComparisonResult:
             ("evaluation_mode", result.evaluation_mode),
             ("selection_mode", result.selection_mode),
             ("selection_rule", result.selection_rule),
+            ("plot_count", len(result.plot_paths)),
         ),
     )
     return result

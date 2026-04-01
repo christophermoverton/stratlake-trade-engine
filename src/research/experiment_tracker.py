@@ -13,13 +13,22 @@ from src.research.consistency import (
     validate_strategy_artifact_payload_consistency,
     validate_walk_forward_consistency,
 )
-from src.research.metrics import broadcast_strategy_equity_curve, infer_position_series
+from src.research.metrics import (
+    broadcast_strategy_equity_curve,
+    compute_performance_metrics,
+    infer_position_series,
+)
 from src.research.promotion import (
     DEFAULT_PROMOTION_ARTIFACT_FILENAME,
     evaluate_promotion_gates,
     write_promotion_gate_artifact,
 )
-from src.research.registry import default_registry_path, serialize_canonical_json, upsert_registry_entry
+from src.research.registry import (
+    build_review_metadata,
+    default_registry_path,
+    serialize_canonical_json,
+    upsert_registry_entry,
+)
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_qa import generate_strategy_qa_summary
 
@@ -222,6 +231,11 @@ def _build_registry_entry(
     promotion_evaluation: Any | None = None,
 ) -> dict[str, Any]:
     run_id = experiment_dir.name
+    review_metadata = build_review_metadata(
+        review=config.get("review") if isinstance(config.get("review"), dict) else None,
+        promotion_status=None if promotion_evaluation is None else promotion_evaluation.promotion_status,
+        promotion_gate_summary=None if promotion_evaluation is None else promotion_evaluation.summary(),
+    )
     return {
         "run_id": run_id,
         "timestamp": _utc_timestamp_from_run_id(run_id),
@@ -235,6 +249,8 @@ def _build_registry_entry(
         "timeframe": _infer_timeframe(results_df, config),
         "metrics_summary": _metrics_summary(metrics_summary),
         "promotion_status": None if promotion_evaluation is None else promotion_evaluation.promotion_status,
+        "review_status": review_metadata["status"],
+        "review_metadata": review_metadata,
         "promotion_gate_summary": (
             None if promotion_evaluation is None else promotion_evaluation.summary()
         ),

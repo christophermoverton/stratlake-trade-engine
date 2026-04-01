@@ -10,6 +10,7 @@ from src.research.alpha_eval.artifacts import DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT
 from src.research.alpha_eval.evaluator import AlphaEvaluationResult
 from src.research.registry import (
     ALPHA_EVALUATION_RUN_TYPE,
+    build_review_metadata,
     canonicalize_value,
     default_registry_path,
     load_registry,
@@ -59,6 +60,15 @@ def build_alpha_evaluation_registry_entry(
     }
     metadata = dict(evaluation_result.metadata)
     manifest_payload = dict(manifest)
+    promotion_gate_summary = (
+        canonicalize_value(dict(manifest_payload["promotion_gate_summary"]))
+        if isinstance(manifest_payload.get("promotion_gate_summary"), dict)
+        else None
+    )
+    review_metadata = build_review_metadata(
+        review=manifest_payload.get("review") if isinstance(manifest_payload.get("review"), Mapping) else None,
+        promotion_gate_summary=promotion_gate_summary,
+    )
 
     return {
         "run_id": normalized_run_id,
@@ -92,11 +102,9 @@ def build_alpha_evaluation_registry_entry(
             if isinstance(manifest_payload.get("promotion_gate_summary"), dict)
             else None
         ),
-        "promotion_gate_summary": (
-            canonicalize_value(dict(manifest_payload["promotion_gate_summary"]))
-            if isinstance(manifest_payload.get("promotion_gate_summary"), dict)
-            else None
-        ),
+        "review_status": review_metadata["status"],
+        "review_metadata": review_metadata,
+        "promotion_gate_summary": promotion_gate_summary,
         "row_count": evaluation_result.row_count,
         "timestamp_count": evaluation_result.timestamp_count,
         "symbol_count": evaluation_result.symbol_count,

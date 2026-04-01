@@ -59,6 +59,34 @@ def _strategy_entry(
     }
 
 
+def _strategy_entry_with_review(
+    *,
+    run_id: str,
+    strategy_name: str,
+    timestamp: str,
+    review_status: str,
+    decision_reason: str,
+) -> dict[str, object]:
+    payload = _strategy_entry(
+        run_id=run_id,
+        strategy_name=strategy_name,
+        timestamp=timestamp,
+        sharpe_ratio=1.1,
+        total_return=0.09,
+    )
+    payload["review_status"] = review_status
+    payload["review_metadata"] = {
+        "decision_reason": decision_reason,
+        "decision_source": "manual_review",
+        "promotion_gate_summary": payload["promotion_gate_summary"],
+        "promotion_status": payload["promotion_status"],
+        "reviewed_at": "2026-03-19T00:10:00Z",
+        "schema_version": 1,
+        "status": review_status,
+    }
+    return payload
+
+
 def _portfolio_entry(
     *,
     run_id: str,
@@ -402,6 +430,39 @@ def test_compare_research_runs_rejects_empty_match_set(tmp_path: Path) -> None:
             portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
             alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
         )
+
+
+def test_compare_research_runs_prefers_review_status_and_falls_back_to_legacy_promotion_status(tmp_path: Path) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    _write_registry(
+        strategy_root / "registry.jsonl",
+        [
+            _strategy_entry_with_review(
+                run_id="strategy-promoted",
+                strategy_name="momentum_v1",
+                timestamp="2026-03-19T00:05:00Z",
+                review_status="promoted",
+                decision_reason="committee approved",
+            ),
+            _strategy_entry(
+                run_id="strategy-legacy",
+                strategy_name="mean_reversion_v1",
+                timestamp="2026-03-19T00:04:00Z",
+                sharpe_ratio=0.9,
+                total_return=0.06,
+            ),
+        ],
+    )
+
+    result = compare_research_runs(
+        run_types=["strategy"],
+        strategy_artifacts_root=strategy_root,
+        portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+        alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+        output_path=tmp_path,
+    )
+
+    assert [entry.promotion_status for entry in result.entries] == ["promoted", "eligible"]
 
 
 def test_parse_args_supports_unified_review_inputs() -> None:

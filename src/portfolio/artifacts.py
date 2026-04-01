@@ -690,6 +690,7 @@ def build_portfolio_registry_metadata(
         "execution_summary": manifest.get("execution", {}).get("summary")
         if isinstance(manifest.get("execution"), dict)
         else None,
+        "review": manifest.get("review") if isinstance(manifest.get("review"), dict) else config.get("review"),
         "promotion_gate_summary": manifest.get("promotion_gate_summary"),
     }
     if isinstance(extra_metadata, dict):

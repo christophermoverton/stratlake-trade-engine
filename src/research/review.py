@@ -18,6 +18,7 @@ from src.research.registry import (
     default_registry_path,
     filter_by_run_type,
     load_registry,
+    resolve_review_status,
     serialize_canonical_json,
 )
 
@@ -487,6 +488,9 @@ def _persisted_entry(entry: ResearchReviewEntry) -> dict[str, Any]:
 
 
 def _promotion_status(row: Mapping[str, Any]) -> str | None:
+    resolved_review = resolve_review_status(row)
+    if resolved_review is not None:
+        return resolved_review
     direct = row.get("promotion_status")
     if isinstance(direct, str) and direct.strip():
         return direct.strip()
@@ -500,6 +504,12 @@ def _promotion_status(row: Mapping[str, Any]) -> str | None:
 
 def _promotion_gate_count(row: Mapping[str, Any], *, key: str) -> int | None:
     summary = row.get("promotion_gate_summary")
+    if not isinstance(summary, dict):
+        review_metadata = row.get("review_metadata")
+        if isinstance(review_metadata, dict):
+            nested_summary = review_metadata.get("promotion_gate_summary")
+            if isinstance(nested_summary, dict):
+                summary = nested_summary
     if not isinstance(summary, dict):
         return None
     value = summary.get(key)

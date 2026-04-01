@@ -11,6 +11,17 @@ repository defaults < review config file < CLI overrides
 The contract lives in `src/config/review.py` and is consumed by
 `src/cli/compare_research.py` and `src/research/review.py`.
 
+## Example Workflow
+
+For one small committed end-to-end review example, run:
+
+```powershell
+python docs/examples/milestone_13_review_promotion_workflow.py
+```
+
+That example uses checked-in fixture registries and writes deterministic review
+outputs under `docs/examples/output/milestone_13_review_promotion_workflow/`.
+
 ## Repository Defaults
 
 Repository defaults live in [../configs/review.yml](../configs/review.yml).

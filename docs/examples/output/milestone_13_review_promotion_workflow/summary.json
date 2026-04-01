@@ -1,0 +1,180 @@
+{
+  "fixtures": {
+    "alpha_registry_rows": 1,
+    "portfolio_registry_rows": 1,
+    "strategy_registry_rows": 1
+  },
+  "input_artifacts": [
+    {
+      "artifact_files": [
+        "alpha_metrics.json",
+        "manifest.json",
+        "promotion_gates.json"
+      ],
+      "artifact_path": "runs/demo_alpha_eligible",
+      "entity_name": "demo_alpha_quality",
+      "promotion_gate_summary": {
+        "artifact_filename": "promotion_gates.json",
+        "configured": true,
+        "evaluation_status": "pass",
+        "failed_gate_count": 0,
+        "gate_count": 2,
+        "missing_gate_count": 0,
+        "passed_gate_count": 2,
+        "promotion_status": "eligible",
+        "status_on_fail": "blocked",
+        "status_on_pass": "eligible"
+      },
+      "review_status": "eligible",
+      "run_id": "alpha_demo_eligible",
+      "run_type": "alpha_evaluation"
+    },
+    {
+      "artifact_files": [
+        "manifest.json",
+        "metrics.json",
+        "promotion_gates.json",
+        "qa_summary.json"
+      ],
+      "artifact_path": "runs/demo_strategy_promoted",
+      "entity_name": "demo_strategy_breakout",
+      "promotion_gate_summary": {
+        "artifact_filename": "promotion_gates.json",
+        "configured": true,
+        "evaluation_status": "pass",
+        "failed_gate_count": 0,
+        "gate_count": 2,
+        "missing_gate_count": 0,
+        "passed_gate_count": 2,
+        "promotion_status": "eligible",
+        "status_on_fail": "blocked",
+        "status_on_pass": "eligible"
+      },
+      "review_status": "promoted",
+      "run_id": "strategy_demo_promoted",
+      "run_type": "strategy"
+    },
+    {
+      "artifact_files": [
+        "manifest.json",
+        "metrics.json",
+        "promotion_gates.json",
+        "qa_summary.json"
+      ],
+      "artifact_path": "runs/demo_portfolio_blocked",
+      "entity_name": "demo_portfolio_defensive",
+      "promotion_gate_summary": {
+        "artifact_filename": "promotion_gates.json",
+        "configured": true,
+        "evaluation_status": "fail",
+        "failed_gate_count": 1,
+        "gate_count": 2,
+        "missing_gate_count": 0,
+        "passed_gate_count": 1,
+        "promotion_status": "blocked",
+        "status_on_fail": "blocked",
+        "status_on_pass": "eligible"
+      },
+      "review_status": "blocked",
+      "run_id": "portfolio_demo_blocked",
+      "run_type": "portfolio"
+    }
+  ],
+  "output_artifacts": {
+    "artifact_files": [
+      "leaderboard.csv",
+      "manifest.json",
+      "promotion_gates.json",
+      "review_summary.json"
+    ],
+    "leaderboard_path": "leaderboard.csv",
+    "promotion_gate_path": "promotion_gates.json",
+    "review_summary_path": "review_summary.json"
+  },
+  "review": {
+    "filters": {
+      "alpha_name": null,
+      "dataset": null,
+      "portfolio_name": null,
+      "run_types": [
+        "alpha_evaluation",
+        "strategy",
+        "portfolio"
+      ],
+      "strategy_name": null,
+      "timeframe": null,
+      "top_k_per_type": 1
+    },
+    "leaderboard_columns": [
+      "run_type",
+      "rank_within_type",
+      "entity_name",
+      "run_id",
+      "selected_metric_name",
+      "selected_metric_value",
+      "secondary_metric_name",
+      "secondary_metric_value",
+      "timeframe",
+      "evaluation_mode",
+      "promotion_status",
+      "passed_gate_count",
+      "gate_count",
+      "artifact_path"
+    ],
+    "leaderboard_rows": 3,
+    "review_id": "registry_review_84035021a28d",
+    "selected_metrics": {
+      "alpha_evaluation": "ic_ir",
+      "portfolio": "sharpe_ratio",
+      "strategy": "sharpe_ratio"
+    },
+    "selected_run_ids": [
+      "alpha_demo_eligible",
+      "strategy_demo_promoted",
+      "portfolio_demo_blocked"
+    ],
+    "statuses": {
+      "alpha_demo_eligible": "eligible",
+      "portfolio_demo_blocked": "blocked",
+      "strategy_demo_promoted": "promoted"
+    }
+  },
+  "review_promotion": {
+    "evaluation_status": "pass",
+    "gate_count": 3,
+    "gate_results": [
+      {
+        "actual_value": 3.0,
+        "gate_id": "review_has_three_rows",
+        "status": "pass",
+        "threshold": 3.0
+      },
+      {
+        "actual_value": 1.0,
+        "gate_id": "at_least_one_promoted_candidate",
+        "status": "pass",
+        "threshold": 1.0
+      },
+      {
+        "actual_value": 1.0,
+        "gate_id": "blocked_rows_capped",
+        "status": "pass",
+        "threshold": 1.0
+      }
+    ],
+    "passed_gate_count": 3,
+    "promotion_status": "review_ready"
+  },
+  "review_summary_counts": {
+    "alpha_evaluation": 1,
+    "portfolio": 1,
+    "strategy": 1
+  },
+  "workflow": [
+    "load_completed_artifacts",
+    "collect_registry_entries",
+    "rank_latest_runs",
+    "write_review_outputs",
+    "evaluate_review_promotion_gates"
+  ]
+}

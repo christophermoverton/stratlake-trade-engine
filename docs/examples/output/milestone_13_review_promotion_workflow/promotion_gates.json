@@ -1,0 +1,86 @@
+{
+  "artifact_filename": "promotion_gates.json",
+  "configured": true,
+  "definitions": [
+    {
+      "comparator": "gte",
+      "description": null,
+      "gate_id": "review_has_three_rows",
+      "metric_path": "reviewed_entry_count",
+      "missing_behavior": "fail",
+      "source": "metrics",
+      "statistic": "value",
+      "threshold": 3.0
+    },
+    {
+      "comparator": "gte",
+      "description": null,
+      "gate_id": "at_least_one_promoted_candidate",
+      "metric_path": "promoted_entry_count",
+      "missing_behavior": "fail",
+      "source": "metrics",
+      "statistic": "value",
+      "threshold": 1.0
+    },
+    {
+      "comparator": "lte",
+      "description": null,
+      "gate_id": "blocked_rows_capped",
+      "metric_path": "blocked_entry_count",
+      "missing_behavior": "fail",
+      "source": "metrics",
+      "statistic": "value",
+      "threshold": 1.0
+    }
+  ],
+  "evaluation_status": "pass",
+  "failed_gate_count": 0,
+  "gate_count": 3,
+  "missing_gate_count": 0,
+  "passed_gate_count": 3,
+  "promotion_status": "review_ready",
+  "results": [
+    {
+      "actual_value": 3.0,
+      "comparator": "gte",
+      "description": null,
+      "gate_id": "review_has_three_rows",
+      "metric_path": "reviewed_entry_count",
+      "missing_behavior": "fail",
+      "reason": "3.0 gte 3.0",
+      "source": "metrics",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 3.0
+    },
+    {
+      "actual_value": 1.0,
+      "comparator": "gte",
+      "description": null,
+      "gate_id": "at_least_one_promoted_candidate",
+      "metric_path": "promoted_entry_count",
+      "missing_behavior": "fail",
+      "reason": "1.0 gte 1.0",
+      "source": "metrics",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 1.0
+    },
+    {
+      "actual_value": 1.0,
+      "comparator": "lte",
+      "description": null,
+      "gate_id": "blocked_rows_capped",
+      "metric_path": "blocked_entry_count",
+      "missing_behavior": "fail",
+      "reason": "1.0 lte 1.0",
+      "source": "metrics",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 1.0
+    }
+  ],
+  "run_type": "review",
+  "status_on_fail": "needs_work",
+  "status_on_pass": "review_ready"
+}

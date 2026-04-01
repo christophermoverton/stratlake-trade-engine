@@ -1,0 +1,136 @@
+{
+  "counts_by_run_type": {
+    "alpha_evaluation": 1,
+    "portfolio": 1,
+    "strategy": 1
+  },
+  "entries": [
+    {
+      "artifact_path": "runs/demo_alpha_eligible",
+      "entity_name": "demo_alpha_quality",
+      "evaluation_mode": "alpha_evaluation",
+      "gate_count": 2,
+      "passed_gate_count": 2,
+      "promotion_status": "eligible",
+      "rank_within_type": 1,
+      "run_id": "alpha_demo_eligible",
+      "run_type": "alpha_evaluation",
+      "secondary_metric_name": "mean_ic",
+      "secondary_metric_value": 0.041,
+      "selected_metric_name": "ic_ir",
+      "selected_metric_value": 0.82,
+      "timeframe": "1D"
+    },
+    {
+      "artifact_path": "runs/demo_strategy_promoted",
+      "entity_name": "demo_strategy_breakout",
+      "evaluation_mode": "single",
+      "gate_count": 2,
+      "passed_gate_count": 2,
+      "promotion_status": "promoted",
+      "rank_within_type": 1,
+      "run_id": "strategy_demo_promoted",
+      "run_type": "strategy",
+      "secondary_metric_name": "total_return",
+      "secondary_metric_value": 0.12,
+      "selected_metric_name": "sharpe_ratio",
+      "selected_metric_value": 1.45,
+      "timeframe": "1D"
+    },
+    {
+      "artifact_path": "runs/demo_portfolio_blocked",
+      "entity_name": "demo_portfolio_defensive",
+      "evaluation_mode": "walk_forward",
+      "gate_count": 2,
+      "passed_gate_count": 1,
+      "promotion_status": "blocked",
+      "rank_within_type": 1,
+      "run_id": "portfolio_demo_blocked",
+      "run_type": "portfolio",
+      "secondary_metric_name": "total_return",
+      "secondary_metric_value": 0.05,
+      "selected_metric_name": "sharpe_ratio",
+      "selected_metric_value": 0.78,
+      "timeframe": "1D"
+    }
+  ],
+  "entry_count": 3,
+  "filters": {
+    "alpha_name": null,
+    "dataset": null,
+    "portfolio_name": null,
+    "run_types": [
+      "alpha_evaluation",
+      "strategy",
+      "portfolio"
+    ],
+    "strategy_name": null,
+    "timeframe": null,
+    "top_k_per_type": 1
+  },
+  "plot_paths": {},
+  "review_config": {
+    "filters": {
+      "alpha_name": null,
+      "dataset": null,
+      "portfolio_name": null,
+      "run_types": [
+        "alpha_evaluation",
+        "strategy",
+        "portfolio"
+      ],
+      "strategy_name": null,
+      "timeframe": null,
+      "top_k_per_type": 1
+    },
+    "output": {
+      "emit_plots": false
+    },
+    "promotion_gates": {
+      "gates": [
+        {
+          "comparator": "gte",
+          "gate_id": "review_has_three_rows",
+          "metric_path": "reviewed_entry_count",
+          "source": "metrics",
+          "threshold": 3
+        },
+        {
+          "comparator": "gte",
+          "gate_id": "at_least_one_promoted_candidate",
+          "metric_path": "promoted_entry_count",
+          "source": "metrics",
+          "threshold": 1
+        },
+        {
+          "comparator": "lte",
+          "gate_id": "blocked_rows_capped",
+          "metric_path": "blocked_entry_count",
+          "source": "metrics",
+          "threshold": 1
+        }
+      ],
+      "status_on_fail": "needs_work",
+      "status_on_pass": "review_ready"
+    },
+    "ranking": {
+      "alpha_evaluation_primary_metric": "ic_ir",
+      "alpha_evaluation_secondary_metric": "mean_ic",
+      "portfolio_primary_metric": "sharpe_ratio",
+      "portfolio_secondary_metric": "total_return",
+      "strategy_primary_metric": "sharpe_ratio",
+      "strategy_secondary_metric": "total_return"
+    }
+  },
+  "review_id": "registry_review_84035021a28d",
+  "run_ids": [
+    "alpha_demo_eligible",
+    "strategy_demo_promoted",
+    "portfolio_demo_blocked"
+  ],
+  "skipped_plots": {
+    "alpha_evaluation_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false.",
+    "portfolio_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false.",
+    "strategy_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false."
+  }
+}

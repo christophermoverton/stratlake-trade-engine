@@ -40,6 +40,7 @@ Start with:
 * [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
+* [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
 ## Overview
 
@@ -336,6 +337,16 @@ This example demonstrates deterministic prediction, forward-return alignment,
 IC and Rank IC evaluation, artifact persistence, registry entry creation, and
 leaderboard generation.
 
+### 4c. Run the Milestone 13 review-and-promotion example
+
+```powershell
+python docs/examples/milestone_13_review_promotion_workflow.py
+```
+
+This example demonstrates completed alpha, strategy, and portfolio artifacts
+flowing into one registry-backed review output and one review-level promotion
+decision.
+
 ### 5. Run a portfolio
 
 Baseline registry-backed portfolio:
@@ -460,6 +471,11 @@ The Milestone 12 alpha-evaluation example lives at
 with workflow notes in
 [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md).
 
+The Milestone 13 review-and-promotion example lives at
+[docs/examples/milestone_13_review_promotion_workflow.py](docs/examples/milestone_13_review_promotion_workflow.py)
+with workflow notes in
+[docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md).
+
 ## Artifact Overview
 
 ### Strategy artifacts
@@ -558,6 +574,7 @@ Examples:
 
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
+* [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
 Merge-readiness notes:
 

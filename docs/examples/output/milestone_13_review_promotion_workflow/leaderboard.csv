@@ -1,0 +1,4 @@
+run_type,rank_within_type,entity_name,run_id,selected_metric_name,selected_metric_value,secondary_metric_name,secondary_metric_value,timeframe,evaluation_mode,promotion_status,passed_gate_count,gate_count,artifact_path
+alpha_evaluation,1,demo_alpha_quality,alpha_demo_eligible,ic_ir,0.82,mean_ic,0.041,1D,alpha_evaluation,eligible,2,2,runs/demo_alpha_eligible
+strategy,1,demo_strategy_breakout,strategy_demo_promoted,sharpe_ratio,1.45,total_return,0.12,1D,single,promoted,2,2,runs/demo_strategy_promoted
+portfolio,1,demo_portfolio_defensive,portfolio_demo_blocked,sharpe_ratio,0.78,total_return,0.05,1D,walk_forward,blocked,1,2,runs/demo_portfolio_blocked

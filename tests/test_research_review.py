@@ -231,7 +231,9 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
     )
 
     assert result.csv_path == tmp_path / "leaderboard.csv"
-    assert result.json_path == tmp_path / "leaderboard.json"
+    assert result.json_path == tmp_path / "review_summary.json"
+    assert result.manifest_path == tmp_path / "manifest.json"
+    assert result.promotion_gate_path is None
     assert [entry.run_type for entry in result.entries] == [
         "alpha_evaluation",
         "alpha_evaluation",
@@ -275,6 +277,7 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
         "strategy": 2,
         "portfolio": 2,
     }
+    assert payload["entry_count"] == 6
     assert frame["promotion_status"].tolist() == [
         "eligible",
         "eligible",
@@ -283,6 +286,23 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
         "blocked",
         "blocked",
     ]
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["artifact_files"] == [
+        "leaderboard.csv",
+        "manifest.json",
+        "review_summary.json",
+    ]
+    assert manifest["artifact_groups"]["review"] == [
+        "leaderboard.csv",
+        "manifest.json",
+        "review_summary.json",
+    ]
+    assert manifest["leaderboard_path"] == "leaderboard.csv"
+    assert manifest["review_summary_path"] == "review_summary.json"
+    assert manifest["artifacts"]["leaderboard.csv"]["rows"] == 6
+    assert manifest["artifacts"]["leaderboard.csv"]["columns"] == list(frame.columns)
+    assert manifest["counts_by_run_type"] == payload["counts_by_run_type"]
 
 
 def test_compare_research_runs_applies_filters_and_top_k_per_type(tmp_path: Path) -> None:
@@ -359,8 +379,18 @@ def test_compare_research_runs_applies_filters_and_top_k_per_type(tmp_path: Path
     )
 
     assert result.csv_path == tmp_path / "filtered.csv"
+    assert result.json_path == tmp_path / "review_summary.json"
+    assert result.manifest_path == tmp_path / "manifest.json"
     assert [entry.run_type for entry in result.entries] == ["alpha_evaluation", "strategy"]
     assert [entry.entity_name for entry in result.entries] == ["alpha_intraday", "intraday_v1"]
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["artifact_files"] == [
+        "filtered.csv",
+        "manifest.json",
+        "review_summary.json",
+    ]
+    assert manifest["leaderboard_path"] == "filtered.csv"
 
 
 def test_compare_research_runs_writes_stable_artifacts_and_review_id(tmp_path: Path) -> None:
@@ -418,8 +448,11 @@ def test_compare_research_runs_writes_stable_artifacts_and_review_id(tmp_path: P
     assert first.review_id == second.review_id
     assert first.csv_path == second.csv_path
     assert first.json_path == second.json_path
+    assert first.manifest_path == second.manifest_path
+    assert first.promotion_gate_path == second.promotion_gate_path
     assert first.csv_path.read_bytes() == second.csv_path.read_bytes()
     assert first.json_path.read_bytes() == second.json_path.read_bytes()
+    assert first.manifest_path.read_bytes() == second.manifest_path.read_bytes()
     assert first.review_id == build_research_review_id(filters=first.filters, entries=first.entries)
 
 
@@ -463,6 +496,76 @@ def test_compare_research_runs_prefers_review_status_and_falls_back_to_legacy_pr
     )
 
     assert [entry.promotion_status for entry in result.entries] == ["promoted", "eligible"]
+
+
+def test_compare_research_runs_writes_review_level_promotion_artifact_when_configured(tmp_path: Path) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    _write_registry(
+        strategy_root / "registry.jsonl",
+        [
+            _strategy_entry(
+                run_id="strategy-one",
+                strategy_name="momentum_v1",
+                timestamp="2026-03-19T00:05:00Z",
+                sharpe_ratio=1.3,
+                total_return=0.10,
+            ),
+            _strategy_entry(
+                run_id="strategy-two",
+                strategy_name="mean_reversion_v1",
+                timestamp="2026-03-19T00:04:00Z",
+                sharpe_ratio=1.1,
+                total_return=0.08,
+            ),
+        ],
+    )
+
+    result = compare_research_runs(
+        run_types=["strategy"],
+        strategy_artifacts_root=strategy_root,
+        portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+        alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+        output_path=tmp_path,
+        promotion_gate_config={
+            "status_on_pass": "review_ready",
+            "status_on_fail": "needs_work",
+            "gates": [
+                {
+                    "gate_id": "minimum_review_rows",
+                    "source": "metrics",
+                    "metric_path": "entry_count",
+                    "comparator": "gte",
+                    "threshold": 2,
+                }
+            ],
+        },
+    )
+
+    assert result.promotion_gate_path == tmp_path / "promotion_gates.json"
+    promotion_payload = json.loads(result.promotion_gate_path.read_text(encoding="utf-8"))
+    assert promotion_payload["promotion_status"] == "review_ready"
+    assert promotion_payload["gate_count"] == 1
+    assert promotion_payload["results"][0]["actual_value"] == pytest.approx(2.0)
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["artifact_files"] == [
+        "leaderboard.csv",
+        "manifest.json",
+        "promotion_gates.json",
+        "review_summary.json",
+    ]
+    assert manifest["promotion_gate_summary"] == {
+        "artifact_filename": "promotion_gates.json",
+        "configured": True,
+        "evaluation_status": "pass",
+        "failed_gate_count": 0,
+        "gate_count": 1,
+        "missing_gate_count": 0,
+        "passed_gate_count": 1,
+        "promotion_status": "review_ready",
+        "status_on_fail": "needs_work",
+        "status_on_pass": "review_ready",
+    }
 
 
 def test_parse_args_supports_unified_review_inputs() -> None:
@@ -539,7 +642,9 @@ def test_run_cli_prints_unified_review_summary(monkeypatch, capsys, tmp_path: Pa
         },
         entries=[],
         csv_path=tmp_path / "leaderboard.csv",
-        json_path=tmp_path / "leaderboard.json",
+        json_path=tmp_path / "review_summary.json",
+        manifest_path=tmp_path / "manifest.json",
+        promotion_gate_path=None,
     )
 
     monkeypatch.setattr("src.cli.compare_research.compare_research_runs", lambda **kwargs: expected_result)

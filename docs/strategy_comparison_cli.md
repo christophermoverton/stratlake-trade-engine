@@ -11,8 +11,8 @@ entrypoints:
   strategy, and portfolio runs
 
 The comparison flow remains artifact-first. Each command reuses existing
-research-layer comparison modules, writes deterministic `leaderboard.csv` and
-`leaderboard.json` artifacts, and prints a compact console leaderboard.
+research-layer comparison modules, writes deterministic comparison artifacts,
+and prints a compact console leaderboard.
 
 Fresh execution is still available only for strategy comparison. Alpha and
 unified review remain registry-backed.
@@ -186,6 +186,19 @@ Unified review continues to cover:
 * alpha runs via `run_type=alpha_evaluation`
 * strategy runs via `run_type=strategy`
 * portfolio runs via `run_type=portfolio`
+
+Unified review artifact contract:
+
+* `artifacts/reviews/<review_id>/leaderboard.csv`
+* `artifacts/reviews/<review_id>/review_summary.json`
+* `artifacts/reviews/<review_id>/manifest.json`
+* `artifacts/reviews/<review_id>/promotion_gates.json` when review-level
+  promotion gates are configured
+
+`review_summary.json` is the canonical JSON summary for unified review runs.
+`manifest.json` inventories the written files, row counts, selected review
+metrics, and optional promotion-gate summary so review outputs are explicitly
+auditable across reruns.
 
 ## Compatibility Notes
 

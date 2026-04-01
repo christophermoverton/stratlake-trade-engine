@@ -67,6 +67,7 @@ The repository currently supports:
 * deterministic return simulation for strategy or portfolio outputs
 * strict-mode enforcement across strategy and portfolio CLIs
 * deterministic promotion gates for alpha, strategy, and portfolio review
+* manifest-backed unified research review artifacts with deterministic review summaries
 * unified runtime configuration with auditable persisted settings
 * deterministic artifacts, manifests, and registry-backed reuse
 
@@ -256,6 +257,8 @@ strategy and portfolio workflows.
   in the manifest and registry.
 * The unified research review surface now exposes each run's promotion status
   alongside leaderboard metrics.
+* Unified review runs persist `leaderboard.csv`, `review_summary.json`,
+  optional `promotion_gates.json`, and `manifest.json` under one review id.
 
 See:
 
@@ -515,6 +518,17 @@ See:
 
 * [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
 * [docs/portfolio_artifact_logging.md](docs/portfolio_artifact_logging.md)
+
+### Unified review artifacts
+
+Successful unified review runs write under `artifacts/reviews/<review_id>/`.
+
+Core files:
+
+* `leaderboard.csv`
+* `review_summary.json`
+* `manifest.json`
+* `promotion_gates.json` when review-level promotion gates are configured
 
 ## Documentation Map
 

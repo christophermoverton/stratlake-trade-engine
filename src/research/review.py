@@ -11,6 +11,11 @@ import pandas as pd
 
 from src.research.alpha_eval import DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT, load_alpha_evaluation_registry
 from src.research.experiment_tracker import ARTIFACTS_ROOT as DEFAULT_STRATEGY_ARTIFACTS_ROOT
+from src.research.promotion import (
+    DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+    evaluate_promotion_gates,
+    write_promotion_gate_artifact,
+)
 from src.research.registry import (
     PORTFOLIO_RUN_TYPE,
     STRATEGY_RUN_TYPE,
@@ -29,6 +34,9 @@ DEFAULT_STRATEGY_REVIEW_METRIC = "sharpe_ratio"
 DEFAULT_PORTFOLIO_REVIEW_METRIC = "sharpe_ratio"
 DEFAULT_ALPHA_REVIEW_METRIC = "ic_ir"
 DEFAULT_PORTFOLIO_ARTIFACTS_ROOT = Path("artifacts") / "portfolios"
+_LEADERBOARD_FILENAME = "leaderboard.csv"
+_REVIEW_SUMMARY_FILENAME = "review_summary.json"
+_MANIFEST_FILENAME = "manifest.json"
 _LEADERBOARD_COLUMNS = [
     "run_type",
     "rank_within_type",
@@ -76,6 +84,8 @@ class ResearchReviewResult:
     entries: list[ResearchReviewEntry]
     csv_path: Path
     json_path: Path
+    manifest_path: Path
+    promotion_gate_path: Path | None
 
 
 def compare_research_runs(
@@ -91,6 +101,7 @@ def compare_research_runs(
     portfolio_artifacts_root: str | Path = DEFAULT_PORTFOLIO_ARTIFACTS_ROOT,
     alpha_artifacts_root: str | Path = DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT,
     output_path: str | Path | None = None,
+    promotion_gate_config: Mapping[str, Any] | None = None,
 ) -> ResearchReviewResult:
     """Build a registry-backed unified review surface across alpha, strategy, and portfolio runs."""
 
@@ -117,11 +128,12 @@ def compare_research_runs(
         entries=entries,
     )
     resolved_output_path = default_research_review_output_path(review_id) if output_path is None else Path(output_path)
-    csv_path, json_path = write_research_review_artifacts(
+    csv_path, json_path, manifest_path, promotion_gate_path = write_research_review_artifacts(
         entries=entries,
         review_id=review_id,
         filters=normalized_filters,
         output_path=resolved_output_path,
+        promotion_gate_config=promotion_gate_config,
     )
     return ResearchReviewResult(
         review_id=review_id,
@@ -129,6 +141,8 @@ def compare_research_runs(
         entries=entries,
         csv_path=csv_path,
         json_path=json_path,
+        manifest_path=manifest_path,
+        promotion_gate_path=promotion_gate_path,
     )
 
 
@@ -138,26 +152,71 @@ def write_research_review_artifacts(
     review_id: str,
     filters: Mapping[str, Any],
     output_path: str | Path,
-) -> tuple[Path, Path]:
-    """Persist one deterministic unified review as CSV and JSON artifacts."""
+    promotion_gate_config: Mapping[str, Any] | None = None,
+) -> tuple[Path, Path, Path, Path | None]:
+    """Persist one deterministic unified review artifact set with a manifest."""
 
     csv_path = resolve_research_review_csv_path(output_path)
-    json_path = csv_path.with_suffix(".json")
-    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    output_dir = csv_path.parent
+    json_path = output_dir / _REVIEW_SUMMARY_FILENAME
+    manifest_path = output_dir / _MANIFEST_FILENAME
+    output_dir.mkdir(parents=True, exist_ok=True)
 
     persisted_rows = [_persisted_entry(entry) for entry in entries]
     frame = pd.DataFrame(persisted_rows, columns=_LEADERBOARD_COLUMNS)
     with csv_path.open("w", encoding="utf-8", newline="\n") as handle:
         frame.to_csv(handle, index=False, lineterminator="\n")
 
+    summary_payload = _review_summary_payload(
+        review_id=review_id,
+        filters=filters,
+        persisted_rows=persisted_rows,
+    )
+    json_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8")
+
+    promotion_evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config=promotion_gate_config,
+        sources={
+            "metrics": _review_metrics_payload(entries),
+            "metadata": {
+                "filters": canonicalize_value(dict(filters)),
+                "review_id": review_id,
+                "run_ids": [row["run_id"] for row in persisted_rows],
+                "selected_metrics": _selected_metric_names_by_run_type(entries),
+            },
+            "aggregate_metrics": _aggregate_metrics_by_run_type(entries),
+        },
+    )
+    promotion_gate_path = write_promotion_gate_artifact(output_dir, promotion_evaluation)
+
+    manifest = _build_review_manifest(
+        review_id=review_id,
+        filters=filters,
+        entries=entries,
+        leaderboard_frame=frame,
+        leaderboard_filename=csv_path.name,
+        promotion_evaluation=promotion_evaluation,
+    )
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    return csv_path, json_path, manifest_path, promotion_gate_path
+
+
+def _review_summary_payload(
+    *,
+    review_id: str,
+    filters: Mapping[str, Any],
+    persisted_rows: list[dict[str, Any]],
+) -> dict[str, Any]:
     payload = {
         "review_id": review_id,
         "filters": canonicalize_value(dict(filters)),
-        "counts_by_run_type": _counts_by_run_type(entries),
+        "counts_by_run_type": _counts_by_run_type_from_rows(persisted_rows),
+        "entry_count": len(persisted_rows),
         "entries": persisted_rows,
+        "run_ids": [row["run_id"] for row in persisted_rows],
     }
-    json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
-    return csv_path, json_path
+    return canonicalize_value(payload)
 
 
 def build_research_review_id(
@@ -184,7 +243,7 @@ def build_research_review_id(
 def default_research_review_output_path(review_id: str) -> Path:
     """Return the default deterministic CSV path for one unified review."""
 
-    return DEFAULT_REVIEW_ROOT / review_id / "leaderboard.csv"
+    return DEFAULT_REVIEW_ROOT / review_id / _LEADERBOARD_FILENAME
 
 
 def resolve_research_review_csv_path(output_path: str | Path) -> Path:
@@ -193,7 +252,7 @@ def resolve_research_review_csv_path(output_path: str | Path) -> Path:
     resolved_output_path = Path(output_path)
     if resolved_output_path.suffix.lower() == ".csv":
         return resolved_output_path
-    return resolved_output_path / "leaderboard.csv"
+    return resolved_output_path / _LEADERBOARD_FILENAME
 
 
 def render_research_review_table(entries: Iterable[ResearchReviewEntry]) -> str:
@@ -527,6 +586,131 @@ def _counts_by_run_type(entries: Iterable[ResearchReviewEntry]) -> dict[str, int
     return counts
 
 
+def _counts_by_run_type_from_rows(rows: Iterable[Mapping[str, Any]]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for row in rows:
+        run_type = row.get("run_type")
+        if isinstance(run_type, str):
+            counts[run_type] = counts.get(run_type, 0) + 1
+    return counts
+
+
+def _selected_metric_names_by_run_type(entries: Iterable[ResearchReviewEntry]) -> dict[str, str]:
+    selected: dict[str, str] = {}
+    for entry in entries:
+        selected.setdefault(entry.run_type, entry.selected_metric_name)
+    return dict(sorted(selected.items()))
+
+
+def _aggregate_metrics_by_run_type(entries: Iterable[ResearchReviewEntry]) -> dict[str, dict[str, Any]]:
+    grouped: dict[str, list[ResearchReviewEntry]] = {}
+    for entry in entries:
+        grouped.setdefault(entry.run_type, []).append(entry)
+
+    payload: dict[str, dict[str, Any]] = {}
+    for run_type, run_entries in sorted(grouped.items()):
+        selected_values = [entry.selected_metric_value for entry in run_entries if entry.selected_metric_value is not None]
+        secondary_values = [entry.secondary_metric_value for entry in run_entries if entry.secondary_metric_value is not None]
+        payload[run_type] = canonicalize_value(
+            {
+                "entry_count": len(run_entries),
+                "selected_metric_name": run_entries[0].selected_metric_name,
+                "secondary_metric_name": run_entries[0].secondary_metric_name,
+                "best_selected_metric_value": max(selected_values) if selected_values else None,
+                "best_secondary_metric_value": max(secondary_values) if secondary_values else None,
+            }
+        )
+    return payload
+
+
+def _review_metrics_payload(entries: Iterable[ResearchReviewEntry]) -> dict[str, Any]:
+    normalized_entries = list(entries)
+    status_counts: dict[str, int] = {}
+    for entry in normalized_entries:
+        if entry.promotion_status is None:
+            continue
+        normalized_status = entry.promotion_status.strip().lower()
+        if normalized_status:
+            status_counts[normalized_status] = status_counts.get(normalized_status, 0) + 1
+
+    counts_by_run_type = _counts_by_run_type(normalized_entries)
+    payload = {
+        "entry_count": len(normalized_entries),
+        "alpha_entry_count": counts_by_run_type.get(ALPHA_REVIEW_RUN_TYPE, 0),
+        "strategy_entry_count": counts_by_run_type.get(STRATEGY_RUN_TYPE, 0),
+        "portfolio_entry_count": counts_by_run_type.get(PORTFOLIO_RUN_TYPE, 0),
+        "eligible_entry_count": status_counts.get("eligible", 0),
+        "blocked_entry_count": status_counts.get("blocked", 0),
+        "promoted_entry_count": status_counts.get("promoted", 0),
+        "reviewed_entry_count": sum(status_counts.values()),
+    }
+    return canonicalize_value(payload)
+
+
+def _build_review_manifest(
+    *,
+    review_id: str,
+    filters: Mapping[str, Any],
+    entries: list[ResearchReviewEntry],
+    leaderboard_frame: pd.DataFrame,
+    leaderboard_filename: str,
+    promotion_evaluation: Any,
+) -> dict[str, Any]:
+    artifact_inventory = {
+        leaderboard_filename: {
+            "path": leaderboard_filename,
+            "rows": int(len(leaderboard_frame)),
+            "columns": leaderboard_frame.columns.tolist(),
+        },
+        _MANIFEST_FILENAME: {"path": _MANIFEST_FILENAME},
+        _REVIEW_SUMMARY_FILENAME: {
+            "path": _REVIEW_SUMMARY_FILENAME,
+            "rows": len(entries),
+        },
+        **(
+            {DEFAULT_PROMOTION_ARTIFACT_FILENAME: {"path": DEFAULT_PROMOTION_ARTIFACT_FILENAME}}
+            if promotion_evaluation is not None
+            else {}
+        ),
+    }
+    review_group = sorted(
+        [
+            leaderboard_filename,
+            _MANIFEST_FILENAME,
+            _REVIEW_SUMMARY_FILENAME,
+            *([DEFAULT_PROMOTION_ARTIFACT_FILENAME] if promotion_evaluation is not None else []),
+        ]
+    )
+    payload = {
+        "artifact_files": sorted(artifact_inventory),
+        "artifacts": artifact_inventory,
+        "artifact_groups": {
+            "core": review_group,
+            "leaderboard": [leaderboard_filename],
+            "qa": (
+                [DEFAULT_PROMOTION_ARTIFACT_FILENAME]
+                if promotion_evaluation is not None
+                else []
+            ),
+            "review": review_group,
+            "summary": [_REVIEW_SUMMARY_FILENAME],
+        },
+        "counts_by_run_type": _counts_by_run_type(entries),
+        "evaluation_mode": "registry_review",
+        "files_written": len(artifact_inventory),
+        "leaderboard_path": leaderboard_filename,
+        "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
+        "review_filters": canonicalize_value(dict(filters)),
+        "review_id": review_id,
+        "review_metrics": _review_metrics_payload(entries),
+        "review_summary_path": _REVIEW_SUMMARY_FILENAME,
+        "row_count": len(entries),
+        "selected_metrics": _selected_metric_names_by_run_type(entries),
+        "timestamp": _utc_timestamp_from_review_id(review_id),
+    }
+    return canonicalize_value(payload)
+
+
 def _run_type_sort_key(run_type: str) -> int:
     order = {
         ALPHA_REVIEW_RUN_TYPE: 0,
@@ -576,3 +760,14 @@ def _format_metric(value: float | None) -> str:
     if value is None:
         return "-"
     return f"{value:.6f}"
+
+
+def _utc_timestamp_from_review_id(review_id: str) -> str:
+    digest = hashlib.sha256(review_id.encode("utf-8")).hexdigest()
+    year = 2000 + int(digest[0:2], 16) % 25
+    month = (int(digest[2:4], 16) % 12) + 1
+    day = (int(digest[4:6], 16) % 28) + 1
+    hour = int(digest[6:8], 16) % 24
+    minute = int(digest[8:10], 16) % 60
+    second = int(digest[10:12], 16) % 60
+    return f"{year:04d}-{month:02d}-{day:02d}T{hour:02d}:{minute:02d}:{second:02d}Z"

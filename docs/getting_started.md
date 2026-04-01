@@ -143,13 +143,14 @@ registration, deterministic train/predict helpers, cross-sectional inspection,
 continuous-signal backtesting, and portfolio construction.
 
 ```powershell
-python docs/examples/milestone_12_alpha_portfolio_workflow.py
+python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
 ```
 
 See:
 
 * [alpha_workflow.md](alpha_workflow.md)
-* [examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md)
+* [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
+* [alpha_evaluation_workflow.md](alpha_evaluation_workflow.md)
 
 ## Run With Strict Mode And Execution Frictions
 

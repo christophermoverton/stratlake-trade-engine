@@ -32,7 +32,7 @@ Start with:
 
 * [docs/alpha_workflow.md](docs/alpha_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
-* [docs/examples/milestone_12_alpha_portfolio_workflow.md](docs/examples/milestone_12_alpha_portfolio_workflow.md)
+* [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 
 ## Overview
 
@@ -142,6 +142,40 @@ name through the alpha registry.
 * returns a deterministic prediction frame with `prediction_score`
 
 See [docs/alpha_workflow.md](docs/alpha_workflow.md) for the full workflow.
+
+## Alpha Evaluation (Milestone 12)
+
+Milestone 12 adds a deterministic alpha-evaluation layer for measuring whether
+predictions have cross-sectional forecasting power before they are mapped into
+signals, backtests, or portfolios.
+
+The workflow is:
+
+```text
+Alpha -> Predict -> Align -> Validate -> Evaluate -> Aggregate -> Persist -> Register -> Compare
+```
+
+What it provides:
+
+* forward-return alignment from either prices or realized returns
+* cross-sectional IC and Rank IC evaluation per timestamp
+* aggregated summary metrics including `mean_ic`, `ic_ir`, `mean_rank_ic`,
+  and `rank_ic_ir`
+* persisted alpha-evaluation artifacts under `artifacts/alpha/<run_id>/`
+* registry-backed alpha leaderboards under `artifacts/alpha_comparisons/`
+
+Start here:
+
+* [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
+* [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
+
+Quick start:
+
+```powershell
+python docs/examples/alpha_evaluation_end_to_end.py
+python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
+python -m src.cli.compare_alpha --from-registry
+```
 
 ## Cross-Sectional Utilities
 
@@ -254,16 +288,26 @@ Simulation-enabled single run:
 python -m src.cli.run_strategy --strategy momentum_v1 --simulation path/to/simulation.yml
 ```
 
-### 4. Run an alpha example workflow
+### 4. Run the Milestone 11.5 alpha workflow example
 
 ```powershell
-python docs/examples/milestone_12_alpha_portfolio_workflow.py
+python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
 ```
 
 This example demonstrates alpha model registration, deterministic training and
 prediction, fixed and rolling alpha splits, cross-sectional inspection,
 continuous-signal backtesting, and portfolio construction with and without
 volatility targeting.
+
+### 4b. Run the Milestone 12 alpha-evaluation example
+
+```powershell
+python docs/examples/alpha_evaluation_end_to_end.py
+```
+
+This example demonstrates deterministic prediction, forward-return alignment,
+IC and Rank IC evaluation, artifact persistence, registry entry creation, and
+leaderboard generation.
 
 ### 5. Run a portfolio
 
@@ -363,12 +407,12 @@ Start with:
 ## Example Workflow
 
 The main end-to-end alpha example lives at
-[docs/examples/milestone_12_alpha_portfolio_workflow.py](docs/examples/milestone_12_alpha_portfolio_workflow.py).
+[docs/examples/milestone_11_5_alpha_portfolio_workflow.py](docs/examples/milestone_11_5_alpha_portfolio_workflow.py).
 
 Run it with:
 
 ```powershell
-python docs/examples/milestone_12_alpha_portfolio_workflow.py
+python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
 ```
 
 It demonstrates:
@@ -379,10 +423,15 @@ It demonstrates:
 * sign-based and continuous-exposure signal interpretation
 * single-symbol backtesting
 * portfolio construction with and without volatility targeting
-* artifact writing under `docs/examples/output/milestone_12_alpha_portfolio_workflow/`
+* artifact writing under `docs/examples/output/milestone_11_5_alpha_portfolio_workflow/`
 
 See the companion guide
-[docs/examples/milestone_12_alpha_portfolio_workflow.md](docs/examples/milestone_12_alpha_portfolio_workflow.md).
+[docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md).
+
+The Milestone 12 alpha-evaluation example lives at
+[docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
+with workflow notes in
+[docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md).
 
 ## Artifact Overview
 
@@ -447,6 +496,7 @@ Start here:
 
 * [docs/getting_started.md](docs/getting_started.md)
 * [docs/alpha_workflow.md](docs/alpha_workflow.md)
+* [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
 * [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 
@@ -466,7 +516,8 @@ Research integrity and execution references:
 
 Examples:
 
-* [docs/examples/milestone_12_alpha_portfolio_workflow.md](docs/examples/milestone_12_alpha_portfolio_workflow.md)
+* [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
+* [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
 
 Merge-readiness notes:
 

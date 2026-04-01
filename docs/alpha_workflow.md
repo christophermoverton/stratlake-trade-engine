@@ -219,14 +219,14 @@ can preserve continuous exposure magnitude when that is the intended behavior.
 The repository ships an end-to-end example:
 
 * script:
-  [examples/milestone_12_alpha_portfolio_workflow.py](examples/milestone_12_alpha_portfolio_workflow.py)
+  [examples/milestone_11_5_alpha_portfolio_workflow.py](examples/milestone_11_5_alpha_portfolio_workflow.py)
 * companion guide:
-  [examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md)
+  [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
 
 Run it with:
 
 ```bash
-python docs/examples/milestone_12_alpha_portfolio_workflow.py
+python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
 ```
 
 It demonstrates:
@@ -241,7 +241,7 @@ It demonstrates:
 Outputs are written under:
 
 ```text
-docs/examples/output/milestone_12_alpha_portfolio_workflow/
+docs/examples/output/milestone_11_5_alpha_portfolio_workflow/
 ```
 
 ## Related Docs
@@ -250,4 +250,5 @@ docs/examples/output/milestone_12_alpha_portfolio_workflow/
 * [backtest_runner.md](backtest_runner.md)
 * [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
 * [milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md)
-* [examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md)
+* [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
+* [alpha_evaluation_workflow.md](alpha_evaluation_workflow.md)

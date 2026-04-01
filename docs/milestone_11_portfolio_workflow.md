@@ -49,7 +49,7 @@ which keeps the workflow deterministic and auditable.
 
 Alpha-derived sleeves can also feed the same constructor once they have been
 backtested into aligned return streams. See
-[examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md).
+[examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md).
 
 ## What To Run First
 
@@ -617,4 +617,4 @@ What each file is best for:
 * [research_integrity_and_qa.md](research_integrity_and_qa.md)
 * [execution_model.md](execution_model.md)
 * [runtime_configuration.md](runtime_configuration.md)
-* [examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md)
+* [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)

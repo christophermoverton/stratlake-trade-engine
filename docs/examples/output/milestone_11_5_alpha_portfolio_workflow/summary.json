@@ -164,7 +164,7 @@
   "splits": {
     "fixed": {
       "metadata": {
-        "example": "milestone_12",
+      "example": "milestone_11_5",
         "mode": "fixed",
         "predict_duration_seconds": 345600,
         "predict_end": "2025-01-09T00:00:00Z",

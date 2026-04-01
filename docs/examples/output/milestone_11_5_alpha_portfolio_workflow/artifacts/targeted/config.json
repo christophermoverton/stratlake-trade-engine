@@ -12,7 +12,7 @@
     "transaction_cost_bps": 2.0
   },
   "initial_capital": 1.0,
-  "portfolio_name": "milestone_12_example_baseline",
+  "portfolio_name": "milestone_11_5_example_targeted",
   "risk": {
     "allow_scale_up": true,
     "max_volatility_scale": 100.0,
@@ -24,7 +24,7 @@
     "target_weight_sum": 1.0
   },
   "volatility_targeting": {
-    "enabled": false,
+    "enabled": true,
     "lookback_periods": 2,
     "target_volatility": 0.1
   }

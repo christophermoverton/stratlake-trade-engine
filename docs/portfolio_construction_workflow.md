@@ -260,8 +260,8 @@ That makes the current alpha integration pattern:
 
 The repository's end-to-end example follows exactly that pattern:
 
-* [examples/milestone_12_alpha_portfolio_workflow.py](examples/milestone_12_alpha_portfolio_workflow.py)
-* [examples/milestone_12_alpha_portfolio_workflow.md](examples/milestone_12_alpha_portfolio_workflow.md)
+* [examples/milestone_11_5_alpha_portfolio_workflow.py](examples/milestone_11_5_alpha_portfolio_workflow.py)
+* [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
 
 ## CLI Usage
 

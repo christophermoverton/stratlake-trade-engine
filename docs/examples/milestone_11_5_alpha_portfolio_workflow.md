@@ -1,9 +1,9 @@
-# Milestone 12 Alpha & Portfolio Workflow Example
+# Milestone 11.5 Alpha & Portfolio Workflow Example
 
 Run the example with:
 
 ```bash
-python docs/examples/milestone_12_alpha_portfolio_workflow.py
+python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
 ```
 
 This example uses the committed deterministic dataset at
@@ -23,7 +23,7 @@ This example uses the committed deterministic dataset at
 Outputs are written to:
 
 ```text
-docs/examples/output/milestone_12_alpha_portfolio_workflow/
+docs/examples/output/milestone_11_5_alpha_portfolio_workflow/
 ```
 
 Key files:
@@ -48,7 +48,10 @@ What the outputs show:
 * `artifacts/targeted/` shows the same portfolio after deterministic
   volatility-target scaling
 
-The example keeps the signal mapping intentionally simple for Milestone 12:
+This example is Milestone 11.5 material because it focuses on alpha modeling,
+cross-sectional review, continuous-signal backtesting, and portfolio
+construction rather than alpha-evaluation metrics or registry-backed
+leaderboards.
 
 ```python
 signal = np.sign(prediction_score)

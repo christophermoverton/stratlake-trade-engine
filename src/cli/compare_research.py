@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from pathlib import Path
 from typing import Sequence
 
 from src.cli.comparison_cli import (
@@ -10,6 +11,8 @@ from src.cli.comparison_cli import (
     print_comparison_summary,
     require_registry_mode,
 )
+from src.config.review import load_review_config
+from src.research.promotion import load_promotion_gate_config
 from src.research.review import (
     ResearchReviewResult,
     compare_research_runs,
@@ -71,6 +74,31 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         dest="output_path",
         help="Optional leaderboard CSV path or output directory override.",
     )
+    add_dual_flag_argument(
+        parser,
+        "--review-config",
+        "--review_config",
+        dest="review_config",
+        help="Optional YAML/JSON review config file. CLI flags override file values.",
+    )
+    parser.add_argument("--alpha-metric", help="Override the primary alpha ranking metric.")
+    parser.add_argument("--alpha-secondary-metric", help="Override the secondary alpha ranking metric.")
+    parser.add_argument("--strategy-metric", help="Override the primary strategy ranking metric.")
+    parser.add_argument("--strategy-secondary-metric", help="Override the secondary strategy ranking metric.")
+    parser.add_argument("--portfolio-metric", help="Override the primary portfolio ranking metric.")
+    parser.add_argument("--portfolio-secondary-metric", help="Override the secondary portfolio ranking metric.")
+    add_dual_flag_argument(
+        parser,
+        "--promotion-gates",
+        "--promotion_gates",
+        dest="promotion_gates",
+        help="Optional YAML/JSON review-level promotion gate config override.",
+    )
+    parser.add_argument(
+        "--disable-plots",
+        action="store_true",
+        help="Disable review comparison plot generation even when config defaults enable it.",
+    )
     return parser.parse_args(argv)
 
 
@@ -84,6 +112,7 @@ def run_cli(argv: Sequence[str] | None = None) -> ResearchReviewResult:
     args = parse_args(argv)
     require_registry_mode(args.from_registry, surface_name="Unified research review")
 
+    file_review_config = None if args.review_config is None else load_review_config(Path(args.review_config)).to_dict()
     result = compare_research_runs(
         run_types=_parse_run_types(args.run_types),
         timeframe=args.timeframe,
@@ -93,6 +122,17 @@ def run_cli(argv: Sequence[str] | None = None) -> ResearchReviewResult:
         portfolio_name=args.portfolio_name,
         top_k_per_type=args.top_k,
         output_path=optional_output_path(args.output_path),
+        review_config=file_review_config,
+        alpha_metric=args.alpha_metric,
+        alpha_secondary_metric=args.alpha_secondary_metric,
+        strategy_metric=args.strategy_metric,
+        strategy_secondary_metric=args.strategy_secondary_metric,
+        portfolio_metric=args.portfolio_metric,
+        portfolio_secondary_metric=args.portfolio_secondary_metric,
+        promotion_gate_config=(
+            None if args.promotion_gates is None else load_promotion_gate_config(Path(args.promotion_gates))
+        ),
+        emit_plots=False if args.disable_plots else None,
     )
     print_comparison_summary(
         identifier_label="review_id",

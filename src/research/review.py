@@ -9,6 +9,7 @@ from typing import Any, Iterable, Mapping
 
 import pandas as pd
 
+from src.config.review import ReviewConfig, resolve_review_config
 from src.research.alpha_eval import DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT, load_alpha_evaluation_registry
 from src.research.comparison_plots import generate_research_review_plots
 from src.research.experiment_tracker import ARTIFACTS_ROOT as DEFAULT_STRATEGY_ARTIFACTS_ROOT
@@ -31,9 +32,6 @@ from src.research.registry import (
 ALPHA_REVIEW_RUN_TYPE = "alpha_evaluation"
 SUPPORTED_REVIEW_RUN_TYPES = (ALPHA_REVIEW_RUN_TYPE, STRATEGY_RUN_TYPE, PORTFOLIO_RUN_TYPE)
 DEFAULT_REVIEW_ROOT = Path("artifacts") / "reviews"
-DEFAULT_STRATEGY_REVIEW_METRIC = "sharpe_ratio"
-DEFAULT_PORTFOLIO_REVIEW_METRIC = "sharpe_ratio"
-DEFAULT_ALPHA_REVIEW_METRIC = "ic_ir"
 DEFAULT_PORTFOLIO_ARTIFACTS_ROOT = Path("artifacts") / "portfolios"
 _LEADERBOARD_FILENAME = "leaderboard.csv"
 _REVIEW_SUMMARY_FILENAME = "review_summary.json"
@@ -87,6 +85,7 @@ class ResearchReviewResult:
     json_path: Path
     manifest_path: Path
     promotion_gate_path: Path | None
+    review_config: dict[str, Any] = field(default_factory=dict)
     plot_paths: dict[str, Path] = field(default_factory=dict)
     skipped_plots: dict[str, str] = field(default_factory=dict)
 
@@ -105,20 +104,65 @@ def compare_research_runs(
     alpha_artifacts_root: str | Path = DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT,
     output_path: str | Path | None = None,
     promotion_gate_config: Mapping[str, Any] | None = None,
+    review_config: Mapping[str, Any] | ReviewConfig | None = None,
+    alpha_metric: str | None = None,
+    alpha_secondary_metric: str | None = None,
+    strategy_metric: str | None = None,
+    strategy_secondary_metric: str | None = None,
+    portfolio_metric: str | None = None,
+    portfolio_secondary_metric: str | None = None,
+    emit_plots: bool | None = None,
 ) -> ResearchReviewResult:
     """Build a registry-backed unified review surface across alpha, strategy, and portfolio runs."""
 
-    normalized_filters = _normalize_filters(
-        run_types=run_types,
-        timeframe=timeframe,
-        dataset=dataset,
-        alpha_name=alpha_name,
-        strategy_name=strategy_name,
-        portfolio_name=portfolio_name,
-        top_k_per_type=top_k_per_type,
+    resolved_review_config = resolve_review_config(
+        None if isinstance(review_config, ReviewConfig) else review_config,
+        cli_overrides=_review_cli_overrides(
+            run_types=run_types,
+            timeframe=timeframe,
+            dataset=dataset,
+            alpha_name=alpha_name,
+            strategy_name=strategy_name,
+            portfolio_name=portfolio_name,
+            top_k_per_type=top_k_per_type,
+            output_path=output_path,
+            promotion_gate_config=promotion_gate_config,
+            alpha_metric=alpha_metric,
+            alpha_secondary_metric=alpha_secondary_metric,
+            strategy_metric=strategy_metric,
+            strategy_secondary_metric=strategy_secondary_metric,
+            portfolio_metric=portfolio_metric,
+            portfolio_secondary_metric=portfolio_secondary_metric,
+            emit_plots=emit_plots,
+        ),
     )
+    if isinstance(review_config, ReviewConfig):
+        resolved_review_config = resolve_review_config(
+            review_config.to_dict(),
+            cli_overrides=_review_cli_overrides(
+                run_types=run_types,
+                timeframe=timeframe,
+                dataset=dataset,
+                alpha_name=alpha_name,
+                strategy_name=strategy_name,
+                portfolio_name=portfolio_name,
+                top_k_per_type=top_k_per_type,
+                output_path=output_path,
+                promotion_gate_config=promotion_gate_config,
+                alpha_metric=alpha_metric,
+                alpha_secondary_metric=alpha_secondary_metric,
+                strategy_metric=strategy_metric,
+                strategy_secondary_metric=strategy_secondary_metric,
+                portfolio_metric=portfolio_metric,
+                portfolio_secondary_metric=portfolio_secondary_metric,
+                emit_plots=emit_plots,
+            ),
+        )
+
+    normalized_filters = resolved_review_config.filters.to_dict()
     entries = _collect_review_entries(
         filters=normalized_filters,
+        ranking=resolved_review_config.ranking.to_dict(),
         strategy_artifacts_root=Path(strategy_artifacts_root),
         portfolio_artifacts_root=Path(portfolio_artifacts_root),
         alpha_artifacts_root=Path(alpha_artifacts_root),
@@ -129,16 +173,26 @@ def compare_research_runs(
     review_id = build_research_review_id(
         filters=normalized_filters,
         entries=entries,
+        review_config=resolved_review_config.identity_payload(),
     )
-    resolved_output_path = default_research_review_output_path(review_id) if output_path is None else Path(output_path)
+    configured_output_path = resolved_review_config.output.path
+    resolved_output_path = (
+        default_research_review_output_path(review_id)
+        if configured_output_path is None
+        else Path(configured_output_path)
+    )
     output_dir = resolve_research_review_csv_path(resolved_output_path).parent
-    plot_paths, skipped_plots = generate_research_review_plots(entries=entries, review_dir=output_dir)
+    if resolved_review_config.output.emit_plots:
+        plot_paths, skipped_plots = generate_research_review_plots(entries=entries, review_dir=output_dir)
+    else:
+        plot_paths, skipped_plots = {}, _disabled_plot_reasons(entries)
     csv_path, json_path, manifest_path, promotion_gate_path = write_research_review_artifacts(
         entries=entries,
         review_id=review_id,
         filters=normalized_filters,
         output_path=resolved_output_path,
-        promotion_gate_config=promotion_gate_config,
+        promotion_gate_config=resolved_review_config.promotion_gates,
+        review_config=resolved_review_config.to_dict(),
         plot_paths=plot_paths,
         skipped_plots=skipped_plots,
     )
@@ -150,6 +204,7 @@ def compare_research_runs(
         json_path=json_path,
         manifest_path=manifest_path,
         promotion_gate_path=promotion_gate_path,
+        review_config=resolved_review_config.to_dict(),
         plot_paths=plot_paths,
         skipped_plots=skipped_plots,
     )
@@ -162,6 +217,7 @@ def write_research_review_artifacts(
     filters: Mapping[str, Any],
     output_path: str | Path,
     promotion_gate_config: Mapping[str, Any] | None = None,
+    review_config: Mapping[str, Any] | None = None,
     plot_paths: Mapping[str, Path] | None = None,
     skipped_plots: Mapping[str, str] | None = None,
 ) -> tuple[Path, Path, Path, Path | None]:
@@ -183,6 +239,7 @@ def write_research_review_artifacts(
     summary_payload = _review_summary_payload(
         review_id=review_id,
         filters=filters,
+        review_config=review_config,
         persisted_rows=persisted_rows,
         plot_paths=_relative_plot_paths(output_dir, normalized_plot_paths),
         skipped_plots=normalized_skipped_plots,
@@ -212,6 +269,7 @@ def write_research_review_artifacts(
         leaderboard_frame=frame,
         leaderboard_filename=csv_path.name,
         promotion_evaluation=promotion_evaluation,
+        review_config=review_config,
         output_dir=output_dir,
         plot_paths=normalized_plot_paths,
         skipped_plots=normalized_skipped_plots,
@@ -224,6 +282,7 @@ def _review_summary_payload(
     *,
     review_id: str,
     filters: Mapping[str, Any],
+    review_config: Mapping[str, Any] | None,
     persisted_rows: list[dict[str, Any]],
     plot_paths: Mapping[str, str],
     skipped_plots: Mapping[str, str],
@@ -231,6 +290,7 @@ def _review_summary_payload(
     payload = {
         "review_id": review_id,
         "filters": canonicalize_value(dict(filters)),
+        "review_config": canonicalize_value(dict(review_config or {})),
         "counts_by_run_type": _counts_by_run_type_from_rows(persisted_rows),
         "entry_count": len(persisted_rows),
         "entries": persisted_rows,
@@ -245,11 +305,13 @@ def build_research_review_id(
     *,
     filters: Mapping[str, Any],
     entries: Iterable[ResearchReviewEntry],
+    review_config: Mapping[str, Any] | None = None,
 ) -> str:
     """Return a deterministic identifier for one logical unified review request."""
 
     payload = {
         "filters": canonicalize_value(dict(filters)),
+        "review_config": _review_config_identity_payload(review_config),
         "entries": [
             {
                 "run_id": entry.run_id,
@@ -362,6 +424,7 @@ def _normalize_run_types(run_types: Iterable[str] | None) -> list[str]:
 def _collect_review_entries(
     *,
     filters: Mapping[str, Any],
+    ranking: Mapping[str, Any],
     strategy_artifacts_root: Path,
     portfolio_artifacts_root: Path,
     alpha_artifacts_root: Path,
@@ -369,18 +432,27 @@ def _collect_review_entries(
     entries: list[ResearchReviewEntry] = []
     requested_run_types = set(filters["run_types"])
     if ALPHA_REVIEW_RUN_TYPE in requested_run_types:
-        entries.extend(_alpha_review_entries(alpha_artifacts_root=alpha_artifacts_root, filters=filters))
+        entries.extend(_alpha_review_entries(alpha_artifacts_root=alpha_artifacts_root, filters=filters, ranking=ranking))
     if STRATEGY_RUN_TYPE in requested_run_types:
-        entries.extend(_strategy_review_entries(strategy_artifacts_root=strategy_artifacts_root, filters=filters))
+        entries.extend(
+            _strategy_review_entries(strategy_artifacts_root=strategy_artifacts_root, filters=filters, ranking=ranking)
+        )
     if PORTFOLIO_RUN_TYPE in requested_run_types:
-        entries.extend(_portfolio_review_entries(portfolio_artifacts_root=portfolio_artifacts_root, filters=filters))
+        entries.extend(
+            _portfolio_review_entries(portfolio_artifacts_root=portfolio_artifacts_root, filters=filters, ranking=ranking)
+        )
     return sorted(
         entries,
         key=lambda item: (_run_type_sort_key(item.run_type), item.rank_within_type, item.entity_name, item.run_id),
     )
 
 
-def _alpha_review_entries(*, alpha_artifacts_root: Path, filters: Mapping[str, Any]) -> list[ResearchReviewEntry]:
+def _alpha_review_entries(
+    *,
+    alpha_artifacts_root: Path,
+    filters: Mapping[str, Any],
+    ranking: Mapping[str, Any],
+) -> list[ResearchReviewEntry]:
     rows = load_alpha_evaluation_registry(alpha_artifacts_root)
     filtered = [
         row for row in rows
@@ -389,9 +461,11 @@ def _alpha_review_entries(*, alpha_artifacts_root: Path, filters: Mapping[str, A
         and _matches_optional_string(row.get("alpha_name"), filters["alpha_name"])
     ]
     selected = _latest_by_name(filtered, name_field="alpha_name")
+    primary_metric = str(ranking["alpha_evaluation_primary_metric"])
+    secondary_metric = str(ranking["alpha_evaluation_secondary_metric"])
     ranked = sorted(
         selected,
-        key=lambda row: _alpha_sort_key(row, metric_name=DEFAULT_ALPHA_REVIEW_METRIC),
+        key=lambda row: _alpha_sort_key(row, primary_metric=primary_metric, secondary_metric=secondary_metric),
     )
     return [
         ResearchReviewEntry(
@@ -399,10 +473,10 @@ def _alpha_review_entries(*, alpha_artifacts_root: Path, filters: Mapping[str, A
             rank_within_type=index,
             entity_name=str(row["alpha_name"]),
             run_id=str(row["run_id"]),
-            selected_metric_name=DEFAULT_ALPHA_REVIEW_METRIC,
-            selected_metric_value=_coerce_metric(_metrics_summary(row).get(DEFAULT_ALPHA_REVIEW_METRIC)),
-            secondary_metric_name="mean_ic",
-            secondary_metric_value=_coerce_metric(_metrics_summary(row).get("mean_ic")),
+            selected_metric_name=primary_metric,
+            selected_metric_value=_coerce_metric(_metrics_summary(row).get(primary_metric)),
+            secondary_metric_name=secondary_metric,
+            secondary_metric_value=_coerce_metric(_metrics_summary(row).get(secondary_metric)),
             timeframe=_coerce_optional_string(row.get("timeframe")),
             evaluation_mode=ALPHA_REVIEW_RUN_TYPE,
             promotion_status=_promotion_status(row),
@@ -414,7 +488,12 @@ def _alpha_review_entries(*, alpha_artifacts_root: Path, filters: Mapping[str, A
     ]
 
 
-def _strategy_review_entries(*, strategy_artifacts_root: Path, filters: Mapping[str, Any]) -> list[ResearchReviewEntry]:
+def _strategy_review_entries(
+    *,
+    strategy_artifacts_root: Path,
+    filters: Mapping[str, Any],
+    ranking: Mapping[str, Any],
+) -> list[ResearchReviewEntry]:
     rows = filter_by_run_type(load_registry(default_registry_path(strategy_artifacts_root)), STRATEGY_RUN_TYPE)
     filtered = [
         row for row in rows
@@ -423,9 +502,11 @@ def _strategy_review_entries(*, strategy_artifacts_root: Path, filters: Mapping[
         and _matches_optional_string(row.get("strategy_name"), filters["strategy_name"])
     ]
     selected = _latest_by_name(filtered, name_field="strategy_name")
+    primary_metric = str(ranking["strategy_primary_metric"])
+    secondary_metric = str(ranking["strategy_secondary_metric"])
     ranked = sorted(
         selected,
-        key=lambda row: _strategy_sort_key(row, metric_name=DEFAULT_STRATEGY_REVIEW_METRIC),
+        key=lambda row: _strategy_sort_key(row, primary_metric=primary_metric, secondary_metric=secondary_metric),
     )
     return [
         ResearchReviewEntry(
@@ -433,10 +514,10 @@ def _strategy_review_entries(*, strategy_artifacts_root: Path, filters: Mapping[
             rank_within_type=index,
             entity_name=str(row["strategy_name"]),
             run_id=str(row["run_id"]),
-            selected_metric_name=DEFAULT_STRATEGY_REVIEW_METRIC,
-            selected_metric_value=_coerce_metric(_metrics_summary(row).get(DEFAULT_STRATEGY_REVIEW_METRIC)),
-            secondary_metric_name="total_return",
-            secondary_metric_value=_coerce_metric(_metrics_summary(row).get("total_return")),
+            selected_metric_name=primary_metric,
+            selected_metric_value=_coerce_metric(_metrics_summary(row).get(primary_metric)),
+            secondary_metric_name=secondary_metric,
+            secondary_metric_value=_coerce_metric(_metrics_summary(row).get(secondary_metric)),
             timeframe=_coerce_optional_string(row.get("timeframe")),
             evaluation_mode=_coerce_optional_string(row.get("evaluation_mode")),
             promotion_status=_promotion_status(row),
@@ -448,7 +529,12 @@ def _strategy_review_entries(*, strategy_artifacts_root: Path, filters: Mapping[
     ]
 
 
-def _portfolio_review_entries(*, portfolio_artifacts_root: Path, filters: Mapping[str, Any]) -> list[ResearchReviewEntry]:
+def _portfolio_review_entries(
+    *,
+    portfolio_artifacts_root: Path,
+    filters: Mapping[str, Any],
+    ranking: Mapping[str, Any],
+) -> list[ResearchReviewEntry]:
     rows = filter_by_run_type(load_registry(default_registry_path(portfolio_artifacts_root)), PORTFOLIO_RUN_TYPE)
     filtered = [
         row for row in rows
@@ -456,9 +542,11 @@ def _portfolio_review_entries(*, portfolio_artifacts_root: Path, filters: Mappin
         and _matches_optional_string(row.get("portfolio_name"), filters["portfolio_name"])
     ]
     selected = _latest_by_name(filtered, name_field="portfolio_name")
+    primary_metric = str(ranking["portfolio_primary_metric"])
+    secondary_metric = str(ranking["portfolio_secondary_metric"])
     ranked = sorted(
         selected,
-        key=lambda row: _portfolio_sort_key(row, metric_name=DEFAULT_PORTFOLIO_REVIEW_METRIC),
+        key=lambda row: _portfolio_sort_key(row, primary_metric=primary_metric, secondary_metric=secondary_metric),
     )
     return [
         ResearchReviewEntry(
@@ -466,10 +554,10 @@ def _portfolio_review_entries(*, portfolio_artifacts_root: Path, filters: Mappin
             rank_within_type=index,
             entity_name=str(row["portfolio_name"]),
             run_id=str(row["run_id"]),
-            selected_metric_name=DEFAULT_PORTFOLIO_REVIEW_METRIC,
-            selected_metric_value=_coerce_metric(_metrics_summary(row).get(DEFAULT_PORTFOLIO_REVIEW_METRIC)),
-            secondary_metric_name="total_return",
-            secondary_metric_value=_coerce_metric(_metrics_summary(row).get("total_return")),
+            selected_metric_name=primary_metric,
+            selected_metric_value=_coerce_metric(_metrics_summary(row).get(primary_metric)),
+            secondary_metric_name=secondary_metric,
+            secondary_metric_value=_coerce_metric(_metrics_summary(row).get(secondary_metric)),
             timeframe=_coerce_optional_string(row.get("timeframe")),
             evaluation_mode="walk_forward" if row.get("split_count") else "single",
             promotion_status=_promotion_status(row),
@@ -507,10 +595,15 @@ def _metrics_summary(row: Mapping[str, Any]) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
-def _strategy_sort_key(row: Mapping[str, Any], *, metric_name: str) -> tuple[bool, float, bool, float, str, str]:
+def _strategy_sort_key(
+    row: Mapping[str, Any],
+    *,
+    primary_metric: str,
+    secondary_metric: str,
+) -> tuple[bool, float, bool, float, str, str]:
     metrics = _metrics_summary(row)
-    metric_value = _coerce_metric(metrics.get(metric_name))
-    secondary_value = _coerce_metric(metrics.get("total_return"))
+    metric_value = _coerce_metric(metrics.get(primary_metric))
+    secondary_value = _coerce_metric(metrics.get(secondary_metric))
     return _descending_metric_sort_key(
         primary_value=metric_value,
         secondary_value=secondary_value,
@@ -519,10 +612,15 @@ def _strategy_sort_key(row: Mapping[str, Any], *, metric_name: str) -> tuple[boo
     )
 
 
-def _portfolio_sort_key(row: Mapping[str, Any], *, metric_name: str) -> tuple[bool, float, bool, float, str, str]:
+def _portfolio_sort_key(
+    row: Mapping[str, Any],
+    *,
+    primary_metric: str,
+    secondary_metric: str,
+) -> tuple[bool, float, bool, float, str, str]:
     metrics = _metrics_summary(row)
-    metric_value = _coerce_metric(metrics.get(metric_name))
-    secondary_value = _coerce_metric(metrics.get("total_return"))
+    metric_value = _coerce_metric(metrics.get(primary_metric))
+    secondary_value = _coerce_metric(metrics.get(secondary_metric))
     return _descending_metric_sort_key(
         primary_value=metric_value,
         secondary_value=secondary_value,
@@ -531,10 +629,15 @@ def _portfolio_sort_key(row: Mapping[str, Any], *, metric_name: str) -> tuple[bo
     )
 
 
-def _alpha_sort_key(row: Mapping[str, Any], *, metric_name: str) -> tuple[bool, float, bool, float, str, str]:
+def _alpha_sort_key(
+    row: Mapping[str, Any],
+    *,
+    primary_metric: str,
+    secondary_metric: str,
+) -> tuple[bool, float, bool, float, str, str]:
     metrics = _metrics_summary(row)
-    metric_value = _coerce_metric(metrics.get(metric_name))
-    secondary_value = _coerce_metric(metrics.get("mean_ic"))
+    metric_value = _coerce_metric(metrics.get(primary_metric))
+    secondary_value = _coerce_metric(metrics.get(secondary_metric))
     return _descending_metric_sort_key(
         primary_value=metric_value,
         secondary_value=secondary_value,
@@ -677,6 +780,7 @@ def _build_review_manifest(
     leaderboard_frame: pd.DataFrame,
     leaderboard_filename: str,
     promotion_evaluation: Any,
+    review_config: Mapping[str, Any] | None,
     output_dir: Path,
     plot_paths: Mapping[str, Path],
     skipped_plots: Mapping[str, str],
@@ -729,6 +833,7 @@ def _build_review_manifest(
         "leaderboard_path": leaderboard_filename,
         "plot_paths": dict(relative_plot_paths),
         "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
+        "review_config": canonicalize_value(dict(review_config or {})),
         "review_filters": canonicalize_value(dict(filters)),
         "review_id": review_id,
         "review_metrics": _review_metrics_payload(entries),
@@ -807,4 +912,86 @@ def _relative_plot_paths(base_dir: Path, plot_paths: Mapping[str, Path]) -> dict
     return {
         key: path.relative_to(base_dir).as_posix()
         for key, path in sorted(plot_paths.items())
+    }
+
+
+def _review_config_identity_payload(review_config: Mapping[str, Any] | None) -> dict[str, Any]:
+    payload = canonicalize_value(dict(review_config or {}))
+    output = payload.get("output")
+    if isinstance(output, dict):
+        output = dict(output)
+        output.pop("path", None)
+        payload["output"] = output
+    return payload
+
+
+def _review_cli_overrides(
+    *,
+    run_types: Iterable[str] | None,
+    timeframe: str | None,
+    dataset: str | None,
+    alpha_name: str | None,
+    strategy_name: str | None,
+    portfolio_name: str | None,
+    top_k_per_type: int | None,
+    output_path: str | Path | None,
+    promotion_gate_config: Mapping[str, Any] | None,
+    alpha_metric: str | None,
+    alpha_secondary_metric: str | None,
+    strategy_metric: str | None,
+    strategy_secondary_metric: str | None,
+    portfolio_metric: str | None,
+    portfolio_secondary_metric: str | None,
+    emit_plots: bool | None,
+) -> dict[str, Any] | None:
+    filters: dict[str, Any] = {}
+    ranking: dict[str, Any] = {}
+    output: dict[str, Any] = {}
+    if run_types is not None:
+        filters["run_types"] = list(run_types)
+    if timeframe is not None:
+        filters["timeframe"] = timeframe
+    if dataset is not None:
+        filters["dataset"] = dataset
+    if alpha_name is not None:
+        filters["alpha_name"] = alpha_name
+    if strategy_name is not None:
+        filters["strategy_name"] = strategy_name
+    if portfolio_name is not None:
+        filters["portfolio_name"] = portfolio_name
+    if top_k_per_type is not None:
+        filters["top_k_per_type"] = top_k_per_type
+    if alpha_metric is not None:
+        ranking["alpha_evaluation_primary_metric"] = alpha_metric
+    if alpha_secondary_metric is not None:
+        ranking["alpha_evaluation_secondary_metric"] = alpha_secondary_metric
+    if strategy_metric is not None:
+        ranking["strategy_primary_metric"] = strategy_metric
+    if strategy_secondary_metric is not None:
+        ranking["strategy_secondary_metric"] = strategy_secondary_metric
+    if portfolio_metric is not None:
+        ranking["portfolio_primary_metric"] = portfolio_metric
+    if portfolio_secondary_metric is not None:
+        ranking["portfolio_secondary_metric"] = portfolio_secondary_metric
+    if output_path is not None:
+        output["path"] = str(output_path)
+    if emit_plots is not None:
+        output["emit_plots"] = emit_plots
+
+    payload: dict[str, Any] = {}
+    if filters:
+        payload["filters"] = filters
+    if ranking:
+        payload["ranking"] = ranking
+    if output:
+        payload["output"] = output
+    if promotion_gate_config is not None:
+        payload["promotion_gates"] = dict(promotion_gate_config)
+    return payload or None
+
+
+def _disabled_plot_reasons(entries: Iterable[ResearchReviewEntry]) -> dict[str, str]:
+    return {
+        f"{run_type}_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false."
+        for run_type in sorted({entry.run_type for entry in entries})
     }

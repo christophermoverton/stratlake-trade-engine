@@ -213,6 +213,13 @@ Unified review artifact contract:
 metrics, plot paths, skipped plot reasons, and optional promotion-gate summary
 so review outputs are explicitly auditable across reruns.
 
+Unified review now also resolves one explicit review configuration contract.
+Defaults come from `configs/review.yml`, an optional `--review-config` file can
+override those defaults, and CLI flags win last. The effective merged config is
+persisted into `review_summary.json` and `manifest.json` so review filtering,
+ranking metrics, plot preferences, and review-level promotion gates are
+auditable after the run is written.
+
 ## Compatibility Notes
 
 The main compatibility change is additive:
@@ -232,4 +239,5 @@ execution semantics are otherwise preserved.
 * [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
 * [docs/strategy_performance_metrics.md](strategy_performance_metrics.md)
 * [docs/research_visualization_workflow.md](research_visualization_workflow.md)
+* [docs/review_configuration.md](review_configuration.md)
 * [docs/examples/strategy_comparison_example.md](examples/strategy_comparison_example.md)

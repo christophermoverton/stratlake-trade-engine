@@ -1,0 +1,22 @@
+review:
+  filters:
+    run_types:
+      - alpha_evaluation
+      - strategy
+      - portfolio
+    timeframe:
+    dataset:
+    alpha_name:
+    strategy_name:
+    portfolio_name:
+    top_k_per_type:
+  ranking:
+    alpha_evaluation_primary_metric: ic_ir
+    alpha_evaluation_secondary_metric: mean_ic
+    strategy_primary_metric: sharpe_ratio
+    strategy_secondary_metric: total_return
+    portfolio_primary_metric: sharpe_ratio
+    portfolio_secondary_metric: total_return
+  output:
+    path:
+    emit_plots: true

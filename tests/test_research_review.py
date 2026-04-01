@@ -10,6 +10,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.cli.compare_research import parse_args, run_cli
+from src.config.review import load_review_config
 from src.research.review import (
     ResearchReviewError,
     ResearchReviewResult,
@@ -283,6 +284,7 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
         "portfolio": 2,
     }
     assert payload["entry_count"] == 6
+    assert payload["review_config"]["ranking"]["strategy_primary_metric"] == "sharpe_ratio"
     assert payload["plot_paths"] == {
         "alpha_evaluation_metric_comparison": "plots/alpha_evaluation/metric_comparison_ic_ir.png",
         "portfolio_metric_comparison": "plots/portfolio/metric_comparison_sharpe_ratio.png",
@@ -322,6 +324,7 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
     assert manifest["artifacts"]["leaderboard.csv"]["rows"] == 6
     assert manifest["artifacts"]["leaderboard.csv"]["columns"] == list(frame.columns)
     assert manifest["counts_by_run_type"] == payload["counts_by_run_type"]
+    assert manifest["review_config"]["output"]["emit_plots"] is True
 
 
 def test_compare_research_runs_applies_filters_and_top_k_per_type(tmp_path: Path) -> None:
@@ -477,7 +480,11 @@ def test_compare_research_runs_writes_stable_artifacts_and_review_id(tmp_path: P
     assert first.csv_path.read_bytes() == second.csv_path.read_bytes()
     assert first.json_path.read_bytes() == second.json_path.read_bytes()
     assert first.manifest_path.read_bytes() == second.manifest_path.read_bytes()
-    assert first.review_id == build_research_review_id(filters=first.filters, entries=first.entries)
+    assert first.review_id == build_research_review_id(
+        filters=first.filters,
+        entries=first.entries,
+        review_config=first.review_config,
+    )
 
 
 def test_compare_research_runs_rejects_empty_match_set(tmp_path: Path) -> None:
@@ -596,6 +603,55 @@ def test_compare_research_runs_writes_review_level_promotion_artifact_when_confi
     }
 
 
+def test_compare_research_runs_applies_review_config_precedence_and_persists_effective_config(tmp_path: Path) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    _write_registry(
+        strategy_root / "registry.jsonl",
+        [
+            _strategy_entry(
+                run_id="strategy-a",
+                strategy_name="momentum_v1",
+                timestamp="2026-03-19T00:05:00Z",
+                sharpe_ratio=1.0,
+                total_return=0.20,
+            ),
+            _strategy_entry(
+                run_id="strategy-b",
+                strategy_name="mean_reversion_v1",
+                timestamp="2026-03-19T00:04:00Z",
+                sharpe_ratio=1.4,
+                total_return=0.08,
+            ),
+        ],
+    )
+
+    result = compare_research_runs(
+        run_types=["strategy"],
+        strategy_artifacts_root=strategy_root,
+        portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+        alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+        output_path=tmp_path,
+        review_config={
+            "filters": {"top_k_per_type": 1},
+            "ranking": {"strategy_primary_metric": "total_return"},
+            "output": {"emit_plots": False},
+        },
+        strategy_metric="sharpe_ratio",
+    )
+
+    assert [entry.run_id for entry in result.entries] == ["strategy-b"]
+    assert result.review_config["filters"]["top_k_per_type"] == 1
+    assert result.review_config["ranking"]["strategy_primary_metric"] == "sharpe_ratio"
+    assert result.review_config["output"]["emit_plots"] is False
+    assert result.plot_paths == {}
+    assert result.skipped_plots == {
+        "strategy_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false."
+    }
+
+    manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["review_config"] == result.review_config
+
+
 def test_parse_args_supports_unified_review_inputs() -> None:
     args = parse_args(
         [
@@ -617,6 +673,17 @@ def test_parse_args_supports_unified_review_inputs() -> None:
             "2",
             "--output-path",
             "artifacts/custom",
+            "--review-config",
+            "configs/review.yml",
+            "--alpha-metric",
+            "rank_ic_ir",
+            "--strategy-secondary-metric",
+            "cumulative_return",
+            "--portfolio-metric",
+            "total_return",
+            "--promotion-gates",
+            "configs/review_gates.yml",
+            "--disable-plots",
         ]
     )
 
@@ -629,6 +696,12 @@ def test_parse_args_supports_unified_review_inputs() -> None:
     assert args.portfolio_name == "core_portfolio"
     assert args.top_k == 2
     assert args.output_path == "artifacts/custom"
+    assert args.review_config == "configs/review.yml"
+    assert args.alpha_metric == "rank_ic_ir"
+    assert args.strategy_secondary_metric == "cumulative_return"
+    assert args.portfolio_metric == "total_return"
+    assert args.promotion_gates == "configs/review_gates.yml"
+    assert args.disable_plots is True
 
 
 def test_parse_args_supports_unified_review_legacy_flag_aliases() -> None:
@@ -673,6 +746,7 @@ def test_run_cli_prints_unified_review_summary(monkeypatch, capsys, tmp_path: Pa
         json_path=tmp_path / "review_summary.json",
         manifest_path=tmp_path / "manifest.json",
         promotion_gate_path=None,
+        review_config=load_review_config().to_dict(),
     )
 
     monkeypatch.setattr("src.cli.compare_research.compare_research_runs", lambda **kwargs: expected_result)
@@ -685,6 +759,86 @@ def test_run_cli_prints_unified_review_summary(monkeypatch, capsys, tmp_path: Pa
     assert "plot_count: 0" in stdout
     assert "rows: 0" in stdout
     assert "leaderboard_csv:" in stdout
+
+
+def test_run_cli_loads_review_config_and_applies_cli_overrides(monkeypatch, tmp_path: Path) -> None:
+    review_config_path = tmp_path / "review.yml"
+    review_config_path.write_text(
+        """
+review:
+  filters:
+    run_types: [strategy]
+  ranking:
+    strategy_primary_metric: total_return
+""".strip(),
+        encoding="utf-8",
+    )
+    gates_path = tmp_path / "review_gates.yml"
+    gates_path.write_text(
+        """
+promotion_gates:
+  gates:
+    - gate_id: minimum_rows
+      source: metrics
+      metric_path: entry_count
+      comparator: gte
+      threshold: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    captured: dict[str, object] = {}
+
+    def fake_compare_research_runs(**kwargs):
+        captured.update(kwargs)
+        return ResearchReviewResult(
+            review_id="registry_review_deadbeefcafe",
+            filters={
+                "run_types": ["strategy"],
+                "timeframe": None,
+                "dataset": None,
+                "alpha_name": None,
+                "strategy_name": None,
+                "portfolio_name": None,
+                "top_k_per_type": None,
+            },
+            entries=[],
+            csv_path=tmp_path / "leaderboard.csv",
+            json_path=tmp_path / "review_summary.json",
+            manifest_path=tmp_path / "manifest.json",
+            promotion_gate_path=None,
+            review_config={},
+        )
+
+    monkeypatch.setattr("src.cli.compare_research.compare_research_runs", fake_compare_research_runs)
+
+    run_cli(
+        [
+            "--from-registry",
+            "--review-config",
+            str(review_config_path),
+            "--strategy-metric",
+            "sharpe_ratio",
+            "--promotion-gates",
+            str(gates_path),
+            "--disable-plots",
+        ]
+    )
+
+    assert isinstance(captured["review_config"], dict)
+    assert captured["review_config"]["ranking"]["strategy_primary_metric"] == "total_return"
+    assert captured["strategy_metric"] == "sharpe_ratio"
+    assert captured["emit_plots"] is False
+    assert captured["promotion_gate_config"] == {
+        "gates": [
+            {
+                "comparator": "gte",
+                "gate_id": "minimum_rows",
+                "metric_path": "entry_count",
+                "source": "metrics",
+                "threshold": 1,
+            }
+        ]
+    }
 
 
 def test_run_cli_requires_registry_mode() -> None:

@@ -17,7 +17,8 @@ LOCK_TIMEOUT_SECONDS = 5.0
 LOCK_POLL_INTERVAL_SECONDS = 0.05
 STRATEGY_RUN_TYPE = "strategy"
 PORTFOLIO_RUN_TYPE = "portfolio"
-_VALID_RUN_TYPES = frozenset({STRATEGY_RUN_TYPE, PORTFOLIO_RUN_TYPE})
+ALPHA_EVALUATION_RUN_TYPE = "alpha_evaluation"
+_VALID_RUN_TYPES = frozenset({STRATEGY_RUN_TYPE, PORTFOLIO_RUN_TYPE, ALPHA_EVALUATION_RUN_TYPE})
 
 
 class RegistryError(RuntimeError):
@@ -478,7 +479,7 @@ def _build_portfolio_registry_entry(
 
     timestamp = metadata.get("timestamp")
     if timestamp is None:
-        timestamp = _stable_timestamp_from_run_id(run_id)
+        timestamp = stable_timestamp_from_run_id(run_id)
     else:
         timestamp = _normalize_required_string(timestamp, field_name="timestamp")
 
@@ -624,7 +625,7 @@ def _sanitize_name_component(name: str) -> str:
     return normalized or "portfolio"
 
 
-def _stable_timestamp_from_run_id(run_id: str) -> str:
+def stable_timestamp_from_run_id(run_id: str) -> str:
     digest = hashlib.sha256(run_id.encode("utf-8")).hexdigest()
     year = 2000 + int(digest[0:2], 16) % 25
     month = (int(digest[2:4], 16) % 12) + 1

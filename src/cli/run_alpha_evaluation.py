@@ -28,11 +28,13 @@ from src.research.alpha_eval import (
     AlphaEvaluationResult,
     ForwardReturnAlignmentError,
     align_forward_returns,
+    alpha_evaluation_registry_path,
     evaluate_alpha_predictions,
+    register_alpha_evaluation_run,
     resolve_alpha_evaluation_artifact_dir,
     write_alpha_evaluation_artifacts,
 )
-from src.research.registry import canonicalize_value, serialize_canonical_json
+from src.research.registry import RegistryError, canonicalize_value, serialize_canonical_json
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ARTIFACTS_ROOT = Path(os.getenv("ARTIFACTS_ROOT", "artifacts")) / "alpha"
@@ -187,6 +189,15 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
         evaluation_result,
         run_id=run_id,
         alpha_name=str(resolved_config["alpha_model"]),
+    )
+    register_alpha_evaluation_run(
+        run_id=run_id,
+        alpha_name=str(resolved_config["alpha_model"]),
+        effective_config=effective_config,
+        evaluation_result=evaluation_result,
+        artifact_dir=artifact_dir,
+        manifest=manifest,
+        registry_path=alpha_evaluation_registry_path(Path(str(resolved_config["artifacts_root"]))),
     )
 
     result = AlphaEvaluationRunResult(
@@ -460,6 +471,7 @@ def main() -> None:
         AlphaTrainingError,
         FileNotFoundError,
         ForwardReturnAlignmentError,
+        RegistryError,
         TypeError,
         ValueError,
     ) as exc:

@@ -19,6 +19,8 @@ from src.cli.run_alpha_evaluation import (
     run_cli,
 )
 from src.research.alpha.base import BaseAlphaModel
+from src.research.alpha_eval import alpha_evaluation_registry_path
+from src.research.registry import load_registry
 
 TARGET_COLUMN = "target_ret_1d"
 MODEL_NAME = "cli_alpha_eval_weighted_model"
@@ -204,6 +206,14 @@ def test_run_cli_executes_full_alpha_evaluation_pipeline_and_persists_artifacts(
     assert metrics_payload["ic_ir"] == pytest.approx(result.evaluation_result.summary["ic_ir"])
     assert metrics_payload["n_periods"] == result.evaluation_result.summary["n_periods"]
 
+    registry_entries = load_registry(alpha_evaluation_registry_path(tmp_path / "artifacts" / "alpha"))
+    assert len(registry_entries) == 1
+    assert registry_entries[0]["run_id"] == result.run_id
+    assert registry_entries[0]["alpha_name"] == MODEL_NAME
+    assert registry_entries[0]["artifact_path"] == result.artifact_dir.as_posix()
+    assert registry_entries[0]["metrics_path"] == (result.artifact_dir / "alpha_metrics.json").as_posix()
+    assert registry_entries[0]["ic_timeseries_path"] == (result.artifact_dir / "ic_timeseries.csv").as_posix()
+
     stdout = capsys.readouterr().out
     assert f"alpha_model: {MODEL_NAME}" in stdout
     assert f"run_id: {result.run_id}" in stdout
@@ -293,9 +303,11 @@ def test_run_cli_is_deterministic_for_repeated_identical_inputs(
         for path in sorted(second.artifact_dir.rglob("*"))
         if path.is_file()
     }
+    registry_entries = load_registry(alpha_evaluation_registry_path(tmp_path / "artifacts" / "alpha"))
 
     assert first.run_id == second.run_id
     assert first_snapshot == second_snapshot
+    assert [entry["run_id"] for entry in registry_entries] == [first.run_id]
     pdt.assert_frame_equal(first.prediction_frame, second.prediction_frame, check_dtype=True, check_exact=True)
     pdt.assert_frame_equal(first.aligned_frame, second.aligned_frame, check_dtype=True, check_exact=True)
     pdt.assert_frame_equal(
@@ -333,3 +345,5 @@ def test_run_cli_surfaces_validation_failures_for_constant_predictions(
                 "2025-01-06",
             ]
         )
+
+    assert not alpha_evaluation_registry_path(tmp_path / "artifacts" / "alpha").exists()

@@ -184,8 +184,9 @@ Generated reports follow a lightweight, portable structure:
 * visualizations limited to report-quality performance and risk views
 * trade summary tables derived from saved artifacts without embedding debug
   histograms
-* a short interpretation section derived from saved metrics and optional trade
-  artifacts
+* a short interpretation section derived from saved metrics plus saved signal
+  diagnostics when available, including signal posture and concise
+  exposure/turnover context
 * artifact references linking back to `metrics.json`, `equity_curve.csv`,
   optional parquet artifacts, `metrics_by_split.csv` for walk-forward runs,
   and generated plots

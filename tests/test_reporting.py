@@ -181,6 +181,9 @@ def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
     assert "## Artifact References" in report_text
     assert "| Sharpe | 9.775 |" in report_text
     assert "| Total Return | 5.84% |" in report_text
+    assert "Signal posture was 48% long / 24% short / 28% flat across `25` saved rows." in report_text
+    assert "Exposure context: exposure was 72.00%; turnover was 0.560 and trading cadence was high; average active holding runs lasted 2.0 period(s)." in report_text
+    assert "Trade diagnostics cover `8` closed trades. Win rate was 68.00%." in report_text
     assert "![Equity Curve](plots/equity_curve.png)" in report_text
     assert "![Drawdown](plots/drawdown.png)" in report_text
     assert "rolling_sharpe_debug.png" not in report_text
@@ -265,6 +268,8 @@ def test_generate_strategy_report_preserves_expected_artifact_structure_and_rela
     assert_in_file(report_path, "### Trade Summary")
     assert_in_file(report_path, "## Interpretation")
     assert_in_file(report_path, "## Artifact References")
+    assert_in_file(report_path, "Signal posture was 48% long / 24% short / 28% flat across `25` saved rows.")
+    assert_in_file(report_path, "Exposure context: exposure was 72.00%; turnover was 0.560 and trading cadence was high; average active holding runs lasted 2.0 period(s).")
     assert_in_file(report_path, "![Equity Curve](plots/equity_curve.png)")
     assert_in_file(report_path, "![Drawdown](plots/drawdown.png)")
     assert_in_file(report_path, "- [plots/](plots)")
@@ -311,7 +316,48 @@ def test_generate_strategy_report_skips_optional_sections_when_artifacts_are_mis
     assert "_No visualization artifacts were available for this run._" in report_text
     assert "### Trade Summary" in report_text
     assert "_Trade data unavailable for this run._" in report_text
+    assert "Signal posture was" not in report_text
     assert "### Performance Overview" not in report_text
+
+
+def test_generate_strategy_report_uses_signal_artifacts_when_diagnostics_file_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "signal_fallback",
+        _report_results(),
+        _report_metrics(),
+        {"strategy_name": "signal_fallback"},
+    )
+    (run_dir / "signal_diagnostics.json").unlink()
+
+    report_text = generate_strategy_report(run_dir).read_text(encoding="utf-8")
+
+    assert "Signal posture was 48% long / 24% short / 28% flat across `25` saved rows." in report_text
+    assert "Exposure context: exposure was 72.00%; turnover was 0.560 and trading cadence was high; average active holding runs lasted 2.0 period(s)." in report_text
+    assert "Trade diagnostics cover `8` closed trades. Win rate was 68.00%." in report_text
+
+
+def test_generate_strategy_report_describes_signal_changes_when_trade_artifact_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "signal_only",
+        _report_results(),
+        _report_metrics(),
+        {"strategy_name": "signal_only"},
+    )
+    (run_dir / "trades.parquet").unlink()
+
+    report_text = generate_strategy_report(run_dir).read_text(encoding="utf-8")
+
+    assert "Signal posture was 48% long / 24% short / 28% flat across `25` saved rows." in report_text
+    assert "Exposure context: exposure was 72.00%; turnover was 0.560 and trading cadence was high; average active holding runs lasted 2.0 period(s)." in report_text
+    assert "No closed-trade artifact was saved, but signal diagnostics recorded `14` signal change(s) across `25` rows." in report_text
 
 
 def test_generate_strategy_report_raises_when_metrics_are_missing(tmp_path: Path) -> None:

@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.visualization.artifacts import (
     get_canonical_plot_name,
     get_plot_dir,
@@ -117,6 +118,7 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
     equity_curve = _load_equity_curve(resolved_run_dir)
     trades = _load_optional_parquet(resolved_run_dir / "trades.parquet")
     signals = _load_optional_parquet(resolved_run_dir / "signals.parquet")
+    signal_diagnostics = _load_json_if_exists(resolved_run_dir / "signal_diagnostics.json")
 
     plot_paths = generate_plot_artifacts(
         run_dir=resolved_run_dir,
@@ -135,6 +137,7 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
         equity_curve=equity_curve,
         trades=trades,
         signals=signals,
+        signal_diagnostics=signal_diagnostics,
         plot_paths=_select_plot_paths_by_intent(plot_paths, intent="report"),
     )
     resolved_output_path.write_text(markdown, encoding="utf-8")
@@ -245,6 +248,7 @@ def build_markdown_report(
     equity_curve: pd.DataFrame | None,
     trades: pd.DataFrame | None,
     signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
     plot_paths: dict[str, Path],
 ) -> str:
     """Assemble the final Markdown report contents."""
@@ -255,6 +259,7 @@ def build_markdown_report(
         config=config,
         equity_curve=equity_curve,
         signals=signals,
+        signal_diagnostics=signal_diagnostics,
     )
     sections = [
         render_header(context),
@@ -277,7 +282,15 @@ def build_markdown_report(
         )
     )
     sections.extend(render_visualizations(output_path=output_path, trades=trades, plot_paths=plot_paths))
-    sections.extend(render_interpretation(context=context, metrics=metrics, trades=trades, signals=signals))
+    sections.extend(
+        render_interpretation(
+            context=context,
+            metrics=metrics,
+            trades=trades,
+            signals=signals,
+            signal_diagnostics=signal_diagnostics,
+        )
+    )
     sections.extend(
         render_artifact_links(
             run_dir=run_dir,
@@ -462,6 +475,7 @@ def render_interpretation(
     metrics: dict[str, Any],
     trades: pd.DataFrame | None,
     signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
 ) -> list[str]:
     notes = ["## Interpretation"]
     summary_points = _build_interpretation_points(
@@ -469,6 +483,7 @@ def render_interpretation(
         metrics=metrics,
         trades=trades,
         signals=signals,
+        signal_diagnostics=signal_diagnostics,
     )
     if not summary_points:
         notes.extend(["- Interpretation unavailable from the saved artifacts.", ""])
@@ -516,6 +531,7 @@ def _build_report_context(
     config: dict[str, Any],
     equity_curve: pd.DataFrame | None,
     signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
 ) -> dict[str, Any]:
     title = str(
         manifest.get("strategy_name")
@@ -587,6 +603,10 @@ def _build_report_context(
         "timeframe": timeframe,
         "date_range": date_range,
         "split_count": manifest.get("split_count"),
+        "signal_diagnostics": _resolve_signal_diagnostics(
+            signal_diagnostics=signal_diagnostics,
+            signals=signals,
+        ),
     }
 
 
@@ -627,6 +647,7 @@ def _build_interpretation_points(
     metrics: dict[str, Any],
     trades: pd.DataFrame | None,
     signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
 ) -> list[str]:
     points: list[str] = []
 
@@ -634,6 +655,10 @@ def _build_interpretation_points(
     sharpe_ratio = _coerce_float(metrics.get("sharpe_ratio"))
     max_drawdown = _coerce_float(metrics.get("max_drawdown"))
     win_rate = _coerce_float(metrics.get("win_rate"))
+    resolved_signal_diagnostics = _resolve_signal_diagnostics(
+        signal_diagnostics=signal_diagnostics or context.get("signal_diagnostics"),
+        signals=signals,
+    )
 
     if total_return is not None:
         direction = "positive" if total_return >= 0 else "negative"
@@ -647,20 +672,144 @@ def _build_interpretation_points(
             f"Peak-to-trough drawdown reached {_format_metric_value('max_drawdown', max_drawdown)}, which frames the downside seen in the equity and drawdown plots."
         )
 
-    trade_returns = _select_trade_returns(trades)
-    if trade_returns is not None:
-        trade_count = len(trade_returns)
-        trade_message = f"Trade diagnostics cover `{trade_count}` closed trades."
-        if win_rate is not None:
-            trade_message += f" Win rate was {_format_metric_value('win_rate', win_rate)}."
-        points.append(trade_message)
-    elif signals is not None:
-        points.append(f"Signal artifacts are available with `{len(signals)}` rows, but no trade summary artifact was present.")
+    signal_point = _build_signal_summary_point(resolved_signal_diagnostics)
+    if signal_point is not None:
+        points.append(signal_point)
+
+    exposure_point = _build_exposure_context_point(
+        metrics=metrics,
+        signal_diagnostics=resolved_signal_diagnostics,
+    )
+    if exposure_point is not None:
+        points.append(exposure_point)
+
+    trade_point = _build_trade_summary_point(
+        trade_returns=_select_trade_returns(trades),
+        win_rate=win_rate,
+        signals=signals,
+        signal_diagnostics=resolved_signal_diagnostics,
+    )
+    if trade_point is not None:
+        points.append(trade_point)
 
     if context.get("evaluation_mode") == "walk_forward" and context.get("split_count") is not None:
         points.append(f"Walk-forward artifacts summarize `{context['split_count']}` saved split(s); use `metrics_by_split.csv` for fold-level detail.")
 
     return points
+
+
+def _resolve_signal_diagnostics(
+    *,
+    signal_diagnostics: dict[str, Any] | None,
+    signals: pd.DataFrame | None,
+) -> dict[str, Any] | None:
+    if isinstance(signal_diagnostics, dict) and signal_diagnostics:
+        return signal_diagnostics
+    if signals is None or "signal" not in signals.columns:
+        return None
+    try:
+        return compute_signal_diagnostics(signals["signal"], signals)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _build_signal_summary_point(signal_diagnostics: dict[str, Any] | None) -> str | None:
+    if not isinstance(signal_diagnostics, dict):
+        return None
+
+    total_rows = _coerce_float(signal_diagnostics.get("total_rows"))
+    flags = signal_diagnostics.get("flags") if isinstance(signal_diagnostics.get("flags"), dict) else {}
+    if flags.get("always_flat"):
+        return "Signals stayed flat throughout the saved sample, so the run did not take directional exposure."
+    if flags.get("always_long"):
+        return "Signals stayed fully long throughout the saved sample, so behavior was effectively buy-and-hold rather than tactical timing."
+    if flags.get("always_short"):
+        return "Signals stayed fully short throughout the saved sample, so behavior was effectively a persistent short stance rather than tactical timing."
+
+    state_descriptions: list[str] = []
+    for key, label in (("pct_long", "long"), ("pct_short", "short"), ("pct_flat", "flat")):
+        value = _coerce_float(signal_diagnostics.get(key))
+        if value is None or value <= 0.0:
+            continue
+        state_descriptions.append(f"{value * 100:.0f}% {label}")
+
+    if not state_descriptions:
+        return None
+
+    row_text = ""
+    if total_rows is not None and total_rows > 0 and float(total_rows).is_integer():
+        row_text = f" across `{int(total_rows)}` saved rows"
+    return f"Signal posture was {' / '.join(state_descriptions)}{row_text}."
+
+
+def _build_exposure_context_point(
+    *,
+    metrics: dict[str, Any],
+    signal_diagnostics: dict[str, Any] | None,
+) -> str | None:
+    exposure_value = None
+    turnover_value = None
+    if isinstance(signal_diagnostics, dict):
+        exposure_value = _coerce_float(signal_diagnostics.get("exposure_pct"))
+        turnover_value = _coerce_float(signal_diagnostics.get("turnover"))
+    if exposure_value is None:
+        exposure_value = _coerce_float(metrics.get("exposure_pct"))
+    if turnover_value is None:
+        turnover_value = _coerce_float(metrics.get("turnover"))
+
+    avg_holding_period = None
+    if isinstance(signal_diagnostics, dict):
+        avg_holding_period = _coerce_float(signal_diagnostics.get("avg_holding_period"))
+
+    if exposure_value is None and turnover_value is None and avg_holding_period is None:
+        return None
+
+    fragments: list[str] = []
+    if exposure_value is not None:
+        fragments.append(f"exposure was {_format_exposure_value(exposure_value)}")
+    if turnover_value is not None:
+        turnover_text = _format_metric_value("turnover", turnover_value)
+        flags = signal_diagnostics.get("flags") if isinstance(signal_diagnostics, dict) else {}
+        qualifier = " and trading cadence was high" if flags.get("high_turnover") else ""
+        fragments.append(f"turnover was {turnover_text}{qualifier}")
+    if avg_holding_period is not None and avg_holding_period > 0.0:
+        fragments.append(f"average active holding runs lasted {avg_holding_period:.1f} period(s)")
+
+    return "Exposure context: " + "; ".join(fragments) + "."
+
+
+def _build_trade_summary_point(
+    *,
+    trade_returns: pd.Series | None,
+    win_rate: float | None,
+    signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
+) -> str | None:
+    if trade_returns is not None:
+        trade_count = len(trade_returns)
+        trade_message = f"Trade diagnostics cover `{trade_count}` closed trades."
+        if win_rate is not None:
+            trade_message += f" Win rate was {_format_metric_value('win_rate', win_rate)}."
+        return trade_message
+
+    if signals is not None:
+        total_rows = len(signals)
+        total_trades = None
+        if isinstance(signal_diagnostics, dict):
+            resolved_rows = signal_diagnostics.get("total_rows")
+            if isinstance(resolved_rows, int | float):
+                total_rows = int(resolved_rows)
+            total_trades = signal_diagnostics.get("total_trades")
+        if isinstance(total_trades, int | float):
+            return f"No closed-trade artifact was saved, but signal diagnostics recorded `{int(total_trades)}` signal change(s) across `{total_rows}` rows."
+        return f"Signal artifacts are available with `{len(signals)}` rows, but no trade summary artifact was present."
+
+    return None
+
+
+def _format_exposure_value(value: float) -> str:
+    normalized = value * 100.0 if 0.0 <= value <= 1.0 else value
+    return f"{normalized:.2f}%"
 
 
 def _ordered_artifact_links(

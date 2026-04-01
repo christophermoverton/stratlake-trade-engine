@@ -26,10 +26,10 @@ def test_parse_args_supports_comparison_flags() -> None:
             "2025-03-01",
             "--metric",
             "total_return",
-            "--top_k",
+            "--top-k",
             "2",
-            "--from_registry",
-            "--output_path",
+            "--from-registry",
+            "--output-path",
             "artifacts/custom",
         ]
     )
@@ -42,6 +42,24 @@ def test_parse_args_supports_comparison_flags() -> None:
     assert args.from_registry is True
     assert args.output_path == "artifacts/custom"
     assert args.evaluation is None
+
+
+def test_parse_args_preserves_legacy_strategy_flag_aliases() -> None:
+    args = parse_args(
+        [
+            "--strategies",
+            "momentum_v1",
+            "--top_k",
+            "3",
+            "--from_registry",
+            "--output_path",
+            "artifacts/custom",
+        ]
+    )
+
+    assert args.top_k == 3
+    assert args.from_registry is True
+    assert args.output_path == "artifacts/custom"
 
 
 def test_parse_strategy_names_supports_mixed_cli_formats() -> None:
@@ -94,6 +112,7 @@ def test_compare_strategies_runs_fresh_execution_and_writes_outputs(
     assert result.json_path.exists()
 
     payload = json.loads(result.json_path.read_text(encoding="utf-8"))
+    assert payload["comparison_id"] == result.comparison_id
     assert payload["selection_mode"] == "fresh"
     assert payload["metric"] == "sharpe_ratio"
     assert payload["leaderboard"][0]["strategy_name"] == "momentum_v1"
@@ -339,6 +358,7 @@ def test_compare_strategies_rejects_date_filters_with_registry(tmp_path: Path) -
 
 def test_run_cli_prints_leaderboard_summary(monkeypatch, capsys, tmp_path: Path) -> None:
     expected_result = compare.ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -375,7 +395,9 @@ def test_run_cli_prints_leaderboard_summary(monkeypatch, capsys, tmp_path: Path)
 
     assert result is expected_result
     stdout = capsys.readouterr().out
+    assert "comparison_id: fresh_single_sharpe_ratio_deadbeefcafe" in stdout
     assert "metric: sharpe_ratio" in stdout
+    assert "rows: 1" in stdout
     assert "strategy" in stdout
     assert "momentum_v1" in stdout
     assert "leaderboard_csv:" in stdout
@@ -384,6 +406,7 @@ def test_run_cli_prints_leaderboard_summary(monkeypatch, capsys, tmp_path: Path)
 def test_run_cli_accepts_space_separated_strategy_names(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
     expected_result = compare.ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -411,6 +434,7 @@ def test_run_cli_accepts_space_separated_strategy_names(monkeypatch, tmp_path: P
 def test_run_cli_passes_date_filters_to_compare_strategies(monkeypatch, tmp_path: Path) -> None:
     captured: dict[str, object] = {}
     expected_result = compare.ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",

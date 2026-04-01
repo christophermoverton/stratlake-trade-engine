@@ -500,6 +500,31 @@ def test_parse_args_supports_unified_review_inputs() -> None:
     assert args.output_path == "artifacts/custom"
 
 
+def test_parse_args_supports_unified_review_legacy_flag_aliases() -> None:
+    args = parse_args(
+        [
+            "--from_registry",
+            "--run_types",
+            "strategy,portfolio",
+            "--strategy_name",
+            "momentum_v1",
+            "--portfolio_name",
+            "core_portfolio",
+            "--top_k",
+            "1",
+            "--output_path",
+            "artifacts/custom",
+        ]
+    )
+
+    assert args.from_registry is True
+    assert args.run_types == ["strategy,portfolio"]
+    assert args.strategy_name == "momentum_v1"
+    assert args.portfolio_name == "core_portfolio"
+    assert args.top_k == 1
+    assert args.output_path == "artifacts/custom"
+
+
 def test_run_cli_prints_unified_review_summary(monkeypatch, capsys, tmp_path: Path) -> None:
     expected_result = ResearchReviewResult(
         review_id="registry_review_deadbeefcafe",
@@ -524,6 +549,7 @@ def test_run_cli_prints_unified_review_summary(monkeypatch, capsys, tmp_path: Pa
     assert result is expected_result
     stdout = capsys.readouterr().out
     assert "review_id: registry_review_deadbeefcafe" in stdout
+    assert "rows: 0" in stdout
     assert "leaderboard_csv:" in stdout
 
 

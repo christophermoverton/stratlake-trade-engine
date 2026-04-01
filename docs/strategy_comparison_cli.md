@@ -1,27 +1,53 @@
-# Strategy Comparison CLI
+# Unified Comparison Review CLI
 
 ## Overview
 
-The strategy comparison CLI ranks multiple configured strategies using the
-existing research execution and registry layers.
+The repository now has one comparison review model across the existing CLI
+entrypoints:
 
-It supports two modes:
+* `compare_strategies` compares configured strategies
+* `compare_alpha` compares registered alpha-evaluation runs
+* `compare_research` provides one registry-backed review surface across alpha,
+  strategy, and portfolio runs
 
-* fresh execution mode, which runs each strategy through the current pipeline
-* registry mode, which reuses prior runs from `artifacts/strategies/registry.jsonl`
+The comparison flow remains artifact-first. Each command reuses existing
+research-layer comparison modules, writes deterministic `leaderboard.csv` and
+`leaderboard.json` artifacts, and prints a compact console leaderboard.
 
-The comparison flow does not introduce new metrics or a separate artifact
-system. It reuses the current strategy runner, walk-forward execution, and
-registry schema.
+Fresh execution is still available only for strategy comparison. Alpha and
+unified review remain registry-backed.
 
----
-
-## Location
+## Locations
 
 ```text
+src/cli/comparison_cli.py
 src/cli/compare_strategies.py
+src/cli/compare_alpha.py
+src/cli/compare_research.py
 src/research/compare.py
+src/research/alpha_eval/compare.py
+src/research/review.py
 ```
+
+## Shared CLI Conventions
+
+Across the comparison CLIs:
+
+* preferred flag style is kebab-case, for example `--from-registry`,
+  `--output-path`, and `--top-k`
+* legacy snake_case aliases remain supported for backward compatibility, for
+  example `--from_registry`, `--output_path`, and `--top_k`
+* repeated list arguments accept comma-separated and/or space-separated values
+* console output follows one shared shape:
+  identifier, key metadata, `rows`, leaderboard preview, `leaderboard_csv`,
+  and `leaderboard_json`
+
+Identifiers:
+
+* strategy and alpha comparisons print `comparison_id`
+* unified review prints `review_id`
+
+## Strategy Comparison
 
 Module execution:
 
@@ -29,39 +55,34 @@ Module execution:
 .\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1
 ```
 
----
-
-## Arguments
-
-Required arguments:
+Required argument:
 
 * `--strategies` -> strategy names from `configs/strategies.yml`; accepts
   comma-separated and/or space-separated values
 
 Optional arguments:
 
-* `--evaluation [PATH]` -> run comparison in walk-forward mode using the default or provided evaluation config
+* `--evaluation [PATH]` -> run comparison in walk-forward mode using the
+  default or provided evaluation config
 * `--start` -> inclusive start date for fresh single-run comparisons
 * `--end` -> exclusive end date for fresh single-run comparisons
 * `--metric` -> metric used for ranking, defaults to `sharpe_ratio`
-* `--top_k` -> keep only the top `N` rows in the final leaderboard
-* `--from_registry` -> use stored registry runs instead of executing new runs
-* `--output_path` -> override the default comparison output path
+* `--top-k` / `--top_k` -> keep only the top `N` rows in the final leaderboard
+* `--from-registry` / `--from_registry` -> use stored registry runs instead of
+  executing new runs
+* `--output-path` / `--output_path` -> override the default comparison output
+  path
 
 Without `--evaluation`, comparison runs in single-run mode. With
 `--evaluation`, comparison runs in walk-forward mode and reuses the same split
 logic as the single-strategy runner.
 
 `--start` and `--end` are supported only for fresh single-run comparison mode.
-They cannot be combined with `--evaluation` or `--from_registry`.
+They cannot be combined with `--evaluation` or `--from-registry`.
 
----
+### Strategy Execution Modes
 
-## Execution Modes
-
-### Fresh Execution Mode
-
-Fresh execution is the default behavior.
+Fresh execution mode is the default behavior.
 
 Per strategy:
 
@@ -75,12 +96,7 @@ metrics from the executed result
 leaderboard row
 ```
 
-This mode writes the normal per-run experiment artifacts first, then writes the
-shared leaderboard outputs.
-
-### Registry Mode
-
-Registry mode is enabled with `--from_registry`.
+Registry mode is enabled with `--from-registry`.
 
 Per strategy:
 
@@ -103,11 +119,7 @@ Selection rule:
 * latest matching run by descending `timestamp`
 * tie-break by descending `run_id`
 
-This rule is deterministic for identical registry state.
-
----
-
-## Leaderboard Schema
+### Strategy Leaderboard Schema
 
 Each in-memory leaderboard row includes:
 
@@ -137,13 +149,10 @@ Sorting rule:
 * tie-break by `strategy_name`
 * final tie-break by `evaluation_mode`
 
-Persisted `leaderboard.csv` and `leaderboard.json` omit `run_id` on purpose so
-repeated fresh executions can keep the saved comparison artifacts byte-stable
-even when the CLI table still prints source run identifiers.
-
----
-
-## Outputs
+Persisted `leaderboard.csv` still omits `run_id` so repeated fresh executions
+can keep saved comparison artifacts byte-stable. Persisted
+`leaderboard.json` now also includes `comparison_id`, which makes the strategy
+surface line up with the alpha comparison CLI.
 
 Default outputs:
 
@@ -153,64 +162,42 @@ Default outputs:
 `<comparison_id>` is deterministic for the same strategy list, metric,
 evaluation mode, selection mode, evaluation path, and `top_k` inputs.
 
-The CLI also prints a compact console table that includes:
+## Alpha And Unified Review
 
-* rank
-* strategy name
-* run id
-* evaluation mode
-* selected metric value
-* `total_return`
-* `sharpe_ratio`
-* `max_drawdown`
-
----
-
-## Example Commands
-
-Compare fresh single-run results:
+Alpha comparison:
 
 ```powershell
-.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1
+.\.venv\Scripts\python.exe -m src.cli.compare_alpha --from-registry --dataset features_daily --timeframe 1D
 ```
 
-Compare fresh single-run results over a bounded date range:
+Unified research review:
 
 ```powershell
-.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1 --start 2025-01-01 --end 2025-03-01
+.\.venv\Scripts\python.exe -m src.cli.compare_research --from-registry --run-types alpha_evaluation strategy portfolio --top-k 3
 ```
 
-Compare fresh walk-forward results:
+These commands remain registry-backed and reuse the existing alpha comparison
+and research review modules. The CLI layer now shares the same argument and
+summary conventions as strategy comparison instead of maintaining separate
+parsing and print logic.
 
-```powershell
-.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,sma_crossover_v1 --evaluation
-```
+Unified review continues to cover:
 
-Rank by a different metric:
+* alpha runs via `run_type=alpha_evaluation`
+* strategy runs via `run_type=strategy`
+* portfolio runs via `run_type=portfolio`
 
-```powershell
-.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1 --metric total_return
-```
+## Compatibility Notes
 
-Use stored registry runs:
+The main compatibility change is additive:
 
-```powershell
-.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1 --from_registry
-```
+* kebab-case flags are now the preferred public shape
+* legacy snake_case flags still work
+* strategy comparison console output now includes `comparison_id` and `rows`
+* strategy comparison JSON artifacts now include `comparison_id`
 
-Limit the final leaderboard:
-
-```powershell
-.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1,buy_and_hold_v1 --top_k 2
-```
-
-Write the leaderboard to a custom location:
-
-```powershell
-.\.venv\Scripts\python.exe -m src.cli.compare_strategies --strategies momentum_v1,mean_reversion_v1 --output_path artifacts/comparisons/custom_leaderboard.csv
-```
-
----
+Existing command behavior, artifact paths, ranking rules, and fresh-vs-registry
+execution semantics are otherwise preserved.
 
 ## Related Docs
 

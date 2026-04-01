@@ -8,15 +8,13 @@ from typing import Any, Sequence
 
 import pandas as pd
 
-from src.cli.run_strategy import (
-    StrategyRunResult,
-    get_strategy_config,
-    run_strategy_experiment,
-)
+from src.cli.run_strategy import StrategyRunResult as StrategyRunResult  # noqa: F401
+from src.cli.run_strategy import get_strategy_config, run_strategy_experiment
 from src.research import experiment_tracker
 from src.research.registry import default_registry_path, load_registry
 from src.research.strategies import build_strategy
-from src.research.walk_forward import WalkForwardRunResult, run_walk_forward_experiment
+from src.research.walk_forward import WalkForwardRunResult as WalkForwardRunResult  # noqa: F401
+from src.research.walk_forward import run_walk_forward_experiment
 
 DEFAULT_COMPARISONS_ROOT = Path("artifacts") / "comparisons"
 DEFAULT_METRIC = "sharpe_ratio"
@@ -46,6 +44,7 @@ class LeaderboardEntry:
 
 @dataclass(frozen=True)
 class ComparisonResult:
+    comparison_id: str
     metric: str
     evaluation_mode: str
     selection_mode: str
@@ -99,6 +98,16 @@ def compare_strategies(
         selection_rule = "freshly executed run per strategy"
 
     leaderboard = _rank_rows(rows, metric=metric, top_k=top_k)
+    comparison_id = build_comparison_id(
+        strategies=strategy_names,
+        metric=metric,
+        evaluation_mode=evaluation_mode,
+        selection_mode=selection_mode,
+        evaluation_path=evaluation_path,
+        start=start,
+        end=end,
+        top_k=top_k,
+    )
     resolved_output_path = output_path or default_output_path(
         strategies=strategy_names,
         metric=metric,
@@ -111,6 +120,7 @@ def compare_strategies(
     )
     csv_path, json_path = write_leaderboard_artifacts(
         leaderboard,
+        comparison_id=comparison_id,
         metric=metric,
         evaluation_mode=evaluation_mode,
         selection_mode=selection_mode,
@@ -118,6 +128,7 @@ def compare_strategies(
         output_path=resolved_output_path,
     )
     return ComparisonResult(
+        comparison_id=comparison_id,
         metric=metric,
         evaluation_mode=evaluation_mode,
         selection_mode=selection_mode,
@@ -131,6 +142,7 @@ def compare_strategies(
 def write_leaderboard_artifacts(
     leaderboard: Sequence[LeaderboardEntry],
     *,
+    comparison_id: str,
     metric: str,
     evaluation_mode: str,
     selection_mode: str,
@@ -150,6 +162,7 @@ def write_leaderboard_artifacts(
     )
     leaderboard_frame.to_csv(csv_path, index=False)
     payload = {
+        "comparison_id": comparison_id,
         "metric": metric,
         "evaluation_mode": evaluation_mode,
         "selection_mode": selection_mode,

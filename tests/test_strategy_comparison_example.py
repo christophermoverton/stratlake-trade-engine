@@ -60,6 +60,7 @@ def test_run_cli_generates_summary_and_comparison_plots(tmp_path: Path, monkeypa
         ).to_csv(run_dir / "equity_curve.csv", index=False)
 
     comparison_result = ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -188,6 +189,7 @@ def test_generate_comparison_plots_creates_expected_artifact_set_and_is_determin
         run_dirs[strategy_name] = run_dir
 
     comparison_result = ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -297,6 +299,7 @@ def test_generate_comparison_plots_handles_duplicate_timestamps_from_run_artifac
         run_dirs[strategy_name] = run_dir
 
     comparison_result = ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -385,6 +388,7 @@ def test_run_cli_summary_lists_relative_comparison_artifacts_only(tmp_path: Path
         )
 
     comparison_result = ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",

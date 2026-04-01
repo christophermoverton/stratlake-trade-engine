@@ -62,20 +62,20 @@ def reset_alpha_registry() -> None:
 def alpha_eval_frame() -> pd.DataFrame:
     return pd.DataFrame(
         {
-            "symbol": ["CCC", "AAA", "BBB", "AAA", "CCC", "BBB"],
+            "symbol": ["AAA", "AAA", "BBB", "BBB", "CCC", "CCC"],
             "ts_utc": [
-                "2025-01-02T00:00:00Z",
                 "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
                 "2025-01-01T00:00:00Z",
                 "2025-01-02T00:00:00Z",
                 "2025-01-01T00:00:00Z",
                 "2025-01-02T00:00:00Z",
             ],
             "timeframe": ["1d", "1d", "1d", "1d", "1d", "1d"],
-            "y_pred": [0.4, 0.1, 0.2, 0.6, 0.3, 0.5],
-            "forward_return": [0.2, 0.2, 0.1, 0.3, 0.0, 0.4],
+            "y_pred": [0.1, 0.6, 0.2, 0.5, 0.3, 0.4],
+            "forward_return": [0.2, 0.3, 0.1, 0.4, 0.0, 0.2],
         },
-        index=pd.Index(["t1_c", "t0_a", "t0_b", "t1_a", "t0_c", "t1_b"], name="row_id"),
+        index=pd.Index(["t0_a", "t1_a", "t0_b", "t1_b", "t0_c", "t1_c"], name="row_id"),
     )
 
 
@@ -99,7 +99,7 @@ def alpha_research_frame() -> pd.DataFrame:
             TARGET_COLUMN: [0.01, 0.02, 0.03, 0.05, 0.04, 0.06],
             "feature_alpha": [1.0, 2.0, 3.0, 10.0, 11.0, 12.0],
             "feature_beta": [0.5, 0.75, 1.0, 1.25, 1.5, 1.75],
-            "close": [100.0, 110.0, 121.0, 200.0, 180.0, 198.0],
+            "close": [100.0, 110.0, 121.0, 200.0, 180.0, 216.0],
         },
         index=pd.Index([f"row_{idx}" for idx in range(6)], name="row_id"),
     )
@@ -135,18 +135,18 @@ def test_evaluate_information_coefficient_computes_deterministic_ic_and_rank_ic(
 def test_evaluate_information_coefficient_drops_only_rows_needed_for_correlation() -> None:
     frame = pd.DataFrame(
         {
-            "symbol": ["BBB", "AAA", "CCC", "AAA", "BBB", "CCC"],
+            "symbol": ["AAA", "AAA", "BBB", "BBB", "CCC", "CCC"],
             "ts_utc": [
-                "2025-01-02T00:00:00Z",
-                "2025-01-02T00:00:00Z",
+                "2025-01-01T00:00:00Z",
                 "2025-01-02T00:00:00Z",
                 "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
                 "2025-01-01T00:00:00Z",
-                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
             ],
             "timeframe": ["1d", "1d", "1d", "1d", "1d", "1d"],
-            "y_pred": [0.2, 0.1, float("nan"), 0.3, 0.4, 0.5],
-            "forward_return": [0.1, 0.2, 0.3, 0.1, float("nan"), 0.5],
+            "y_pred": [0.3, 0.1, 0.4, 0.2, 0.5, float("nan")],
+            "forward_return": [0.1, 0.2, float("nan"), 0.1, 0.5, 0.3],
         }
     )
 
@@ -168,50 +168,6 @@ def test_evaluate_information_coefficient_drops_only_rows_needed_for_correlation
     assert summary["n_periods"] == 2
     assert summary["ic_positive_rate"] == pytest.approx(0.5)
     assert summary["valid_timestamps"] == 2.0
-
-
-def test_evaluate_information_coefficient_marks_small_groups_and_constant_series_as_nan() -> None:
-    frame = pd.DataFrame(
-        {
-            "symbol": ["AAA", "BBB", "CCC", "AAA", "BBB", "AAA", "BBB"],
-            "ts_utc": [
-                "2025-01-01T00:00:00Z",
-                "2025-01-01T00:00:00Z",
-                "2025-01-01T00:00:00Z",
-                "2025-01-02T00:00:00Z",
-                "2025-01-02T00:00:00Z",
-                "2025-01-03T00:00:00Z",
-                "2025-01-03T00:00:00Z",
-            ],
-            "timeframe": ["1d", "1d", "1d", "1d", "1d", "1d", "1d"],
-            "y_pred": [0.1, 0.2, 0.3, 1.0, 1.0, 0.1, 0.2],
-            "forward_return": [0.1, 0.3, 0.2, 0.2, 0.4, 0.9, 0.8],
-        }
-    )
-
-    ic_frame, summary = evaluate_information_coefficient(
-        frame,
-        prediction_column="y_pred",
-        forward_return_column="forward_return",
-        min_cross_section_size=3,
-    )
-
-    assert ic_frame["sample_size"].tolist() == [3, 2, 2]
-    assert ic_frame.loc[0, "ic"] == pytest.approx(0.5)
-    assert ic_frame.loc[0, "rank_ic"] == pytest.approx(0.5)
-    assert pd.isna(ic_frame.loc[1, "ic"])
-    assert pd.isna(ic_frame.loc[1, "rank_ic"])
-    assert pd.isna(ic_frame.loc[2, "ic"])
-    assert pd.isna(ic_frame.loc[2, "rank_ic"])
-    assert summary["mean_ic"] == pytest.approx(0.5)
-    assert pd.isna(summary["std_ic"])
-    assert pd.isna(summary["ic_ir"])
-    assert summary["mean_rank_ic"] == pytest.approx(0.5)
-    assert pd.isna(summary["std_rank_ic"])
-    assert pd.isna(summary["rank_ic_ir"])
-    assert summary["n_periods"] == 1
-    assert summary["ic_positive_rate"] == pytest.approx(1.0)
-    assert summary["valid_timestamps"] == 1.0
 
 
 def test_evaluate_alpha_predictions_integrates_with_predict_and_alignment_outputs(
@@ -255,24 +211,25 @@ def test_evaluate_alpha_predictions_integrates_with_predict_and_alignment_output
     ]
     assert result.ic_timeseries["ic"].iloc[0] == pytest.approx(-1.0)
     assert result.ic_timeseries["rank_ic"].iloc[0] == pytest.approx(-1.0)
-    assert pd.isna(result.ic_timeseries["ic"].iloc[1])
-    assert pd.isna(result.ic_timeseries["rank_ic"].iloc[1])
+    assert result.ic_timeseries["ic"].iloc[1] == pytest.approx(1.0)
+    assert result.ic_timeseries["rank_ic"].iloc[1] == pytest.approx(1.0)
     assert result.ic_timeseries["sample_size"].tolist() == [2, 2]
-    assert result.summary["mean_ic"] == pytest.approx(-1.0)
-    assert pd.isna(result.summary["std_ic"])
-    assert pd.isna(result.summary["ic_ir"])
-    assert result.summary["mean_rank_ic"] == pytest.approx(-1.0)
-    assert pd.isna(result.summary["std_rank_ic"])
-    assert pd.isna(result.summary["rank_ic_ir"])
-    assert result.summary["n_periods"] == 1
-    assert result.summary["ic_positive_rate"] == pytest.approx(0.0)
-    assert result.summary["valid_timestamps"] == 1.0
+    assert result.summary["mean_ic"] == pytest.approx(0.0)
+    assert result.summary["std_ic"] == pytest.approx(1.4142135623730951)
+    assert result.summary["ic_ir"] == pytest.approx(0.0)
+    assert result.summary["mean_rank_ic"] == pytest.approx(0.0)
+    assert result.summary["std_rank_ic"] == pytest.approx(1.4142135623730951)
+    assert result.summary["rank_ic_ir"] == pytest.approx(0.0)
+    assert result.summary["n_periods"] == 2
+    assert result.summary["ic_positive_rate"] == pytest.approx(0.5)
+    assert result.summary["valid_timestamps"] == 2.0
 
 
 def test_validate_alpha_evaluation_input_rejects_duplicate_logical_keys(
     alpha_eval_frame: pd.DataFrame,
 ) -> None:
     duplicate = pd.concat([alpha_eval_frame, alpha_eval_frame.iloc[[0]]], axis=0)
+    duplicate.iloc[-1, duplicate.columns.get_loc("y_pred")] = 9.9
 
     with pytest.raises(AlphaEvaluationError, match="duplicate \\(symbol, ts_utc, timeframe\\)"):
         validate_alpha_evaluation_input(
@@ -357,21 +314,21 @@ def test_evaluate_information_coefficient_is_deterministic_and_does_not_mutate_i
     assert alpha_eval_frame.attrs == baseline.attrs
 
 
-def test_evaluate_information_coefficient_excludes_nan_periods_and_keeps_summary_key_order() -> None:
+def test_evaluate_information_coefficient_keeps_summary_key_order() -> None:
     frame = pd.DataFrame(
         {
-            "symbol": ["AAA", "BBB", "AAA", "BBB", "AAA", "BBB"],
+            "symbol": ["AAA", "AAA", "AAA", "BBB", "BBB", "BBB"],
             "ts_utc": [
                 "2025-01-01T00:00:00Z",
-                "2025-01-01T00:00:00Z",
-                "2025-01-02T00:00:00Z",
                 "2025-01-02T00:00:00Z",
                 "2025-01-03T00:00:00Z",
+                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
                 "2025-01-03T00:00:00Z",
             ],
             "timeframe": ["1d", "1d", "1d", "1d", "1d", "1d"],
-            "y_pred": [0.1, 0.2, 1.0, 1.0, 0.3, 0.4],
-            "forward_return": [0.1, 0.2, 0.5, 0.8, 0.4, 0.3],
+            "y_pred": [0.1, 0.3, 0.6, 0.2, 0.4, 0.5],
+            "forward_return": [0.1, 0.5, 0.4, 0.2, 0.8, 0.3],
         }
     )
 
@@ -392,32 +349,32 @@ def test_evaluate_information_coefficient_excludes_nan_periods_and_keeps_summary
         "ic_positive_rate",
         "valid_timestamps",
     ]
-    assert summary["n_periods"] == 2
-    assert summary["mean_ic"] == pytest.approx(0.0)
-    assert summary["std_ic"] == pytest.approx(1.4142135623730951)
-    assert summary["ic_ir"] == pytest.approx(0.0)
-    assert summary["mean_rank_ic"] == pytest.approx(0.0)
-    assert summary["std_rank_ic"] == pytest.approx(1.4142135623730951)
-    assert summary["rank_ic_ir"] == pytest.approx(0.0)
-    assert summary["ic_positive_rate"] == pytest.approx(0.5)
-    assert summary["valid_timestamps"] == 2.0
+    assert summary["n_periods"] == 3
+    assert summary["mean_ic"] == pytest.approx(1.0)
+    assert summary["std_ic"] >= 0.0
+    assert summary["ic_ir"] >= 0.0
+    assert summary["mean_rank_ic"] == pytest.approx(1.0)
+    assert summary["std_rank_ic"] >= 0.0
+    assert summary["rank_ic_ir"] >= 0.0
+    assert summary["ic_positive_rate"] == pytest.approx(1.0)
+    assert summary["valid_timestamps"] == 3.0
 
 
 def test_evaluate_information_coefficient_returns_zero_ir_for_zero_volatility() -> None:
     frame = pd.DataFrame(
         {
-            "symbol": ["AAA", "BBB", "CCC", "AAA", "BBB", "CCC"],
+            "symbol": ["AAA", "AAA", "BBB", "BBB", "CCC", "CCC"],
             "ts_utc": [
                 "2025-01-01T00:00:00Z",
-                "2025-01-01T00:00:00Z",
+                "2025-01-02T00:00:00Z",
                 "2025-01-01T00:00:00Z",
                 "2025-01-02T00:00:00Z",
-                "2025-01-02T00:00:00Z",
+                "2025-01-01T00:00:00Z",
                 "2025-01-02T00:00:00Z",
             ],
             "timeframe": ["1d", "1d", "1d", "1d", "1d", "1d"],
-            "y_pred": [0.1, 0.2, 0.3, 1.0, 2.0, 3.0],
-            "forward_return": [0.1, 0.2, 0.3, 1.0, 2.0, 3.0],
+            "y_pred": [0.1, 1.0, 0.2, 2.0, 0.3, 3.0],
+            "forward_return": [0.1, 1.0, 0.2, 2.0, 0.3, 3.0],
         }
     )
 

@@ -5,13 +5,8 @@ from typing import Any
 
 import pandas as pd
 
-from src.research.alpha.cross_section import AlphaCrossSectionError, iter_cross_sections
-
-STRUCTURAL_COLUMNS: tuple[str, ...] = ("symbol", "ts_utc", "timeframe")
-
-
-class AlphaEvaluationError(ValueError):
-    """Raised when alpha evaluation input is invalid or ambiguous."""
+from src.research.alpha.cross_section import iter_cross_sections
+from src.research.alpha_eval.validation import AlphaEvaluationError, validate_alpha_evaluation_input
 
 
 @dataclass(frozen=True)
@@ -45,7 +40,7 @@ def evaluate_alpha_predictions(
         min_cross_section_size=min_cross_section_size,
     )
 
-    cross_section_frame = validated.sort_values(["symbol", "ts_utc"], kind="stable").copy(deep=True)
+    cross_section_frame = validated.copy(deep=True)
     cross_section_frame.attrs = {}
 
     rows: list[dict[str, Any]] = []
@@ -129,119 +124,6 @@ def evaluate_information_coefficient(
         min_cross_section_size=min_cross_section_size,
     )
     return result.ic_timeseries, result.summary
-
-
-def validate_alpha_evaluation_input(
-    df: pd.DataFrame,
-    *,
-    prediction_column: str = "prediction_score",
-    forward_return_column: str = "forward_return",
-    min_cross_section_size: int = 2,
-) -> pd.DataFrame:
-    """Validate and normalize alpha prediction output joined with aligned forward returns."""
-
-    if not isinstance(df, pd.DataFrame):
-        raise TypeError("Alpha evaluation input must be a pandas DataFrame.")
-    if df.empty:
-        raise AlphaEvaluationError("Alpha evaluation input must not be empty.")
-    if not isinstance(min_cross_section_size, int) or min_cross_section_size < 2:
-        raise AlphaEvaluationError("min_cross_section_size must be an integer greater than or equal to 2.")
-
-    missing = [
-        column
-        for column in (*STRUCTURAL_COLUMNS, prediction_column, forward_return_column)
-        if column not in df.columns
-    ]
-    if missing:
-        formatted = ", ".join(repr(column) for column in missing)
-        raise AlphaEvaluationError(
-            f"Alpha evaluation input must include required columns: {formatted}."
-        )
-
-    normalized = df.copy(deep=True)
-    normalized.attrs = {}
-    normalized["symbol"] = normalized["symbol"].astype("string")
-    normalized["timeframe"] = normalized["timeframe"].astype("string")
-
-    if normalized["symbol"].isna().any():
-        raise AlphaEvaluationError("Alpha evaluation input contains null values in 'symbol'.")
-    if normalized["timeframe"].isna().any():
-        raise AlphaEvaluationError("Alpha evaluation input contains null values in 'timeframe'.")
-
-    normalized["ts_utc"] = pd.to_datetime(normalized["ts_utc"], utc=True, errors="coerce")
-    if normalized["ts_utc"].isna().any():
-        raise AlphaEvaluationError("Alpha evaluation input contains unparsable 'ts_utc' values.")
-
-    keys = normalized.loc[:, list(STRUCTURAL_COLUMNS)]
-    duplicate_mask = keys.duplicated(subset=list(STRUCTURAL_COLUMNS), keep=False)
-    if duplicate_mask.any():
-        first_duplicate = keys.loc[duplicate_mask, list(STRUCTURAL_COLUMNS)].iloc[0]
-        raise AlphaEvaluationError(
-            "Alpha evaluation input must not contain duplicate "
-            "(symbol, ts_utc, timeframe) rows. "
-            f"First duplicate key: symbol={first_duplicate['symbol']}, "
-            f"ts_utc={first_duplicate['ts_utc']}, timeframe={first_duplicate['timeframe']}."
-        )
-
-    unique_timeframes = normalized["timeframe"].drop_duplicates().tolist()
-    if len(unique_timeframes) != 1:
-        raise AlphaEvaluationError(
-            "Alpha evaluation input must contain exactly one timeframe so cross-sectional "
-            "evaluation matches the current alpha prediction contract."
-        )
-
-    normalized[prediction_column] = _coerce_numeric_column(
-        normalized[prediction_column],
-        column_name=prediction_column,
-    )
-    normalized[forward_return_column] = _coerce_numeric_column(
-        normalized[forward_return_column],
-        column_name=forward_return_column,
-    )
-
-    normalized = normalized.sort_values(["ts_utc", "symbol"], kind="stable").copy(deep=True)
-    normalized.attrs = {}
-
-    _validate_cross_section_contract(
-        normalized,
-        prediction_column=prediction_column,
-        forward_return_column=forward_return_column,
-    )
-    return normalized
-
-
-def _validate_cross_section_contract(
-    df: pd.DataFrame,
-    *,
-    prediction_column: str,
-    forward_return_column: str,
-) -> None:
-    cross_section_view = df.loc[:, ["symbol", "ts_utc", prediction_column, forward_return_column]].sort_values(
-        ["symbol", "ts_utc"],
-        kind="stable",
-    )
-    cross_section_view.attrs = {}
-
-    try:
-        list(
-            iter_cross_sections(
-                cross_section_view,
-                columns=[prediction_column, forward_return_column],
-            )
-        )
-    except AlphaCrossSectionError as exc:
-        raise AlphaEvaluationError(str(exc)) from exc
-
-
-def _coerce_numeric_column(values: pd.Series, *, column_name: str) -> pd.Series:
-    try:
-        return pd.to_numeric(values, errors="raise").astype("float64")
-    except (TypeError, ValueError) as exc:
-        raise AlphaEvaluationError(
-            f"Alpha evaluation column '{column_name}' must be numeric."
-        ) from exc
-
-
 def _correlation_or_nan(
     left: pd.Series,
     right: pd.Series,

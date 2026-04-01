@@ -25,7 +25,7 @@ class AlphaEvaluationResult:
     timestamp_count: int
     symbol_count: int
     ic_timeseries: pd.DataFrame
-    summary: dict[str, float]
+    summary: dict[str, float | int]
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -85,12 +85,7 @@ def evaluate_alpha_predictions(
         ic_timeseries["sample_size"] = ic_timeseries["sample_size"].astype("int64")
     ic_timeseries.attrs = {}
 
-    valid_mask = ic_timeseries["ic"].notna() & ic_timeseries["rank_ic"].notna()
-    summary = {
-        "mean_ic": float(ic_timeseries["ic"].mean()) if not ic_timeseries.empty else float("nan"),
-        "mean_rank_ic": float(ic_timeseries["rank_ic"].mean()) if not ic_timeseries.empty else float("nan"),
-        "valid_timestamps": float(valid_mask.sum()),
-    }
+    summary = _summarize_ic_timeseries(ic_timeseries)
 
     timeframe = str(validated["timeframe"].iloc[0])
     metadata = {
@@ -124,7 +119,7 @@ def evaluate_information_coefficient(
     prediction_column: str = "prediction_score",
     forward_return_column: str = "forward_return",
     min_cross_section_size: int = 2,
-) -> tuple[pd.DataFrame, dict[str, float]]:
+) -> tuple[pd.DataFrame, dict[str, float | int]]:
     """Return the IC timeseries and summary scaffold for aligned alpha predictions."""
 
     result = evaluate_alpha_predictions(
@@ -269,3 +264,54 @@ def _correlation_or_nan(
     if pd.isna(correlation):
         return float("nan")
     return float(correlation)
+
+
+def _summarize_ic_timeseries(ic_timeseries: pd.DataFrame) -> dict[str, float | int]:
+    if ic_timeseries.empty:
+        valid_ic = pd.Series(dtype="float64")
+        valid_rank_ic = pd.Series(dtype="float64")
+    else:
+        valid_ic = ic_timeseries.loc[ic_timeseries["ic"].notna(), "ic"].astype("float64")
+        valid_rank_ic = ic_timeseries.loc[ic_timeseries["rank_ic"].notna(), "rank_ic"].astype("float64")
+
+    n_periods = int(valid_ic.shape[0])
+    mean_ic = float(valid_ic.mean()) if n_periods > 0 else float("nan")
+    std_ic = _sample_std_or_nan(valid_ic)
+    ic_ir = _information_ratio(mean_ic, std_ic, n_periods=n_periods)
+
+    n_rank_periods = int(valid_rank_ic.shape[0])
+    mean_rank_ic = float(valid_rank_ic.mean()) if n_rank_periods > 0 else float("nan")
+    std_rank_ic = _sample_std_or_nan(valid_rank_ic)
+    rank_ic_ir = _information_ratio(mean_rank_ic, std_rank_ic, n_periods=n_rank_periods)
+
+    return {
+        "mean_ic": mean_ic,
+        "std_ic": std_ic,
+        "ic_ir": ic_ir,
+        "mean_rank_ic": mean_rank_ic,
+        "std_rank_ic": std_rank_ic,
+        "rank_ic_ir": rank_ic_ir,
+        "n_periods": n_periods,
+        "ic_positive_rate": _positive_rate(valid_ic),
+        "valid_timestamps": float(n_periods),
+    }
+
+
+def _sample_std_or_nan(values: pd.Series) -> float:
+    if int(values.shape[0]) < 2:
+        return float("nan")
+    return float(values.std(ddof=1))
+
+
+def _information_ratio(mean_value: float, std_value: float, *, n_periods: int) -> float:
+    if n_periods < 2 or pd.isna(mean_value) or pd.isna(std_value):
+        return float("nan")
+    if std_value == 0.0:
+        return 0.0
+    return float(mean_value / std_value)
+
+
+def _positive_rate(values: pd.Series) -> float:
+    if values.empty:
+        return float("nan")
+    return float((values > 0.0).mean())

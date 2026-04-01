@@ -62,6 +62,12 @@ Generate the report for one run:
 .\.venv\Scripts\python.exe -m src.cli.generate_report --run-dir artifacts/strategies/momentum_v1_single_5accf9137182
 ```
 
+Generate the report for a saved walk-forward run:
+
+```powershell
+.\.venv\Scripts\python.exe -m src.cli.generate_report --run-dir artifacts/strategies/<walk_forward_run_id>
+```
+
 Generate the bounded comparison leaderboard directly:
 
 ```powershell
@@ -109,6 +115,9 @@ For this example, that means:
 * per-run `report.md` embeds `equity_curve.png` and `drawdown.png`
 * per-run debug artifacts such as `rolling_sharpe_debug.png` stay in each
   run's `plots/` directory
+* walk-forward `report.md` also includes split-aware review tables derived from
+  `metrics_by_split.csv` and links back to `splits/<split_id>/` artifacts when
+  those saved directories exist
 * comparison outputs include both the presentation-ready
   `equity_comparison.png` and the raw-overlay
   `equity_comparison_debug.png`

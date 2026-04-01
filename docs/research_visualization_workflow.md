@@ -179,6 +179,8 @@ Generated reports follow a lightweight, portable structure:
 * title and run header with strategy, run id, mode, timeframe, and date range
 * run configuration summary with dataset, parameters, and evaluation settings
 * key metrics table rendered in deterministic Markdown
+* walk-forward review sections when `metrics_by_split.csv` is available,
+  including per-split metrics, aggregate stability, and flagged split links
 * visualizations limited to report-quality performance and risk views
 * trade summary tables derived from saved artifacts without embedding debug
   histograms
@@ -233,8 +235,10 @@ included only when the supporting artifacts exist.
 
 Walk-forward runs use the same run-level `plots/` and `report.md` locations.
 They may also include `metrics_by_split.csv` and `splits/<split_id>/...`
-artifacts for fold-level inspection, but the current Markdown report keeps the
-embedded visualization set focused on the report-quality summary views.
+artifacts for fold-level inspection. The current Markdown report now treats
+those walk-forward artifacts as first-class review inputs by adding a
+deterministic split table, aggregate stability summary, and review-flag section
+that links back to saved split directories when they exist.
 
 ## Visualization Coverage
 

@@ -6,6 +6,9 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 import matplotlib.dates as mdates
+import matplotlib
+
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 if TYPE_CHECKING:

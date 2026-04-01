@@ -8,11 +8,11 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 12 Summary
+## Milestone 13 Summary
 
-Milestone 12 promotes StratLake into a deterministic alpha-research platform
-that now evaluates predictive quality before downstream signal mapping,
-backtesting, and portfolio construction. The repository now supports:
+Milestone 13 promotes StratLake into a deterministic research-review platform
+that now carries alpha evaluation, strategy runs, and portfolio runs into one
+shared registry-backed review layer. The repository now supports:
 
 * alpha model registration through a deterministic `BaseAlphaModel` interface
 * deterministic alpha training and prediction helpers with explicit half-open
@@ -31,6 +31,8 @@ backtesting, and portfolio construction. The repository now supports:
   `risk_parity`
 * operational volatility targeting in portfolio workflows, separate from
   diagnostic risk summaries
+* unified review workflows for ranking completed alpha, strategy, and
+  portfolio runs together
 * deterministic return simulation, robustness analysis, artifact manifests,
   and registry-backed reuse
 
@@ -39,7 +41,9 @@ Start with:
 * [docs/alpha_workflow.md](docs/alpha_workflow.md)
 * [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
+* [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
+* [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
 ## Overview
 
@@ -66,6 +70,8 @@ The repository currently supports:
   operational volatility targeting
 * deterministic return simulation for strategy or portfolio outputs
 * strict-mode enforcement across strategy and portfolio CLIs
+* deterministic promotion gates for alpha, strategy, and portfolio review
+* manifest-backed unified research review artifacts with deterministic review summaries
 * unified runtime configuration with auditable persisted settings
 * deterministic artifacts, manifests, and registry-backed reuse
 
@@ -247,6 +253,17 @@ strategy and portfolio workflows.
 * Precedence is deterministic: repository defaults < config < CLI.
 * Effective runtime settings are persisted with completed runs for auditability.
 
+### Promotion gates
+
+* Optional `promotion_gates` configs can be attached to alpha, strategy, and
+  portfolio runs.
+* Completed runs persist `promotion_gates.json` plus a compact promotion summary
+  in the manifest and registry.
+* The unified research review surface now exposes each run's promotion status
+  alongside leaderboard metrics.
+* Unified review runs persist `leaderboard.csv`, `review_summary.json`,
+  optional `promotion_gates.json`, and `manifest.json` under one review id.
+
 See:
 
 * [docs/research_validity_framework.md](docs/research_validity_framework.md)
@@ -322,6 +339,18 @@ python docs/examples/alpha_evaluation_end_to_end.py
 This example demonstrates deterministic prediction, forward-return alignment,
 IC and Rank IC evaluation, artifact persistence, registry entry creation, and
 leaderboard generation.
+
+### 4c. Run the Milestone 13 review-and-promotion example
+
+```powershell
+python docs/examples/milestone_13_review_promotion_workflow.py
+```
+
+This example demonstrates completed alpha, strategy, and portfolio artifacts
+flowing into one registry-backed review output and one review-level promotion
+decision.
+The primary workflow guide lives in
+[docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
 
 ### 5. Run a portfolio
 
@@ -447,6 +476,13 @@ The Milestone 12 alpha-evaluation example lives at
 with workflow notes in
 [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md).
 
+The Milestone 13 review-and-promotion example lives at
+[docs/examples/milestone_13_review_promotion_workflow.py](docs/examples/milestone_13_review_promotion_workflow.py)
+with workflow notes in
+[docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md).
+The primary workflow guide lives at
+[docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
+
 ## Artifact Overview
 
 ### Strategy artifacts
@@ -459,6 +495,7 @@ Core files:
 * `metrics.json`
 * `signal_diagnostics.json`
 * `qa_summary.json`
+* `promotion_gates.json` when promotion gates are configured
 * `equity_curve.csv`
 * `signals.parquet`
 * `manifest.json`
@@ -486,6 +523,7 @@ Core files:
 * `portfolio_equity_curve.csv`
 * `metrics.json`
 * `qa_summary.json`
+* `promotion_gates.json` when promotion gates are configured
 * `manifest.json`
 
 Optional Milestone 11 additions:
@@ -504,6 +542,17 @@ See:
 * [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
 * [docs/portfolio_artifact_logging.md](docs/portfolio_artifact_logging.md)
 
+### Unified review artifacts
+
+Successful unified review runs write under `artifacts/reviews/<review_id>/`.
+
+Core files:
+
+* `leaderboard.csv`
+* `review_summary.json`
+* `manifest.json`
+* `promotion_gates.json` when review-level promotion gates are configured
+
 ## Documentation Map
 
 Start here:
@@ -513,6 +562,7 @@ Start here:
 * [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
 * [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
+* [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 
 Portfolio references:
 
@@ -532,11 +582,13 @@ Examples:
 
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
+* [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
 Merge-readiness notes:
 
 * [docs/milestone_10_merge_readiness.md](docs/milestone_10_merge_readiness.md)
 * [docs/milestone_11_merge_readiness.md](docs/milestone_11_merge_readiness.md)
+* [docs/milestone_13_merge_readiness.md](docs/milestone_13_merge_readiness.md)
 
 ## Repository Layout
 

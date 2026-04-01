@@ -13,7 +13,10 @@ Alpha -> Predict -> Align -> Validate -> Evaluate -> Aggregate -> Persist -> Reg
 
 Milestone 11.5 covers deterministic alpha modeling, backtesting, and portfolio
 construction. This Milestone 12 workflow is the evaluation layer that sits
-between prediction and downstream signal mapping.
+between prediction and downstream signal mapping. Milestone 13 then adds the
+registry-backed review layer that compares completed alpha-evaluation runs
+alongside strategy and portfolio outputs in one shared review pack. See
+[milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).
 
 ## Quick Start
 
@@ -191,3 +194,4 @@ That relationship enables two workflows:
 * [README.md](../README.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](examples/alpha_evaluation_end_to_end.py)
 * [docs/alpha_workflow.md](alpha_workflow.md)
+* [docs/milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)

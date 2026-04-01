@@ -13,8 +13,22 @@ from src.research.consistency import (
     validate_strategy_artifact_payload_consistency,
     validate_walk_forward_consistency,
 )
-from src.research.metrics import broadcast_strategy_equity_curve, infer_position_series
-from src.research.registry import default_registry_path, serialize_canonical_json, upsert_registry_entry
+from src.research.metrics import (
+    broadcast_strategy_equity_curve,
+    compute_performance_metrics,
+    infer_position_series,
+)
+from src.research.promotion import (
+    DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+    evaluate_promotion_gates,
+    write_promotion_gate_artifact,
+)
+from src.research.registry import (
+    build_review_metadata,
+    default_registry_path,
+    serialize_canonical_json,
+    upsert_registry_entry,
+)
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_qa import generate_strategy_qa_summary
 
@@ -81,6 +95,8 @@ _SPLIT_METADATA_COLUMNS = (
     "train_rows",
     "test_rows",
 )
+
+
 def _sanitize_strategy_name(strategy_name: str) -> str:
     """Return a filesystem-friendly strategy name component for experiment paths."""
 
@@ -212,8 +228,14 @@ def _build_registry_entry(
     evaluation_mode: str,
     evaluation_config: dict[str, Any] | None,
     split_count: int | None,
+    promotion_evaluation: Any | None = None,
 ) -> dict[str, Any]:
     run_id = experiment_dir.name
+    review_metadata = build_review_metadata(
+        review=config.get("review") if isinstance(config.get("review"), dict) else None,
+        promotion_status=None if promotion_evaluation is None else promotion_evaluation.promotion_status,
+        promotion_gate_summary=None if promotion_evaluation is None else promotion_evaluation.summary(),
+    )
     return {
         "run_id": run_id,
         "timestamp": _utc_timestamp_from_run_id(run_id),
@@ -226,6 +248,12 @@ def _build_registry_entry(
         "data_range": _resolve_data_range(results_df, config, evaluation_mode=evaluation_mode),
         "timeframe": _infer_timeframe(results_df, config),
         "metrics_summary": _metrics_summary(metrics_summary),
+        "promotion_status": None if promotion_evaluation is None else promotion_evaluation.promotion_status,
+        "review_status": review_metadata["status"],
+        "review_metadata": review_metadata,
+        "promotion_gate_summary": (
+            None if promotion_evaluation is None else promotion_evaluation.summary()
+        ),
         "artifact_path": experiment_dir.as_posix(),
         "split_count": split_count,
         "evaluation_config_path": config.get("evaluation_config_path"),
@@ -579,6 +607,7 @@ def _write_run_outputs(
     _write_json(output_dir / "metrics.json", dict(payloads["metrics"]))
     _write_json(output_dir / "signal_diagnostics.json", dict(payloads["signal_diagnostics"]))
     _write_json(output_dir / "qa_summary.json", dict(payloads["qa_summary"]))
+    write_promotion_gate_artifact(output_dir, payloads.get("promotion_evaluation"))
 
     written = [
         "signals.parquet",
@@ -588,6 +617,8 @@ def _write_run_outputs(
         "signal_diagnostics.json",
         "qa_summary.json",
     ]
+    if payloads.get("promotion_evaluation") is not None:
+        written.append(DEFAULT_PROMOTION_ARTIFACT_FILENAME)
     if split_metadata is None:
         written.insert(0, "config.json")
     else:
@@ -643,6 +674,21 @@ def _prepare_run_outputs(
         signal_diagnostics=signal_diagnostics,
         qa_summary=qa_summary,
     )
+    promotion_evaluation = None
+    if split_metadata is None:
+        split_metric_rows = None
+        if "split_id" in annotated_results_df.columns:
+            split_metric_rows = _split_metric_rows(annotated_results_df)
+        promotion_evaluation = evaluate_promotion_gates(
+            run_type="strategy",
+            config=_promotion_gate_config(config),
+            sources={
+                "metrics": dict(metrics),
+                "qa_summary": dict(qa_summary),
+                "config": dict(config),
+                "split_metrics": split_metric_rows,
+            },
+        )
 
     return {
         "config": dict(config),
@@ -654,6 +700,7 @@ def _prepare_run_outputs(
         "metrics": dict(metrics),
         "signal_diagnostics": dict(signal_diagnostics),
         "qa_summary": dict(qa_summary),
+        "promotion_evaluation": promotion_evaluation,
     }
 
 
@@ -671,6 +718,22 @@ def _manifest_metric_summary(metrics: dict[str, Any]) -> dict[str, Any]:
     return dict(summary) if summary else dict(metrics)
 
 
+def _promotion_gate_config(config: dict[str, Any]) -> dict[str, Any] | None:
+    payload = config.get("promotion_gates")
+    return dict(payload) if isinstance(payload, dict) else None
+
+
+def _split_metric_rows(results_df: pd.DataFrame) -> list[dict[str, Any]] | None:
+    if "split_id" not in results_df.columns:
+        return None
+    rows: list[dict[str, Any]] = []
+    for split_id, split_frame in results_df.groupby("split_id", sort=False):
+        metrics = compute_performance_metrics(split_frame)
+        metrics["split_id"] = split_id
+        rows.append(metrics)
+    return rows
+
+
 def _build_manifest(
     *,
     experiment_dir: Path,
@@ -679,6 +742,7 @@ def _build_manifest(
     config: dict[str, Any],
     metrics: dict[str, Any],
     split_count: int | None,
+    promotion_evaluation: Any | None = None,
 ) -> dict[str, Any]:
     artifact_files = sorted(
         path.relative_to(experiment_dir).as_posix()
@@ -696,6 +760,9 @@ def _build_manifest(
         "split_count": split_count,
         "primary_metric": "sharpe_ratio",
         "metric_summary": _manifest_metric_summary(metrics),
+        "promotion_gate_summary": (
+            None if promotion_evaluation is None else promotion_evaluation.summary()
+        ),
     }
 
 
@@ -707,6 +774,7 @@ def _write_manifest(
     metrics: dict[str, Any],
     *,
     split_count: int | None,
+    promotion_evaluation: Any | None = None,
 ) -> None:
     _write_json(
         experiment_dir / "manifest.json",
@@ -717,6 +785,7 @@ def _write_manifest(
             config=config,
             metrics=metrics,
             split_count=split_count,
+            promotion_evaluation=promotion_evaluation,
         ),
     )
 
@@ -748,6 +817,7 @@ def save_experiment_outputs(
         config,
         metrics,
         split_count=None,
+        promotion_evaluation=payloads.get("promotion_evaluation"),
     )
 
 
@@ -770,6 +840,16 @@ def save_walk_forward_experiment(
         config,
         run_id="aggregate",
         strategy_name=strategy_name,
+    )
+    aggregate_payloads["promotion_evaluation"] = evaluate_promotion_gates(
+        run_type="strategy",
+        config=_promotion_gate_config(config),
+        sources={
+            "metrics": dict(aggregate_summary),
+            "qa_summary": dict(aggregate_payloads["qa_summary"]),
+            "config": dict(config),
+            "split_metrics": [dict(split_result["metrics"]) for split_result in split_results],
+        },
     )
     metrics_rows: list[dict[str, Any]] = []
     split_payloads: list[dict[str, Any]] = []
@@ -826,6 +906,7 @@ def save_walk_forward_experiment(
         config,
         aggregate_summary,
         split_count=len(split_results),
+        promotion_evaluation=aggregate_payloads.get("promotion_evaluation"),
     )
     validate_run_consistency(experiment_dir, validate_registry=False)
     _write_registry_entry(
@@ -838,6 +919,7 @@ def save_walk_forward_experiment(
             evaluation_mode="walk_forward",
             evaluation_config=dict(config.get("evaluation") or {}),
             split_count=len(split_results),
+            promotion_evaluation=aggregate_payloads.get("promotion_evaluation"),
         )
     )
     validate_run_consistency(experiment_dir)
@@ -959,6 +1041,7 @@ def save_experiment(
         config,
         metrics,
         split_count=None,
+        promotion_evaluation=payloads.get("promotion_evaluation"),
     )
     validate_run_consistency(experiment_dir, validate_registry=False)
     _write_registry_entry(
@@ -971,6 +1054,7 @@ def save_experiment(
             evaluation_mode="single",
             evaluation_config=None,
             split_count=None,
+            promotion_evaluation=payloads.get("promotion_evaluation"),
         )
     )
     validate_run_consistency(experiment_dir)

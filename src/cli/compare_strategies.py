@@ -4,6 +4,12 @@ import argparse
 from pathlib import Path
 from typing import Sequence
 
+from src.cli.comparison_cli import (
+    add_dual_flag_argument,
+    optional_output_path,
+    parse_csv_or_space_separated,
+    print_comparison_summary,
+)
 from src.config.evaluation import EVALUATION_CONFIG
 from src.research.compare import (
     DEFAULT_METRIC,
@@ -38,14 +44,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         default=DEFAULT_METRIC,
         help=f"Metric used to rank strategies. Defaults to '{DEFAULT_METRIC}'.",
     )
-    parser.add_argument("--top_k", type=int, help="Limit the leaderboard to the top N strategies.")
-    parser.add_argument(
+    add_dual_flag_argument(
+        parser,
+        "--top-k",
+        "--top_k",
+        dest="top_k",
+        type=int,
+        help="Limit the leaderboard to the top N strategies.",
+    )
+    add_dual_flag_argument(
+        parser,
+        "--from-registry",
         "--from_registry",
+        dest="from_registry",
         action="store_true",
         help="Load the latest matching run per strategy from the registry instead of executing runs.",
     )
-    parser.add_argument(
+    add_dual_flag_argument(
+        parser,
+        "--output-path",
         "--output_path",
+        dest="output_path",
         help="Optional leaderboard CSV path or output directory override.",
     )
     return parser.parse_args(argv)
@@ -54,13 +73,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 def parse_strategy_names(raw_values: Sequence[str]) -> list[str]:
     """Return normalized strategy names from comma-separated and/or repeated CLI values."""
 
-    names: list[str] = []
-    for raw_value in raw_values:
-        for name in raw_value.split(","):
-            normalized = name.strip()
-            if normalized:
-                names.append(normalized)
-    return names
+    return parse_csv_or_space_separated(raw_values) or []
 
 
 def run_cli(argv: Sequence[str] | None = None) -> ComparisonResult:
@@ -76,15 +89,23 @@ def run_cli(argv: Sequence[str] | None = None) -> ComparisonResult:
         end=args.end,
         top_k=args.top_k,
         from_registry=args.from_registry,
-        output_path=None if args.output_path is None else Path(args.output_path),
+        output_path=optional_output_path(args.output_path),
     )
-    print(f"metric: {result.metric}")
-    print(f"evaluation_mode: {result.evaluation_mode}")
-    print(f"selection_mode: {result.selection_mode}")
-    print(f"selection_rule: {result.selection_rule}")
-    print(render_leaderboard_table(result.leaderboard))
-    print(f"leaderboard_csv: {result.csv_path}")
-    print(f"leaderboard_json: {result.json_path}")
+    print_comparison_summary(
+        identifier_label="comparison_id",
+        identifier=result.comparison_id,
+        row_count=len(result.leaderboard),
+        table=render_leaderboard_table(result.leaderboard),
+        csv_path=result.csv_path,
+        json_path=result.json_path,
+        extra_fields=(
+            ("metric", result.metric),
+            ("evaluation_mode", result.evaluation_mode),
+            ("selection_mode", result.selection_mode),
+            ("selection_rule", result.selection_rule),
+            ("plot_count", len(result.plot_paths)),
+        ),
+    )
     return result
 
 

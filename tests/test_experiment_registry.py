@@ -155,6 +155,9 @@ def test_save_experiment_writes_registry_entry_with_stable_schema(
     assert entry["artifact_path"] == experiment_dir.as_posix()
     assert entry["split_count"] is None
     assert entry["evaluation_config_path"] is None
+    assert entry["review_status"] == "needs_review"
+    assert entry["review_metadata"]["status"] == "needs_review"
+    assert entry["review_metadata"]["decision_reason"] == "promotion metadata absent; manual review required."
 
 
 def test_save_experiment_appends_one_registry_entry_per_run(
@@ -174,6 +177,38 @@ def test_save_experiment_appends_one_registry_entry_per_run(
 
     assert [entry["run_id"] for entry in entries] == [first_dir.name, second_dir.name]
     assert [entry["strategy_name"] for entry in entries] == ["alpha_v1", "beta_v1"]
+
+
+def test_save_experiment_persists_manual_review_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    results_df = _single_run_results()
+    metrics = {"cumulative_return": 0.0098, "total_return": 0.0098, "sharpe_ratio": 1.0}
+    config = {
+        "dataset": "features_daily",
+        "parameters": {"lookback": 10},
+        "review": {
+            "status": "promoted",
+            "decision_reason": "investment committee approved promotion",
+            "decision_source": "manual_review",
+            "reviewed_at": "2026-03-19T12:00:00Z",
+        },
+    }
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    save_experiment("alpha_v1", results_df, metrics, config)
+
+    entry = load_registry(default_registry_path(artifact_root))[0]
+
+    assert entry["review_status"] == "promoted"
+    assert entry["review_metadata"] == {
+        "decision_reason": "investment committee approved promotion",
+        "decision_source": "manual_review",
+        "promotion_gate_summary": None,
+        "promotion_status": None,
+        "reviewed_at": "2026-03-19T12:00:00Z",
+        "schema_version": 1,
+        "status": "promoted",
+    }
 
 
 def test_append_registry_entry_rejects_duplicate_run_ids(tmp_path: Path) -> None:
@@ -442,6 +477,8 @@ def test_register_portfolio_run_appends_one_portfolio_entry_with_stable_schema(t
     assert entry["simulation_summary"]["method"] is None
     assert entry["evaluation_config_path"] == "configs/portfolio.yml"
     assert entry["split_count"] is None
+    assert entry["review_status"] == "needs_review"
+    assert entry["review_metadata"]["status"] == "needs_review"
 
 
 def test_register_portfolio_run_skips_duplicate_identical_run_ids(tmp_path: Path) -> None:

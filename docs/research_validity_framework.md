@@ -12,6 +12,7 @@ inputs
   -> temporal integrity
   -> execution realism
   -> sanity checks
+  -> promotion gates
   -> artifact QA
   -> consistency validation
 ```
@@ -94,6 +95,24 @@ Current constraints include:
 * return-stream and equity-curve consistency
 * traceability between sleeve returns, weights, and aggregate returns
 
+### Promotion gates
+
+Promotion gates are deterministic, auditable pass/fail checks applied to saved
+alpha, strategy, and portfolio runs.
+
+They complement sanity checks and QA rather than replacing them.
+
+Current gate definitions support:
+
+* metric thresholds such as minimum `ic_ir` or minimum `sharpe_ratio`
+* upper bounds such as maximum `max_drawdown`
+* sample-size requirements such as minimum `n_periods`
+* sanity-derived limits such as zero issue-count requirements
+* split-stability thresholds derived from per-split metrics
+
+Configured runs persist a stable `promotion_gates.json` artifact and mirror a
+compact promotion summary into the registry-backed unified review flow.
+
 ### Consistency validation
 
 Consistency validation cross-checks saved artifacts after persistence.
@@ -140,8 +159,13 @@ For a practical review pass:
 
 1. Start with `manifest.json`.
 2. Check `qa_summary.json`.
-3. Inspect `metrics.json`.
-4. Confirm execution-friction and turnover fields.
-5. Review `equity_curve.csv` or `portfolio_returns.csv`.
+3. Inspect `promotion_gates.json` when present.
+4. Inspect `metrics.json`.
+5. Confirm execution-friction and turnover fields.
+6. Review `equity_curve.csv` or `portfolio_returns.csv`.
 
 That sequence keeps trust and realism checks ahead of headline metrics.
+
+For the Milestone 13 layer that assembles completed alpha, strategy, and
+portfolio runs into one registry-backed review pack, see
+[milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).

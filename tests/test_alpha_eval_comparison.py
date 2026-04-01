@@ -227,6 +227,25 @@ def test_parse_args_supports_alpha_comparison_inputs() -> None:
     assert args.output_path == "artifacts/custom"
 
 
+def test_parse_args_supports_alpha_legacy_flag_aliases() -> None:
+    args = parse_args(
+        [
+            "--from_registry",
+            "--alpha_name",
+            "alpha_one",
+            "--evaluation_horizon",
+            "3",
+            "--output_path",
+            "artifacts/custom",
+        ]
+    )
+
+    assert args.from_registry is True
+    assert args.alpha_name == "alpha_one"
+    assert args.evaluation_horizon == 3
+    assert args.output_path == "artifacts/custom"
+
+
 def test_run_cli_prints_alpha_leaderboard_summary(monkeypatch, capsys, tmp_path: Path) -> None:
     expected_result = AlphaEvaluationComparisonResult(
         comparison_id="registry_alpha_ic_ir_deadbeefcafe",
@@ -259,6 +278,7 @@ def test_run_cli_prints_alpha_leaderboard_summary(monkeypatch, capsys, tmp_path:
     assert result is expected_result
     stdout = capsys.readouterr().out
     assert "comparison_id: registry_alpha_ic_ir_deadbeefcafe" in stdout
+    assert "rows: 1" in stdout
     assert "alpha_one" in stdout
     assert "leaderboard_csv:" in stdout
 

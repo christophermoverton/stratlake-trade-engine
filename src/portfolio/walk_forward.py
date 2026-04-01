@@ -24,6 +24,11 @@ from src.research.strict_mode import ResearchStrictModeError, raise_research_val
 from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
 from src.research.metrics import MINUTE_PERIODS_PER_YEAR, TRADING_DAYS_PER_YEAR
+from src.research.promotion import (
+    DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+    evaluate_promotion_gates,
+    write_promotion_gate_artifact,
+)
 
 from .allocators import BaseAllocator
 from .artifacts import (
@@ -139,6 +144,7 @@ def run_portfolio_walk_forward(
     validation_config: Mapping[str, Any] | None = None,
     risk_config: Mapping[str, Any] | None = None,
     volatility_targeting_config: Mapping[str, Any] | None = None,
+    promotion_gates: Mapping[str, Any] | None = None,
     sanity_config: SanityCheckConfig | dict[str, Any] | None = None,
     strict_mode: bool = False,
 ) -> dict[str, Any]:
@@ -179,6 +185,7 @@ def run_portfolio_walk_forward(
         evaluation_path=evaluation_path,
         runtime_config=resolved_runtime,
         volatility_targeting_config=volatility_targeting_config,
+        promotion_gates=promotion_gates,
     )
     run_id = generate_portfolio_run_id(
         portfolio_name=normalized_portfolio_name,
@@ -238,7 +245,28 @@ def run_portfolio_walk_forward(
         split_artifact_dirs=split_artifact_dirs,
         aggregate_metrics=aggregate_metrics,
     )
+    promotion_evaluation = evaluate_promotion_gates(
+        run_type="portfolio",
+        config=_promotion_gate_config(root_config),
+        sources={
+            "metrics": dict(aggregate_metrics["metric_summary"]),
+            "aggregate_metrics": dict(aggregate_metrics),
+            "config": dict(root_config),
+            "split_metrics": [dict(split_result["metrics"]) for split_result in split_results],
+        },
+    )
+    if promotion_evaluation is not None:
+        manifest["promotion_gate_summary"] = promotion_evaluation.summary()
+        if DEFAULT_PROMOTION_ARTIFACT_FILENAME not in manifest["artifact_files"]:
+            manifest["artifact_files"] = sorted([*manifest["artifact_files"], DEFAULT_PROMOTION_ARTIFACT_FILENAME])
+        qa_group = manifest.get("artifact_groups", {}).get("qa", [])
+        if isinstance(qa_group, list) and DEFAULT_PROMOTION_ARTIFACT_FILENAME not in qa_group:
+            manifest["artifact_groups"]["qa"] = sorted([*qa_group, DEFAULT_PROMOTION_ARTIFACT_FILENAME])
+        core_group = manifest.get("artifact_groups", {}).get("core", [])
+        if isinstance(core_group, list) and DEFAULT_PROMOTION_ARTIFACT_FILENAME not in core_group:
+            manifest["artifact_groups"]["core"] = sorted([*core_group, DEFAULT_PROMOTION_ARTIFACT_FILENAME])
     _write_json(experiment_dir / "manifest.json", manifest)
+    write_promotion_gate_artifact(experiment_dir, promotion_evaluation)
 
     register_validated_portfolio_run(
         registry_path=default_registry_path(Path(output_dir)),
@@ -251,7 +279,12 @@ def run_portfolio_walk_forward(
         start_ts=_run_start_ts(splits),
         end_ts=_run_end_ts(splits),
         split_count=len(split_results),
-        extra_metadata={"aggregate_metrics": aggregate_metrics},
+        extra_metadata={
+            "aggregate_metrics": aggregate_metrics,
+            "promotion_gate_summary": (
+                None if promotion_evaluation is None else promotion_evaluation.summary()
+            ),
+        },
     )
 
     return {
@@ -726,8 +759,9 @@ def _build_root_config(
     evaluation_path: Path,
     runtime_config: RuntimeConfig,
     volatility_targeting_config: Mapping[str, Any] | None,
+    promotion_gates: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
-    return {
+    payload = {
         "portfolio_name": portfolio_name,
         "allocator": allocator_name,
         "initial_capital": float(initial_capital),
@@ -743,6 +777,9 @@ def _build_root_config(
         "strict_mode": runtime_config.strict_mode.to_dict(),
         "runtime": runtime_config.to_dict(),
     }
+    if promotion_gates is not None:
+        payload["promotion_gates"] = dict(promotion_gates)
+    return payload
 
 
 def _split_metadata(split: EvaluationSplit, *, row_count: int) -> dict[str, Any]:
@@ -765,6 +802,11 @@ def _run_start_ts(splits: Sequence[EvaluationSplit]) -> str:
 
 def _run_end_ts(splits: Sequence[EvaluationSplit]) -> str:
     return max(split.test_end for split in splits)
+
+
+def _promotion_gate_config(config: Mapping[str, Any]) -> dict[str, Any] | None:
+    payload = config.get("promotion_gates")
+    return dict(payload) if isinstance(payload, Mapping) else None
 
 
 def _normalize_component_run_ids(component_run_ids: Sequence[str]) -> list[str]:

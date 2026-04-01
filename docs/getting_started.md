@@ -15,8 +15,9 @@ This guide walks through the current repository workflow:
 4. run a strategy
 5. run the Milestone 11.5 alpha-to-portfolio example
 6. run the Milestone 12 alpha-evaluation example
-7. run a strict strategy
-8. build a portfolio from saved runs
+7. run the Milestone 13 review-and-promotion example
+8. run a strict strategy
+9. build a portfolio from saved runs
 
 For deeper detail, continue with:
 
@@ -166,6 +167,23 @@ python docs/examples/alpha_evaluation_end_to_end.py
 See:
 
 * [alpha_evaluation_workflow.md](alpha_evaluation_workflow.md)
+
+## Run The Milestone 13 Review-And-Promotion Example
+
+Milestone 13 adds a small committed end-to-end review example that loads
+completed alpha, strategy, and portfolio artifacts from checked-in registries,
+then writes one deterministic review pack plus a review-level promotion
+decision.
+
+```powershell
+python docs/examples/milestone_13_review_promotion_workflow.py
+```
+
+See:
+
+* [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)
+* [examples/milestone_13_review_promotion_workflow.md](examples/milestone_13_review_promotion_workflow.md)
+* [review_configuration.md](review_configuration.md)
 
 ## Run With Strict Mode And Execution Frictions
 

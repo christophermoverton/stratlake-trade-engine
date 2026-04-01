@@ -154,8 +154,7 @@ def run_walk_forward_experiment(
     aggregate_results.attrs["sanity_check"] = aggregate_report.to_dict()
     signal_diagnostics = compute_signal_diagnostics(aggregate_results["signal"], aggregate_results)
 
-    run_config = resolved_runtime.apply_to_payload(
-        {
+    run_payload = {
         "strategy_name": strategy_name,
         "dataset": strategy.dataset,
         "parameters": dict((strategy_config or {}).get("parameters", {})),
@@ -173,7 +172,11 @@ def run_walk_forward_experiment(
             "test_start": evaluation_config.test_start,
             "test_end": evaluation_config.test_end,
         },
-        },
+    }
+    if (strategy_config or {}).get("promotion_gates") is not None:
+        run_payload["promotion_gates"] = (strategy_config or {}).get("promotion_gates")
+    run_config = resolved_runtime.apply_to_payload(
+        run_payload,
         include_validation_section=False,
     )
     experiment_dir = save_walk_forward_experiment(

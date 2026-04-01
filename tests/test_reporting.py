@@ -181,6 +181,9 @@ def test_generate_strategy_report_creates_markdown_and_plot_artifacts(
     assert "## Artifact References" in report_text
     assert "| Sharpe | 9.775 |" in report_text
     assert "| Total Return | 5.84% |" in report_text
+    assert "Signal posture was 48% long / 24% short / 28% flat across `25` saved rows." in report_text
+    assert "Exposure context: exposure was 72.00%; turnover was 0.560 and trading cadence was high; average active holding runs lasted 2.0 period(s)." in report_text
+    assert "Trade diagnostics cover `8` closed trades. Win rate was 68.00%." in report_text
     assert "![Equity Curve](plots/equity_curve.png)" in report_text
     assert "![Drawdown](plots/drawdown.png)" in report_text
     assert "rolling_sharpe_debug.png" not in report_text
@@ -265,6 +268,8 @@ def test_generate_strategy_report_preserves_expected_artifact_structure_and_rela
     assert_in_file(report_path, "### Trade Summary")
     assert_in_file(report_path, "## Interpretation")
     assert_in_file(report_path, "## Artifact References")
+    assert_in_file(report_path, "Signal posture was 48% long / 24% short / 28% flat across `25` saved rows.")
+    assert_in_file(report_path, "Exposure context: exposure was 72.00%; turnover was 0.560 and trading cadence was high; average active holding runs lasted 2.0 period(s).")
     assert_in_file(report_path, "![Equity Curve](plots/equity_curve.png)")
     assert_in_file(report_path, "![Drawdown](plots/drawdown.png)")
     assert_in_file(report_path, "- [plots/](plots)")
@@ -311,7 +316,48 @@ def test_generate_strategy_report_skips_optional_sections_when_artifacts_are_mis
     assert "_No visualization artifacts were available for this run._" in report_text
     assert "### Trade Summary" in report_text
     assert "_Trade data unavailable for this run._" in report_text
+    assert "Signal posture was" not in report_text
     assert "### Performance Overview" not in report_text
+
+
+def test_generate_strategy_report_uses_signal_artifacts_when_diagnostics_file_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "signal_fallback",
+        _report_results(),
+        _report_metrics(),
+        {"strategy_name": "signal_fallback"},
+    )
+    (run_dir / "signal_diagnostics.json").unlink()
+
+    report_text = generate_strategy_report(run_dir).read_text(encoding="utf-8")
+
+    assert "Signal posture was 48% long / 24% short / 28% flat across `25` saved rows." in report_text
+    assert "Exposure context: exposure was 72.00%; turnover was 0.560 and trading cadence was high; average active holding runs lasted 2.0 period(s)." in report_text
+    assert "Trade diagnostics cover `8` closed trades. Win rate was 68.00%." in report_text
+
+
+def test_generate_strategy_report_describes_signal_changes_when_trade_artifact_is_missing(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", tmp_path / "artifacts" / "strategies")
+    run_dir = save_experiment(
+        "signal_only",
+        _report_results(),
+        _report_metrics(),
+        {"strategy_name": "signal_only"},
+    )
+    (run_dir / "trades.parquet").unlink()
+
+    report_text = generate_strategy_report(run_dir).read_text(encoding="utf-8")
+
+    assert "Signal posture was 48% long / 24% short / 28% flat across `25` saved rows." in report_text
+    assert "Exposure context: exposure was 72.00%; turnover was 0.560 and trading cadence was high; average active holding runs lasted 2.0 period(s)." in report_text
+    assert "No closed-trade artifact was saved, but signal diagnostics recorded `14` signal change(s) across `25` rows." in report_text
 
 
 def test_generate_strategy_report_raises_when_metrics_are_missing(tmp_path: Path) -> None:
@@ -427,3 +473,126 @@ def test_generate_strategy_report_includes_walk_forward_context(tmp_path: Path) 
     assert "| Evaluation Config Path | configs/walk_forward/example.json |" in report_text
     assert "metrics_by_split.csv" in report_text
     assert "Walk-forward artifacts summarize `2` saved split(s)" in report_text
+    assert "## Walk-Forward Review" in report_text
+    assert "### Split Metrics" in report_text
+    assert "| split_001 | 2022-01-07 | 2022-01-12 |" in report_text
+    assert "### Aggregate Stability" in report_text
+    assert "### Review Flags" in report_text
+    assert "No flagged splits were detected in the saved walk-forward artifacts." in report_text
+
+
+def test_generate_strategy_report_includes_portfolio_walk_forward_review_sections(tmp_path: Path) -> None:
+    run_dir = tmp_path / "portfolio_walk_forward_run"
+    run_dir.mkdir()
+    (run_dir / "config.json").write_text(
+        """
+{
+  "portfolio_name": "alpha_portfolio",
+  "allocator": "equal_weight",
+  "timeframe": "1D",
+  "evaluation_config_path": "configs/evaluation.yml"
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    (run_dir / "manifest.json").write_text(
+        """
+{
+  "run_id": "alpha_portfolio_walk_forward_123",
+  "portfolio_name": "alpha_portfolio",
+  "allocator": "equal_weight",
+  "evaluation_mode": "walk_forward",
+  "evaluation_config_path": "configs/evaluation.yml",
+  "split_count": 2
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    (run_dir / "aggregate_metrics.json").write_text(
+        """
+{
+  "aggregation_method": "descriptive statistics computed across split-level portfolio metrics in split order",
+  "mode": "walk_forward",
+  "split_count": 2,
+  "timeframe": "1D",
+  "first_train_start": "2022-01-01",
+  "last_test_end": "2022-03-01",
+  "split_ids": ["split_001", "split_002"],
+  "sanity": {
+    "status": "warn",
+    "flagged_split_count": 1,
+    "failed_split_count": 0,
+    "flagged_splits": ["split_002"],
+    "failed_splits": []
+  },
+  "metric_summary": {
+    "total_return": 0.08,
+    "sharpe_ratio": 1.2,
+    "max_drawdown": 0.06,
+    "volatility": 0.11,
+    "turnover": 0.3,
+    "flagged_split_count": 1.0
+  },
+  "metric_statistics": {
+    "total_return": {"mean": 0.08, "median": 0.08, "std": 0.04, "min": 0.04, "max": 0.12},
+    "sharpe_ratio": {"mean": 1.2, "median": 1.2, "std": 0.4, "min": 0.8, "max": 1.6},
+    "max_drawdown": {"mean": 0.06, "median": 0.06, "std": 0.02, "min": 0.04, "max": 0.08},
+    "volatility": {"mean": 0.11, "median": 0.11, "std": 0.01, "min": 0.10, "max": 0.12},
+    "turnover": {"mean": 0.3, "median": 0.3, "std": 0.1, "min": 0.2, "max": 0.4}
+  }
+}
+""".strip(),
+        encoding="utf-8",
+    )
+    pd.DataFrame(
+        [
+            {
+                "split_id": "split_001",
+                "mode": "walk_forward",
+                "train_start": "2022-01-01",
+                "train_end": "2022-02-01",
+                "test_start": "2022-02-01",
+                "test_end": "2022-02-15",
+                "total_return": 0.04,
+                "sharpe_ratio": 0.8,
+                "max_drawdown": 0.04,
+                "volatility": 0.10,
+                "turnover": 0.2,
+                "sanity_issue_count": 0.0,
+            },
+            {
+                "split_id": "split_002",
+                "mode": "walk_forward",
+                "train_start": "2022-01-15",
+                "train_end": "2022-02-15",
+                "test_start": "2022-02-15",
+                "test_end": "2022-03-01",
+                "total_return": 0.12,
+                "sharpe_ratio": 1.6,
+                "max_drawdown": 0.08,
+                "volatility": 0.12,
+                "turnover": 0.4,
+                "sanity_issue_count": 2.0,
+            },
+        ]
+    ).to_csv(run_dir / "metrics_by_split.csv", index=False)
+    split_dir = run_dir / "splits" / "split_002"
+    split_dir.mkdir(parents=True)
+    (split_dir / "metrics.json").write_text('{"total_return": 0.12}', encoding="utf-8")
+
+    report_text = generate_strategy_report(run_dir).read_text(encoding="utf-8")
+
+    assert "| Subject | alpha_portfolio |" in report_text
+    assert "| Portfolio | alpha_portfolio |" in report_text
+    assert "| Allocator | equal_weight |" in report_text
+    assert "| Evaluation Mode | Walk Forward |" in report_text
+    assert "| Split Count | 2 |" in report_text
+    assert "| Total Return | 8.00% |" in report_text
+    assert "## Walk-Forward Review" in report_text
+    assert "| split_002 | 2022-02-15 | 2022-03-01 | 12.00% | 1.600 | 8.00% | 2 |" in report_text
+    assert "| Sharpe Ratio | 1.200 | 1.200 | 0.400 | 0.800 | 1.600 |" in report_text
+    assert "- Flagged splits: `split_002`." in report_text
+    assert "[split_002](splits/split_002)" in report_text
+    assert "- [aggregate_metrics.json](aggregate_metrics.json)" in report_text
+    assert "- [metrics_by_split.csv](metrics_by_split.csv)" in report_text
+    assert "_No visualization artifacts were available for this run._" in report_text

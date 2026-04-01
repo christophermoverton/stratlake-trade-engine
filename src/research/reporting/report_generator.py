@@ -7,6 +7,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.visualization.artifacts import (
     get_canonical_plot_name,
     get_plot_dir,
@@ -61,10 +62,36 @@ _PERCENT_METRIC_KEYS = {
     "win_rate",
 }
 _DECIMAL_METRIC_KEYS = {"profit_factor", "sharpe_ratio", "turnover"}
-_COUNT_METRIC_KEYS = {"count", "win_count", "loss_count"}
+_COUNT_METRIC_KEYS = {
+    "count",
+    "win_count",
+    "loss_count",
+    "failed_split_count",
+    "flagged_split_count",
+    "sanity_issue_count",
+    "sanity_warning_count",
+    "split_count",
+    "trade_count",
+}
 _REPORT_PLOT_ORDER: tuple[tuple[str, str | None, str], ...] = (
     ("equity_curve", "### Performance Overview", "Equity Curve"),
     ("drawdown", None, "Drawdown"),
+)
+_WALK_FORWARD_SPLIT_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("split_id", "Split"),
+    ("test_start", "Test Start"),
+    ("test_end", "Test End"),
+    ("total_return", "Total Return"),
+    ("sharpe_ratio", "Sharpe"),
+    ("max_drawdown", "Max Drawdown"),
+    ("sanity_issue_count", "Sanity Issues"),
+)
+_WALK_FORWARD_STABILITY_COLUMNS: tuple[tuple[str, str], ...] = (
+    ("total_return", "Total Return"),
+    ("sharpe_ratio", "Sharpe Ratio"),
+    ("max_drawdown", "Max Drawdown"),
+    ("volatility", "Volatility"),
+    ("turnover", "Turnover"),
 )
 
 
@@ -83,12 +110,15 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
     plots_dir = get_plot_dir(resolved_run_dir)
     plots_dir.mkdir(parents=True, exist_ok=True)
 
-    metrics = load_metrics(resolved_run_dir / "metrics.json")
+    metrics, metrics_artifact_path = load_metrics(resolved_run_dir)
     manifest = _load_json_if_exists(resolved_run_dir / "manifest.json") or {}
     config = _load_json_if_exists(resolved_run_dir / "config.json") or {}
+    aggregate_metrics = _load_json_if_exists(resolved_run_dir / "aggregate_metrics.json")
+    metrics_by_split = _load_optional_csv(resolved_run_dir / "metrics_by_split.csv")
     equity_curve = _load_equity_curve(resolved_run_dir)
     trades = _load_optional_parquet(resolved_run_dir / "trades.parquet")
     signals = _load_optional_parquet(resolved_run_dir / "signals.parquet")
+    signal_diagnostics = _load_json_if_exists(resolved_run_dir / "signal_diagnostics.json")
 
     plot_paths = generate_plot_artifacts(
         run_dir=resolved_run_dir,
@@ -99,11 +129,15 @@ def generate_strategy_report(run_dir: Path, output_path: Path | None = None) -> 
         run_dir=resolved_run_dir,
         output_path=resolved_output_path,
         metrics=metrics,
+        metrics_artifact_path=metrics_artifact_path,
+        aggregate_metrics=aggregate_metrics,
+        metrics_by_split=metrics_by_split,
         manifest=manifest,
         config=config,
         equity_curve=equity_curve,
         trades=trades,
         signals=signals,
+        signal_diagnostics=signal_diagnostics,
         plot_paths=_select_plot_paths_by_intent(plot_paths, intent="report"),
     )
     resolved_output_path.write_text(markdown, encoding="utf-8")
@@ -143,12 +177,34 @@ def generate_strategy_plots(run_dir: Path, plots_dir: Path | None = None) -> dic
     return plot_paths
 
 
-def load_metrics(metrics_path: Path) -> dict[str, Any]:
-    """Load metrics.json from a strategy run."""
+def load_metrics(metrics_path: Path) -> tuple[dict[str, Any], Path]:
+    """Load the primary metrics artifact from a saved run directory or path."""
 
-    if not metrics_path.exists():
-        raise FileNotFoundError(f"Required metrics artifact not found: {metrics_path}")
-    return json.loads(metrics_path.read_text(encoding="utf-8"))
+    resolved_path = Path(metrics_path)
+    if resolved_path.is_dir():
+        for candidate_name in ("metrics.json", "aggregate_metrics.json"):
+            candidate = resolved_path / candidate_name
+            if candidate.exists():
+                payload = json.loads(candidate.read_text(encoding="utf-8"))
+                if candidate_name == "aggregate_metrics.json" and isinstance(payload, dict):
+                    summary = payload.get("metric_summary")
+                    if isinstance(summary, dict):
+                        return dict(summary), candidate
+                return payload, candidate
+        raise FileNotFoundError(
+            "Required metrics artifact not found: "
+            f"{resolved_path / 'metrics.json'} or {resolved_path / 'aggregate_metrics.json'}"
+        )
+
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"Required metrics artifact not found: {resolved_path}")
+
+    payload = json.loads(resolved_path.read_text(encoding="utf-8"))
+    if resolved_path.name == "aggregate_metrics.json" and isinstance(payload, dict):
+        summary = payload.get("metric_summary")
+        if isinstance(summary, dict):
+            return dict(summary), resolved_path
+    return payload, resolved_path
 
 
 def format_metrics_table(metrics: dict[str, Any]) -> str:
@@ -184,11 +240,15 @@ def build_markdown_report(
     run_dir: Path,
     output_path: Path,
     metrics: dict[str, Any],
+    metrics_artifact_path: Path,
+    aggregate_metrics: dict[str, Any] | None,
+    metrics_by_split: pd.DataFrame | None,
     manifest: dict[str, Any],
     config: dict[str, Any],
     equity_curve: pd.DataFrame | None,
     trades: pd.DataFrame | None,
     signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
     plot_paths: dict[str, Path],
 ) -> str:
     """Assemble the final Markdown report contents."""
@@ -199,6 +259,7 @@ def build_markdown_report(
         config=config,
         equity_curve=equity_curve,
         signals=signals,
+        signal_diagnostics=signal_diagnostics,
     )
     sections = [
         render_header(context),
@@ -210,9 +271,34 @@ def build_markdown_report(
         format_metrics_table(metrics),
         "",
     ]
+    sections.extend(
+        render_walk_forward_summary(
+            output_path=output_path,
+            run_dir=run_dir,
+            metrics=metrics,
+            aggregate_metrics=aggregate_metrics,
+            metrics_by_split=metrics_by_split,
+            context=context,
+        )
+    )
     sections.extend(render_visualizations(output_path=output_path, trades=trades, plot_paths=plot_paths))
-    sections.extend(render_interpretation(context=context, metrics=metrics, trades=trades, signals=signals))
-    sections.extend(render_artifact_links(run_dir=run_dir, output_path=output_path, plot_paths=plot_paths))
+    sections.extend(
+        render_interpretation(
+            context=context,
+            metrics=metrics,
+            trades=trades,
+            signals=signals,
+            signal_diagnostics=signal_diagnostics,
+        )
+    )
+    sections.extend(
+        render_artifact_links(
+            run_dir=run_dir,
+            output_path=output_path,
+            plot_paths=plot_paths,
+            metrics_artifact_path=metrics_artifact_path,
+        )
+    )
     return "\n".join(sections).rstrip() + "\n"
 
 
@@ -276,8 +362,11 @@ def _validate_run_dir(run_dir: Path) -> None:
         raise FileNotFoundError(f"Run directory does not exist: {run_dir}")
     if not run_dir.is_dir():
         raise ValueError(f"Run directory must be a directory: {run_dir}")
-    if not (run_dir / "metrics.json").exists():
-        raise FileNotFoundError(f"Required metrics artifact not found: {run_dir / 'metrics.json'}")
+    if not (run_dir / "metrics.json").exists() and not (run_dir / "aggregate_metrics.json").exists():
+        raise FileNotFoundError(
+            "Required metrics artifact not found: "
+            f"{run_dir / 'metrics.json'} or {run_dir / 'aggregate_metrics.json'}"
+        )
 
 
 def _load_json_if_exists(path: Path) -> dict[str, Any] | None:
@@ -300,6 +389,15 @@ def _load_optional_parquet(path: Path) -> pd.DataFrame | None:
     if not path.exists():
         return None
     frame = pd.read_parquet(path)
+    if frame.empty:
+        return None
+    return frame
+
+
+def _load_optional_csv(path: Path) -> pd.DataFrame | None:
+    if not path.exists():
+        return None
+    frame = pd.read_csv(path)
     if frame.empty:
         return None
     return frame
@@ -335,12 +433,49 @@ def render_visualizations(
     return sections
 
 
+def render_walk_forward_summary(
+    *,
+    output_path: Path,
+    run_dir: Path,
+    metrics: dict[str, Any],
+    aggregate_metrics: dict[str, Any] | None,
+    metrics_by_split: pd.DataFrame | None,
+    context: dict[str, Any],
+) -> list[str]:
+    if context.get("evaluation_mode") != "walk_forward":
+        return []
+
+    sections = ["## Walk-Forward Review"]
+    if metrics_by_split is None:
+        sections.extend(["_Split metrics were not available for this run._", ""])
+        return sections
+
+    sections.extend(_render_split_metrics_table(metrics_by_split))
+    sections.extend(
+        _render_stability_summary(
+            metrics=metrics,
+            aggregate_metrics=aggregate_metrics,
+            metrics_by_split=metrics_by_split,
+        )
+    )
+    sections.extend(
+        _render_flagged_splits(
+            output_path=output_path,
+            run_dir=run_dir,
+            aggregate_metrics=aggregate_metrics,
+            metrics_by_split=metrics_by_split,
+        )
+    )
+    return sections
+
+
 def render_interpretation(
     *,
     context: dict[str, Any],
     metrics: dict[str, Any],
     trades: pd.DataFrame | None,
     signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
 ) -> list[str]:
     notes = ["## Interpretation"]
     summary_points = _build_interpretation_points(
@@ -348,6 +483,7 @@ def render_interpretation(
         metrics=metrics,
         trades=trades,
         signals=signals,
+        signal_diagnostics=signal_diagnostics,
     )
     if not summary_points:
         notes.extend(["- Interpretation unavailable from the saved artifacts.", ""])
@@ -363,10 +499,15 @@ def render_artifact_links(
     run_dir: Path,
     output_path: Path,
     plot_paths: dict[str, Path],
+    metrics_artifact_path: Path,
 ) -> list[str]:
     rows: list[str] = ["## Artifact References"]
 
-    for label, artifact_path in _ordered_artifact_links(run_dir=run_dir, plot_paths=plot_paths):
+    for label, artifact_path in _ordered_artifact_links(
+        run_dir=run_dir,
+        plot_paths=plot_paths,
+        metrics_artifact_path=metrics_artifact_path,
+    ):
         rows.append(f"- [{label}]({_relative_markdown_path(output_path, artifact_path)})")
 
     rows.append("")
@@ -390,10 +531,13 @@ def _build_report_context(
     config: dict[str, Any],
     equity_curve: pd.DataFrame | None,
     signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    strategy_name = str(
+    title = str(
         manifest.get("strategy_name")
+        or manifest.get("portfolio_name")
         or config.get("strategy_name")
+        or config.get("portfolio_name")
         or manifest.get("run_id")
         or run_dir.name
     )
@@ -403,7 +547,7 @@ def _build_report_context(
     date_range = _resolve_date_range(config=config, equity_curve=equity_curve, signals=signals)
 
     header_rows = [
-        ("Strategy", strategy_name),
+        ("Subject", title),
         ("Run ID", run_id),
         ("Evaluation Mode", _humanize_token(evaluation_mode)),
     ]
@@ -418,6 +562,12 @@ def _build_report_context(
     dataset = config.get("dataset")
     if dataset is not None:
         config_rows.append(("Dataset", str(dataset)))
+    portfolio_name = config.get("portfolio_name") or manifest.get("portfolio_name")
+    if portfolio_name is not None:
+        config_rows.append(("Portfolio", str(portfolio_name)))
+    allocator = config.get("allocator") or manifest.get("allocator")
+    if allocator is not None:
+        config_rows.append(("Allocator", str(allocator)))
 
     parameters = config.get("parameters")
     if isinstance(parameters, dict) and parameters:
@@ -444,8 +594,8 @@ def _build_report_context(
         config_rows.append(("Run Directory", run_dir.name))
 
     return {
-        "title": strategy_name,
-        "strategy_name": strategy_name,
+        "title": title,
+        "strategy_name": title,
         "run_id": run_id,
         "evaluation_mode": evaluation_mode,
         "header_rows": header_rows,
@@ -453,6 +603,10 @@ def _build_report_context(
         "timeframe": timeframe,
         "date_range": date_range,
         "split_count": manifest.get("split_count"),
+        "signal_diagnostics": _resolve_signal_diagnostics(
+            signal_diagnostics=signal_diagnostics,
+            signals=signals,
+        ),
     }
 
 
@@ -493,6 +647,7 @@ def _build_interpretation_points(
     metrics: dict[str, Any],
     trades: pd.DataFrame | None,
     signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
 ) -> list[str]:
     points: list[str] = []
 
@@ -500,6 +655,10 @@ def _build_interpretation_points(
     sharpe_ratio = _coerce_float(metrics.get("sharpe_ratio"))
     max_drawdown = _coerce_float(metrics.get("max_drawdown"))
     win_rate = _coerce_float(metrics.get("win_rate"))
+    resolved_signal_diagnostics = _resolve_signal_diagnostics(
+        signal_diagnostics=signal_diagnostics or context.get("signal_diagnostics"),
+        signals=signals,
+    )
 
     if total_return is not None:
         direction = "positive" if total_return >= 0 else "negative"
@@ -513,15 +672,25 @@ def _build_interpretation_points(
             f"Peak-to-trough drawdown reached {_format_metric_value('max_drawdown', max_drawdown)}, which frames the downside seen in the equity and drawdown plots."
         )
 
-    trade_returns = _select_trade_returns(trades)
-    if trade_returns is not None:
-        trade_count = len(trade_returns)
-        trade_message = f"Trade diagnostics cover `{trade_count}` closed trades."
-        if win_rate is not None:
-            trade_message += f" Win rate was {_format_metric_value('win_rate', win_rate)}."
-        points.append(trade_message)
-    elif signals is not None:
-        points.append(f"Signal artifacts are available with `{len(signals)}` rows, but no trade summary artifact was present.")
+    signal_point = _build_signal_summary_point(resolved_signal_diagnostics)
+    if signal_point is not None:
+        points.append(signal_point)
+
+    exposure_point = _build_exposure_context_point(
+        metrics=metrics,
+        signal_diagnostics=resolved_signal_diagnostics,
+    )
+    if exposure_point is not None:
+        points.append(exposure_point)
+
+    trade_point = _build_trade_summary_point(
+        trade_returns=_select_trade_returns(trades),
+        win_rate=win_rate,
+        signals=signals,
+        signal_diagnostics=resolved_signal_diagnostics,
+    )
+    if trade_point is not None:
+        points.append(trade_point)
 
     if context.get("evaluation_mode") == "walk_forward" and context.get("split_count") is not None:
         points.append(f"Walk-forward artifacts summarize `{context['split_count']}` saved split(s); use `metrics_by_split.csv` for fold-level detail.")
@@ -529,12 +698,134 @@ def _build_interpretation_points(
     return points
 
 
-def _ordered_artifact_links(*, run_dir: Path, plot_paths: dict[str, Path]) -> list[tuple[str, Path]]:
+def _resolve_signal_diagnostics(
+    *,
+    signal_diagnostics: dict[str, Any] | None,
+    signals: pd.DataFrame | None,
+) -> dict[str, Any] | None:
+    if isinstance(signal_diagnostics, dict) and signal_diagnostics:
+        return signal_diagnostics
+    if signals is None or "signal" not in signals.columns:
+        return None
+    try:
+        return compute_signal_diagnostics(signals["signal"], signals)
+    except (KeyError, TypeError, ValueError):
+        return None
+
+
+def _build_signal_summary_point(signal_diagnostics: dict[str, Any] | None) -> str | None:
+    if not isinstance(signal_diagnostics, dict):
+        return None
+
+    total_rows = _coerce_float(signal_diagnostics.get("total_rows"))
+    flags = signal_diagnostics.get("flags") if isinstance(signal_diagnostics.get("flags"), dict) else {}
+    if flags.get("always_flat"):
+        return "Signals stayed flat throughout the saved sample, so the run did not take directional exposure."
+    if flags.get("always_long"):
+        return "Signals stayed fully long throughout the saved sample, so behavior was effectively buy-and-hold rather than tactical timing."
+    if flags.get("always_short"):
+        return "Signals stayed fully short throughout the saved sample, so behavior was effectively a persistent short stance rather than tactical timing."
+
+    state_descriptions: list[str] = []
+    for key, label in (("pct_long", "long"), ("pct_short", "short"), ("pct_flat", "flat")):
+        value = _coerce_float(signal_diagnostics.get(key))
+        if value is None or value <= 0.0:
+            continue
+        state_descriptions.append(f"{value * 100:.0f}% {label}")
+
+    if not state_descriptions:
+        return None
+
+    row_text = ""
+    if total_rows is not None and total_rows > 0 and float(total_rows).is_integer():
+        row_text = f" across `{int(total_rows)}` saved rows"
+    return f"Signal posture was {' / '.join(state_descriptions)}{row_text}."
+
+
+def _build_exposure_context_point(
+    *,
+    metrics: dict[str, Any],
+    signal_diagnostics: dict[str, Any] | None,
+) -> str | None:
+    exposure_value = None
+    turnover_value = None
+    if isinstance(signal_diagnostics, dict):
+        exposure_value = _coerce_float(signal_diagnostics.get("exposure_pct"))
+        turnover_value = _coerce_float(signal_diagnostics.get("turnover"))
+    if exposure_value is None:
+        exposure_value = _coerce_float(metrics.get("exposure_pct"))
+    if turnover_value is None:
+        turnover_value = _coerce_float(metrics.get("turnover"))
+
+    avg_holding_period = None
+    if isinstance(signal_diagnostics, dict):
+        avg_holding_period = _coerce_float(signal_diagnostics.get("avg_holding_period"))
+
+    if exposure_value is None and turnover_value is None and avg_holding_period is None:
+        return None
+
+    fragments: list[str] = []
+    if exposure_value is not None:
+        fragments.append(f"exposure was {_format_exposure_value(exposure_value)}")
+    if turnover_value is not None:
+        turnover_text = _format_metric_value("turnover", turnover_value)
+        flags = signal_diagnostics.get("flags") if isinstance(signal_diagnostics, dict) else {}
+        qualifier = " and trading cadence was high" if flags.get("high_turnover") else ""
+        fragments.append(f"turnover was {turnover_text}{qualifier}")
+    if avg_holding_period is not None and avg_holding_period > 0.0:
+        fragments.append(f"average active holding runs lasted {avg_holding_period:.1f} period(s)")
+
+    return "Exposure context: " + "; ".join(fragments) + "."
+
+
+def _build_trade_summary_point(
+    *,
+    trade_returns: pd.Series | None,
+    win_rate: float | None,
+    signals: pd.DataFrame | None,
+    signal_diagnostics: dict[str, Any] | None,
+) -> str | None:
+    if trade_returns is not None:
+        trade_count = len(trade_returns)
+        trade_message = f"Trade diagnostics cover `{trade_count}` closed trades."
+        if win_rate is not None:
+            trade_message += f" Win rate was {_format_metric_value('win_rate', win_rate)}."
+        return trade_message
+
+    if signals is not None:
+        total_rows = len(signals)
+        total_trades = None
+        if isinstance(signal_diagnostics, dict):
+            resolved_rows = signal_diagnostics.get("total_rows")
+            if isinstance(resolved_rows, int | float):
+                total_rows = int(resolved_rows)
+            total_trades = signal_diagnostics.get("total_trades")
+        if isinstance(total_trades, int | float):
+            return f"No closed-trade artifact was saved, but signal diagnostics recorded `{int(total_trades)}` signal change(s) across `{total_rows}` rows."
+        return f"Signal artifacts are available with `{len(signals)}` rows, but no trade summary artifact was present."
+
+    return None
+
+
+def _format_exposure_value(value: float) -> str:
+    normalized = value * 100.0 if 0.0 <= value <= 1.0 else value
+    return f"{normalized:.2f}%"
+
+
+def _ordered_artifact_links(
+    *,
+    run_dir: Path,
+    plot_paths: dict[str, Path],
+    metrics_artifact_path: Path,
+) -> list[tuple[str, Path]]:
     ordered: list[tuple[str, Path]] = []
+    added_paths: set[Path] = set()
     for name in (
         "manifest.json",
         "config.json",
+        "aggregate_metrics.json",
         "metrics.json",
+        "components.json",
         "equity_curve.csv",
         "signals.parquet",
         "trades.parquet",
@@ -543,6 +834,11 @@ def _ordered_artifact_links(*, run_dir: Path, plot_paths: dict[str, Path]) -> li
         artifact_path = run_dir / name
         if artifact_path.exists():
             ordered.append((name, artifact_path))
+            added_paths.add(artifact_path)
+
+    if metrics_artifact_path not in added_paths and metrics_artifact_path.exists():
+        ordered.append((metrics_artifact_path.name, metrics_artifact_path))
+        added_paths.add(metrics_artifact_path)
 
     if plot_paths:
         plots_dir = get_plot_dir(run_dir)
@@ -554,6 +850,118 @@ def _ordered_artifact_links(*, run_dir: Path, plot_paths: dict[str, Path]) -> li
             ordered.append((plot_paths[plot_name].name, plot_paths[plot_name]))
 
     return ordered
+
+
+def _render_split_metrics_table(metrics_by_split: pd.DataFrame) -> list[str]:
+    lines = ["### Split Metrics", "", "| " + " | ".join(label for _, label in _WALK_FORWARD_SPLIT_COLUMNS) + " |"]
+    lines.append("| " + " | ".join("---" for _ in _WALK_FORWARD_SPLIT_COLUMNS) + " |")
+    for _, row in metrics_by_split.sort_values("split_id", kind="stable").iterrows():
+        values = [
+            _format_metric_value(column, row.get(column))
+            if column not in {"split_id", "test_start", "test_end"}
+            else _format_value(row.get(column))
+            for column, _ in _WALK_FORWARD_SPLIT_COLUMNS
+        ]
+        lines.append("| " + " | ".join(values) + " |")
+    lines.append("")
+    return lines
+
+
+def _render_stability_summary(
+    *,
+    metrics: dict[str, Any],
+    aggregate_metrics: dict[str, Any] | None,
+    metrics_by_split: pd.DataFrame,
+) -> list[str]:
+    metric_statistics = {}
+    if isinstance(aggregate_metrics, dict):
+        raw_statistics = aggregate_metrics.get("metric_statistics")
+        if isinstance(raw_statistics, dict):
+            metric_statistics = raw_statistics
+
+    lines = ["### Aggregate Stability", "", "| Metric | Aggregate | Mean | Std | Min | Max |", "| --- | --- | --- | --- | --- | --- |"]
+    for metric_name, label in _WALK_FORWARD_STABILITY_COLUMNS:
+        stats = metric_statistics.get(metric_name)
+        if not isinstance(stats, dict):
+            stats = _metric_statistics_from_splits(metrics_by_split, metric_name)
+        if stats is None and metrics.get(metric_name) is None:
+            continue
+        lines.append(
+            "| "
+            + " | ".join(
+                [
+                    label,
+                    _format_metric_value(metric_name, metrics.get(metric_name)),
+                    _format_metric_value(metric_name, None if stats is None else stats.get("mean")),
+                    _format_metric_value(metric_name, None if stats is None else stats.get("std")),
+                    _format_metric_value(metric_name, None if stats is None else stats.get("min")),
+                    _format_metric_value(metric_name, None if stats is None else stats.get("max")),
+                ]
+            )
+            + " |"
+        )
+    lines.append("")
+    return lines
+
+
+def _render_flagged_splits(
+    *,
+    output_path: Path,
+    run_dir: Path,
+    aggregate_metrics: dict[str, Any] | None,
+    metrics_by_split: pd.DataFrame,
+) -> list[str]:
+    flagged_split_ids = _flagged_split_ids(aggregate_metrics=aggregate_metrics, metrics_by_split=metrics_by_split)
+    lines = ["### Review Flags", ""]
+    if not flagged_split_ids:
+        lines.extend(["- No flagged splits were detected in the saved walk-forward artifacts.", ""])
+        return lines
+
+    lines.append(f"- Flagged splits: `{', '.join(flagged_split_ids)}`.")
+    lines.append("- Inspect the saved split artifacts for the unstable windows:")
+    for split_id in flagged_split_ids:
+        split_dir = run_dir / "splits" / split_id
+        if split_dir.exists():
+            lines.append(f"  - [{split_id}]({_relative_markdown_path(output_path, split_dir)})")
+        else:
+            lines.append(f"  - `{split_id}`")
+    lines.append("")
+    return lines
+
+
+def _metric_statistics_from_splits(metrics_by_split: pd.DataFrame, metric_name: str) -> dict[str, float] | None:
+    if metric_name not in metrics_by_split.columns:
+        return None
+    series = pd.to_numeric(metrics_by_split[metric_name], errors="coerce").dropna()
+    if series.empty:
+        return None
+    return {
+        "mean": float(series.mean()),
+        "std": float(series.std(ddof=0)),
+        "min": float(series.min()),
+        "max": float(series.max()),
+    }
+
+
+def _flagged_split_ids(
+    *,
+    aggregate_metrics: dict[str, Any] | None,
+    metrics_by_split: pd.DataFrame,
+) -> list[str]:
+    if isinstance(aggregate_metrics, dict):
+        sanity = aggregate_metrics.get("sanity")
+        if isinstance(sanity, dict):
+            flagged = sanity.get("flagged_splits")
+            if isinstance(flagged, list):
+                return [str(split_id) for split_id in flagged]
+
+    if "sanity_issue_count" not in metrics_by_split.columns or "split_id" not in metrics_by_split.columns:
+        return []
+    flagged_rows = metrics_by_split.loc[
+        pd.to_numeric(metrics_by_split["sanity_issue_count"], errors="coerce").fillna(0.0) > 0.0,
+        "split_id",
+    ]
+    return [str(value) for value in flagged_rows.tolist()]
 
 
 def _render_key_value_table(rows: list[tuple[str, str]]) -> list[str]:

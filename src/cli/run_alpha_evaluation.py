@@ -34,6 +34,7 @@ from src.research.alpha_eval import (
     resolve_alpha_evaluation_artifact_dir,
     write_alpha_evaluation_artifacts,
 )
+from src.research.promotion import load_promotion_gate_config
 from src.research.registry import RegistryError, canonicalize_value, serialize_canonical_json
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -98,6 +99,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--min-cross-section-size",
         type=int,
         help="Minimum number of non-null rows required per evaluation timestamp.",
+    )
+    parser.add_argument(
+        "--promotion-gates",
+        help="Optional YAML/JSON promotion gate config override.",
     )
     return parser.parse_args(argv)
 
@@ -189,6 +194,7 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
         evaluation_result,
         run_id=run_id,
         alpha_name=str(resolved_config["alpha_model"]),
+        promotion_gate_config=resolved_config.get("promotion_gates"),
     )
     register_alpha_evaluation_run(
         run_id=run_id,
@@ -240,6 +246,7 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         "tickers": None if args.tickers is None else load_ticker_file(args.tickers),
         "artifacts_root": args.artifacts_root,
         "min_cross_section_size": args.min_cross_section_size,
+        "promotion_gates": None if args.promotion_gates is None else load_promotion_gate_config(args.promotion_gates),
     }
 
     resolved = dict(config_payload)

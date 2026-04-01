@@ -60,6 +60,7 @@ def test_run_cli_generates_summary_and_comparison_plots(tmp_path: Path, monkeypa
         ).to_csv(run_dir / "equity_curve.csv", index=False)
 
     comparison_result = ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -113,7 +114,6 @@ def test_run_cli_generates_summary_and_comparison_plots(tmp_path: Path, monkeypa
     comparison_result.csv_path.write_text("rank,strategy_name\n1,momentum_v1\n", encoding="utf-8")
     comparison_result.json_path.write_text("{}", encoding="utf-8")
 
-    generated_plot_calls: list[Path] = []
     report_calls: list[Path] = []
 
     monkeypatch.setattr("src.cli.strategy_comparison_example.ARTIFACTS_ROOT", artifacts_root)
@@ -131,19 +131,6 @@ def test_run_cli_generates_summary_and_comparison_plots(tmp_path: Path, monkeypa
 
     monkeypatch.setattr("src.cli.strategy_comparison_example.generate_strategy_report", fake_generate_strategy_report)
 
-    def fake_plot_equity_comparison(*args, output_path: Path, **kwargs) -> Path:
-        generated_plot_calls.append(output_path)
-        output_path.write_text("equity", encoding="utf-8")
-        return output_path
-
-    def fake_plot_metric_comparison(*args, output_path: Path, **kwargs) -> Path:
-        generated_plot_calls.append(output_path)
-        output_path.write_text("metric", encoding="utf-8")
-        return output_path
-
-    monkeypatch.setattr("src.cli.strategy_comparison_example.plot_equity_comparison", fake_plot_equity_comparison)
-    monkeypatch.setattr("src.cli.strategy_comparison_example.plot_metric_comparison", fake_plot_metric_comparison)
-
     summary = run_cli(
         [
             "--strategies",
@@ -157,13 +144,10 @@ def test_run_cli_generates_summary_and_comparison_plots(tmp_path: Path, monkeypa
     summary_path = tmp_path / "artifacts" / "comparisons" / "example" / "example_summary.json"
     assert summary_path.exists()
     assert report_calls == [artifacts_root / run_ids["momentum_v1"]]
-    assert generated_plot_calls == [
-        tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "equity_comparison.png",
-        tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "equity_comparison_debug.png",
-        tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "metric_comparison_sharpe_ratio.png",
-    ]
+    assert_file_exists(tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "equity_comparison.png")
+    assert_file_exists(tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "metric_comparison_sharpe_ratio.png")
     assert summary["report_path"] == (artifacts_root / run_ids["momentum_v1"] / "report.md").as_posix()
-    assert summary["comparison_plots"]["equity_comparison_debug"].endswith("equity_comparison_debug.png")
+    assert summary["comparison_plots"]["equity_comparison"].endswith("equity_comparison.png")
 
 
 def test_generate_comparison_plots_creates_expected_artifact_set_and_is_deterministic(tmp_path: Path) -> None:
@@ -188,6 +172,7 @@ def test_generate_comparison_plots_creates_expected_artifact_set_and_is_determin
         run_dirs[strategy_name] = run_dir
 
     comparison_result = ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -252,7 +237,6 @@ def test_generate_comparison_plots_creates_expected_artifact_set_and_is_determin
 
     expected_names = {
         "equity_comparison": "equity_comparison.png",
-        "equity_comparison_debug": "equity_comparison_debug.png",
         "metric_comparison": "metric_comparison_sharpe_ratio.png",
     }
     expected_plot_listing = sorted(expected_names.values())
@@ -297,6 +281,7 @@ def test_generate_comparison_plots_handles_duplicate_timestamps_from_run_artifac
         run_dirs[strategy_name] = run_dir
 
     comparison_result = ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -355,7 +340,6 @@ def test_generate_comparison_plots_handles_duplicate_timestamps_from_run_artifac
     )
 
     assert_file_exists(paths["equity_comparison"])
-    assert_file_exists(paths["equity_comparison_debug"])
     assert_file_exists(paths["metric_comparison"])
 
 
@@ -385,6 +369,7 @@ def test_run_cli_summary_lists_relative_comparison_artifacts_only(tmp_path: Path
         )
 
     comparison_result = ComparisonResult(
+        comparison_id="fresh_single_sharpe_ratio_deadbeefcafe",
         metric="sharpe_ratio",
         evaluation_mode="single",
         selection_mode="fresh",
@@ -457,9 +442,7 @@ def test_run_cli_summary_lists_relative_comparison_artifacts_only(tmp_path: Path
     assert_file_exists(summary_path)
     assert_file_exists(report_path)
     assert_file_exists(tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "equity_comparison.png")
-    assert_file_exists(tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "equity_comparison_debug.png")
     assert_file_exists(tmp_path / "artifacts" / "comparisons" / "example" / "plots" / "metric_comparison_sharpe_ratio.png")
     assert summary["comparison_plots"]["equity_comparison"].endswith("equity_comparison.png")
-    assert summary["comparison_plots"]["equity_comparison_debug"].endswith("equity_comparison_debug.png")
     assert summary["comparison_plots"]["metric_comparison"].endswith("metric_comparison_sharpe_ratio.png")
     assert "equity_comparison_debug.png" not in report_path.read_text(encoding="utf-8")

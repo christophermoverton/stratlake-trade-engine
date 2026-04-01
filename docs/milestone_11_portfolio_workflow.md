@@ -50,6 +50,9 @@ which keeps the workflow deterministic and auditable.
 Alpha-derived sleeves can also feed the same constructor once they have been
 backtested into aligned return streams. See
 [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md).
+Completed portfolio runs can then flow into the Milestone 13 unified review
+layer for cross-run ranking and review-level promotion decisions. See
+[milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).
 
 ## What To Run First
 

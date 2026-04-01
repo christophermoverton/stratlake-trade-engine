@@ -19,6 +19,8 @@ STRATEGY_RUN_TYPE = "strategy"
 PORTFOLIO_RUN_TYPE = "portfolio"
 ALPHA_EVALUATION_RUN_TYPE = "alpha_evaluation"
 _VALID_RUN_TYPES = frozenset({STRATEGY_RUN_TYPE, PORTFOLIO_RUN_TYPE, ALPHA_EVALUATION_RUN_TYPE})
+_VALID_REVIEW_STATUSES = frozenset({"candidate", "promoted", "rejected", "needs_review"})
+_REVIEW_METADATA_SCHEMA_VERSION = 1
 
 
 class RegistryError(RuntimeError):
@@ -55,6 +57,58 @@ def serialize_canonical_json(value: Any) -> str:
     """Serialize a value to a canonical JSON string for deterministic snapshots."""
 
     return json.dumps(canonicalize_value(value), sort_keys=True, separators=(",", ":"))
+
+
+def build_review_metadata(
+    *,
+    review: Mapping[str, Any] | None = None,
+    promotion_status: str | None = None,
+    promotion_gate_summary: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build deterministic review metadata with migration-safe defaults."""
+
+    normalized_review = _normalize_review_mapping(review)
+    normalized_summary = (
+        canonicalize_value(dict(promotion_gate_summary))
+        if isinstance(promotion_gate_summary, Mapping)
+        else None
+    )
+    resolved_promotion_status = (
+        _coerce_optional_string(normalized_review.get("promotion_status"))
+        if normalized_review is not None
+        else None
+    )
+    if resolved_promotion_status is None:
+        resolved_promotion_status = _coerce_optional_string(promotion_status)
+    if resolved_promotion_status is None and isinstance(normalized_summary, dict):
+        resolved_promotion_status = _coerce_optional_string(normalized_summary.get("promotion_status"))
+
+    status = _resolve_review_status(
+        normalized_review.get("status") if normalized_review is not None else None,
+        promotion_status=resolved_promotion_status,
+    )
+    payload = {
+        "schema_version": _REVIEW_METADATA_SCHEMA_VERSION,
+        "status": status,
+        "promotion_status": resolved_promotion_status,
+        "decision_reason": _resolve_review_reason(
+            normalized_review.get("decision_reason") if normalized_review is not None else None,
+            review_status=status,
+            promotion_status=resolved_promotion_status,
+            promotion_gate_summary=normalized_summary,
+        ),
+        "decision_source": _resolve_review_source(
+            normalized_review.get("decision_source") if normalized_review is not None else None,
+            promotion_gate_summary=normalized_summary,
+        ),
+        "reviewed_at": (
+            _coerce_optional_string(normalized_review.get("reviewed_at"))
+            if normalized_review is not None
+            else None
+        ),
+        "promotion_gate_summary": normalized_summary,
+    }
+    return canonicalize_value(payload)
 
 
 def load_registry(path: Path) -> list[dict[str, Any]]:
@@ -367,10 +421,93 @@ def _entry_metrics(entry: Mapping[str, Any]) -> dict[str, Any] | None:
     return None
 
 
+def resolve_review_status(entry: Mapping[str, Any]) -> str | None:
+    """Return review status when available, otherwise fall back to legacy promotion statuses."""
+
+    direct = _coerce_optional_string(entry.get("review_status"))
+    if direct is not None:
+        return direct
+    review_metadata = entry.get("review_metadata")
+    if isinstance(review_metadata, Mapping):
+        nested = _coerce_optional_string(review_metadata.get("status"))
+        if nested is not None:
+            return nested
+    direct_promotion = _coerce_optional_string(entry.get("promotion_status"))
+    if direct_promotion is not None:
+        return direct_promotion
+    summary = entry.get("promotion_gate_summary")
+    if isinstance(summary, Mapping):
+        return _coerce_optional_string(summary.get("promotion_status"))
+    return None
+
+
 def _validate_run_type(run_type: str) -> None:
     if run_type not in _VALID_RUN_TYPES:
         formatted = ", ".join(sorted(_VALID_RUN_TYPES))
         raise ValueError(f"run_type must be one of: {formatted}.")
+
+
+def _normalize_review_mapping(review: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if review is None:
+        return None
+    if not isinstance(review, Mapping):
+        raise ValueError("review must be a mapping when provided.")
+    return {
+        key: canonicalize_value(value)
+        for key, value in review.items()
+    }
+
+
+def _resolve_review_status(raw_status: object, *, promotion_status: str | None) -> str:
+    normalized = _coerce_optional_string(raw_status)
+    if normalized is not None:
+        if normalized not in _VALID_REVIEW_STATUSES:
+            formatted = ", ".join(sorted(_VALID_REVIEW_STATUSES))
+            raise ValueError(f"review.status must be one of: {formatted}.")
+        return normalized
+    if promotion_status == "eligible":
+        return "candidate"
+    if promotion_status == "blocked":
+        return "rejected"
+    return "needs_review"
+
+
+def _resolve_review_reason(
+    raw_reason: object,
+    *,
+    review_status: str,
+    promotion_status: str | None,
+    promotion_gate_summary: Mapping[str, Any] | None,
+) -> str:
+    normalized = _coerce_optional_string(raw_reason)
+    if normalized is not None:
+        return normalized
+    if isinstance(promotion_gate_summary, Mapping):
+        passed = promotion_gate_summary.get("passed_gate_count")
+        gate_count = promotion_gate_summary.get("gate_count")
+        evaluation_status = _coerce_optional_string(promotion_gate_summary.get("evaluation_status"))
+        summary_suffix = (
+            ""
+            if evaluation_status is None
+            else f", evaluation={evaluation_status}"
+        )
+        return (
+            f"promotion gates produced '{promotion_status}' "
+            f"({passed if isinstance(passed, int) else 0}/{gate_count if isinstance(gate_count, int) else 0} passed"
+            f"{summary_suffix})."
+        )
+    if review_status == "needs_review":
+        return "promotion metadata absent; manual review required."
+    return f"review status derived from promotion outcome '{promotion_status}'."
+
+
+def _resolve_review_source(raw_source: object, *, promotion_gate_summary: Mapping[str, Any] | None) -> str:
+    normalized = _coerce_optional_string(raw_source)
+    if normalized is not None:
+        return normalized
+    if isinstance(promotion_gate_summary, Mapping):
+        return "promotion_gate_summary"
+    return "registry_default"
 
 
 def _normalize_required_string(value: object, *, field_name: str) -> str:
@@ -388,6 +525,13 @@ def _normalize_optional_path(value: str | Path | None) -> str | None:
     if isinstance(value, Path):
         return value.as_posix()
     return _normalize_required_string(value, field_name="evaluation_config_path")
+
+
+def _coerce_optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _normalize_component_run_ids(component_run_ids: Iterable[str]) -> list[str]:
@@ -483,6 +627,21 @@ def _build_portfolio_registry_entry(
     else:
         timestamp = _normalize_required_string(timestamp, field_name="timestamp")
 
+    promotion_gate_summary = (
+        canonicalize_value(dict(metadata["promotion_gate_summary"]))
+        if isinstance(metadata.get("promotion_gate_summary"), dict)
+        else None
+    )
+    review_metadata = build_review_metadata(
+        review=metadata.get("review") if isinstance(metadata.get("review"), Mapping) else None,
+        promotion_status=(
+            metadata.get("promotion_status")
+            if isinstance(metadata.get("promotion_status"), str)
+            else None
+        ),
+        promotion_gate_summary=promotion_gate_summary,
+    )
+
     extra_metadata = {
         key: canonicalize_value(value)
         for key, value in metadata.items()
@@ -497,6 +656,9 @@ def _build_portfolio_registry_entry(
             "end",
             "evaluation_config_path",
             "split_count",
+            "promotion_status",
+            "promotion_gate_summary",
+            "review",
         }
     }
     metrics_summary = _portfolio_metrics_summary(metrics)
@@ -529,6 +691,14 @@ def _build_portfolio_registry_entry(
         "simulation_summary": simulation_summary,
         "evaluation_config_path": evaluation_config_path,
         "split_count": split_count,
+        "promotion_status": (
+            promotion_gate_summary.get("promotion_status")
+            if isinstance(promotion_gate_summary, dict)
+            else None
+        ),
+        "review_status": review_metadata["status"],
+        "review_metadata": review_metadata,
+        "promotion_gate_summary": promotion_gate_summary,
         "config": canonicalize_value(config),
         "components": normalized_components,
         "metadata": extra_metadata,

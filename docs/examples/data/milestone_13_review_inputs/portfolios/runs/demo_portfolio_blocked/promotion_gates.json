@@ -1,0 +1,41 @@
+{
+  "artifact_filename": "promotion_gates.json",
+  "configured": true,
+  "evaluation_status": "fail",
+  "failed_gate_count": 1,
+  "gate_count": 2,
+  "missing_gate_count": 0,
+  "passed_gate_count": 1,
+  "promotion_status": "blocked",
+  "results": [
+    {
+      "actual_value": 0.78,
+      "comparator": "gte",
+      "description": "Require stronger Sharpe ratio.",
+      "gate_id": "min_sharpe",
+      "metric_path": "sharpe_ratio",
+      "missing_behavior": "fail",
+      "reason": "0.78 not gte 1.0",
+      "source": "metrics",
+      "statistic": "value",
+      "status": "fail",
+      "threshold": 1.0
+    },
+    {
+      "actual_value": 0.0,
+      "comparator": "lte",
+      "description": "Require no blocking QA issues.",
+      "gate_id": "qa_clean",
+      "metric_path": "sanity.issue_count",
+      "missing_behavior": "fail",
+      "reason": "0.0 lte 0.0",
+      "source": "qa_summary",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 0.0
+    }
+  ],
+  "run_type": "portfolio",
+  "status_on_fail": "blocked",
+  "status_on_pass": "eligible"
+}

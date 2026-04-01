@@ -1,0 +1,41 @@
+{
+  "artifact_filename": "promotion_gates.json",
+  "configured": true,
+  "evaluation_status": "pass",
+  "failed_gate_count": 0,
+  "gate_count": 2,
+  "missing_gate_count": 0,
+  "passed_gate_count": 2,
+  "promotion_status": "eligible",
+  "results": [
+    {
+      "actual_value": 0.82,
+      "comparator": "gte",
+      "description": "Require positive ICIR.",
+      "gate_id": "min_ic_ir",
+      "metric_path": "ic_ir",
+      "missing_behavior": "fail",
+      "reason": "0.82 gte 0.5",
+      "source": "metrics",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 0.5
+    },
+    {
+      "actual_value": 6.0,
+      "comparator": "gte",
+      "description": "Require enough evaluation periods.",
+      "gate_id": "min_periods",
+      "metric_path": "n_periods",
+      "missing_behavior": "fail",
+      "reason": "6.0 gte 5.0",
+      "source": "metrics",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 5.0
+    }
+  ],
+  "run_type": "alpha_evaluation",
+  "status_on_fail": "blocked",
+  "status_on_pass": "eligible"
+}

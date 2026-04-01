@@ -93,6 +93,56 @@ def test_register_alpha_evaluation_run_writes_stable_registry_entry(tmp_path: Pa
     }
     assert entry["manifest"]["metrics_path"] == "alpha_metrics.json"
     assert entry["metadata"]["artifact_scaffold"]["ic_timeseries"] == "ic_timeseries.csv"
+    assert entry["review_status"] == "needs_review"
+    assert entry["review_metadata"]["status"] == "needs_review"
+
+
+def test_register_alpha_evaluation_run_persists_review_metadata_round_trip(tmp_path: Path) -> None:
+    artifacts_root = tmp_path / "artifacts" / "alpha"
+    result = evaluate_alpha_predictions(_alpha_eval_frame())
+    artifact_dir = artifacts_root / "demo_alpha_eval_run"
+    manifest = write_alpha_evaluation_artifacts(
+        artifact_dir,
+        result,
+        run_id="demo_alpha_eval_run",
+        alpha_name="demo_alpha",
+    )
+    manifest["review"] = {
+        "status": "promoted",
+        "decision_reason": "alpha review board promoted run",
+        "decision_source": "manual_review",
+        "reviewed_at": "2026-03-19T12:30:00Z",
+    }
+    effective_config = {
+        "alpha_model": "demo_alpha",
+        "dataset": "features_daily",
+        "alpha_horizon": 1,
+        "price_column": "close",
+        "target_column": "target_ret_1d",
+    }
+
+    entry = register_alpha_evaluation_run(
+        run_id="demo_alpha_eval_run",
+        alpha_name="demo_alpha",
+        effective_config=effective_config,
+        evaluation_result=result,
+        artifact_dir=artifact_dir,
+        manifest=manifest,
+    )
+
+    loaded = load_alpha_evaluation_registry(artifacts_root)[0]
+
+    assert loaded == entry
+    assert entry["review_status"] == "promoted"
+    assert entry["review_metadata"] == {
+        "decision_reason": "alpha review board promoted run",
+        "decision_source": "manual_review",
+        "promotion_gate_summary": None,
+        "promotion_status": None,
+        "reviewed_at": "2026-03-19T12:30:00Z",
+        "schema_version": 1,
+        "status": "promoted",
+    }
 
 
 def test_register_alpha_evaluation_run_upserts_identical_reruns_without_duplicates(tmp_path: Path) -> None:

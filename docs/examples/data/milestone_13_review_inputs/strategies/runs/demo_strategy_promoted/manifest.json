@@ -1,0 +1,30 @@
+{
+  "artifact_files": [
+    "manifest.json",
+    "metrics.json",
+    "promotion_gates.json",
+    "qa_summary.json"
+  ],
+  "artifact_groups": {
+    "core": [
+      "manifest.json",
+      "metrics.json",
+      "qa_summary.json"
+    ],
+    "qa": [
+      "promotion_gates.json"
+    ]
+  },
+  "promotion_gate_summary": {
+    "artifact_filename": "promotion_gates.json",
+    "configured": true,
+    "evaluation_status": "pass",
+    "failed_gate_count": 0,
+    "gate_count": 2,
+    "missing_gate_count": 0,
+    "passed_gate_count": 2,
+    "promotion_status": "eligible",
+    "status_on_fail": "blocked",
+    "status_on_pass": "eligible"
+  }
+}

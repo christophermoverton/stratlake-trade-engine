@@ -165,3 +165,7 @@ For a practical review pass:
 6. Review `equity_curve.csv` or `portfolio_returns.csv`.
 
 That sequence keeps trust and realism checks ahead of headline metrics.
+
+For the Milestone 13 layer that assembles completed alpha, strategy, and
+portfolio runs into one registry-backed review pack, see
+[milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).

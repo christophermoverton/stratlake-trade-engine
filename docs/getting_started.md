@@ -181,6 +181,7 @@ python docs/examples/milestone_13_review_promotion_workflow.py
 
 See:
 
+* [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)
 * [examples/milestone_13_review_promotion_workflow.md](examples/milestone_13_review_promotion_workflow.md)
 * [review_configuration.md](review_configuration.md)
 

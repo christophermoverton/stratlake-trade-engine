@@ -10,6 +10,8 @@ repository defaults < review config file < CLI overrides
 
 The contract lives in `src/config/review.py` and is consumed by
 `src/cli/compare_research.py` and `src/research/review.py`.
+For the end-to-end workflow that uses this contract, see
+[milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).
 
 ## Example Workflow
 
@@ -140,3 +142,8 @@ Unified review artifacts now persist the effective resolved review config in:
 
 That persisted payload reflects the fully merged contract after repository
 defaults, review-config file values, and CLI overrides are applied.
+
+This config doc is intentionally focused on the contract itself. For practical
+guidance on where the review layer fits in the pipeline, how to read
+`leaderboard.csv`, and how to interpret review-level promotion results, see
+[milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).

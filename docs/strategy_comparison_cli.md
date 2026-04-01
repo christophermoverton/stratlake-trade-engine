@@ -220,6 +220,10 @@ persisted into `review_summary.json` and `manifest.json` so review filtering,
 ranking metrics, plot preferences, and review-level promotion gates are
 auditable after the run is written.
 
+For the practical Milestone 13 workflow that positions unified review after
+alpha evaluation, strategy runs, and portfolio runs, see
+[milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).
+
 ## Compatibility Notes
 
 The main compatibility change is additive:
@@ -239,5 +243,6 @@ execution semantics are otherwise preserved.
 * [docs/experiment_artifact_logging.md](experiment_artifact_logging.md)
 * [docs/strategy_performance_metrics.md](strategy_performance_metrics.md)
 * [docs/research_visualization_workflow.md](research_visualization_workflow.md)
+* [docs/milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)
 * [docs/review_configuration.md](review_configuration.md)
 * [docs/examples/strategy_comparison_example.md](examples/strategy_comparison_example.md)

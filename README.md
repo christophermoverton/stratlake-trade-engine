@@ -8,11 +8,11 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 12 Summary
+## Milestone 13 Summary
 
-Milestone 12 promotes StratLake into a deterministic alpha-research platform
-that now evaluates predictive quality before downstream signal mapping,
-backtesting, and portfolio construction. The repository now supports:
+Milestone 13 promotes StratLake into a deterministic research-review platform
+that now carries alpha evaluation, strategy runs, and portfolio runs into one
+shared registry-backed review layer. The repository now supports:
 
 * alpha model registration through a deterministic `BaseAlphaModel` interface
 * deterministic alpha training and prediction helpers with explicit half-open
@@ -31,6 +31,8 @@ backtesting, and portfolio construction. The repository now supports:
   `risk_parity`
 * operational volatility targeting in portfolio workflows, separate from
   diagnostic risk summaries
+* unified review workflows for ranking completed alpha, strategy, and
+  portfolio runs together
 * deterministic return simulation, robustness analysis, artifact manifests,
   and registry-backed reuse
 
@@ -39,6 +41,7 @@ Start with:
 * [docs/alpha_workflow.md](docs/alpha_workflow.md)
 * [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
+* [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
@@ -346,6 +349,8 @@ python docs/examples/milestone_13_review_promotion_workflow.py
 This example demonstrates completed alpha, strategy, and portfolio artifacts
 flowing into one registry-backed review output and one review-level promotion
 decision.
+The primary workflow guide lives in
+[docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
 
 ### 5. Run a portfolio
 
@@ -475,6 +480,8 @@ The Milestone 13 review-and-promotion example lives at
 [docs/examples/milestone_13_review_promotion_workflow.py](docs/examples/milestone_13_review_promotion_workflow.py)
 with workflow notes in
 [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md).
+The primary workflow guide lives at
+[docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
 
 ## Artifact Overview
 
@@ -555,6 +562,7 @@ Start here:
 * [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
 * [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
+* [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 
 Portfolio references:
 

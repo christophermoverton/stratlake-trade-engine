@@ -37,9 +37,10 @@ portfolio construction
 artifacts
 ```
 
-Alpha utilities do not write artifacts themselves in this milestone. They
-prepare deterministic model state and prediction outputs that can feed the
-existing research and portfolio layers.
+Alpha utilities feed the alpha-evaluation layer, which now persists
+deterministic artifacts such as `predictions.parquet`,
+`training_summary.json`, `coefficients.json`,
+`cross_section_diagnostics.json`, `alpha_metrics.json`, and `manifest.json`.
 
 ## Alpha Model Interface
 

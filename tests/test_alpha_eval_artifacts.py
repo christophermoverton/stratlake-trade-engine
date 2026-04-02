@@ -45,16 +45,26 @@ def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_pat
 
     assert manifest["artifact_files"] == [
         "alpha_metrics.json",
+        "coefficients.json",
+        "cross_section_diagnostics.json",
         "ic_timeseries.csv",
         "manifest.json",
+        "predictions.parquet",
+        "training_summary.json",
     ]
     assert manifest["artifact_groups"]["alpha_evaluation"] == [
         "alpha_metrics.json",
+        "coefficients.json",
+        "cross_section_diagnostics.json",
         "ic_timeseries.csv",
         "manifest.json",
+        "predictions.parquet",
+        "training_summary.json",
     ]
     assert manifest["run_id"] == "run_123"
     assert manifest["alpha_name"] == "demo_alpha"
+    assert manifest["artifact_paths"]["predictions"] == "predictions.parquet"
+    assert manifest["artifact_paths"]["training_summary"] == "training_summary.json"
     assert manifest["timeseries_columns"] == ["ts_utc", "ic", "rank_ic", "n_obs", "sample_size"]
 
     timeseries = pd.read_csv(output_dir / "ic_timeseries.csv")
@@ -77,6 +87,25 @@ def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_pat
     assert metrics_payload["metadata"]["run_id"] == "run_123"
     assert metrics_payload["metadata"]["alpha_name"] == "demo_alpha"
     assert metrics_payload["metadata"]["timeframe"] == "1d"
+
+    training_summary = json.loads((output_dir / "training_summary.json").read_text(encoding="utf-8"))
+    assert training_summary["alpha_name"] == "demo_alpha"
+    assert training_summary["run_id"] == "run_123"
+    assert training_summary["model_name"] is None
+    assert training_summary["training"]["train_row_count"] is None
+
+    coefficients_payload = json.loads((output_dir / "coefficients.json").read_text(encoding="utf-8"))
+    assert coefficients_payload["representation"] == "unavailable"
+    assert coefficients_payload["values"] == {}
+
+    diagnostics_payload = json.loads((output_dir / "cross_section_diagnostics.json").read_text(encoding="utf-8"))
+    assert diagnostics_payload["row_count"] == result.row_count
+    assert diagnostics_payload["timestamp_count"] == result.timestamp_count
+    assert diagnostics_payload["valid_periods"]["ic"] == result.summary["n_periods"]
+
+    predictions = pd.read_parquet(output_dir / "predictions.parquet")
+    assert list(predictions.columns) == ["symbol", "ts_utc", "timeframe", "prediction_score"]
+    assert predictions.empty
 
     manifest_payload = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest_payload == manifest
@@ -134,12 +163,18 @@ def test_write_alpha_evaluation_artifacts_updates_parent_manifest_idempotently(t
     assert parent_manifest["alpha_evaluation"]["enabled"] is True
     assert parent_manifest["alpha_evaluation"]["artifact_path"] == "alpha_eval"
     assert parent_manifest["alpha_evaluation"]["metrics_path"] == "alpha_eval/alpha_metrics.json"
+    assert parent_manifest["alpha_evaluation"]["predictions_path"] == "alpha_eval/predictions.parquet"
+    assert parent_manifest["alpha_evaluation"]["training_summary_path"] == "alpha_eval/training_summary.json"
     assert parent_manifest["alpha_evaluation"]["timeseries_path"] == "alpha_eval/ic_timeseries.csv"
     assert "alpha_eval/alpha_metrics.json" in parent_manifest["artifact_files"]
     assert parent_manifest["artifact_groups"]["alpha_evaluation"] == [
         "alpha_eval/alpha_metrics.json",
+        "alpha_eval/coefficients.json",
+        "alpha_eval/cross_section_diagnostics.json",
         "alpha_eval/ic_timeseries.csv",
         "alpha_eval/manifest.json",
+        "alpha_eval/predictions.parquet",
+        "alpha_eval/training_summary.json",
     ]
 
 

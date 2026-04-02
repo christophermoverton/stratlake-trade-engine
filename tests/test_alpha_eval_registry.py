@@ -77,6 +77,10 @@ def test_register_alpha_evaluation_run_writes_stable_registry_entry(tmp_path: Pa
     assert entry["timeframe"] == "1d"
     assert entry["evaluation_horizon"] == 3
     assert entry["artifact_path"] == artifact_dir.as_posix()
+    assert entry["predictions_path"] == (artifact_dir / "predictions.parquet").as_posix()
+    assert entry["training_summary_path"] == (artifact_dir / "training_summary.json").as_posix()
+    assert entry["coefficients_path"] == (artifact_dir / "coefficients.json").as_posix()
+    assert entry["cross_section_diagnostics_path"] == (artifact_dir / "cross_section_diagnostics.json").as_posix()
     assert entry["ic_timeseries_path"] == (artifact_dir / "ic_timeseries.csv").as_posix()
     assert entry["metrics_path"] == (artifact_dir / "alpha_metrics.json").as_posix()
     assert entry["manifest_path"] == (artifact_dir / "manifest.json").as_posix()
@@ -92,7 +96,9 @@ def test_register_alpha_evaluation_run_writes_stable_registry_entry(tmp_path: Pa
         "n_periods": result.summary["n_periods"],
     }
     assert entry["manifest"]["metrics_path"] == "alpha_metrics.json"
+    assert entry["manifest"]["predictions_path"] == "predictions.parquet"
     assert entry["metadata"]["artifact_scaffold"]["ic_timeseries"] == "ic_timeseries.csv"
+    assert entry["metadata"]["artifact_scaffold"]["predictions"] == "predictions.parquet"
     assert entry["review_status"] == "needs_review"
     assert entry["review_metadata"]["status"] == "needs_review"
 

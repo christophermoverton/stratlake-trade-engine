@@ -87,8 +87,12 @@ def evaluate_alpha_predictions(
         "input_columns": list(validated.columns),
         "ic_timeseries_columns": list(ic_timeseries.columns),
         "artifact_scaffold": {
+            "coefficients": "coefficients.json",
             "ic_timeseries": "ic_timeseries.csv",
             "alpha_metrics": "alpha_metrics.json",
+            "cross_section_diagnostics": "cross_section_diagnostics.json",
+            "predictions": "predictions.parquet",
+            "training_summary": "training_summary.json",
         },
         "timeframe": timeframe,
         "ts_utc_start": validated["ts_utc"].min(),

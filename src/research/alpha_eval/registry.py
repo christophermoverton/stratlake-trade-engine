@@ -88,6 +88,23 @@ def build_alpha_evaluation_registry_entry(
             "end": _format_optional_timestamp(metadata.get("ts_utc_end")),
         },
         "artifact_path": resolved_artifact_dir.as_posix(),
+        "artifact_paths": canonicalize_value(dict(manifest_payload.get("artifact_paths", {}))),
+        "predictions_path": resolved_artifact_dir.joinpath(
+            str(manifest_payload.get("predictions_path", "predictions.parquet"))
+        ).as_posix(),
+        "training_summary_path": resolved_artifact_dir.joinpath(
+            str(manifest_payload.get("training_summary_path", "training_summary.json"))
+        ).as_posix(),
+        "coefficients_path": resolved_artifact_dir.joinpath(
+            str(
+                manifest_payload.get("artifact_paths", {}).get("coefficients", "coefficients.json")
+                if isinstance(manifest_payload.get("artifact_paths"), Mapping)
+                else "coefficients.json"
+            )
+        ).as_posix(),
+        "cross_section_diagnostics_path": resolved_artifact_dir.joinpath(
+            str(manifest_payload.get("cross_section_diagnostics_path", "cross_section_diagnostics.json"))
+        ).as_posix(),
         "ic_timeseries_path": resolved_artifact_dir.joinpath(
             str(manifest_payload.get("timeseries_path", "ic_timeseries.csv"))
         ).as_posix(),

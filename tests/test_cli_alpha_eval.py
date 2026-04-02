@@ -212,8 +212,12 @@ def test_run_cli_executes_full_alpha_evaluation_pipeline_and_persists_artifacts(
     assert result.evaluation_result.summary["n_periods"] == 4
     assert result.artifact_dir.exists()
     assert (result.artifact_dir / "alpha_metrics.json").exists()
+    assert (result.artifact_dir / "coefficients.json").exists()
+    assert (result.artifact_dir / "cross_section_diagnostics.json").exists()
     assert (result.artifact_dir / "ic_timeseries.csv").exists()
     assert (result.artifact_dir / "manifest.json").exists()
+    assert (result.artifact_dir / "predictions.parquet").exists()
+    assert (result.artifact_dir / "training_summary.json").exists()
 
     metrics_payload = json.loads((result.artifact_dir / "alpha_metrics.json").read_text(encoding="utf-8"))
     assert metrics_payload["metadata"]["alpha_name"] == MODEL_NAME
@@ -222,11 +226,24 @@ def test_run_cli_executes_full_alpha_evaluation_pipeline_and_persists_artifacts(
     assert metrics_payload["ic_ir"] == pytest.approx(result.evaluation_result.summary["ic_ir"])
     assert metrics_payload["n_periods"] == result.evaluation_result.summary["n_periods"]
 
+    training_summary = json.loads((result.artifact_dir / "training_summary.json").read_text(encoding="utf-8"))
+    assert training_summary["model_name"] == MODEL_NAME
+    assert training_summary["training"]["train_row_count"] == result.trained_model.row_count
+    assert training_summary["prediction"]["predict_row_count"] == result.prediction_result.row_count
+
+    coefficients_payload = json.loads((result.artifact_dir / "coefficients.json").read_text(encoding="utf-8"))
+    assert coefficients_payload["representation"] == "feature_means"
+    assert set(coefficients_payload["values"]) == {"feature_alpha", "feature_beta"}
+
+    predictions = pd.read_parquet(result.artifact_dir / "predictions.parquet")
+    pdt.assert_frame_equal(predictions, result.prediction_frame.reset_index(drop=True), check_dtype=False)
+
     registry_entries = load_registry(alpha_evaluation_registry_path(tmp_path / "artifacts" / "alpha"))
     assert len(registry_entries) == 1
     assert registry_entries[0]["run_id"] == result.run_id
     assert registry_entries[0]["alpha_name"] == MODEL_NAME
     assert registry_entries[0]["artifact_path"] == result.artifact_dir.as_posix()
+    assert registry_entries[0]["predictions_path"] == (result.artifact_dir / "predictions.parquet").as_posix()
     assert registry_entries[0]["metrics_path"] == (result.artifact_dir / "alpha_metrics.json").as_posix()
     assert registry_entries[0]["ic_timeseries_path"] == (result.artifact_dir / "ic_timeseries.csv").as_posix()
 

@@ -18,7 +18,9 @@ from src.data.load_features import load_features
 from src.research.alpha import (
     AlphaPredictionError,
     AlphaTrainingError,
+    AlphaPredictionResult,
     BaseAlphaModel,
+    TrainedAlphaModel,
     predict_alpha_model,
     register_alpha_model,
     train_alpha_model,
@@ -50,6 +52,8 @@ class AlphaEvaluationRunResult:
     run_id: str
     artifact_dir: Path
     loaded_frame: pd.DataFrame
+    trained_model: TrainedAlphaModel
+    prediction_result: AlphaPredictionResult
     prediction_frame: pd.DataFrame
     aligned_frame: pd.DataFrame
     evaluation_result: AlphaEvaluationResult
@@ -201,6 +205,9 @@ def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunRe
     manifest = write_alpha_evaluation_artifacts(
         artifact_dir,
         evaluation_result,
+        trained_model=trained_model,
+        prediction_result=prediction_result,
+        aligned_frame=aligned_frame,
         run_id=run_id,
         alpha_name=str(resolved_config["alpha_model"]),
         promotion_gate_config=resolved_config.get("promotion_gates"),
@@ -220,6 +227,8 @@ def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunRe
         run_id=run_id,
         artifact_dir=artifact_dir,
         loaded_frame=loaded_frame,
+        trained_model=trained_model,
+        prediction_result=prediction_result,
         prediction_frame=prediction_result.predictions,
         aligned_frame=aligned_frame,
         evaluation_result=evaluation_result,

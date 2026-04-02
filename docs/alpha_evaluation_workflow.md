@@ -119,6 +119,10 @@ analogue is stored as `rank_ic_ir`.
 
 `write_alpha_evaluation_artifacts(...)` writes:
 
+* `predictions.parquet`
+* `training_summary.json`
+* `coefficients.json`
+* `cross_section_diagnostics.json`
 * `ic_timeseries.csv`
 * `alpha_metrics.json`
 * `manifest.json`
@@ -204,8 +208,9 @@ Registry entries are the cross-run index that point back to those files.
 
 That relationship enables two workflows:
 
-* audit one run by opening `alpha_metrics.json`, `ic_timeseries.csv`, and
-  `manifest.json`
+* audit one run by opening `training_summary.json`, `coefficients.json`,
+  `cross_section_diagnostics.json`, `alpha_metrics.json`, `ic_timeseries.csv`,
+  and `manifest.json`
 * compare many runs by loading the registry and generating a leaderboard
 
 ## Start Here

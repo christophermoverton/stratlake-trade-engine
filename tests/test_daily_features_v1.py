@@ -44,9 +44,8 @@ def test_daily_volatility_and_moving_averages_have_expected_warmup_and_values() 
     ret_1d = np.array([(closes[i] / closes[i - 1]) - 1.0 for i in range(1, len(closes))], dtype=float)
 
     assert np.isnan(features.loc[19, "feature_vol_20d"])
-    assert np.isnan(features.loc[18, "feature_sma20"])
-    assert np.isnan(features.loc[48, "feature_sma50"])
     assert np.isnan(features.loc[18, "feature_sma_20"])
+    assert np.isnan(features.loc[48, "feature_sma_50"])
     assert np.isnan(features.loc[18, "feature_close_to_sma20"])
 
     expected_vol_idx_20 = np.std(ret_1d[:20], ddof=0)
@@ -56,10 +55,9 @@ def test_daily_volatility_and_moving_averages_have_expected_warmup_and_values() 
     expected_close_to_sma20_idx_19 = (closes[19] / expected_sma20_idx_19) - 1.0
 
     assert np.isclose(features.loc[20, "feature_vol_20d"], expected_vol_idx_20)
-    assert np.isclose(features.loc[19, "feature_sma20"], expected_sma20_idx_19)
-    assert np.isclose(features.loc[20, "feature_sma20"], expected_sma20_idx_20)
     assert np.isclose(features.loc[19, "feature_sma_20"], expected_sma20_idx_19)
-    assert np.isclose(features.loc[49, "feature_sma50"], expected_sma50_idx_49)
+    assert np.isclose(features.loc[20, "feature_sma_20"], expected_sma20_idx_20)
+    assert np.isclose(features.loc[49, "feature_sma_50"], expected_sma50_idx_49)
     assert np.isclose(features.loc[19, "feature_close_to_sma20"], expected_close_to_sma20_idx_19)
 
 

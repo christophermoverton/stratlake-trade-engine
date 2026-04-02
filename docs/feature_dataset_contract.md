@@ -79,6 +79,19 @@ Examples:
 
 This prefix is the repository-level signal that a column is part of the engineered feature surface rather than source market data or operational metadata.
 
+For lookback-style features, the canonical pattern is:
+
+```text
+feature_<name>_<window>
+```
+
+Examples:
+
+* `feature_sma_20`
+* `feature_sma_50`
+
+Legacy aliases such as `feature_sma20` may still be accepted by config-facing tooling during migration, but new datasets, registry entries, and documentation should use the canonical underscore form.
+
 ---
 
 ## Row Alignment

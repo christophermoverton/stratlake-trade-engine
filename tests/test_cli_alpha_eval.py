@@ -280,6 +280,67 @@ def test_run_cli_supports_config_and_ticker_file_inputs(
     assert result.evaluation_result.symbol_count == 2
 
 
+def test_run_cli_resolves_legacy_feature_aliases_from_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frame = _write_alpha_eval_dataset(tmp_path).rename(columns={"feature_alpha": "feature_sma_20"})
+    extension_rows: list[dict[str, object]] = []
+    for symbol_index, symbol in enumerate(["AAA", "BBB", "CCC"]):
+        for ts_index, ts_utc in enumerate(pd.date_range("2025-01-06", periods=2, freq="D", tz="UTC"), start=5):
+            extension_rows.append(
+                {
+                    "symbol": symbol,
+                    "ts_utc": ts_utc,
+                    "timeframe": "1D",
+                    "date": ts_utc.strftime("%Y-%m-%d"),
+                    "feature_sma_20": float((symbol_index + 1) * 10 + ts_index),
+                    "feature_beta": float((symbol_index + 1) * 5 - ts_index),
+                    TARGET_COLUMN: float((symbol_index + 1) * 0.01 + ts_index * 0.001),
+                    "close": float((symbol_index + 2) * 100 + (ts_index * (symbol_index + 2)) ** 2 + ts_index),
+                }
+            )
+    frame = pd.concat([frame, pd.DataFrame(extension_rows)], ignore_index=True)
+    frame = frame.sort_values(["symbol", "ts_utc"], kind="stable").reset_index(drop=True)
+    for column in ("symbol", "timeframe", "date"):
+        frame[column] = frame[column].astype("string")
+    frame.loc[frame.groupby("symbol", sort=False).head(3).index, "feature_sma_20"] = None
+    for symbol in frame["symbol"].astype(str).unique():
+        symbol_frame = frame.loc[frame["symbol"].eq(symbol)].copy(deep=True)
+        dataset_dir = tmp_path / "data" / "curated" / "features_daily" / f"symbol={symbol}" / "year=2025"
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        symbol_frame.to_parquet(dataset_dir / "part-0.parquet", index=False)
+    config_path = tmp_path / "alpha_eval.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "alpha_evaluation": {
+                    "alpha_model": MODEL_NAME,
+                    "dataset": "features_daily",
+                    "target_column": TARGET_COLUMN,
+                    "feature_columns": ["feature_sma20", "feature_beta"],
+                    "price_column": "close",
+                    "predict_start": "2025-01-04",
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result = run_cli(
+        [
+            "--config",
+            str(config_path),
+            "--model-class",
+            f"{__name__}:CliAlphaEvalWeightedModel",
+        ]
+    )
+
+    assert result.resolved_config["feature_columns"] == ["feature_sma_20", "feature_beta"]
+
+
 def test_run_cli_is_deterministic_for_repeated_identical_inputs(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

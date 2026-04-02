@@ -193,6 +193,36 @@ def test_train_alpha_model_supports_explicit_feature_subset(training_frame: pd.D
     assert trained.model.training_columns == ["symbol", "ts_utc", TARGET_COLUMN, "feature_zeta"]
 
 
+def test_train_alpha_model_resolves_legacy_feature_aliases(training_frame: pd.DataFrame) -> None:
+    register_alpha_model(MeanTargetAlphaModel.name, MeanTargetAlphaModel)
+    aliased = training_frame.rename(columns={"feature_alpha": "feature_sma_20"}).drop(columns=["feature_zeta"])
+
+    trained = train_alpha_model(
+        aliased,
+        model_name=MeanTargetAlphaModel.name,
+        target_column=TARGET_COLUMN,
+        feature_columns=["feature_sma20"],
+    )
+
+    assert trained.feature_columns == ["feature_sma_20"]
+    assert trained.model.training_columns == ["symbol", "ts_utc", TARGET_COLUMN, "feature_sma_20"]
+
+
+def test_train_alpha_model_accepts_canonical_name_against_legacy_stored_column(training_frame: pd.DataFrame) -> None:
+    register_alpha_model(MeanTargetAlphaModel.name, MeanTargetAlphaModel)
+    legacy_named = training_frame.rename(columns={"feature_alpha": "feature_sma20"}).drop(columns=["feature_zeta"])
+
+    trained = train_alpha_model(
+        legacy_named,
+        model_name=MeanTargetAlphaModel.name,
+        target_column=TARGET_COLUMN,
+        feature_columns=["feature_sma_20"],
+    )
+
+    assert trained.feature_columns == ["feature_sma20"]
+    assert trained.model.training_columns == ["symbol", "ts_utc", TARGET_COLUMN, "feature_sma20"]
+
+
 def test_train_alpha_model_rejects_unsorted_input(training_frame: pd.DataFrame) -> None:
     register_alpha_model(MeanTargetAlphaModel.name, MeanTargetAlphaModel)
     unsorted = training_frame.iloc[[1, 0, 2, 3, 4, 5]].copy(deep=True)

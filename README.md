@@ -76,6 +76,11 @@ The repository currently supports:
 * unified runtime configuration with auditable persisted settings
 * deterministic artifacts, manifests, and registry-backed reuse
 
+Feature naming note:
+
+* canonical daily SMA features use underscore window names such as `feature_sma_20` and `feature_sma_50`
+* legacy config aliases such as `feature_sma20` and `feature_sma50` remain accepted by alpha tooling for backward compatibility
+
 ## Architecture
 
 At a high level, StratLake is an artifact-driven research pipeline:

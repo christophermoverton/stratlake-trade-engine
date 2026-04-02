@@ -64,15 +64,10 @@ def compute_daily_features_v1(
     
     #SMAs
     for w in cfg.sma_windows:
-        df[f"feature_sma{w}"] = g["close"].transform(
+        df[f"feature_sma_{w}"] = g["close"].transform(
             lambda s: s.astype("float64").rolling(w, min_periods=w).mean()
         )
         
-    #close_to_sma20 uses sma_20 specifically (per MVP)
-    if "feature_sma_20" not in df.columns:
-        df["feature_sma_20"] = g["close"].transform(
-            lambda s: s.astype("float64").rolling(20, min_periods=20).mean()
-        )
     df["feature_close_to_sma20"] = df["close"].astype("float64") / df["feature_sma_20"] - 1.0
     
     #Output contract

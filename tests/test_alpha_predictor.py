@@ -137,6 +137,38 @@ def test_predict_alpha_model_rejects_missing_trained_feature_column(research_fra
         predict_alpha_model(trained, research_frame.drop(columns=["feature_beta"]))
 
 
+def test_predict_alpha_model_resolves_legacy_feature_aliases(research_frame: pd.DataFrame) -> None:
+    register_alpha_model(WeightedFeatureAlphaModel.name, WeightedFeatureAlphaModel)
+    aliased = research_frame.rename(columns={"feature_alpha": "feature_sma_20"}).drop(columns=["feature_beta"])
+    trained = train_alpha_model(
+        aliased,
+        model_name=WeightedFeatureAlphaModel.name,
+        target_column=TARGET_COLUMN,
+        feature_columns=["feature_sma20"],
+    )
+
+    result = predict_alpha_model(trained, aliased)
+
+    assert result.feature_columns == ["feature_sma_20"]
+    assert result.metadata["predict_columns"] == ["symbol", "ts_utc", "feature_sma_20", "timeframe"]
+
+
+def test_predict_alpha_model_accepts_canonical_name_against_legacy_stored_column(research_frame: pd.DataFrame) -> None:
+    register_alpha_model(WeightedFeatureAlphaModel.name, WeightedFeatureAlphaModel)
+    legacy_named = research_frame.rename(columns={"feature_alpha": "feature_sma20"}).drop(columns=["feature_beta"])
+    trained = train_alpha_model(
+        legacy_named,
+        model_name=WeightedFeatureAlphaModel.name,
+        target_column=TARGET_COLUMN,
+        feature_columns=["feature_sma_20"],
+    )
+
+    result = predict_alpha_model(trained, legacy_named)
+
+    assert result.feature_columns == ["feature_sma20"]
+    assert result.metadata["predict_columns"] == ["symbol", "ts_utc", "feature_sma20", "timeframe"]
+
+
 def test_predict_alpha_model_rejects_empty_prediction_input() -> None:
     trained = type("FakeTrained", (), {})()
 

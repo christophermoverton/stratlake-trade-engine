@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.data.feature_names import resolve_feature_names
 from src.research.alpha.base import AlphaModelValidationError, BaseAlphaModel, validate_alpha_model_input
 from src.research.alpha.registry import get_alpha_model
 
@@ -156,13 +157,20 @@ def _resolve_feature_columns(
 
     normalized: list[str] = []
     seen: set[str] = set()
-    for column in feature_columns:
+    resolved_columns = resolve_feature_names(feature_columns, df.columns)
+    for requested_column, column in zip(feature_columns, resolved_columns, strict=False):
         if not isinstance(column, str) or not column.strip():
             raise AlphaTrainingError("feature_columns entries must be non-empty strings.")
         if column in seen:
-            raise AlphaTrainingError(f"feature_columns must not contain duplicates. Found duplicate: '{column}'.")
+            raise AlphaTrainingError(
+                "feature_columns must not contain duplicates after alias resolution. "
+                f"Found duplicate: '{column}' from '{requested_column}'."
+            )
         if column not in df.columns:
-            raise AlphaTrainingError(f"Alpha training input must include feature column '{column}'.")
+            raise AlphaTrainingError(
+                f"Alpha training input must include feature column '{requested_column}' "
+                f"(resolved to '{column}')."
+            )
         if column in STRUCTURAL_COLUMNS:
             raise AlphaTrainingError(f"feature_columns must not include structural column '{column}'.")
         if column == target_column:

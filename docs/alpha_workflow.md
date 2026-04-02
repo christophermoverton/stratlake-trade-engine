@@ -105,12 +105,23 @@ Inputs:
 Current behavior:
 
 * validates the full frame before slicing
-* requires a non-empty target column with at least one non-null value
+* requires the configured target column to be present and non-empty
 * derives features automatically from `feature_*` columns when
   `feature_columns` is omitted
 * sorts the selected training frame by `(symbol, ts_utc)`
 * returns `TrainedAlphaModel` metadata including the selected features and the
   effective train window
+
+For built-in daily alpha configs, the canonical training targets live directly
+in `features_daily`:
+
+* `target_ret_1d`
+* `target_ret_5d`
+
+These are realized forward close-to-close returns aligned to the current row,
+so `target_ret_5d` on date `t` equals `close[t+5] / close[t] - 1.0`. Missing
+target columns now fail with a clear rebuild/reload error so stale daily
+feature datasets do not silently drift from the alpha registry.
 
 Window semantics are always half-open:
 

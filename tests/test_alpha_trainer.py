@@ -124,6 +124,17 @@ def test_train_alpha_model_rejects_missing_required_columns(
         )
 
 
+def test_train_alpha_model_reports_missing_canonical_target_clearly(training_frame: pd.DataFrame) -> None:
+    register_alpha_model(MeanTargetAlphaModel.name, MeanTargetAlphaModel)
+
+    with pytest.raises(AlphaTrainingError, match="missing required target column 'target_ret_5d'"):
+        train_alpha_model(
+            training_frame,
+            model_name=MeanTargetAlphaModel.name,
+            target_column="target_ret_5d",
+        )
+
+
 def test_train_alpha_model_rejects_unknown_model(training_frame: pd.DataFrame) -> None:
     with pytest.raises(AlphaTrainingError, match="No alpha model implementation is registered"):
         train_alpha_model(training_frame, model_name="missing_model", target_column=TARGET_COLUMN)

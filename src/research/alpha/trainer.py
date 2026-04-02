@@ -86,6 +86,11 @@ def _validate_training_frame(df: pd.DataFrame, *, target_column: str) -> pd.Data
     if not isinstance(target_column, str) or not target_column.strip():
         raise AlphaTrainingError("target_column must be a non-empty string.")
     if target_column not in df.columns:
+        if target_column.startswith("target_"):
+            raise AlphaTrainingError(
+                "Alpha training input is missing required target column "
+                f"'{target_column}'. Rebuild or reload the feature dataset with canonical alpha targets."
+            )
         raise AlphaTrainingError(f"Alpha training input must include target column '{target_column}'.")
 
     try:

@@ -642,7 +642,8 @@ def _prepare_run_outputs(
     strategy_name: str,
     split_metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
-    annotated_results_df = results_df.copy()
+    annotated_results_df = _normalize_artifact_frame(_sorted_by_time(results_df))
+    annotated_results_df.attrs = dict(results_df.attrs)
     if annotated_results_df.attrs.get("dataset") is None and config.get("dataset") is not None:
         annotated_results_df.attrs["dataset"] = config["dataset"]
     evaluation = config.get("evaluation")

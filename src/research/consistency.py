@@ -917,10 +917,7 @@ def _expected_qa_status(qa_summary: dict[str, Any]) -> str:
     )
     if failure:
         return "fail"
-    if any(
-        bool(flags.get(key))
-        for key in ("degenerate_signal", "no_trades", "high_turnover")
-    ) or bool(low_data):
+    if any(bool(value) for value in flags.values()) or bool(low_data):
         return "warn"
     return "pass"
 

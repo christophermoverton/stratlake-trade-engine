@@ -239,6 +239,30 @@ def test_validate_run_consistency_warns_for_minor_signal_diagnostic_issue_in_non
         validate_run_consistency(run_dir, strict=False)
 
 
+def test_validate_run_consistency_accepts_warn_status_for_sanity_warning(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = _create_valid_single_run(tmp_path, monkeypatch)
+    qa_summary = json.loads((run_dir / "qa_summary.json").read_text(encoding="utf-8"))
+    qa_summary["flags"]["sanity_warning"] = True
+    qa_summary["overall_status"] = "warn"
+    _write_json(run_dir / "qa_summary.json", qa_summary)
+
+    validate_run_consistency(run_dir)
+
+
+def test_validate_run_consistency_accepts_warn_status_for_plausibility_flag(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    run_dir = _create_valid_single_run(tmp_path, monkeypatch)
+    qa_summary = json.loads((run_dir / "qa_summary.json").read_text(encoding="utf-8"))
+    qa_summary["flags"]["low_excess_return"] = True
+    qa_summary["overall_status"] = "warn"
+    _write_json(run_dir / "qa_summary.json", qa_summary)
+
+    validate_run_consistency(run_dir)
+
+
 def test_validate_run_consistency_fails_for_walk_forward_split_inconsistency(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

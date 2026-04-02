@@ -13,9 +13,8 @@ cs_linear_ret_1d:
     - feature_ret_1d
     - feature_ret_5d
     - feature_ret_20d
-  model_type: sklearn
+  model_type: cross_sectional_linear
   model_params:
-    estimator_type: linear_regression
     fit_intercept: true
   alpha_horizon: 1
   defaults:
@@ -30,9 +29,8 @@ cs_linear_ret_5d:
     - feature_ret_5d
     - feature_ret_20d
     - feature_close_to_sma20
-  model_type: sklearn
+  model_type: cross_sectional_linear
   model_params:
-    estimator_type: linear_regression
     fit_intercept: true
   alpha_horizon: 5
   defaults:
@@ -49,11 +47,10 @@ ridge_ret_5d:
     - feature_ret_20d
     - feature_vol_20d
     - feature_close_to_sma20
-  model_type: sklearn
+  model_type: ridge_linear
   model_params:
-    estimator_type: ridge
     fit_intercept: true
-    alpha: 1.0
+    ridge_penalty: 1.0
   alpha_horizon: 5
   defaults:
     price_column: close
@@ -67,10 +64,10 @@ rank_composite_momentum:
     - feature_ret_5d
     - feature_ret_20d
     - feature_close_to_sma20
-  model_type: rank_composite_momentum
+  model_type: rank_composite
   model_params:
-    ascending: false
     normalize: true
+    use_ic_weights: true
   alpha_horizon: 5
   defaults:
     price_column: close

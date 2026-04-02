@@ -8,6 +8,11 @@ import yaml
 
 import src.research.alpha.registry as alpha_registry
 from src.research.alpha.base import BaseAlphaModel
+from src.research.alpha.builtins import (
+    CrossSectionalLinearAlphaModel,
+    RankCompositeAlphaModel,
+    RidgeLinearAlphaModel,
+)
 from src.research.alpha.catalog import (
     ALPHAS_CONFIG,
     get_alpha_config,
@@ -88,7 +93,7 @@ def test_register_builtin_alpha_catalog_registers_seeded_alphas() -> None:
     model = alpha_registry.get_alpha_model("cs_linear_ret_1d")
 
     assert isinstance(model, BaseAlphaModel)
-    assert model.__class__.__name__ == "SklearnRegressorAlphaModel"
+    assert isinstance(model, CrossSectionalLinearAlphaModel)
 
 
 def test_registered_builtin_linear_alpha_can_fit_and_predict() -> None:
@@ -122,7 +127,7 @@ def test_registered_builtin_linear_alpha_can_fit_and_predict() -> None:
     assert predictions.iloc[1] > predictions.iloc[3]
 
 
-def test_register_builtin_alpha_catalog_supports_sklearn_ridge() -> None:
+def test_register_builtin_alpha_catalog_supports_native_ridge_baseline() -> None:
     register_builtin_alpha_catalog()
 
     model = alpha_registry.get_alpha_model("ridge_ret_5d")
@@ -152,13 +157,55 @@ def test_register_builtin_alpha_catalog_supports_sklearn_ridge() -> None:
 
     assert predictions.dtype == "float64"
     assert len(predictions) == len(frame)
+    assert isinstance(model, RidgeLinearAlphaModel)
+    assert sorted(model.coefficient_by_feature) == [
+        "feature_close_to_sma20",
+        "feature_ret_1d",
+        "feature_ret_20d",
+        "feature_ret_5d",
+        "feature_vol_20d",
+    ]
 
-
-def test_load_alphas_config_supports_sklearn_model_type() -> None:
+def test_load_alphas_config_uses_native_cross_sectional_linear_model_type() -> None:
     config = get_alpha_config("cs_linear_ret_1d")
 
-    assert config["model_type"] == "sklearn"
-    assert config["model_params"]["estimator_type"] == "linear_regression"
+    assert config["model_type"] == "cross_sectional_linear"
+    assert config["model_params"]["fit_intercept"] is True
+
+
+def test_register_builtin_alpha_catalog_supports_rank_composite_baseline() -> None:
+    register_builtin_alpha_catalog()
+    model = alpha_registry.get_alpha_model("rank_composite_momentum")
+    frame = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAA", "BBB", "CCC", "AAA", "BBB", "CCC"], dtype="string"),
+            "ts_utc": pd.to_datetime(
+                [
+                    "2025-01-01T00:00:00Z",
+                    "2025-01-01T00:00:00Z",
+                    "2025-01-01T00:00:00Z",
+                    "2025-01-02T00:00:00Z",
+                    "2025-01-02T00:00:00Z",
+                    "2025-01-02T00:00:00Z",
+                ],
+                utc=True,
+            ),
+            "target_ret_5d": [0.06, 0.02, -0.01, 0.05, 0.01, -0.02],
+            "feature_ret_5d": [0.9, 0.3, -0.2, 0.8, 0.1, -0.4],
+            "feature_ret_20d": [0.6, 0.1, -0.3, 0.5, 0.0, -0.2],
+            "feature_close_to_sma20": [0.2, 0.05, -0.1, 0.15, 0.02, -0.08],
+        }
+    ).sort_values(["symbol", "ts_utc"], kind="stable").reset_index(drop=True)
+
+    model.fit(frame)
+    predictions = model.predict(frame.drop(columns=["target_ret_5d"]))
+
+    assert isinstance(model, RankCompositeAlphaModel)
+    assert predictions.dtype == "float64"
+    assert len(predictions) == len(frame)
+    assert sum(abs(weight) for weight in model.feature_weight_by_name.values()) == pytest.approx(1.0)
+    assert predictions.iloc[0] > predictions.iloc[2]
+    assert predictions.iloc[1] > predictions.iloc[3]
 
 
 def test_load_alphas_config_rejects_invalid_defaults_shape(tmp_path: Path) -> None:

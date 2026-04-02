@@ -8,10 +8,10 @@ from typing import Any
 import yaml
 
 from src.research.alpha.builtins import (
-    LinearAlphaModel,
+    CrossSectionalLinearAlphaModel,
     LinearModelSpec,
-    RankCompositeMomentumAlphaModel,
-    SklearnRegressorAlphaModel,
+    RankCompositeAlphaModel,
+    RidgeLinearAlphaModel,
 )
 from src.research.alpha.registry import _ALPHA_MODEL_REGISTRY, register_alpha_factory
 
@@ -133,28 +133,29 @@ def _build_alpha_factory(alpha_name: str, config: Mapping[str, Any]):
         spec = LinearModelSpec(
             ridge_penalty=float(params.get("ridge_penalty", 0.0)),
             fit_intercept=bool(params.get("fit_intercept", True)),
+            min_cross_section_size=int(params.get("min_cross_section_size", config.get("min_cross_section_size", 2))),
         )
-        return partial(LinearAlphaModel, spec=spec)
-    if model_type == "ridge":
+        return partial(CrossSectionalLinearAlphaModel, spec=spec)
+    if model_type == "cross_sectional_linear":
+        spec = LinearModelSpec(
+            ridge_penalty=float(params.get("ridge_penalty", 0.0)),
+            fit_intercept=bool(params.get("fit_intercept", True)),
+            min_cross_section_size=int(params.get("min_cross_section_size", config.get("min_cross_section_size", 2))),
+        )
+        return partial(CrossSectionalLinearAlphaModel, spec=spec)
+    if model_type in {"ridge", "ridge_linear"}:
         spec = LinearModelSpec(
             ridge_penalty=float(params.get("ridge_penalty", params.get("alpha", 1.0))),
             fit_intercept=bool(params.get("fit_intercept", True)),
+            min_cross_section_size=int(params.get("min_cross_section_size", config.get("min_cross_section_size", 2))),
         )
-        return partial(LinearAlphaModel, spec=spec)
-    if model_type == "rank_composite_momentum":
+        return partial(RidgeLinearAlphaModel, spec=spec)
+    if model_type in {"rank_composite_momentum", "rank_composite"}:
         return partial(
-            RankCompositeMomentumAlphaModel,
-            ascending=bool(params.get("ascending", False)),
+            RankCompositeAlphaModel,
+            min_cross_section_size=int(params.get("min_cross_section_size", config.get("min_cross_section_size", 2))),
             normalize=bool(params.get("normalize", True)),
-        )
-    if model_type == "sklearn":
-        estimator_type = params.pop("estimator_type", params.pop("estimator", None))
-        if not isinstance(estimator_type, str) or not estimator_type.strip():
-            raise ValueError(f"Alpha '{alpha_name}' sklearn model_params must include estimator_type.")
-        return partial(
-            SklearnRegressorAlphaModel,
-            estimator_type=estimator_type,
-            estimator_params=params,
+            use_ic_weights=bool(params.get("use_ic_weights", True)),
         )
     raise ValueError(f"Alpha '{alpha_name}' uses unsupported model_type '{config['model_type']}'.")
 

@@ -1,0 +1,46 @@
+promotion_gates:
+  status_on_pass: promoted
+  status_on_fail: blocked
+  gates:
+    - gate_id: reviewed_entry_count
+      source: metrics
+      metric_path: entry_count
+      comparator: gte
+      threshold: 2
+      description: Require both the nominated strategy and portfolio candidate in the review pack.
+    - gate_id: strategy_entry_count
+      source: metrics
+      metric_path: strategy_entry_count
+      comparator: gte
+      threshold: 1
+      description: Require at least one strategy candidate in the review pack.
+    - gate_id: portfolio_entry_count
+      source: metrics
+      metric_path: portfolio_entry_count
+      comparator: gte
+      threshold: 1
+      description: Require at least one portfolio candidate in the review pack.
+    - gate_id: strategy_sharpe
+      source: aggregate_metrics
+      metric_path: strategy.best_selected_metric_value
+      comparator: gte
+      threshold: 2.0
+      description: Require the reviewed strategy candidate to clear a 2.0 Sharpe threshold.
+    - gate_id: strategy_total_return
+      source: aggregate_metrics
+      metric_path: strategy.best_secondary_metric_value
+      comparator: gte
+      threshold: 0.01
+      description: Require the reviewed strategy candidate to exceed a 1 percent total return threshold.
+    - gate_id: portfolio_sharpe
+      source: aggregate_metrics
+      metric_path: portfolio.best_selected_metric_value
+      comparator: gte
+      threshold: 2.0
+      description: Require the reviewed portfolio candidate to clear a 2.0 Sharpe threshold.
+    - gate_id: portfolio_total_return
+      source: aggregate_metrics
+      metric_path: portfolio.best_secondary_metric_value
+      comparator: gte
+      threshold: 0.03
+      description: Require the reviewed portfolio candidate to exceed a 3 percent total return threshold.

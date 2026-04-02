@@ -43,6 +43,7 @@ def _build_seeded_random(parameters: dict[str, Any]) -> BaseStrategy:
 STRATEGY_BUILDERS: dict[str, StrategyBuilder] = {
     "momentum_v1": _build_momentum,
     "mean_reversion_v1": _build_mean_reversion,
+    "mean_reversion_v1_safe_2026_q1": _build_mean_reversion,
     "buy_and_hold_v1": _build_buy_and_hold,
     "sma_crossover_v1": _build_sma_crossover,
     "seeded_random_v1": _build_seeded_random,

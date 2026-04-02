@@ -17,6 +17,12 @@ mean_reversion_v1:
     lookback: 20
     threshold: 1.0
 
+mean_reversion_v1_safe_2026_q1:
+  dataset: features_daily
+  parameters:
+    lookback: 20
+    threshold: 2.0
+
 buy_and_hold_v1:
   dataset: features_daily
   parameters: {}

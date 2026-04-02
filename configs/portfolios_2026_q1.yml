@@ -1,0 +1,29 @@
+portfolios:
+  mean_reversion_safe_equal_2026_q1:
+    allocator: equal_weight
+    initial_capital: 1.0
+    alignment_policy: intersection
+    components:
+      - strategy_name: mean_reversion_v1_safe_2026_q1
+    risk:
+      volatility_window: 20
+      target_volatility: 0.12
+      var_confidence_level: 0.95
+      cvar_confidence_level: 0.95
+
+  mean_reversion_safe_targeted_2026_q1:
+    allocator: equal_weight
+    initial_capital: 1.0
+    alignment_policy: intersection
+    components:
+      - strategy_name: mean_reversion_v1_safe_2026_q1
+    risk:
+      volatility_window: 20
+      target_volatility: 0.12
+      var_confidence_level: 0.95
+      cvar_confidence_level: 0.95
+    volatility_targeting:
+      enabled: true
+      target_volatility: 0.10
+      lookback_periods: 20
+      volatility_epsilon: 1e-8

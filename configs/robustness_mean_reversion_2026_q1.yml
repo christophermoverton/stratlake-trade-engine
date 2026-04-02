@@ -1,0 +1,16 @@
+robustness:
+  strategy_name: mean_reversion_v1
+  ranking_metric: sharpe_ratio
+  sweep:
+    - parameter: lookback
+      values: [10, 15, 20, 25, 30]
+    - parameter: threshold
+      values: [0.5, 1.0, 1.5, 2.0]
+  stability:
+    mode: walk_forward
+    evaluation_path: configs/evaluation_2026_q1.yml
+  thresholds:
+    sharpe_ratio:
+      min: 0.0
+    max_drawdown:
+      max: 0.05

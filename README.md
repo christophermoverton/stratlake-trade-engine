@@ -192,12 +192,16 @@ Quick start:
 
 ```powershell
 python docs/examples/alpha_evaluation_end_to_end.py
+python -m src.cli.run_alpha --alpha-name cs_linear_ret_1d --mode evaluate --start 2025-01-01 --end 2025-03-01
+python -m src.cli.run_alpha --alpha-name rank_composite_momentum --start 2025-01-01 --end 2025-03-01
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
 python -m src.cli.compare_alpha --from-registry
 ```
 
 Notes:
 
+* `python -m src.cli.run_alpha` is the first-class entrypoint for named built-in alpha configs from `configs/alphas.yml`
+* `--mode evaluate` runs only the evaluation stage; the default `full` mode currently adds a deterministic `alpha_run_scaffold.json` artifact and reserves sleeve generation for later issues
 * pass exactly one of `--price-column` or `--realized-return-column`
 * `--model-class` accepts either `module:Class` or `path.py:Class`
 * the end-to-end example writes reproducible outputs under

@@ -29,6 +29,8 @@ python docs/examples/alpha_evaluation_end_to_end.py
 Run the CLI directly:
 
 ```powershell
+python -m src.cli.run_alpha --alpha-name cs_linear_ret_1d --mode evaluate --start 2025-01-01 --end 2025-03-01
+python -m src.cli.run_alpha --alpha-name rank_composite_momentum --start 2025-01-01 --end 2025-03-01
 python -m src.cli.run_alpha_evaluation --alpha-name cs_linear_ret_1d --start 2025-01-01 --end 2025-03-01
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
 python -m src.cli.compare_alpha --from-registry
@@ -42,6 +44,13 @@ registry-backed definitions, and keep `--model-class` for ad hoc external
 models when you need a custom implementation. The registry now supports
 `model_type: sklearn` for built-in scikit-learn regressors such as
 `linear_regression` and `ridge`.
+
+`python -m src.cli.run_alpha` is now the first-class built-in alpha runner.
+It resolves one named config from `configs/alphas.yml`, runs it on
+`features_daily`, prints a concise summary, and defaults to `full` mode. That
+default currently persists the evaluation outputs plus an
+`alpha_run_scaffold.json` file that marks sleeve generation as the next staged
+step. Use `--mode evaluate` for evaluation-only runs with no scaffold file.
 
 The example writes deterministic outputs under:
 

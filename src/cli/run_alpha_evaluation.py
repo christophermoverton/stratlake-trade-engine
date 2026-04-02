@@ -132,11 +132,18 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
 
     args = parse_args(argv)
     resolved_config = resolve_cli_config(args)
+    result = run_resolved_config(resolved_config)
+    print_summary(result)
+    return result
+
+
+def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunResult:
+    """Execute one alpha evaluation run from a fully resolved config mapping."""
+
     ensure_model_registered(
         resolved_config.get("alpha_model"),
         model_class_import=resolved_config.get("model_class"),
     )
-
     loaded_frame = load_features(
         str(resolved_config["dataset"]),
         start=_optional_string(resolved_config.get("start")),
@@ -219,7 +226,6 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
         manifest=manifest,
         resolved_config=effective_config,
     )
-    print_summary(result)
     return result
 
 

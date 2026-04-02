@@ -1,0 +1,77 @@
+# Alpha registry for deterministic research-layer alpha definitions.
+#
+# Purpose:
+# - document available built-in alpha configurations
+# - keep alpha dataset and target requirements explicit
+# - avoid ad hoc CLI-only model imports for standard alpha research runs
+
+cs_linear_ret_1d:
+  alpha_name: cs_linear_ret_1d
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns:
+    - feature_ret_1d
+    - feature_ret_5d
+    - feature_ret_20d
+  model_type: sklearn
+  model_params:
+    estimator_type: linear_regression
+    fit_intercept: true
+  alpha_horizon: 1
+  defaults:
+    price_column: close
+    min_cross_section_size: 2
+
+cs_linear_ret_5d:
+  alpha_name: cs_linear_ret_5d
+  dataset: features_daily
+  target_column: target_ret_5d
+  feature_columns:
+    - feature_ret_5d
+    - feature_ret_20d
+    - feature_close_to_sma20
+  model_type: sklearn
+  model_params:
+    estimator_type: linear_regression
+    fit_intercept: true
+  alpha_horizon: 5
+  defaults:
+    price_column: close
+    min_cross_section_size: 2
+
+ridge_ret_5d:
+  alpha_name: ridge_ret_5d
+  dataset: features_daily
+  target_column: target_ret_5d
+  feature_columns:
+    - feature_ret_1d
+    - feature_ret_5d
+    - feature_ret_20d
+    - feature_vol_20d
+    - feature_close_to_sma20
+  model_type: sklearn
+  model_params:
+    estimator_type: ridge
+    fit_intercept: true
+    alpha: 1.0
+  alpha_horizon: 5
+  defaults:
+    price_column: close
+    min_cross_section_size: 2
+
+rank_composite_momentum:
+  alpha_name: rank_composite_momentum
+  dataset: features_daily
+  target_column: target_ret_5d
+  feature_columns:
+    - feature_ret_5d
+    - feature_ret_20d
+    - feature_close_to_sma20
+  model_type: rank_composite_momentum
+  model_params:
+    ascending: false
+    normalize: true
+  alpha_horizon: 5
+  defaults:
+    price_column: close
+    min_cross_section_size: 2

@@ -12,6 +12,7 @@ dependencies = [
     "pyarrow",
     "python-dotenv",
     "pyyaml",
+    "scikit-learn",
 ]
 
 [project.optional-dependencies]

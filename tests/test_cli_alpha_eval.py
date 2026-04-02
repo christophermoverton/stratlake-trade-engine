@@ -112,6 +112,8 @@ def _write_alpha_eval_dataset(root: Path) -> pd.DataFrame:
 def test_parse_args_accepts_alpha_eval_inputs() -> None:
     args = parse_args(
         [
+            "--alpha-name",
+            "cs_linear_ret_1d",
             "--alpha-model",
             MODEL_NAME,
             "--dataset",
@@ -127,6 +129,7 @@ def test_parse_args_accepts_alpha_eval_inputs() -> None:
         ]
     )
 
+    assert args.alpha_name == "cs_linear_ret_1d"
     assert args.alpha_model == MODEL_NAME
     assert args.dataset == "features_daily"
     assert args.target_column == TARGET_COLUMN
@@ -360,3 +363,41 @@ def test_run_cli_surfaces_validation_failures_for_constant_predictions(
         )
 
     assert not alpha_evaluation_registry_path(tmp_path / "artifacts" / "alpha").exists()
+
+
+def test_run_cli_supports_builtin_alpha_name_without_model_class(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    frame = _write_alpha_eval_dataset(tmp_path).rename(
+        columns={
+            "feature_alpha": "feature_ret_1d",
+            "feature_beta": "feature_ret_5d",
+            TARGET_COLUMN: "target_ret_1d",
+        }
+    ).copy(deep=True)
+    frame["feature_ret_20d"] = frame["feature_ret_5d"] * 0.5
+    frame["target_ret_5d"] = frame["target_ret_1d"] * 2.0
+    for symbol in frame["symbol"].astype(str).unique():
+        symbol_frame = frame.loc[frame["symbol"].eq(symbol)].copy(deep=True)
+        dataset_dir = tmp_path / "data" / "curated" / "features_daily" / f"symbol={symbol}" / "year=2025"
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        symbol_frame.to_parquet(dataset_dir / "part-0.parquet", index=False)
+    monkeypatch.chdir(tmp_path)
+
+    result = run_cli(
+        [
+            "--alpha-name",
+            "cs_linear_ret_1d",
+            "--start",
+            "2025-01-01",
+            "--end",
+            "2025-01-06",
+        ]
+    )
+
+    assert isinstance(result, AlphaEvaluationRunResult)
+    assert result.alpha_name == "cs_linear_ret_1d"
+    assert result.resolved_config["dataset"] == "features_daily"
+    assert result.resolved_config["target_column"] == "target_ret_1d"
+    assert result.resolved_config["feature_columns"] == ["feature_ret_1d", "feature_ret_5d", "feature_ret_20d"]

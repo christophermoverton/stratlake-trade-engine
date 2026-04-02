@@ -23,6 +23,7 @@ from src.research.alpha import (
     register_alpha_model,
     train_alpha_model,
 )
+from src.research.alpha.catalog import register_builtin_alpha_catalog, resolve_alpha_config
 from src.research.alpha_eval import (
     AlphaEvaluationError,
     AlphaEvaluationResult,
@@ -63,6 +64,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description="Run a deterministic alpha evaluation workflow through the StratLake research pipeline."
     )
     parser.add_argument("--config", help="Optional YAML config path for alpha evaluation inputs.")
+    parser.add_argument("--alpha-name", help="Built-in alpha name defined in configs/alphas.yml.")
     parser.add_argument("--alpha-model", help="Registered alpha model name.")
     parser.add_argument(
         "--model-class",
@@ -227,8 +229,10 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
     config_payload = {} if args.config is None else load_alpha_evaluation_config(args.config)
     if not isinstance(config_payload, dict):
         raise ValueError("Resolved alpha evaluation config must be a mapping.")
+    config_payload = resolve_alpha_config(config_payload, alpha_name=args.alpha_name)
 
     cli_payload = {
+        "alpha_name": args.alpha_name,
         "alpha_model": args.alpha_model,
         "model_class": args.model_class,
         "dataset": args.dataset,
@@ -253,6 +257,10 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
     for key, value in cli_payload.items():
         if value is not None:
             resolved[key] = value
+
+    resolved = resolve_alpha_config(resolved)
+    if resolved.get("alpha_name") is not None and resolved.get("alpha_model") is None:
+        resolved["alpha_model"] = resolved["alpha_name"]
 
     required_keys = ("alpha_model", "dataset", "target_column")
     missing = [key for key in required_keys if not _has_non_empty_value(resolved.get(key))]
@@ -301,6 +309,7 @@ def ensure_model_registered(
 ) -> None:
     """Register one model class dynamically when requested by the CLI."""
 
+    register_builtin_alpha_catalog()
     if model_class_import is None:
         return
 

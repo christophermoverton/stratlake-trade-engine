@@ -29,9 +29,19 @@ python docs/examples/alpha_evaluation_end_to_end.py
 Run the CLI directly:
 
 ```powershell
+python -m src.cli.run_alpha_evaluation --alpha-name cs_linear_ret_1d --start 2025-01-01 --end 2025-03-01
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
 python -m src.cli.compare_alpha --from-registry
 ```
+
+Built-in alpha definitions now live in `configs/alphas.yml`. Each named entry
+declares the canonical dataset, target column, feature columns, model type,
+model parameters, evaluation horizon, and optional defaults such as
+`price_column` or `min_cross_section_size`. Use `--alpha-name` for those
+registry-backed definitions, and keep `--model-class` for ad hoc external
+models when you need a custom implementation. The registry now supports
+`model_type: sklearn` for built-in scikit-learn regressors such as
+`linear_regression` and `ridge`.
 
 The example writes deterministic outputs under:
 

@@ -7,7 +7,7 @@ from src.research.alpha.cross_section import (
     validate_cross_section_input,
 )
 from src.research.alpha.predictor import AlphaPredictionError, AlphaPredictionResult, predict_alpha_model
-from src.research.alpha.registry import get_alpha_model, register_alpha_model
+from src.research.alpha.registry import get_alpha_model, register_alpha_factory, register_alpha_model
 from src.research.alpha.splits import (
     AlphaTimeSplit,
     AlphaTimeSplitError,
@@ -34,6 +34,7 @@ __all__ = [
     "list_cross_section_timestamps",
     "make_alpha_fixed_split",
     "predict_alpha_model",
+    "register_alpha_factory",
     "register_alpha_model",
     "train_alpha_model",
     "validate_cross_section_input",

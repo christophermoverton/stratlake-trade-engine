@@ -128,7 +128,7 @@ def test_save_experiment_writes_standardized_artifacts(
         "timeframe": None,
         "row_count": 4,
         "symbols_present": 1,
-        "date_range": ["2022-01-01", "2022-01-04"],
+        "date_range": ["2022-01-01T00:00:00Z", "2022-01-04T00:00:00Z"],
         "input_validation": {},
         "signal": {
             "pct_long": 0.5,

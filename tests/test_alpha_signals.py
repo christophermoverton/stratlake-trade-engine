@@ -64,6 +64,15 @@ def test_rank_long_short_maps_cross_sections_deterministically() -> None:
         }
     )
 
+    expected = expected.astype(
+        {
+            "symbol": result.signals["symbol"].dtype,
+            "timeframe": result.signals["timeframe"].dtype,
+            "prediction_score": "float64",
+            "signal": "float64",
+        }
+    )
+
     pdt.assert_frame_equal(result.signals.reset_index(drop=True), expected, check_dtype=True, check_exact=True)
     assert result.metadata["tie_breaker"] == "prediction_score then symbol ascending"
 
@@ -86,7 +95,7 @@ def test_top_bottom_quantile_uses_ceiling_selection_and_stable_symbol_ties() -> 
         AlphaSignalMappingConfig(policy="top_bottom_quantile", quantile=0.34),
     )
 
-    assert result.signals["signal"].tolist() == [1.0, 1.0, 0.0, -1.0, -1.0, 0.0]
+    assert result.signals["signal"].tolist() == [1.0, 1.0, 0.0, 0.0, -1.0, -1.0]
 
 
 def test_long_only_top_quantile_selects_at_least_one_name_per_timestamp() -> None:

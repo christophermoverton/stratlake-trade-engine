@@ -8,11 +8,13 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 13 Summary
+## Milestone 14 Summary
 
-Milestone 13 promotes StratLake into a deterministic research-review platform
-that now carries alpha evaluation, strategy runs, and portfolio runs into one
-shared registry-backed review layer. The repository now supports:
+Milestone 14 promotes StratLake into a
+deterministic research-review platform that can carry one built-in alpha from
+catalog config, through evaluation and explicit signal mapping, into one sleeve,
+optional portfolio consumption, and shared review outputs. The repository now
+supports:
 
 * alpha model registration through a deterministic `BaseAlphaModel` interface
 * deterministic alpha training and prediction helpers with explicit half-open
@@ -25,14 +27,21 @@ shared registry-backed review layer. The repository now supports:
   leaderboard-ready summaries
 * registry-backed alpha-evaluation persistence, comparison, and reproducible
   artifact manifests
+* built-in alpha catalog/config support through `configs/alphas.yml` plus
+  `python -m src.cli.run_alpha`
+* default full alpha runs that persist evaluation artifacts, mapped signals,
+  sleeve return streams, sleeve metrics, and `alpha_run_scaffold.json`
 * continuous-signal backtesting where finite numeric exposures are interpreted
   literally after lagged execution
+* alpha-sleeve portfolio integration through `artifact_type: alpha_sleeve`
+  components in portfolio configs
 * centralized portfolio optimization with `equal_weight`, `max_sharpe`, and
   `risk_parity`
 * operational volatility targeting in portfolio workflows, separate from
   diagnostic risk summaries
 * unified review workflows for ranking completed alpha, strategy, and
-  portfolio runs together
+  portfolio runs together, including optional alpha sleeve and linked portfolio
+  context in review outputs
 * deterministic return simulation, robustness analysis, artifact manifests,
   and registry-backed reuse
 
@@ -195,7 +204,7 @@ Quick start:
 ```powershell
 python docs/examples/alpha_evaluation_end_to_end.py
 python -m src.cli.run_alpha --alpha-name cs_linear_ret_1d --mode evaluate --start 2025-01-01 --end 2025-03-01
-python -m src.cli.run_alpha --alpha-name rank_composite_momentum --start 2025-01-01 --end 2025-03-01
+python -m src.cli.run_alpha --alpha-name rank_composite_momentum --start 2025-01-01 --end 2025-03-01 --signal-policy top_bottom_quantile --signal-quantile 0.2
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
 python -m src.cli.compare_alpha --from-registry
 ```
@@ -208,6 +217,12 @@ Notes:
 * `--model-class` accepts either `module:Class` or `path.py:Class`
 * the end-to-end example writes reproducible outputs under
   `docs/examples/output/alpha_evaluation_end_to_end/`
+
+`python -m src.cli.run_alpha --mode full` is the merge-review baseline for
+built-in configs. It resolves one named alpha from `configs/alphas.yml`,
+evaluates forecast quality, maps predictions into explicit signals, generates a
+deterministic sleeve return stream, and leaves one scaffold artifact that keeps
+the downstream alpha-to-sleeve flow auditable.
 
 ## Cross-Sectional Utilities
 
@@ -589,6 +604,16 @@ Core files:
 * `ic_timeseries.csv`
 * `manifest.json`
 * `promotion_gates.json` when alpha promotion gates are configured
+
+Full built-in alpha runs from `python -m src.cli.run_alpha --mode full` also
+write:
+
+* `signals.parquet`
+* `signal_mapping.json`
+* `sleeve_returns.csv`
+* `sleeve_equity_curve.csv`
+* `sleeve_metrics.json`
+* `alpha_run_scaffold.json`
 
 `qa_summary.json` is the practical alpha QA surface. It records usable
 timestamp coverage, cross-section breadth, post-warmup null rates, and, when

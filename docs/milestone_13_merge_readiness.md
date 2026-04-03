@@ -1,7 +1,7 @@
 # Milestone 13 Merge Readiness
 
 This checklist defines the validation and release-prep workflow for merging the
-Milestone 13 branch into `main`.
+current alpha research productization branch into `main`.
 
 The goal is to validate existing behavior, not to introduce new functionality.
 If any step fails, stop the process, fix the issue on the milestone branch, and
@@ -9,17 +9,21 @@ rerun the workflow from the beginning.
 
 ## Scope Delivered
 
-Milestone 13 merge readiness covers:
+This merge-readiness pass covers:
 
+* built-in alpha catalog/config support through `configs/alphas.yml`
+* first-class alpha CLI behavior in `python -m src.cli.run_alpha`
+* deterministic alpha evaluation, artifact persistence, registry entries, and
+  leaderboard comparison
+* explicit alpha-to-signal and alpha-to-sleeve flow for built-in full runs
+* portfolio consumption of alpha sleeves when configured with
+  `artifact_type: alpha_sleeve`
 * unified registry-backed review across alpha-evaluation, strategy, and
-  portfolio runs
+  portfolio runs, including downstream sleeve and linked-portfolio context
 * deterministic review config resolution from repository defaults, config file,
   and CLI overrides
 * review-level promotion-gate evaluation and persisted promotion summaries
 * deterministic review artifacts under `artifacts/reviews/<review_id>/`
-* review manifest, leaderboard, and summary persistence aligned with the
-  repository's artifact-first design
-* reporting and visualization workflow alignment for post-run review assets
 
 ## Docs Updated
 
@@ -27,33 +31,43 @@ Review these Milestone 13 docs together before merge:
 
 * [../README.md](../README.md)
 * [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)
+* [alpha_workflow.md](alpha_workflow.md)
+* [alpha_evaluation_workflow.md](alpha_evaluation_workflow.md)
+* [milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md)
 * [review_configuration.md](review_configuration.md)
-* [strategy_comparison_cli.md](strategy_comparison_cli.md)
-* [research_visualization_workflow.md](research_visualization_workflow.md)
+* [examples/real_alpha_workflow.md](examples/real_alpha_workflow.md)
+* [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [examples/milestone_13_review_promotion_workflow.md](examples/milestone_13_review_promotion_workflow.md)
 * [milestone_13_merge_readiness.md](milestone_13_merge_readiness.md)
 
 ## Validation Performed
 
-Milestone 13 readiness should be grounded in repository behavior already
-covered by code and committed examples:
+Merge readiness should be grounded in repository behavior already covered by
+code and committed examples:
 
-* review config parsing and precedence in `src/config/review.py`
+* built-in alpha config resolution in `src/research/alpha/catalog.py`
+* first-class alpha CLI behavior in `src/cli/run_alpha.py`
+* alpha evaluation, persistence, and comparison in `src/cli/run_alpha_evaluation.py`
+  plus `src/research/alpha_eval/`
+* alpha-signal mapping and sleeve generation in `src/research/alpha/signals.py`
+  and `src/research/alpha_eval/sleeves.py`
+* alpha-sleeve portfolio consumption in `src/cli/run_portfolio.py`
 * unified review CLI parsing in `src/cli/compare_research.py`
 * registry-backed ranking, manifest writing, and review promotion-gate
   persistence in `src/research/review.py`
 * deterministic rerun and registry-dedup behavior in the existing rerun and
   registry tests
-* reporting and plot generation from saved strategy artifacts in
-  `src/cli/generate_report.py` and `src/cli/plot_strategy_run.py`
 
 ## Known Limits Intentionally Deferred
 
 Current Milestone 13 limits that should remain explicit at merge time:
 
+* built-in alpha runs currently require dataset `features_daily`
 * unified review is registry-backed only; it does not execute fresh research
   runs
 * ranking remains within run type; there is no cross-type normalized score
+* alpha rows keep forecast ranking separate from downstream sleeve or linked
+  portfolio context
 * review-level promotion gates evaluate saved deterministic artifacts, not
   discretionary analyst approvals
 * review CLI smoke against the repository root requires populated
@@ -79,27 +93,39 @@ Pass criteria:
 * no new warning classes appear
 * no Milestone 13 tests are skipped unexpectedly
 
-### 2. Targeted Milestone 13 validation slice
+### 2. Targeted alpha-productization validation slice
 
 ```powershell
 .\.venv\Scripts\python.exe -m pytest `
+  tests\test_alpha_builtins.py `
+  tests\test_alpha_config_registry.py `
+  tests\test_alpha_eval.py `
+  tests\test_alpha_eval_alignment.py `
+  tests\test_alpha_eval_artifacts.py `
+  tests\test_alpha_eval_comparison.py `
+  tests\test_alpha_eval_registry.py `
+  tests\test_alpha_eval_validation.py `
+  tests\test_alpha_productization_workflow.py `
+  tests\test_alpha_signals.py `
+  tests\test_alpha_sleeves.py `
+  tests\test_cli_run_alpha.py `
+  tests\test_cli_alpha_eval.py `
+  tests\test_cli_run_portfolio.py `
+  tests\test_milestone_12_example_workflow.py `
+  tests\test_real_alpha_workflow_example.py `
   tests\test_research_review.py `
   tests\test_review_config.py `
   tests\test_milestone_13_review_promotion_workflow.py `
-  tests\test_cli_alpha_eval.py `
-  tests\test_cli_reporting.py `
-  tests\test_alpha_eval_comparison.py `
-  tests\test_alpha_eval_registry.py `
-  tests\test_deterministic_reruns.py `
-  tests\test_experiment_registry.py `
   tests\test_promotion_gates.py
 ```
 
 Pass criteria:
 
-* unified review, review config, promotion-gate, rerun, registry, alpha-review,
-  and reporting coverage all pass together
-* no targeted test requires code or docs changes outside Milestone 13 scope
+* built-in alpha config, evaluation, signal mapping, sleeve generation,
+  portfolio consumption, unified review, and promotion-gate coverage all pass
+  together
+* committed examples remain deterministic
+* no targeted test requires code or docs changes outside the branch scope
 
 ### 3. Alpha-evaluation review smoke
 
@@ -144,6 +170,23 @@ Pass criteria:
 * `compare_strategies` succeeds in registry mode
 * plot generation writes supported files under `<run_dir>/plots/`
 * report generation writes `<run_dir>/report.md`
+
+### 4b. Real built-in alpha productization smoke
+
+Run the committed end-to-end alpha productization example:
+
+```powershell
+.\.venv\Scripts\python.exe docs\examples\real_alpha_workflow.py
+```
+
+Pass criteria:
+
+* the example resolves `rank_composite_momentum` from `configs/alphas.yml`
+* the alpha run writes evaluation artifacts, `signals.parquet`,
+  sleeve artifacts, and `alpha_run_scaffold.json`
+* the optional portfolio run succeeds with one `artifact_type: alpha_sleeve`
+  component
+* the review output shows the alpha row plus linked portfolio context
 
 ### 5. Unified review CLI smoke against live registries
 
@@ -199,6 +242,8 @@ Pass criteria:
 * source registries contain no duplicate run ids
 * saved promotion status and gate counts agree between leaderboard rows and the
   referenced source artifacts
+* committed example review outputs reflect the current leaderboard column set,
+  including downstream alpha sleeve and linked-portfolio context columns
 
 ### 8. Documentation alignment checks
 

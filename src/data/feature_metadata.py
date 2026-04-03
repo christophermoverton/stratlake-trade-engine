@@ -9,6 +9,7 @@ import numpy as np
 import pandas as pd
 import yaml
 
+from src.data.feature_names import FEATURE_ALIASES
 from src.data.load_features import FeaturePaths, load_features
 
 DEFAULT_FEATURE_METADATA_PATH = Path("artifacts/features/feature_metadata.json")
@@ -103,6 +104,7 @@ def build_feature_metadata_summary(
     *,
     source_dataset: str,
     feature_list: list[str],
+    feature_aliases: dict[str, list[str]] | None = None,
 ) -> dict[str, Any]:
     feature_columns = _feature_columns(df)
     symbols = sorted(df["symbol"].dropna().astype(str).unique().tolist()) if "symbol" in df.columns else []
@@ -111,6 +113,7 @@ def build_feature_metadata_summary(
         "dataset_name": dataset_name,
         "source_dataset": source_dataset,
         "feature_list": list(feature_list),
+        "feature_aliases": dict(feature_aliases or {}),
         "feature_count": int(len(feature_list)),
         "schema": {
             "column_names": list(df.columns),
@@ -143,6 +146,21 @@ def export_feature_metadata(
     for dataset_name in TARGET_DATASETS:
         entry = _registry_entry_for_dataset(registry, dataset_name)
         feature_list = sorted(str(item) for item in entry.get("features", []))
+        declared_aliases = entry.get("feature_aliases", {})
+        if declared_aliases is None:
+            declared_aliases = {}
+        if not isinstance(declared_aliases, dict):
+            raise ValueError(f"Feature registry aliases must be a mapping for dataset: {dataset_name}")
+        feature_aliases: dict[str, list[str]] = {}
+        for name, aliases in declared_aliases.items():
+            if not isinstance(aliases, list):
+                raise ValueError(
+                    f"Feature registry aliases for '{name}' must be provided as a list for dataset: {dataset_name}"
+                )
+            normalized_name = str(name)
+            normalized_aliases = [str(alias) for alias in aliases]
+            if normalized_name in FEATURE_ALIASES or normalized_aliases:
+                feature_aliases[normalized_name] = normalized_aliases
         # Metadata export summarizes stored datasets as-is, even when they contain
         # warm-up nulls or outlier values that strategy execution would later validate.
         df = load_features(dataset_name, paths=feature_paths, validate_integrity=False)
@@ -152,6 +170,7 @@ def export_feature_metadata(
                 df,
                 source_dataset=str(entry.get("source_dataset", "")),
                 feature_list=feature_list,
+                feature_aliases=feature_aliases,
             )
         )
 

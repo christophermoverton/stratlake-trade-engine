@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.data.feature_names import resolve_feature_names
 from src.research.alpha.base import AlphaModelValidationError, validate_alpha_model_input
 from src.research.alpha.trainer import STRUCTURAL_COLUMNS, TrainedAlphaModel
 
@@ -91,7 +92,12 @@ def _validate_prediction_frame(df: pd.DataFrame, *, feature_columns: list[str]) 
     if df.empty:
         raise AlphaPredictionError("Alpha prediction input must not be empty.")
 
-    missing_features = [column for column in feature_columns if column not in df.columns]
+    resolved_feature_columns = resolve_feature_names(feature_columns, df.columns)
+    missing_features = [
+        requested
+        for requested, resolved in zip(feature_columns, resolved_feature_columns, strict=False)
+        if resolved not in df.columns
+    ]
     if missing_features:
         formatted = ", ".join(repr(column) for column in missing_features)
         raise AlphaPredictionError(
@@ -103,7 +109,7 @@ def _validate_prediction_frame(df: pd.DataFrame, *, feature_columns: list[str]) 
     except AlphaModelValidationError as exc:
         raise AlphaPredictionError(str(exc)) from exc
 
-    prediction_columns = [*STRUCTURAL_COLUMNS, *feature_columns]
+    prediction_columns = [*STRUCTURAL_COLUMNS, *resolved_feature_columns]
     if any(column == "timeframe" for column in df.columns):
         prediction_columns.append("timeframe")
     narrowed = validated.loc[:, list(dict.fromkeys(prediction_columns))].copy(deep=True)

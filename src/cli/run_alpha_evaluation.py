@@ -18,11 +18,17 @@ from src.data.load_features import load_features
 from src.research.alpha import (
     AlphaPredictionError,
     AlphaTrainingError,
+    AlphaPredictionResult,
+    AlphaSignalMappingResult,
     BaseAlphaModel,
+    TrainedAlphaModel,
+    map_alpha_predictions_to_signals,
     predict_alpha_model,
     register_alpha_model,
+    resolve_signal_mapping_config,
     train_alpha_model,
 )
+from src.research.alpha.catalog import register_builtin_alpha_catalog, resolve_alpha_config
 from src.research.alpha_eval import (
     AlphaEvaluationError,
     AlphaEvaluationResult,
@@ -49,7 +55,10 @@ class AlphaEvaluationRunResult:
     run_id: str
     artifact_dir: Path
     loaded_frame: pd.DataFrame
+    trained_model: TrainedAlphaModel
+    prediction_result: AlphaPredictionResult
     prediction_frame: pd.DataFrame
+    signal_mapping_result: AlphaSignalMappingResult | None
     aligned_frame: pd.DataFrame
     evaluation_result: AlphaEvaluationResult
     manifest: dict[str, Any]
@@ -63,6 +72,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         description="Run a deterministic alpha evaluation workflow through the StratLake research pipeline."
     )
     parser.add_argument("--config", help="Optional YAML config path for alpha evaluation inputs.")
+    parser.add_argument("--alpha-name", help="Built-in alpha name defined in configs/alphas.yml.")
     parser.add_argument("--alpha-model", help="Registered alpha model name.")
     parser.add_argument(
         "--model-class",
@@ -104,6 +114,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--promotion-gates",
         help="Optional YAML/JSON promotion gate config override.",
     )
+    parser.add_argument(
+        "--signal-policy",
+        choices=(
+            "rank_long_short",
+            "zscore_continuous",
+            "top_bottom_quantile",
+            "long_only_top_quantile",
+        ),
+        help="Optional explicit post-prediction signal mapping policy.",
+    )
+    parser.add_argument(
+        "--signal-quantile",
+        type=float,
+        help="Optional quantile used by top/bottom or long-only signal mapping policies.",
+    )
     return parser.parse_args(argv)
 
 
@@ -130,11 +155,19 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
 
     args = parse_args(argv)
     resolved_config = resolve_cli_config(args)
+    result = run_resolved_config(resolved_config)
+    print_summary(result)
+    return result
+
+
+def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunResult:
+    """Execute one alpha evaluation run from a fully resolved config mapping."""
+
     ensure_model_registered(
         resolved_config.get("alpha_model"),
         model_class_import=resolved_config.get("model_class"),
+        catalog_path=resolved_config.get("alpha_catalog_path"),
     )
-
     loaded_frame = load_features(
         str(resolved_config["dataset"]),
         start=_optional_string(resolved_config.get("start")),
@@ -155,6 +188,12 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
         predict_start=_optional_string(resolved_config.get("predict_start")),
         predict_end=_optional_string(resolved_config.get("predict_end")),
     )
+    signal_mapping_result = None
+    if isinstance(resolved_config.get("signal_mapping"), dict):
+        signal_mapping_result = map_alpha_predictions_to_signals(
+            prediction_result.predictions,
+            resolve_signal_mapping_config(dict(resolved_config["signal_mapping"])),
+        )
 
     alignment_input = build_alignment_input(
         prediction_result.predictions,
@@ -192,6 +231,10 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
     manifest = write_alpha_evaluation_artifacts(
         artifact_dir,
         evaluation_result,
+        trained_model=trained_model,
+        prediction_result=prediction_result,
+        signal_mapping_result=signal_mapping_result,
+        aligned_frame=aligned_frame,
         run_id=run_id,
         alpha_name=str(resolved_config["alpha_model"]),
         promotion_gate_config=resolved_config.get("promotion_gates"),
@@ -211,13 +254,15 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
         run_id=run_id,
         artifact_dir=artifact_dir,
         loaded_frame=loaded_frame,
+        trained_model=trained_model,
+        prediction_result=prediction_result,
         prediction_frame=prediction_result.predictions,
+        signal_mapping_result=signal_mapping_result,
         aligned_frame=aligned_frame,
         evaluation_result=evaluation_result,
         manifest=manifest,
         resolved_config=effective_config,
     )
-    print_summary(result)
     return result
 
 
@@ -227,8 +272,10 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
     config_payload = {} if args.config is None else load_alpha_evaluation_config(args.config)
     if not isinstance(config_payload, dict):
         raise ValueError("Resolved alpha evaluation config must be a mapping.")
+    config_payload = resolve_alpha_config(config_payload, alpha_name=args.alpha_name)
 
     cli_payload = {
+        "alpha_name": args.alpha_name,
         "alpha_model": args.alpha_model,
         "model_class": args.model_class,
         "dataset": args.dataset,
@@ -248,11 +295,24 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         "min_cross_section_size": args.min_cross_section_size,
         "promotion_gates": None if args.promotion_gates is None else load_promotion_gate_config(args.promotion_gates),
     }
+    signal_mapping = dict(config_payload.get("signal_mapping", {})) if isinstance(config_payload.get("signal_mapping"), dict) else None
+    if args.signal_policy is not None or args.signal_quantile is not None:
+        signal_mapping = {} if signal_mapping is None else dict(signal_mapping)
+        if args.signal_policy is not None:
+            signal_mapping["policy"] = args.signal_policy
+        if args.signal_quantile is not None:
+            signal_mapping["quantile"] = args.signal_quantile
 
     resolved = dict(config_payload)
     for key, value in cli_payload.items():
         if value is not None:
             resolved[key] = value
+    if signal_mapping is not None:
+        resolved["signal_mapping"] = signal_mapping
+
+    resolved = resolve_alpha_config(resolved)
+    if resolved.get("alpha_name") is not None and resolved.get("alpha_model") is None:
+        resolved["alpha_model"] = resolved["alpha_name"]
 
     required_keys = ("alpha_model", "dataset", "target_column")
     missing = [key for key in required_keys if not _has_non_empty_value(resolved.get(key))]
@@ -279,6 +339,12 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
             raise ValueError("tickers must resolve to a list of ticker strings.")
         resolved["tickers"] = [str(symbol) for symbol in tickers]
 
+    if "signal_mapping" in resolved:
+        signal_mapping_payload = resolved["signal_mapping"]
+        if not isinstance(signal_mapping_payload, dict):
+            raise ValueError("signal_mapping must resolve to a dictionary when provided.")
+        resolved["signal_mapping"] = _serialize_signal_mapping(resolve_signal_mapping_config(signal_mapping_payload))
+
     return resolved
 
 
@@ -298,9 +364,14 @@ def ensure_model_registered(
     model_name: str | None,
     *,
     model_class_import: str | None = None,
+    catalog_path: str | Path | None = None,
 ) -> None:
     """Register one model class dynamically when requested by the CLI."""
 
+    if catalog_path is None:
+        register_builtin_alpha_catalog()
+    else:
+        register_builtin_alpha_catalog(path=Path(catalog_path))
     if model_class_import is None:
         return
 
@@ -465,6 +536,16 @@ def _sanitize_name_component(name: str) -> str:
     cleaned = "".join(char if char.isalnum() else "_" for char in name.strip().lower())
     normalized = "_".join(part for part in cleaned.split("_") if part)
     return normalized or "alpha"
+
+
+def _serialize_signal_mapping(config: Any) -> dict[str, Any]:
+    return {
+        "policy": config.policy,
+        "prediction_column": config.prediction_column,
+        "output_column": config.output_column,
+        "quantile": config.quantile,
+        "metadata": dict(config.metadata),
+    }
 
 
 def main() -> None:

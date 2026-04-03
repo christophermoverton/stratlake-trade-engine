@@ -125,6 +125,7 @@ Schema:
 {
   "components": [
     {
+      "artifact_type": "strategy",
       "strategy_name": "momentum_v1",
       "run_id": "momentum_v1_single_...",
       "source_artifact_path": "artifacts/strategies/momentum_v1_single_..."
@@ -132,6 +133,17 @@ Schema:
   ]
 }
 ```
+
+Supported component provenance:
+
+* `artifact_type: "strategy"` loads `equity_curve.csv` from a strategy run
+  and consumes its `strategy_return` column
+* `artifact_type: "alpha_sleeve"` loads `sleeve_returns.csv` from an
+  alpha-evaluation run and consumes its `sleeve_return` column
+
+For alpha sleeves, `strategy_name` remains the portfolio-facing component
+identifier while `artifact_type` and `source_artifact_path` preserve the
+underlying alpha provenance explicitly.
 
 Relationship to in-memory outputs:
 

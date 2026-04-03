@@ -14,10 +14,17 @@ features_daily_v1:
     - feature_ret_5d
     - feature_ret_20d
     - feature_vol_20d
-    - feature_sma20
-    - feature_sma50
     - feature_sma_20
+    - feature_sma_50
     - feature_close_to_sma20
+  targets:
+    - target_ret_1d
+    - target_ret_5d
+  feature_aliases:
+    feature_sma_20:
+      - feature_sma20
+    feature_sma_50:
+      - feature_sma50
 
 features_1m_v1:
   source_dataset: bars_1m

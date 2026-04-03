@@ -50,8 +50,19 @@ _LEADERBOARD_COLUMNS = [
     "promotion_status",
     "passed_gate_count",
     "gate_count",
+    "mapping_name",
+    "sleeve_metric_name",
+    "sleeve_metric_value",
+    "sleeve_secondary_metric_name",
+    "sleeve_secondary_metric_value",
+    "linked_portfolio_count",
+    "linked_portfolio_names",
+    "linked_portfolio_metric_name",
+    "linked_portfolio_metric_value",
     "artifact_path",
 ]
+_ALPHA_CONTEXT_SLEEVE_METRIC = "sharpe_ratio"
+_ALPHA_CONTEXT_SLEEVE_SECONDARY_METRIC = "total_return"
 
 
 class ResearchReviewError(ValueError):
@@ -73,6 +84,15 @@ class ResearchReviewEntry:
     promotion_status: str | None
     passed_gate_count: int | None
     gate_count: int | None
+    mapping_name: str | None
+    sleeve_metric_name: str | None
+    sleeve_metric_value: float | None
+    sleeve_secondary_metric_name: str | None
+    sleeve_secondary_metric_value: float | None
+    linked_portfolio_count: int | None
+    linked_portfolio_names: str | None
+    linked_portfolio_metric_name: str | None
+    linked_portfolio_metric_value: float | None
     artifact_path: str
 
 
@@ -431,16 +451,31 @@ def _collect_review_entries(
 ) -> list[ResearchReviewEntry]:
     entries: list[ResearchReviewEntry] = []
     requested_run_types = set(filters["run_types"])
+    selected_portfolio_rows: list[dict[str, Any]] = []
+    if PORTFOLIO_RUN_TYPE in requested_run_types:
+        selected_portfolio_rows = _selected_portfolio_rows(
+            portfolio_artifacts_root=portfolio_artifacts_root,
+            filters=filters,
+            ranking=ranking,
+        )
     if ALPHA_REVIEW_RUN_TYPE in requested_run_types:
-        entries.extend(_alpha_review_entries(alpha_artifacts_root=alpha_artifacts_root, filters=filters, ranking=ranking))
+        entries.extend(
+            _alpha_review_entries(
+                alpha_artifacts_root=alpha_artifacts_root,
+                filters=filters,
+                ranking=ranking,
+                linked_portfolios_by_alpha_run_id=_linked_portfolios_by_alpha_run_id(
+                    selected_portfolio_rows=selected_portfolio_rows,
+                    portfolio_ranking=ranking,
+                ),
+            )
+        )
     if STRATEGY_RUN_TYPE in requested_run_types:
         entries.extend(
             _strategy_review_entries(strategy_artifacts_root=strategy_artifacts_root, filters=filters, ranking=ranking)
         )
     if PORTFOLIO_RUN_TYPE in requested_run_types:
-        entries.extend(
-            _portfolio_review_entries(portfolio_artifacts_root=portfolio_artifacts_root, filters=filters, ranking=ranking)
-        )
+        entries.extend(_portfolio_entries_from_rows(selected_portfolio_rows, ranking=ranking))
     return sorted(
         entries,
         key=lambda item: (_run_type_sort_key(item.run_type), item.rank_within_type, item.entity_name, item.run_id),
@@ -452,6 +487,7 @@ def _alpha_review_entries(
     alpha_artifacts_root: Path,
     filters: Mapping[str, Any],
     ranking: Mapping[str, Any],
+    linked_portfolios_by_alpha_run_id: Mapping[str, dict[str, Any]],
 ) -> list[ResearchReviewEntry]:
     rows = load_alpha_evaluation_registry(alpha_artifacts_root)
     filtered = [
@@ -482,6 +518,17 @@ def _alpha_review_entries(
             promotion_status=_promotion_status(row),
             passed_gate_count=_promotion_gate_count(row, key="passed_gate_count"),
             gate_count=_promotion_gate_count(row, key="gate_count"),
+            mapping_name=_alpha_mapping_name(row),
+            sleeve_metric_name=_ALPHA_CONTEXT_SLEEVE_METRIC if _alpha_sleeve_metrics(row) else None,
+            sleeve_metric_value=_coerce_metric(_alpha_sleeve_metrics(row).get(_ALPHA_CONTEXT_SLEEVE_METRIC)),
+            sleeve_secondary_metric_name=_ALPHA_CONTEXT_SLEEVE_SECONDARY_METRIC if _alpha_sleeve_metrics(row) else None,
+            sleeve_secondary_metric_value=_coerce_metric(
+                _alpha_sleeve_metrics(row).get(_ALPHA_CONTEXT_SLEEVE_SECONDARY_METRIC)
+            ),
+            linked_portfolio_count=_linked_portfolio_context(linked_portfolios_by_alpha_run_id, row, "count"),
+            linked_portfolio_names=_linked_portfolio_context(linked_portfolios_by_alpha_run_id, row, "names"),
+            linked_portfolio_metric_name=_linked_portfolio_context(linked_portfolios_by_alpha_run_id, row, "metric_name"),
+            linked_portfolio_metric_value=_linked_portfolio_context(linked_portfolios_by_alpha_run_id, row, "metric_value"),
             artifact_path=str(row["artifact_path"]),
         )
         for index, row in enumerate(_limit_rows(ranked, filters["top_k_per_type"]), start=1)
@@ -523,18 +570,27 @@ def _strategy_review_entries(
             promotion_status=_promotion_status(row),
             passed_gate_count=_promotion_gate_count(row, key="passed_gate_count"),
             gate_count=_promotion_gate_count(row, key="gate_count"),
+            mapping_name=None,
+            sleeve_metric_name=None,
+            sleeve_metric_value=None,
+            sleeve_secondary_metric_name=None,
+            sleeve_secondary_metric_value=None,
+            linked_portfolio_count=None,
+            linked_portfolio_names=None,
+            linked_portfolio_metric_name=None,
+            linked_portfolio_metric_value=None,
             artifact_path=str(row["artifact_path"]),
         )
         for index, row in enumerate(_limit_rows(ranked, filters["top_k_per_type"]), start=1)
     ]
 
 
-def _portfolio_review_entries(
+def _selected_portfolio_rows(
     *,
     portfolio_artifacts_root: Path,
     filters: Mapping[str, Any],
     ranking: Mapping[str, Any],
-) -> list[ResearchReviewEntry]:
+) -> list[dict[str, Any]]:
     rows = filter_by_run_type(load_registry(default_registry_path(portfolio_artifacts_root)), PORTFOLIO_RUN_TYPE)
     filtered = [
         row for row in rows
@@ -548,6 +604,16 @@ def _portfolio_review_entries(
         selected,
         key=lambda row: _portfolio_sort_key(row, primary_metric=primary_metric, secondary_metric=secondary_metric),
     )
+    return _limit_rows(ranked, filters["top_k_per_type"])
+
+
+def _portfolio_entries_from_rows(
+    rows: list[dict[str, Any]],
+    *,
+    ranking: Mapping[str, Any],
+) -> list[ResearchReviewEntry]:
+    primary_metric = str(ranking["portfolio_primary_metric"])
+    secondary_metric = str(ranking["portfolio_secondary_metric"])
     return [
         ResearchReviewEntry(
             run_type=PORTFOLIO_RUN_TYPE,
@@ -563,9 +629,18 @@ def _portfolio_review_entries(
             promotion_status=_promotion_status(row),
             passed_gate_count=_promotion_gate_count(row, key="passed_gate_count"),
             gate_count=_promotion_gate_count(row, key="gate_count"),
+            mapping_name=None,
+            sleeve_metric_name=None,
+            sleeve_metric_value=None,
+            sleeve_secondary_metric_name=None,
+            sleeve_secondary_metric_value=None,
+            linked_portfolio_count=None,
+            linked_portfolio_names=None,
+            linked_portfolio_metric_name=None,
+            linked_portfolio_metric_value=None,
             artifact_path=str(row["artifact_path"]),
         )
-        for index, row in enumerate(_limit_rows(ranked, filters["top_k_per_type"]), start=1)
+        for index, row in enumerate(rows, start=1)
     ]
 
 
@@ -593,6 +668,109 @@ def _timestamp_sort_value(row: Mapping[str, Any]) -> str:
 def _metrics_summary(row: Mapping[str, Any]) -> dict[str, Any]:
     payload = row.get("metrics_summary")
     return payload if isinstance(payload, dict) else {}
+
+
+def _alpha_mapping_name(row: Mapping[str, Any]) -> str | None:
+    config = row.get("config")
+    signal_mapping = config.get("signal_mapping") if isinstance(config, Mapping) else None
+    if not isinstance(signal_mapping, Mapping):
+        return None
+
+    metadata = signal_mapping.get("metadata")
+    if isinstance(metadata, Mapping):
+        raw_name = metadata.get("name")
+        if isinstance(raw_name, str) and raw_name.strip():
+            return raw_name.strip()
+
+    policy = signal_mapping.get("policy")
+    quantile = signal_mapping.get("quantile")
+    if not isinstance(policy, str) or not policy.strip():
+        return None
+    if quantile is None:
+        return policy.strip()
+    try:
+        normalized_quantile = float(quantile)
+    except (TypeError, ValueError):
+        return policy.strip()
+    if math.isnan(normalized_quantile) or math.isinf(normalized_quantile):
+        return policy.strip()
+    return f"{policy.strip()}[q={normalized_quantile:g}]"
+
+
+def _alpha_sleeve_metrics(row: Mapping[str, Any]) -> dict[str, Any]:
+    manifest = row.get("manifest")
+    if not isinstance(manifest, Mapping):
+        return {}
+    sleeve = manifest.get("sleeve")
+    if not isinstance(sleeve, Mapping):
+        return {}
+    metric_summary = sleeve.get("metric_summary")
+    return dict(metric_summary) if isinstance(metric_summary, Mapping) else {}
+
+
+def _linked_portfolios_by_alpha_run_id(
+    *,
+    selected_portfolio_rows: Iterable[Mapping[str, Any]],
+    portfolio_ranking: Mapping[str, Any],
+) -> dict[str, dict[str, Any]]:
+    linked: dict[str, dict[str, Any]] = {}
+    metric_name = str(portfolio_ranking["portfolio_primary_metric"])
+    for row in selected_portfolio_rows:
+        components = row.get("components")
+        if not isinstance(components, list):
+            continue
+        component_alpha_run_ids = sorted(
+            {
+                str(component.get("run_id"))
+                for component in components
+                if isinstance(component, Mapping) and str(component.get("artifact_type", "")).strip().lower() == "alpha_sleeve"
+                and isinstance(component.get("run_id"), str)
+                and str(component.get("run_id")).strip()
+            }
+        )
+        if not component_alpha_run_ids:
+            continue
+        portfolio_name = _coerce_optional_string(row.get("portfolio_name"))
+        if portfolio_name is None:
+            continue
+        metric_value = _coerce_metric(_metrics_summary(row).get(metric_name))
+        for alpha_run_id in component_alpha_run_ids:
+            context = linked.setdefault(
+                alpha_run_id,
+                {
+                    "count": 0,
+                    "names": [],
+                    "metric_name": metric_name,
+                    "metric_value": None,
+                },
+            )
+            context["count"] = int(context["count"]) + 1
+            context["names"] = [*context["names"], portfolio_name]
+            if context["metric_value"] is None and metric_value is not None:
+                context["metric_value"] = metric_value
+    return {
+        key: {
+            "count": value["count"],
+            "names": ", ".join(sorted(set(value["names"]))),
+            "metric_name": value["metric_name"],
+            "metric_value": value["metric_value"],
+        }
+        for key, value in sorted(linked.items())
+    }
+
+
+def _linked_portfolio_context(
+    linked_portfolios_by_alpha_run_id: Mapping[str, dict[str, Any]],
+    row: Mapping[str, Any],
+    field_name: str,
+) -> Any:
+    run_id = row.get("run_id")
+    if not isinstance(run_id, str):
+        return None
+    context = linked_portfolios_by_alpha_run_id.get(run_id)
+    if not isinstance(context, dict):
+        return None
+    return context.get(field_name)
 
 
 def _strategy_sort_key(

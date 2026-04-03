@@ -40,6 +40,7 @@ Each dataset summary includes:
 * `dataset_name`
 * `source_dataset`
 * `feature_list`
+* `feature_aliases`
 * `feature_count`
 
 ### Schema information
@@ -116,6 +117,7 @@ The registry is used for:
 
 * source dataset mapping
 * declared feature list
+* declared backward-compatible feature aliases
 
 Observed schema and dataset statistics are loaded from the persisted parquet
 feature datasets rather than inferred only from registry configuration.

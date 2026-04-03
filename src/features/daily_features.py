@@ -6,6 +6,7 @@ import pandas as pd
 @dataclass(frozen=True)
 class DailyFeatureConfig:
     ret_windows: tuple[int, ...] = (1,5,20)
+    target_windows: tuple[int, ...] = (1,5)
     vol_window: int = 20
     sma_windows: tuple[int, ...] = (20, 50)
     std_ddof: int = 0 #ddof=0 > determministic popultation std
@@ -24,7 +25,7 @@ def compute_daily_features_v1(
       - timeframe should be "1D" for daily bars
 
     Output columns:
-      symbol, ts_utc, timeframe, date, close, feature_*
+      symbol, ts_utc, timeframe, date, close, feature_*, target_*
     """
     cfg = cfg or DailyFeatureConfig()
     
@@ -42,7 +43,8 @@ def compute_daily_features_v1(
             + [f"feature_sma_{w}" for w in cfg.sma_windows]
             + ["feature_close_to_sma20"]
         )
-        return pd.DataFrame(columns=base_cols + feat_cols)
+        target_cols = [f"target_ret_{w}d" for w in cfg.target_windows]
+        return pd.DataFrame(columns=base_cols + feat_cols + target_cols)
     
     df = bars_daily.copy()
     
@@ -54,7 +56,11 @@ def compute_daily_features_v1(
     #Returns
     for w in cfg.ret_windows:
         df[f"feature_ret_{w}d"] = g["close"].transform(lambda s: s.astype("float64") / s.shift(w) - 1.0)
-        
+
+    # Canonical alpha targets: return realized from the current close to the close h bars ahead.
+    for w in cfg.target_windows:
+        df[f"target_ret_{w}d"] = g["close"].transform(lambda s: s.shift(-w).astype("float64") / s - 1.0)
+
     
     #vol_20d (std of 1d returns)
     r1 = df["feature_ret_1d"].astype("float64")
@@ -64,20 +70,17 @@ def compute_daily_features_v1(
     
     #SMAs
     for w in cfg.sma_windows:
-        df[f"feature_sma{w}"] = g["close"].transform(
+        df[f"feature_sma_{w}"] = g["close"].transform(
             lambda s: s.astype("float64").rolling(w, min_periods=w).mean()
         )
         
-    #close_to_sma20 uses sma_20 specifically (per MVP)
-    if "feature_sma_20" not in df.columns:
-        df["feature_sma_20"] = g["close"].transform(
-            lambda s: s.astype("float64").rolling(20, min_periods=20).mean()
-        )
     df["feature_close_to_sma20"] = df["close"].astype("float64") / df["feature_sma_20"] - 1.0
     
     #Output contract
     out_cols = ["symbol", "ts_utc", "timeframe", "date", "close"] + [
         c for c in df.columns if c.startswith("feature_")
+    ] + [
+        c for c in df.columns if c.startswith("target_")
     ]
     out = df.loc[:, out_cols].copy()
     

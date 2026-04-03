@@ -3,7 +3,8 @@
 ## Overview
 
 Portfolio configs describe which completed strategy runs should be combined and
-how the portfolio should be constructed.
+how the portfolio should be constructed. Components can now come from either
+completed strategy runs or alpha-evaluation sleeve artifacts.
 
 The portfolio CLI accepts config files in:
 
@@ -126,22 +127,49 @@ General form:
 components:
   - strategy_name: momentum_v1
     run_id: <run_id>
+    artifact_type: strategy
   - strategy_name: mean_reversion_v1
     run_id: <run_id>
+    artifact_type: strategy
+```
+
+Alpha sleeve components use the same shape but set `artifact_type:
+alpha_sleeve` and point `run_id` at an alpha-evaluation run directory:
+
+```yaml
+components:
+  - strategy_name: alpha_sleeve_v1
+    run_id: <alpha_evaluation_run_id>
+    artifact_type: alpha_sleeve
+  - strategy_name: momentum_v1
+    run_id: <strategy_run_id>
+    artifact_type: strategy
 ```
 
 Required behavior depends on selection mode:
 
 * without `--from-registry`, each component must include both
   `strategy_name` and `run_id`
-* with `--from-registry`, each component must include `strategy_name` and must
-  not include `run_id`
+* with `--from-registry`, each component must include `strategy_name`, must
+  not include `run_id`, and currently supports only `artifact_type: strategy`
 
 Rules:
 
 * must be a non-empty list
 * components are normalized into deterministic sorted order
+* `artifact_type` is optional and defaults to `strategy`
+* supported `artifact_type` values are `strategy` and `alpha_sleeve`
 * components must remain unique by strategy after resolution
+
+Alpha sleeve artifact contract:
+
+* the component directory must contain `sleeve_returns.csv`
+* `sleeve_returns.csv` must contain `ts_utc` and `sleeve_return`
+* timestamps must already be timezone-aware UTC
+* the portfolio config's `strategy_name` becomes the sleeve identifier used in
+  portfolio traceability columns such as `strategy_return__<strategy_name>`
+* provenance is preserved in resolved component metadata through
+  `artifact_type` and `source_artifact_path`
 
 ### `initial_capital`
 

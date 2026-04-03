@@ -5,6 +5,7 @@ from typing import Any
 
 import pandas as pd
 
+from src.data.feature_names import resolve_feature_names
 from src.research.alpha.base import AlphaModelValidationError, BaseAlphaModel, validate_alpha_model_input
 from src.research.alpha.registry import get_alpha_model
 
@@ -85,6 +86,11 @@ def _validate_training_frame(df: pd.DataFrame, *, target_column: str) -> pd.Data
     if not isinstance(target_column, str) or not target_column.strip():
         raise AlphaTrainingError("target_column must be a non-empty string.")
     if target_column not in df.columns:
+        if target_column.startswith("target_"):
+            raise AlphaTrainingError(
+                "Alpha training input is missing required target column "
+                f"'{target_column}'. Rebuild or reload the feature dataset with canonical alpha targets."
+            )
         raise AlphaTrainingError(f"Alpha training input must include target column '{target_column}'.")
 
     try:
@@ -156,13 +162,20 @@ def _resolve_feature_columns(
 
     normalized: list[str] = []
     seen: set[str] = set()
-    for column in feature_columns:
+    resolved_columns = resolve_feature_names(feature_columns, df.columns)
+    for requested_column, column in zip(feature_columns, resolved_columns, strict=False):
         if not isinstance(column, str) or not column.strip():
             raise AlphaTrainingError("feature_columns entries must be non-empty strings.")
         if column in seen:
-            raise AlphaTrainingError(f"feature_columns must not contain duplicates. Found duplicate: '{column}'.")
+            raise AlphaTrainingError(
+                "feature_columns must not contain duplicates after alias resolution. "
+                f"Found duplicate: '{column}' from '{requested_column}'."
+            )
         if column not in df.columns:
-            raise AlphaTrainingError(f"Alpha training input must include feature column '{column}'.")
+            raise AlphaTrainingError(
+                f"Alpha training input must include feature column '{requested_column}' "
+                f"(resolved to '{column}')."
+            )
         if column in STRUCTURAL_COLUMNS:
             raise AlphaTrainingError(f"feature_columns must not include structural column '{column}'.")
         if column == target_column:

@@ -304,6 +304,79 @@ def test_run_cli_builds_portfolio_from_config_run_ids(
     assert result.config["timeframe"] == "1D"
 
 
+def test_run_cli_builds_portfolio_from_config_alpha_sleeve_components(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    alpha_root = tmp_path / "artifacts" / "alpha"
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    _write_alpha_sleeve_run(
+        alpha_root,
+        run_id="alpha-sleeve-run",
+        alpha_name="alpha_model_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "sleeve_return": 0.03},
+            {"ts_utc": "2025-01-02T00:00:00Z", "sleeve_return": -0.01},
+        ],
+    )
+    _write_strategy_run(
+        strategy_root,
+        run_id="run-beta",
+        strategy_name="beta_v1",
+        rows=[
+            {"ts_utc": "2025-01-01T00:00:00Z", "strategy_return": 0.02},
+            {"ts_utc": "2025-01-02T00:00:00Z", "strategy_return": 0.01},
+        ],
+    )
+    config_path = tmp_path / "portfolio.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "portfolio_name": "alpha_sleeve_portfolio",
+                "allocator": "equal_weight",
+                "components": [
+                    {
+                        "strategy_name": "alpha_sleeve_v1",
+                        "run_id": "alpha-sleeve-run",
+                        "artifact_type": "alpha_sleeve",
+                    },
+                    {
+                        "strategy_name": "beta_v1",
+                        "run_id": "run-beta",
+                        "artifact_type": "strategy",
+                    },
+                ],
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_portfolio.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.cli.run_portfolio.DEFAULT_PORTFOLIO_ARTIFACTS_ROOT", portfolio_root)
+
+    result = run_cli(
+        [
+            "--portfolio-config",
+            str(config_path),
+            "--timeframe",
+            "1D",
+        ]
+    )
+
+    assert isinstance(result, PortfolioRunResult)
+    assert [component["artifact_type"] for component in result.components] == ["alpha_sleeve", "strategy"]
+    assert [component["strategy_name"] for component in result.components] == ["alpha_sleeve_v1", "beta_v1"]
+    returns_frame = pd.read_csv(result.experiment_dir / "portfolio_returns.csv")
+    assert "strategy_return__alpha_sleeve_v1" in returns_frame.columns
+    assert "strategy_return__beta_v1" in returns_frame.columns
+    components_payload = json.loads((result.experiment_dir / "components.json").read_text(encoding="utf-8"))
+    assert components_payload["components"][0]["artifact_type"] == "alpha_sleeve"
+    assert components_payload["components"][0]["source_artifact_path"] == "artifacts/alpha/alpha-sleeve-run"
+
+
 def test_run_cli_applies_optimizer_and_risk_cli_overrides_deterministically(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -1281,6 +1354,27 @@ def _write_registered_strategy_run(
         ]
     existing_lines.append(json.dumps(entry))
     registry_path.write_text("\n".join(existing_lines) + "\n", encoding="utf-8")
+    return run_dir
+
+
+def _write_alpha_sleeve_run(
+    root: Path,
+    *,
+    run_id: str,
+    alpha_name: str,
+    rows: list[dict[str, object]],
+) -> Path:
+    run_dir = root / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+    (run_dir / "config.json").write_text(
+        json.dumps({"alpha_name": alpha_name}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"run_id": run_id, "alpha_name": alpha_name}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    pd.DataFrame(rows).to_csv(run_dir / "sleeve_returns.csv", index=False)
     return run_dir
 
 

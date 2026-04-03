@@ -45,6 +45,13 @@ Expected semantics:
 
 Feature datasets may include additional non-feature metadata columns when needed, but engineered feature values must always use the `feature_` prefix.
 
+`features_daily` also carries canonical alpha targets for research workflows:
+
+* `target_ret_1d`
+* `target_ret_5d`
+
+These targets are realized forward close-to-close returns aligned to the current row. For a row at timestamp `t`, `target_ret_hd` equals `close[t+h] / close[t] - 1.0`, which corresponds to the forward half-open interval `[t, t+h)`. Rows without enough future history keep `NaN` targets.
+
 ---
 
 ## Primary Key
@@ -79,6 +86,19 @@ Examples:
 
 This prefix is the repository-level signal that a column is part of the engineered feature surface rather than source market data or operational metadata.
 
+For lookback-style features, the canonical pattern is:
+
+```text
+feature_<name>_<window>
+```
+
+Examples:
+
+* `feature_sma_20`
+* `feature_sma_50`
+
+Legacy aliases such as `feature_sma20` may still be accepted by config-facing tooling during migration, but new datasets, registry entries, and documentation should use the canonical underscore form.
+
 ---
 
 ## Row Alignment
@@ -108,6 +128,8 @@ Given the same validated curated source data and the same feature logic, the res
 Features must not use future observations relative to `ts_utc`.
 
 For any row, feature values must be derived only from information available at or before that row's timestamp. Future bars, returns, volumes, or other post-`ts_utc` observations must not influence the row's engineered values.
+
+Canonical `target_*` columns are the documented exception because they are supervised-learning labels, not tradable inputs. They may use future observations, but they must preserve the same row key and use explicit forward-return semantics.
 
 ### Rolling and Null Behavior
 

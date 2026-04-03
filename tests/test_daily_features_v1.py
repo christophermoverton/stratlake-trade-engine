@@ -3,6 +3,7 @@ import pandas as pd
 import pandas.testing as pdt
 
 from src.features.daily_features import compute_daily_features_v1
+from src.research.alpha_eval.alignment import align_forward_returns
 
 
 def _make_daily_bars(symbol: str = "AAPL", closes: list[float] | None = None) -> pd.DataFrame:
@@ -38,15 +39,41 @@ def test_daily_returns_match_expected_windows() -> None:
     np.testing.assert_allclose(features["feature_ret_20d"], expected_ret_20d, equal_nan=True)
 
 
+def test_daily_alpha_targets_match_forward_return_alignment() -> None:
+    closes = [100.0, 101.0, 103.0, 106.0, 110.0, 115.0, 121.0]
+    features = compute_daily_features_v1(_make_daily_bars(closes=closes))
+
+    expected_target_1d = [(closes[i + 1] / closes[i]) - 1.0 for i in range(len(closes) - 1)] + [np.nan]
+    expected_target_5d = [(closes[i + 5] / closes[i]) - 1.0 for i in range(len(closes) - 5)] + [np.nan] * 5
+
+    np.testing.assert_allclose(features["target_ret_1d"], expected_target_1d, equal_nan=True)
+    np.testing.assert_allclose(features["target_ret_5d"], expected_target_5d, equal_nan=True)
+
+    aligned_1d = align_forward_returns(
+        features.loc[:, ["symbol", "ts_utc", "timeframe", "close"]].assign(prediction_score=0.0),
+        price_column="close",
+        horizon=1,
+        drop_incomplete=False,
+    )
+    aligned_5d = align_forward_returns(
+        features.loc[:, ["symbol", "ts_utc", "timeframe", "close"]].assign(prediction_score=0.0),
+        price_column="close",
+        horizon=5,
+        drop_incomplete=False,
+    )
+
+    np.testing.assert_allclose(features["target_ret_1d"], aligned_1d["forward_return"], equal_nan=True)
+    np.testing.assert_allclose(features["target_ret_5d"], aligned_5d["forward_return"], equal_nan=True)
+
+
 def test_daily_volatility_and_moving_averages_have_expected_warmup_and_values() -> None:
     closes = [100.0 + i for i in range(55)]
     features = compute_daily_features_v1(_make_daily_bars(closes=closes))
     ret_1d = np.array([(closes[i] / closes[i - 1]) - 1.0 for i in range(1, len(closes))], dtype=float)
 
     assert np.isnan(features.loc[19, "feature_vol_20d"])
-    assert np.isnan(features.loc[18, "feature_sma20"])
-    assert np.isnan(features.loc[48, "feature_sma50"])
     assert np.isnan(features.loc[18, "feature_sma_20"])
+    assert np.isnan(features.loc[48, "feature_sma_50"])
     assert np.isnan(features.loc[18, "feature_close_to_sma20"])
 
     expected_vol_idx_20 = np.std(ret_1d[:20], ddof=0)
@@ -56,10 +83,9 @@ def test_daily_volatility_and_moving_averages_have_expected_warmup_and_values() 
     expected_close_to_sma20_idx_19 = (closes[19] / expected_sma20_idx_19) - 1.0
 
     assert np.isclose(features.loc[20, "feature_vol_20d"], expected_vol_idx_20)
-    assert np.isclose(features.loc[19, "feature_sma20"], expected_sma20_idx_19)
-    assert np.isclose(features.loc[20, "feature_sma20"], expected_sma20_idx_20)
     assert np.isclose(features.loc[19, "feature_sma_20"], expected_sma20_idx_19)
-    assert np.isclose(features.loc[49, "feature_sma50"], expected_sma50_idx_49)
+    assert np.isclose(features.loc[20, "feature_sma_20"], expected_sma20_idx_20)
+    assert np.isclose(features.loc[49, "feature_sma_50"], expected_sma50_idx_49)
     assert np.isclose(features.loc[19, "feature_close_to_sma20"], expected_close_to_sma20_idx_19)
 
 
@@ -96,4 +122,6 @@ def test_daily_features_empty_input_returns_expected_schema() -> None:
         "feature_sma_20",
         "feature_sma_50",
         "feature_close_to_sma20",
+        "target_ret_1d",
+        "target_ret_5d",
     ]

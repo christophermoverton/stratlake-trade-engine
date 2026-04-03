@@ -37,9 +37,10 @@ portfolio construction
 artifacts
 ```
 
-Alpha utilities do not write artifacts themselves in this milestone. They
-prepare deterministic model state and prediction outputs that can feed the
-existing research and portfolio layers.
+Alpha utilities feed the alpha-evaluation layer, which now persists
+deterministic artifacts such as `predictions.parquet`,
+`training_summary.json`, `coefficients.json`,
+`cross_section_diagnostics.json`, `alpha_metrics.json`, and `manifest.json`.
 
 ## Alpha Model Interface
 
@@ -105,12 +106,23 @@ Inputs:
 Current behavior:
 
 * validates the full frame before slicing
-* requires a non-empty target column with at least one non-null value
+* requires the configured target column to be present and non-empty
 * derives features automatically from `feature_*` columns when
   `feature_columns` is omitted
 * sorts the selected training frame by `(symbol, ts_utc)`
 * returns `TrainedAlphaModel` metadata including the selected features and the
   effective train window
+
+For built-in daily alpha configs, the canonical training targets live directly
+in `features_daily`:
+
+* `target_ret_1d`
+* `target_ret_5d`
+
+These are realized forward close-to-close returns aligned to the current row,
+so `target_ret_5d` on date `t` equals `close[t+5] / close[t] - 1.0`. Missing
+target columns now fail with a clear rebuild/reload error so stale daily
+feature datasets do not silently drift from the alpha registry.
 
 Window semantics are always half-open:
 
@@ -142,6 +154,38 @@ Current behavior:
   * `prediction_score`
 
 Predictions must be finite numeric values with exact index alignment.
+
+## Explicit Signal Mapping
+
+`src/research/alpha/signals.py` provides one explicit, reusable layer for
+turning `prediction_score` into deterministic exposures. Mapping always runs
+cross-sectionally by `ts_utc` and never happens implicitly inside
+`predict_alpha_model(...)`.
+
+Available policies:
+
+* `rank_long_short`: ranks one timestamp slice from highest score to lowest and
+  maps those ordered names linearly onto `[-1, 1]`
+* `zscore_continuous`: mean-centers one timestamp slice and divides by the
+  population standard deviation; zero-dispersion slices map to `0.0`
+* `top_bottom_quantile`: assigns `+1.0` to the top quantile, `-1.0` to the
+  bottom quantile, and `0.0` elsewhere
+* `long_only_top_quantile`: assigns `+1.0` to the top quantile and `0.0`
+  elsewhere
+
+Deterministic tie handling is explicit:
+
+* cross-sections are evaluated by `ts_utc`
+* rows remain canonically sorted by `(symbol, ts_utc[, timeframe])`
+* ties break on `symbol` ascending after sorting by `prediction_score`
+
+Quantile semantics are also explicit:
+
+* `top_bottom_quantile` requires `quantile` in `(0, 0.5]`
+* `long_only_top_quantile` requires `quantile` in `(0, 1.0]`
+* quantile bucket sizes use `ceil(n * quantile)`
+* long/short quantile selection is capped at `floor(n / 2)` so top and bottom
+  buckets never overlap
 
 ## Time-Aware Split Utilities
 
@@ -195,54 +239,76 @@ for one timestamp across many symbols.
 
 ## Relationship To Backtesting
 
-Alpha predictions are not backtested automatically. The current workflow is:
+Alpha predictions can now be converted into a deterministic downstream sleeve
+using the same `run_backtest(...)` assumptions as the strategy layer. The
+practical first-use default in `python -m src.cli.run_alpha --mode full` is a
+market-neutral `rank_long_short` mapping.
+
+The workflow is:
 
 1. train a registered alpha model
 2. predict on an out-of-sample window
 3. map `prediction_score` into a `signal`
-4. run `run_backtest(...)`
+4. generate one sleeve return stream via `run_backtest(...)`
+5. hand the sleeve into downstream portfolio construction when desired
 
 The mapping step is intentionally explicit so research code decides how raw
 scores become exposures.
 
 Examples:
 
-* sign mapping: `signal = np.sign(prediction_score)`
-* continuous exposure mapping: `signal = prediction_score`
-* rank or z-score mapping in downstream research code
+* sign mapping in downstream custom code
+* continuous exposure mapping via `zscore_continuous`
+* rank-based exposure mapping via `rank_long_short`
+* quantile sleeves via `top_bottom_quantile` or `long_only_top_quantile`
 
 `run_backtest(...)` accepts finite numeric `signal` values, so alpha workflows
 can preserve continuous exposure magnitude when that is the intended behavior.
 
+`python -m src.cli.run_alpha --mode full` now persists deterministic sleeve
+artifacts alongside the evaluation outputs:
+
+* `signals.parquet`
+* `sleeve_returns.csv`
+* `sleeve_equity_curve.csv`
+* `sleeve_metrics.json`
+* `alpha_run_scaffold.json`
+
 ## Example Workflow
 
-The repository ships an end-to-end example:
+The repository ships one primary built-in alpha workflow example:
 
 * script:
-  [examples/milestone_11_5_alpha_portfolio_workflow.py](examples/milestone_11_5_alpha_portfolio_workflow.py)
+  [examples/real_alpha_workflow.py](examples/real_alpha_workflow.py)
 * companion guide:
-  [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
+  [examples/real_alpha_workflow.md](examples/real_alpha_workflow.md)
 
 Run it with:
 
 ```bash
-python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
+python docs/examples/real_alpha_workflow.py
 ```
 
 It demonstrates:
 
-* alpha model registration
-* deterministic training and prediction
-* fixed and rolling alpha splits
-* cross-section inspection
-* continuous-signal backtesting
-* portfolio construction with and without volatility targeting
+* config-driven built-in alpha selection from `configs/alphas.yml`
+* deterministic training, prediction, and alpha evaluation
+* explicit alpha-to-signal mapping
+* sleeve generation and persisted sleeve artifacts
+* downstream portfolio consumption of an `alpha_sleeve`
+* unified review artifact outputs for the alpha run and linked portfolio
 
 Outputs are written under:
 
 ```text
-docs/examples/output/milestone_11_5_alpha_portfolio_workflow/
+docs/examples/output/real_alpha_workflow/
 ```
+
+The older custom-model walkthrough remains available when you want lower-level
+alpha registration details:
+
+* [examples/milestone_11_5_alpha_portfolio_workflow.py](examples/milestone_11_5_alpha_portfolio_workflow.py)
+* [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
 
 ## Related Docs
 
@@ -250,5 +316,6 @@ docs/examples/output/milestone_11_5_alpha_portfolio_workflow/
 * [backtest_runner.md](backtest_runner.md)
 * [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
 * [milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md)
+* [examples/real_alpha_workflow.md](examples/real_alpha_workflow.md)
 * [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [alpha_evaluation_workflow.md](alpha_evaluation_workflow.md)

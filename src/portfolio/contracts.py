@@ -14,6 +14,7 @@ from .risk import (
 )
 
 _STRATEGY_ID_CANDIDATES: tuple[str, ...] = ("strategy_name", "strategy_id", "strategy")
+_SUPPORTED_COMPONENT_ARTIFACT_TYPES: tuple[str, ...] = ("strategy", "alpha_sleeve")
 _PORTFOLIO_REQUIRED_COLUMNS: tuple[str, ...] = ("ts_utc", "portfolio_return")
 _WEIGHT_SUM_TOLERANCE = 1e-8
 _DEFAULT_INITIAL_CAPITAL = 1.0
@@ -352,9 +353,7 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
             raise PortfolioContractError(
                 f"portfolio config component at index {index} must be a dictionary."
             )
-        missing_component_fields = [
-            field for field in ("strategy_name", "run_id") if field not in component
-        ]
+        missing_component_fields = [field for field in ("strategy_name", "run_id") if field not in component]
         if missing_component_fields:
             formatted = ", ".join(repr(field) for field in missing_component_fields)
             raise PortfolioContractError(
@@ -369,6 +368,10 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
             component.get("run_id"),
             field_name=f"components[{index}].run_id",
         )
+        artifact_type = _normalize_component_artifact_type(
+            component.get("artifact_type", "strategy"),
+            field_name=f"components[{index}].artifact_type",
+        )
         component_key = (strategy_name, run_id)
         if component_key in seen_component_keys:
             raise PortfolioContractError(
@@ -382,7 +385,12 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
                 f"Duplicate strategy_name: {strategy_name!r}."
             )
         seen_strategy_names.add(strategy_name)
-        normalized_components.append({"strategy_name": strategy_name, "run_id": run_id})
+        normalized_component = {
+            "strategy_name": strategy_name,
+            "run_id": run_id,
+            "artifact_type": artifact_type,
+        }
+        normalized_components.append(normalized_component)
 
     initial_capital_raw = config_dict.get("initial_capital", _DEFAULT_INITIAL_CAPITAL)
     try:
@@ -418,7 +426,11 @@ def validate_portfolio_config(config_dict: dict[str, Any]) -> dict[str, Any]:
         "allocator": allocator,
         "components": sorted(
             normalized_components,
-            key=lambda component: (component["strategy_name"], component["run_id"]),
+            key=lambda component: (
+                component["strategy_name"],
+                component["run_id"],
+                component["artifact_type"],
+            ),
         ),
         "initial_capital": initial_capital,
         "alignment_policy": alignment_policy,
@@ -754,6 +766,15 @@ def _normalize_config_string(value: Any, *, field_name: str) -> str:
     normalized = value.strip()
     if not normalized:
         raise PortfolioContractError(f"portfolio config field {field_name!r} must be a non-empty string.")
+    return normalized
+
+
+def _normalize_component_artifact_type(value: Any, *, field_name: str) -> str:
+    normalized = _normalize_config_string(value, field_name=field_name).lower()
+    if normalized not in _SUPPORTED_COMPONENT_ARTIFACT_TYPES:
+        raise PortfolioContractError(
+            f"portfolio config field {field_name!r} must be one of {list(_SUPPORTED_COMPONENT_ARTIFACT_TYPES)!r}."
+        )
     return normalized
 
 

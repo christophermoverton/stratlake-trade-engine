@@ -8,6 +8,7 @@ import pytest
 
 from src.portfolio import (
     build_aligned_return_matrix,
+    load_portfolio_component_runs_returns,
     load_strategy_run_returns,
     load_strategy_runs_returns,
 )
@@ -172,6 +173,75 @@ def test_load_strategy_run_returns_averages_duplicate_timestamp_rows(tmp_path: P
     assert loaded["strategy_return"].tolist() == [pytest.approx(0.025), pytest.approx(0.01)]
 
 
+def test_load_portfolio_component_runs_returns_supports_alpha_sleeves(tmp_path: Path) -> None:
+    alpha_dir = _write_alpha_sleeve_run(
+        tmp_path,
+        run_id="20260325T105000Z_alpha_eval",
+        alpha_name="alpha_model_v1",
+        rows=[
+            {"ts_utc": "2022-01-01T00:00:00Z", "sleeve_return": 0.03},
+            {"ts_utc": "2022-01-02T00:00:00Z", "sleeve_return": -0.01},
+        ],
+    )
+    beta_dir = _write_run(
+        tmp_path,
+        run_id="20260325T105500Z_beta",
+        strategy_name="beta_v1",
+        rows=[
+            {"ts_utc": "2022-01-01T00:00:00Z", "strategy_return": 0.01},
+            {"ts_utc": "2022-01-02T00:00:00Z", "strategy_return": 0.02},
+        ],
+    )
+
+    loaded = load_portfolio_component_runs_returns(
+        [
+            {
+                "source_artifact_path": alpha_dir,
+                "artifact_type": "alpha_sleeve",
+                "strategy_name": "alpha_sleeve_v1",
+            },
+            {
+                "source_artifact_path": beta_dir,
+                "artifact_type": "strategy",
+                "strategy_name": "beta_v1",
+            },
+        ]
+    )
+    matrix = build_aligned_return_matrix(loaded)
+
+    assert loaded.columns.tolist() == ["ts_utc", "strategy_name", "strategy_return", "run_id", "artifact_type"]
+    assert sorted(loaded["artifact_type"].astype("string").unique().tolist()) == ["alpha_sleeve", "strategy"]
+    assert loaded["strategy_name"].tolist() == [
+        "alpha_sleeve_v1",
+        "beta_v1",
+        "alpha_sleeve_v1",
+        "beta_v1",
+    ]
+    assert matrix.columns.tolist() == ["alpha_sleeve_v1", "beta_v1"]
+    assert matrix.loc[pd.Timestamp("2022-01-01T00:00:00Z"), "alpha_sleeve_v1"] == pytest.approx(0.03)
+    assert matrix.loc[pd.Timestamp("2022-01-02T00:00:00Z"), "beta_v1"] == pytest.approx(0.02)
+
+
+def test_load_portfolio_component_runs_returns_rejects_missing_alpha_sleeve_artifact(tmp_path: Path) -> None:
+    run_dir = tmp_path / "alpha_missing_sleeve"
+    run_dir.mkdir(parents=True)
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"alpha_name": "alpha_model_v1", "run_id": "alpha-run"}),
+        encoding="utf-8",
+    )
+
+    with pytest.raises(FileNotFoundError, match="sleeve_returns\\.csv"):
+        load_portfolio_component_runs_returns(
+            [
+                {
+                    "source_artifact_path": run_dir,
+                    "artifact_type": "alpha_sleeve",
+                    "strategy_name": "alpha_sleeve_v1",
+                }
+            ]
+        )
+
+
 def _write_run(
     root: Path,
     *,
@@ -192,4 +262,25 @@ def _write_run(
     frame["signal"] = 1.0
     frame["position"] = 1.0
     frame.to_csv(run_dir / "equity_curve.csv", index=False)
+    return run_dir
+
+
+def _write_alpha_sleeve_run(
+    root: Path,
+    *,
+    run_id: str,
+    alpha_name: str,
+    rows: list[dict[str, object]],
+) -> Path:
+    run_dir = root / run_id
+    run_dir.mkdir(parents=True, exist_ok=False)
+    (run_dir / "config.json").write_text(
+        json.dumps({"alpha_name": alpha_name}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    (run_dir / "manifest.json").write_text(
+        json.dumps({"run_id": run_id, "alpha_name": alpha_name}, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    pd.DataFrame(rows).to_csv(run_dir / "sleeve_returns.csv", index=False)
     return run_dir

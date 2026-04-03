@@ -24,7 +24,10 @@ from .execution import (
     apply_portfolio_execution_model,
 )
 from .loaders import (
+    SUPPORTED_PORTFOLIO_COMPONENT_ARTIFACT_TYPES,
     build_aligned_return_matrix,
+    load_portfolio_component_returns,
+    load_portfolio_component_runs_returns,
     load_strategy_run_returns,
     load_strategy_runs_returns,
 )
@@ -85,8 +88,11 @@ __all__ = [
     "build_portfolio_registry_metadata",
     "register_validated_portfolio_run",
     "write_portfolio_artifacts",
+    "SUPPORTED_PORTFOLIO_COMPONENT_ARTIFACT_TYPES",
     "load_strategy_run_returns",
     "load_strategy_runs_returns",
+    "load_portfolio_component_returns",
+    "load_portfolio_component_runs_returns",
     "build_aligned_return_matrix",
     "compute_portfolio_metrics",
     "optimize_portfolio",

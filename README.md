@@ -8,11 +8,13 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 13 Summary
+## Milestone 14 Summary
 
-Milestone 13 promotes StratLake into a deterministic research-review platform
-that now carries alpha evaluation, strategy runs, and portfolio runs into one
-shared registry-backed review layer. The repository now supports:
+Milestone 14 promotes StratLake into a
+deterministic research-review platform that can carry one built-in alpha from
+catalog config, through evaluation and explicit signal mapping, into one sleeve,
+optional portfolio consumption, and shared review outputs. The repository now
+supports:
 
 * alpha model registration through a deterministic `BaseAlphaModel` interface
 * deterministic alpha training and prediction helpers with explicit half-open
@@ -25,14 +27,21 @@ shared registry-backed review layer. The repository now supports:
   leaderboard-ready summaries
 * registry-backed alpha-evaluation persistence, comparison, and reproducible
   artifact manifests
+* built-in alpha catalog/config support through `configs/alphas.yml` plus
+  `python -m src.cli.run_alpha`
+* default full alpha runs that persist evaluation artifacts, mapped signals,
+  sleeve return streams, sleeve metrics, and `alpha_run_scaffold.json`
 * continuous-signal backtesting where finite numeric exposures are interpreted
   literally after lagged execution
+* alpha-sleeve portfolio integration through `artifact_type: alpha_sleeve`
+  components in portfolio configs
 * centralized portfolio optimization with `equal_weight`, `max_sharpe`, and
   `risk_parity`
 * operational volatility targeting in portfolio workflows, separate from
   diagnostic risk summaries
 * unified review workflows for ranking completed alpha, strategy, and
-  portfolio runs together
+  portfolio runs together, including optional alpha sleeve and linked portfolio
+  context in review outputs
 * deterministic return simulation, robustness analysis, artifact manifests,
   and registry-backed reuse
 
@@ -43,6 +52,8 @@ Start with:
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
+* [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
+* [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
@@ -75,6 +86,11 @@ The repository currently supports:
 * manifest-backed unified research review artifacts with deterministic review summaries
 * unified runtime configuration with auditable persisted settings
 * deterministic artifacts, manifests, and registry-backed reuse
+
+Feature naming note:
+
+* canonical daily SMA features use underscore window names such as `feature_sma_20` and `feature_sma_50`
+* legacy config aliases such as `feature_sma20` and `feature_sma50` remain accepted by alpha tooling for backward compatibility
 
 ## Architecture
 
@@ -187,16 +203,26 @@ Quick start:
 
 ```powershell
 python docs/examples/alpha_evaluation_end_to_end.py
+python -m src.cli.run_alpha --alpha-name cs_linear_ret_1d --mode evaluate --start 2025-01-01 --end 2025-03-01
+python -m src.cli.run_alpha --alpha-name rank_composite_momentum --start 2025-01-01 --end 2025-03-01 --signal-policy top_bottom_quantile --signal-quantile 0.2
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
 python -m src.cli.compare_alpha --from-registry
 ```
 
 Notes:
 
+* `python -m src.cli.run_alpha` is the first-class entrypoint for named built-in alpha configs from `configs/alphas.yml`
+* `--mode evaluate` runs only the evaluation stage; the default `full` mode also writes `signals.parquet`, sleeve artifacts, and `alpha_run_scaffold.json`
 * pass exactly one of `--price-column` or `--realized-return-column`
 * `--model-class` accepts either `module:Class` or `path.py:Class`
 * the end-to-end example writes reproducible outputs under
   `docs/examples/output/alpha_evaluation_end_to_end/`
+
+`python -m src.cli.run_alpha --mode full` is the merge-review baseline for
+built-in configs. It resolves one named alpha from `configs/alphas.yml`,
+evaluates forecast quality, maps predictions into explicit signals, generates a
+deterministic sleeve return stream, and leaves one scaffold artifact that keeps
+the downstream alpha-to-sleeve flow auditable.
 
 ## Cross-Sectional Utilities
 
@@ -320,16 +346,16 @@ Simulation-enabled single run:
 python -m src.cli.run_strategy --strategy momentum_v1 --simulation path/to/simulation.yml
 ```
 
-### 4. Run the Milestone 11.5 alpha workflow example
+### 4. Run the real alpha workflow example
 
 ```powershell
-python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
+python docs/examples/real_alpha_workflow.py
 ```
 
-This example demonstrates alpha model registration, deterministic training and
-prediction, fixed and rolling alpha splits, cross-sectional inspection,
-continuous-signal backtesting, and portfolio construction with and without
-volatility targeting.
+This example demonstrates config-driven built-in alpha selection, deterministic
+prediction and evaluation on `features_daily`, explicit signal mapping, alpha
+sleeve generation, downstream portfolio integration, and unified review
+artifacts.
 
 ### 4b. Run the Milestone 12 alpha-evaluation example
 
@@ -451,25 +477,29 @@ Start with:
 ## Example Workflow
 
 The main end-to-end alpha example lives at
-[docs/examples/milestone_11_5_alpha_portfolio_workflow.py](docs/examples/milestone_11_5_alpha_portfolio_workflow.py).
+[docs/examples/real_alpha_workflow.py](docs/examples/real_alpha_workflow.py).
 
 Run it with:
 
 ```powershell
-python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
+python docs/examples/real_alpha_workflow.py
 ```
 
 It demonstrates:
 
-* alpha model registration and deterministic train/predict helpers
-* fixed and rolling alpha splits
-* cross-sectional inspection
-* sign-based and continuous-exposure signal interpretation
-* single-symbol backtesting
-* portfolio construction with and without volatility targeting
-* artifact writing under `docs/examples/output/milestone_11_5_alpha_portfolio_workflow/`
+* config-driven selection of a built-in alpha from `configs/alphas.yml`
+* deterministic alpha prediction, evaluation, and registry-backed artifacts
+* explicit alpha-to-signal mapping
+* sleeve generation under `artifacts/alpha/<run_id>/`
+* portfolio construction from an `alpha_sleeve` component
+* review artifact writing under `docs/examples/output/real_alpha_workflow/`
 
 See the companion guide
+[docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md).
+
+The lower-level custom-model walkthrough remains available at
+[docs/examples/milestone_11_5_alpha_portfolio_workflow.py](docs/examples/milestone_11_5_alpha_portfolio_workflow.py)
+with notes in
 [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md).
 
 The Milestone 12 alpha-evaluation example lives at
@@ -485,6 +515,9 @@ The primary workflow guide lives at
 [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
 For the real-data 2026 Q1 backfill through gated-review path, see
 [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md).
+For the real-data Q1 2026 alpha continuation on the same `features_daily`
+surface, see
+[docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md).
 
 ## Artifact Overview
 
@@ -556,6 +589,38 @@ Core files:
 * `manifest.json`
 * `promotion_gates.json` when review-level promotion gates are configured
 
+### Alpha-evaluation artifacts
+
+Successful alpha-evaluation runs write under `artifacts/alpha/<run_id>/`.
+
+Core files:
+
+* `predictions.parquet`
+* `training_summary.json`
+* `coefficients.json`
+* `cross_section_diagnostics.json`
+* `qa_summary.json`
+* `alpha_metrics.json`
+* `ic_timeseries.csv`
+* `manifest.json`
+* `promotion_gates.json` when alpha promotion gates are configured
+
+Full built-in alpha runs from `python -m src.cli.run_alpha --mode full` also
+write:
+
+* `signals.parquet`
+* `signal_mapping.json`
+* `sleeve_returns.csv`
+* `sleeve_equity_curve.csv`
+* `sleeve_metrics.json`
+* `alpha_run_scaffold.json`
+
+`qa_summary.json` is the practical alpha QA surface. It records usable
+timestamp coverage, cross-section breadth, post-warmup null rates, and, when
+signals are present, tradability diagnostics such as implied turnover,
+concentration, and net exposure. Example thresholds live in
+`configs/alpha_promotion_gates.yml`.
+
 ## Documentation Map
 
 Start here:
@@ -567,6 +632,7 @@ Start here:
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
+* [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 
 Portfolio references:
 
@@ -584,6 +650,7 @@ Research integrity and execution references:
 
 Examples:
 
+* [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)

@@ -143,7 +143,26 @@ def _alpha_entry(
     mean_ic: object,
     timeframe: str = "1D",
     dataset: str = "features_daily",
+    mapping_name: str | None = None,
+    sleeve_sharpe_ratio: object | None = None,
+    sleeve_total_return: object | None = None,
 ) -> dict[str, object]:
+    config: dict[str, object] = {}
+    if mapping_name is not None:
+        config["signal_mapping"] = {
+            "policy": "top_bottom_quantile",
+            "quantile": 0.2,
+            "metadata": {"name": mapping_name},
+        }
+    manifest: dict[str, object] = {}
+    if sleeve_sharpe_ratio is not None or sleeve_total_return is not None:
+        manifest["sleeve"] = {
+            "enabled": True,
+            "metric_summary": {
+                "sharpe_ratio": sleeve_sharpe_ratio,
+                "total_return": sleeve_total_return,
+            },
+        }
     return {
         "run_id": run_id,
         "run_type": "alpha_evaluation",
@@ -159,6 +178,8 @@ def _alpha_entry(
             "passed_gate_count": 1,
             "gate_count": 1,
         },
+        "config": config,
+        "manifest": manifest,
         "metrics_summary": {
             "ic_ir": ic_ir,
             "mean_ic": mean_ic,
@@ -290,6 +311,15 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
         "promotion_status",
         "passed_gate_count",
         "gate_count",
+        "mapping_name",
+        "sleeve_metric_name",
+        "sleeve_metric_value",
+        "sleeve_secondary_metric_name",
+        "sleeve_secondary_metric_value",
+        "linked_portfolio_count",
+        "linked_portfolio_names",
+        "linked_portfolio_metric_name",
+        "linked_portfolio_metric_value",
         "artifact_path",
     ]
     payload = json.loads(result.json_path.read_text(encoding="utf-8"))
@@ -340,6 +370,147 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
     assert manifest["artifacts"]["leaderboard.csv"]["columns"] == list(frame.columns)
     assert manifest["counts_by_run_type"] == payload["counts_by_run_type"]
     assert manifest["review_config"]["output"]["emit_plots"] is True
+
+
+def test_compare_research_runs_exposes_alpha_sleeve_context_without_changing_alpha_ranking(tmp_path: Path) -> None:
+    alpha_root = tmp_path / "artifacts" / "alpha"
+    _write_registry(
+        alpha_root / "registry.jsonl",
+        [
+            _alpha_entry(
+                run_id="alpha-best-forecast",
+                alpha_name="alpha_best_forecast",
+                timestamp="2026-03-19T00:00:00Z",
+                ic_ir=0.9,
+                mean_ic=0.04,
+                mapping_name="top_q20",
+                sleeve_sharpe_ratio=0.8,
+                sleeve_total_return=0.05,
+            ),
+            _alpha_entry(
+                run_id="alpha-better-sleeve",
+                alpha_name="alpha_better_sleeve",
+                timestamp="2026-03-19T00:01:00Z",
+                ic_ir=0.7,
+                mean_ic=0.03,
+                mapping_name="top_q20",
+                sleeve_sharpe_ratio=1.6,
+                sleeve_total_return=0.12,
+            ),
+        ],
+    )
+
+    result = compare_research_runs(
+        run_types=["alpha_evaluation"],
+        alpha_artifacts_root=alpha_root,
+        output_path=tmp_path,
+    )
+
+    assert [entry.run_id for entry in result.entries] == ["alpha-best-forecast", "alpha-better-sleeve"]
+    assert result.entries[0].selected_metric_name == "ic_ir"
+    assert result.entries[0].selected_metric_value == pytest.approx(0.9)
+    assert result.entries[0].mapping_name == "top_q20"
+    assert result.entries[0].sleeve_metric_name == "sharpe_ratio"
+    assert result.entries[0].sleeve_metric_value == pytest.approx(0.8)
+    assert result.entries[0].sleeve_secondary_metric_name == "total_return"
+    assert result.entries[0].sleeve_secondary_metric_value == pytest.approx(0.05)
+    assert result.entries[0].linked_portfolio_count is None
+
+    payload = _read_json(result.json_path)
+    assert payload["entries"][0]["selected_metric_name"] == "ic_ir"
+    assert payload["entries"][0]["sleeve_metric_name"] == "sharpe_ratio"
+    assert payload["entries"][0]["sleeve_metric_value"] == pytest.approx(0.8)
+
+
+def test_compare_research_runs_links_alpha_rows_to_selected_portfolio_context(tmp_path: Path) -> None:
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    alpha_root = tmp_path / "artifacts" / "alpha"
+    _write_registry(
+        alpha_root / "registry.jsonl",
+        [
+            _alpha_entry(
+                run_id="alpha-linked",
+                alpha_name="alpha_linked",
+                timestamp="2026-03-19T00:00:00Z",
+                ic_ir=0.8,
+                mean_ic=0.03,
+                sleeve_sharpe_ratio=1.1,
+                sleeve_total_return=0.09,
+            ),
+            _alpha_entry(
+                run_id="alpha-unlinked",
+                alpha_name="alpha_unlinked",
+                timestamp="2026-03-19T00:01:00Z",
+                ic_ir=0.6,
+                mean_ic=0.02,
+            ),
+        ],
+    )
+    _write_registry(
+        portfolio_root / "registry.jsonl",
+        [
+            {
+                **_portfolio_entry(
+                    run_id="portfolio-using-alpha",
+                    portfolio_name="alpha_portfolio",
+                    timestamp="2026-03-19T00:02:00Z",
+                    sharpe_ratio=1.5,
+                    total_return=0.14,
+                ),
+                "components": [
+                    {
+                        "strategy_name": "alpha_sleeve_v1",
+                        "run_id": "alpha-linked",
+                        "artifact_type": "alpha_sleeve",
+                    },
+                    {
+                        "strategy_name": "beta_v1",
+                        "run_id": "strategy-beta",
+                        "artifact_type": "strategy",
+                    },
+                ],
+            },
+            {
+                **_portfolio_entry(
+                    run_id="portfolio-no-alpha",
+                    portfolio_name="plain_portfolio",
+                    timestamp="2026-03-19T00:03:00Z",
+                    sharpe_ratio=1.2,
+                    total_return=0.10,
+                ),
+                "components": [
+                    {
+                        "strategy_name": "beta_v1",
+                        "run_id": "strategy-beta",
+                        "artifact_type": "strategy",
+                    }
+                ],
+            },
+        ],
+    )
+
+    result = compare_research_runs(
+        run_types=["alpha_evaluation", "portfolio"],
+        portfolio_artifacts_root=portfolio_root,
+        alpha_artifacts_root=alpha_root,
+        output_path=tmp_path,
+    )
+
+    alpha_entry = next(entry for entry in result.entries if entry.run_id == "alpha-linked")
+    assert alpha_entry.linked_portfolio_count == 1
+    assert alpha_entry.linked_portfolio_names == "alpha_portfolio"
+    assert alpha_entry.linked_portfolio_metric_name == "sharpe_ratio"
+    assert alpha_entry.linked_portfolio_metric_value == pytest.approx(1.5)
+
+    unlinked_alpha_entry = next(entry for entry in result.entries if entry.run_id == "alpha-unlinked")
+    assert unlinked_alpha_entry.linked_portfolio_count is None
+    assert unlinked_alpha_entry.linked_portfolio_names is None
+
+    frame = pd.read_csv(result.csv_path)
+    linked_row = frame.loc[frame["run_id"] == "alpha-linked"].iloc[0]
+    assert linked_row["sleeve_metric_name"] == "sharpe_ratio"
+    assert linked_row["linked_portfolio_names"] == "alpha_portfolio"
+    assert linked_row["linked_portfolio_metric_name"] == "sharpe_ratio"
 
 
 def test_compare_research_runs_applies_filters_and_top_k_per_type(tmp_path: Path) -> None:

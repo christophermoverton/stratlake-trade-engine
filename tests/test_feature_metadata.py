@@ -26,7 +26,10 @@ features_daily_v1:
   source_dataset: bars_daily
   features:
     - feature_ret_1d
-    - feature_sma20
+    - feature_sma_20
+  feature_aliases:
+    feature_sma_20:
+      - feature_sma20
 features_1m_v1:
   source_dataset: bars_1m
   features:
@@ -91,7 +94,7 @@ def test_export_feature_metadata_writes_deterministic_dataset_summaries(tmp_path
                     "timeframe": "1D",
                     "date": "2025-11-14",
                     "feature_ret_1d": -0.02,
-                    "feature_sma20": 150.0,
+                    "feature_sma_20": 150.0,
                 },
             ]
         ),
@@ -106,7 +109,7 @@ def test_export_feature_metadata_writes_deterministic_dataset_summaries(tmp_path
                     "timeframe": "1D",
                     "date": "2025-11-17",
                     "feature_ret_1d": 0.03,
-                    "feature_sma20": 300.0,
+                    "feature_sma_20": 300.0,
                 },
             ]
         ),
@@ -164,7 +167,8 @@ def test_export_feature_metadata_writes_deterministic_dataset_summaries(tmp_path
     }
 
     assert daily["source_dataset"] == "bars_daily"
-    assert daily["feature_list"] == ["feature_ret_1d", "feature_sma20"]
+    assert daily["feature_list"] == ["feature_ret_1d", "feature_sma_20"]
+    assert daily["feature_aliases"] == {"feature_sma_20": ["feature_sma20"]}
     assert daily["feature_count"] == 2
     assert daily["metrics"]["row_count"] == 2
     assert daily["metrics"]["symbol_coverage"] == 2

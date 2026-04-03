@@ -201,8 +201,15 @@ def test_evaluate_alpha_predictions_integrates_with_predict_and_alignment_output
     assert result.symbol_count == 2
     assert result.metadata["timeframe"] == "1d"
     assert result.metadata["artifact_scaffold"] == {
+        "coefficients": "coefficients.json",
         "ic_timeseries": "ic_timeseries.csv",
         "alpha_metrics": "alpha_metrics.json",
+        "cross_section_diagnostics": "cross_section_diagnostics.json",
+        "predictions": "predictions.parquet",
+        "qa_summary": "qa_summary.json",
+        "signal_mapping": "signal_mapping.json",
+        "signals": "signals.parquet",
+        "training_summary": "training_summary.json",
     }
     assert result.metadata["ic_timeseries_columns"] == ["ts_utc", "ic", "rank_ic", "sample_size"]
     assert result.ic_timeseries["ts_utc"].tolist() == [

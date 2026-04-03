@@ -138,6 +138,28 @@ def test_parse_args_accepts_alpha_eval_inputs() -> None:
     assert args.tickers == "configs/tickers_50.txt"
 
 
+def test_parse_args_accepts_signal_mapping_inputs() -> None:
+    args = parse_args(
+        [
+            "--alpha-model",
+            MODEL_NAME,
+            "--dataset",
+            "features_daily",
+            "--target-column",
+            TARGET_COLUMN,
+            "--price-column",
+            "close",
+            "--signal-policy",
+            "top_bottom_quantile",
+            "--signal-quantile",
+            "0.25",
+        ]
+    )
+
+    assert args.signal_policy == "top_bottom_quantile"
+    assert args.signal_quantile == pytest.approx(0.25)
+
+
 def test_load_alpha_evaluation_config_supports_nested_section(tmp_path: Path) -> None:
     config_path = tmp_path / "alpha_eval.yml"
     config_path.write_text(
@@ -253,6 +275,55 @@ def test_run_cli_executes_full_alpha_evaluation_pipeline_and_persists_artifacts(
     assert f"mean_ic: {result.evaluation_result.summary['mean_ic']:.6f}" in stdout
     assert f"ic_ir: {result.evaluation_result.summary['ic_ir']:.6f}" in stdout
     assert "n_periods: 4" in stdout
+
+
+def test_run_cli_persists_optional_signal_mapping_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_alpha_eval_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    result = run_cli(
+        [
+            "--alpha-model",
+            MODEL_NAME,
+            "--model-class",
+            f"{__name__}:CliAlphaEvalWeightedModel",
+            "--dataset",
+            "features_daily",
+            "--target-column",
+            TARGET_COLUMN,
+            "--feature-columns",
+            "feature_alpha",
+            "feature_beta",
+            "--price-column",
+            "close",
+            "--start",
+            "2025-01-01",
+            "--end",
+            "2025-01-06",
+            "--signal-policy",
+            "top_bottom_quantile",
+            "--signal-quantile",
+            "0.34",
+        ]
+    )
+
+    assert result.signal_mapping_result is not None
+    assert (result.artifact_dir / "signals.parquet").exists()
+    assert (result.artifact_dir / "signal_mapping.json").exists()
+
+    manifest = json.loads((result.artifact_dir / "manifest.json").read_text(encoding="utf-8"))
+    assert manifest["artifact_paths"]["signals"] == "signals.parquet"
+    assert manifest["artifact_paths"]["signal_mapping"] == "signal_mapping.json"
+
+    signals = pd.read_parquet(result.artifact_dir / "signals.parquet")
+    pdt.assert_frame_equal(
+        signals,
+        result.signal_mapping_result.signals.reset_index(drop=True),
+        check_dtype=False,
+    )
 
 
 def test_run_cli_supports_config_and_ticker_file_inputs(

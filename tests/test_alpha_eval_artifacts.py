@@ -10,6 +10,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.research.alpha import AlphaSignalMappingConfig, map_alpha_predictions_to_signals
 from src.research.alpha_eval import evaluate_alpha_predictions, write_alpha_evaluation_artifacts
 
 
@@ -109,6 +110,43 @@ def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_pat
 
     manifest_payload = json.loads((output_dir / "manifest.json").read_text(encoding="utf-8"))
     assert manifest_payload == manifest
+
+
+def test_write_alpha_evaluation_artifacts_persists_explicit_signal_mapping_outputs(tmp_path: Path) -> None:
+    frame = _alpha_eval_frame()
+    result = evaluate_alpha_predictions(frame)
+    signal_mapping_result = map_alpha_predictions_to_signals(
+        frame.loc[:, ["symbol", "ts_utc", "timeframe", "prediction_score"]],
+        AlphaSignalMappingConfig(policy="top_bottom_quantile", quantile=0.34),
+    )
+    output_dir = tmp_path / "artifacts" / "alpha" / "run_456"
+
+    manifest = write_alpha_evaluation_artifacts(
+        output_dir,
+        result,
+        signal_mapping_result=signal_mapping_result,
+        run_id="run_456",
+        alpha_name="demo_alpha",
+    )
+
+    assert "signals.parquet" in manifest["artifact_files"]
+    assert "signal_mapping.json" in manifest["artifact_files"]
+    assert manifest["artifact_paths"]["signals"] == "signals.parquet"
+    assert manifest["artifact_paths"]["signal_mapping"] == "signal_mapping.json"
+    assert manifest["signals_path"] == "signals.parquet"
+    assert manifest["signal_mapping_path"] == "signal_mapping.json"
+
+    signal_mapping_payload = json.loads((output_dir / "signal_mapping.json").read_text(encoding="utf-8"))
+    assert signal_mapping_payload["config"]["policy"] == "top_bottom_quantile"
+    assert signal_mapping_payload["config"]["quantile"] == pytest.approx(0.34)
+
+    signals = pd.read_parquet(output_dir / "signals.parquet")
+    assert list(signals.columns) == ["symbol", "ts_utc", "timeframe", "prediction_score", "signal"]
+    assert signals["signal"].tolist() == [1.0, 1.0, 0.0, 0.0, -1.0, -1.0]
+
+    training_summary = json.loads((output_dir / "training_summary.json").read_text(encoding="utf-8"))
+    assert training_summary["signal_mapping"]["policy"] == "top_bottom_quantile"
+    assert training_summary["signal_mapping"]["signal_column"] == "signal"
 
 
 def test_write_alpha_evaluation_artifacts_updates_parent_manifest_idempotently(tmp_path: Path) -> None:

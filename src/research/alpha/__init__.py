@@ -8,6 +8,13 @@ from src.research.alpha.cross_section import (
 )
 from src.research.alpha.predictor import AlphaPredictionError, AlphaPredictionResult, predict_alpha_model
 from src.research.alpha.registry import get_alpha_model, register_alpha_factory, register_alpha_model
+from src.research.alpha.signals import (
+    AlphaSignalMappingConfig,
+    AlphaSignalMappingError,
+    AlphaSignalMappingResult,
+    map_alpha_predictions_to_signals,
+    resolve_signal_mapping_config,
+)
 from src.research.alpha.splits import (
     AlphaTimeSplit,
     AlphaTimeSplitError,
@@ -20,7 +27,10 @@ from src.research.alpha.trainer import AlphaTrainingError, TrainedAlphaModel, tr
 __all__ = [
     "AlphaPredictionError",
     "AlphaPredictionResult",
+    "AlphaSignalMappingConfig",
     "AlphaCrossSectionError",
+    "AlphaSignalMappingError",
+    "AlphaSignalMappingResult",
     "AlphaTimeSplit",
     "AlphaTimeSplitError",
     "AlphaTrainingError",
@@ -32,10 +42,12 @@ __all__ = [
     "get_alpha_model",
     "iter_cross_sections",
     "list_cross_section_timestamps",
+    "map_alpha_predictions_to_signals",
     "make_alpha_fixed_split",
     "predict_alpha_model",
     "register_alpha_factory",
     "register_alpha_model",
+    "resolve_signal_mapping_config",
     "train_alpha_model",
     "validate_cross_section_input",
     "validate_alpha_time_split",

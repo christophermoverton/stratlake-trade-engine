@@ -19,10 +19,13 @@ from src.research.alpha import (
     AlphaPredictionError,
     AlphaTrainingError,
     AlphaPredictionResult,
+    AlphaSignalMappingResult,
     BaseAlphaModel,
     TrainedAlphaModel,
+    map_alpha_predictions_to_signals,
     predict_alpha_model,
     register_alpha_model,
+    resolve_signal_mapping_config,
     train_alpha_model,
 )
 from src.research.alpha.catalog import register_builtin_alpha_catalog, resolve_alpha_config
@@ -55,6 +58,7 @@ class AlphaEvaluationRunResult:
     trained_model: TrainedAlphaModel
     prediction_result: AlphaPredictionResult
     prediction_frame: pd.DataFrame
+    signal_mapping_result: AlphaSignalMappingResult | None
     aligned_frame: pd.DataFrame
     evaluation_result: AlphaEvaluationResult
     manifest: dict[str, Any]
@@ -109,6 +113,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--promotion-gates",
         help="Optional YAML/JSON promotion gate config override.",
+    )
+    parser.add_argument(
+        "--signal-policy",
+        choices=(
+            "rank_long_short",
+            "zscore_continuous",
+            "top_bottom_quantile",
+            "long_only_top_quantile",
+        ),
+        help="Optional explicit post-prediction signal mapping policy.",
+    )
+    parser.add_argument(
+        "--signal-quantile",
+        type=float,
+        help="Optional quantile used by top/bottom or long-only signal mapping policies.",
     )
     return parser.parse_args(argv)
 
@@ -168,6 +187,12 @@ def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunRe
         predict_start=_optional_string(resolved_config.get("predict_start")),
         predict_end=_optional_string(resolved_config.get("predict_end")),
     )
+    signal_mapping_result = None
+    if isinstance(resolved_config.get("signal_mapping"), dict):
+        signal_mapping_result = map_alpha_predictions_to_signals(
+            prediction_result.predictions,
+            resolve_signal_mapping_config(dict(resolved_config["signal_mapping"])),
+        )
 
     alignment_input = build_alignment_input(
         prediction_result.predictions,
@@ -207,6 +232,7 @@ def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunRe
         evaluation_result,
         trained_model=trained_model,
         prediction_result=prediction_result,
+        signal_mapping_result=signal_mapping_result,
         aligned_frame=aligned_frame,
         run_id=run_id,
         alpha_name=str(resolved_config["alpha_model"]),
@@ -230,6 +256,7 @@ def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunRe
         trained_model=trained_model,
         prediction_result=prediction_result,
         prediction_frame=prediction_result.predictions,
+        signal_mapping_result=signal_mapping_result,
         aligned_frame=aligned_frame,
         evaluation_result=evaluation_result,
         manifest=manifest,
@@ -267,11 +294,20 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         "min_cross_section_size": args.min_cross_section_size,
         "promotion_gates": None if args.promotion_gates is None else load_promotion_gate_config(args.promotion_gates),
     }
+    signal_mapping = dict(config_payload.get("signal_mapping", {})) if isinstance(config_payload.get("signal_mapping"), dict) else None
+    if args.signal_policy is not None or args.signal_quantile is not None:
+        signal_mapping = {} if signal_mapping is None else dict(signal_mapping)
+        if args.signal_policy is not None:
+            signal_mapping["policy"] = args.signal_policy
+        if args.signal_quantile is not None:
+            signal_mapping["quantile"] = args.signal_quantile
 
     resolved = dict(config_payload)
     for key, value in cli_payload.items():
         if value is not None:
             resolved[key] = value
+    if signal_mapping is not None:
+        resolved["signal_mapping"] = signal_mapping
 
     resolved = resolve_alpha_config(resolved)
     if resolved.get("alpha_name") is not None and resolved.get("alpha_model") is None:
@@ -301,6 +337,12 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         if not isinstance(tickers, list):
             raise ValueError("tickers must resolve to a list of ticker strings.")
         resolved["tickers"] = [str(symbol) for symbol in tickers]
+
+    if "signal_mapping" in resolved:
+        signal_mapping_payload = resolved["signal_mapping"]
+        if not isinstance(signal_mapping_payload, dict):
+            raise ValueError("signal_mapping must resolve to a dictionary when provided.")
+        resolved["signal_mapping"] = _serialize_signal_mapping(resolve_signal_mapping_config(signal_mapping_payload))
 
     return resolved
 
@@ -489,6 +531,16 @@ def _sanitize_name_component(name: str) -> str:
     cleaned = "".join(char if char.isalnum() else "_" for char in name.strip().lower())
     normalized = "_".join(part for part in cleaned.split("_") if part)
     return normalized or "alpha"
+
+
+def _serialize_signal_mapping(config: Any) -> dict[str, Any]:
+    return {
+        "policy": config.policy,
+        "prediction_column": config.prediction_column,
+        "output_column": config.output_column,
+        "quantile": config.quantile,
+        "metadata": dict(config.metadata),
+    }
 
 
 def main() -> None:

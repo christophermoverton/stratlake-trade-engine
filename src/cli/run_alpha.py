@@ -97,6 +97,21 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--promotion-gates",
         help="Optional YAML/JSON promotion gate config override.",
     )
+    parser.add_argument(
+        "--signal-policy",
+        choices=(
+            "rank_long_short",
+            "zscore_continuous",
+            "top_bottom_quantile",
+            "long_only_top_quantile",
+        ),
+        help="Optional explicit post-prediction signal mapping policy.",
+    )
+    parser.add_argument(
+        "--signal-quantile",
+        type=float,
+        help="Optional quantile used by top/bottom or long-only signal mapping policies.",
+    )
     return parser.parse_args(argv)
 
 
@@ -126,9 +141,18 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         "promotion_gates": None if args.promotion_gates is None else load_promotion_gate_config(args.promotion_gates),
         "run_mode": mode,
     }
+    signal_mapping = dict(resolved.get("signal_mapping", {})) if isinstance(resolved.get("signal_mapping"), dict) else None
+    if args.signal_policy is not None or args.signal_quantile is not None:
+        signal_mapping = {} if signal_mapping is None else dict(signal_mapping)
+        if args.signal_policy is not None:
+            signal_mapping["policy"] = args.signal_policy
+        if args.signal_quantile is not None:
+            signal_mapping["quantile"] = args.signal_quantile
     for key, value in cli_overrides.items():
         if value is not None:
             resolved[key] = value
+    if signal_mapping is not None:
+        resolved["signal_mapping"] = signal_mapping
 
     dataset = str(resolved.get("dataset", "")).strip()
     if dataset not in SUPPORTED_FEATURE_DATASETS:
@@ -210,6 +234,15 @@ def write_full_run_scaffold(
             "ic_ir": float(evaluation.evaluation_result.summary["ic_ir"]),
             "n_periods": int(evaluation.evaluation_result.summary["n_periods"]),
         },
+        "signal_mapping": (
+            None
+            if evaluation.signal_mapping_result is None
+            else {
+                "config": dict(evaluation.signal_mapping_result.config.__dict__),
+                "row_count": int(evaluation.signal_mapping_result.row_count),
+                "signals_path": "signals.parquet",
+            }
+        ),
         "resolved_config": {
             key: value
             for key, value in resolved_config.items()

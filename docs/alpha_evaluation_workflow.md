@@ -31,8 +31,10 @@ Run the CLI directly:
 ```powershell
 python -m src.cli.run_alpha --alpha-name cs_linear_ret_1d --mode evaluate --start 2025-01-01 --end 2025-03-01
 python -m src.cli.run_alpha --alpha-name rank_composite_momentum --start 2025-01-01 --end 2025-03-01
+python -m src.cli.run_alpha --alpha-name cs_linear_ret_1d --start 2025-01-01 --end 2025-03-01 --signal-policy top_bottom_quantile --signal-quantile 0.2
 python -m src.cli.run_alpha_evaluation --alpha-name cs_linear_ret_1d --start 2025-01-01 --end 2025-03-01
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
+python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close --signal-policy rank_long_short
 python -m src.cli.compare_alpha --from-registry
 ```
 
@@ -65,6 +67,20 @@ docs/examples/output/alpha_evaluation_end_to_end/
 `python -m src.cli.run_alpha_evaluation` trains a registered
 `BaseAlphaModel`, then calls `predict_alpha_model(...)` to produce a canonical
 prediction frame with `prediction_score`.
+
+### Map Signals
+
+Signal mapping is optional and explicit. When configured through
+`signal_mapping` in YAML or the CLI flags `--signal-policy` plus
+`--signal-quantile` where required, the workflow maps raw
+`prediction_score` into a separate `signal` artifact.
+
+Important boundary:
+
+* alpha evaluation still scores raw `prediction_score` against `forward_return`
+* mapped `signal` output is persisted for downstream backtesting or portfolio
+  construction
+* no score-to-signal conversion happens implicitly
 
 ### Align
 
@@ -120,6 +136,8 @@ analogue is stored as `rank_ic_ir`.
 `write_alpha_evaluation_artifacts(...)` writes:
 
 * `predictions.parquet`
+* `signals.parquet` when explicit signal mapping is configured
+* `signal_mapping.json` when explicit signal mapping is configured
 * `training_summary.json`
 * `coefficients.json`
 * `cross_section_diagnostics.json`

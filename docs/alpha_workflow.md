@@ -155,6 +155,38 @@ Current behavior:
 
 Predictions must be finite numeric values with exact index alignment.
 
+## Explicit Signal Mapping
+
+`src/research/alpha/signals.py` provides one explicit, reusable layer for
+turning `prediction_score` into deterministic exposures. Mapping always runs
+cross-sectionally by `ts_utc` and never happens implicitly inside
+`predict_alpha_model(...)`.
+
+Available policies:
+
+* `rank_long_short`: ranks one timestamp slice from highest score to lowest and
+  maps those ordered names linearly onto `[-1, 1]`
+* `zscore_continuous`: mean-centers one timestamp slice and divides by the
+  population standard deviation; zero-dispersion slices map to `0.0`
+* `top_bottom_quantile`: assigns `+1.0` to the top quantile, `-1.0` to the
+  bottom quantile, and `0.0` elsewhere
+* `long_only_top_quantile`: assigns `+1.0` to the top quantile and `0.0`
+  elsewhere
+
+Deterministic tie handling is explicit:
+
+* cross-sections are evaluated by `ts_utc`
+* rows remain canonically sorted by `(symbol, ts_utc[, timeframe])`
+* ties break on `symbol` ascending after sorting by `prediction_score`
+
+Quantile semantics are also explicit:
+
+* `top_bottom_quantile` requires `quantile` in `(0, 0.5]`
+* `long_only_top_quantile` requires `quantile` in `(0, 1.0]`
+* quantile bucket sizes use `ceil(n * quantile)`
+* long/short quantile selection is capped at `floor(n / 2)` so top and bottom
+  buckets never overlap
+
 ## Time-Aware Split Utilities
 
 `src/research/alpha/splits.py` provides deterministic train/predict split
@@ -219,9 +251,10 @@ scores become exposures.
 
 Examples:
 
-* sign mapping: `signal = np.sign(prediction_score)`
-* continuous exposure mapping: `signal = prediction_score`
-* rank or z-score mapping in downstream research code
+* sign mapping in downstream custom code
+* continuous exposure mapping via `zscore_continuous`
+* rank-based exposure mapping via `rank_long_short`
+* quantile sleeves via `top_bottom_quantile` or `long_only_top_quantile`
 
 `run_backtest(...)` accepts finite numeric `signal` values, so alpha workflows
 can preserve continuous exposure magnitude when that is the intended behavior.

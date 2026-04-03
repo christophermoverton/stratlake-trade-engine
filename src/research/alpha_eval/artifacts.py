@@ -8,6 +8,7 @@ from typing import Any
 import pandas as pd
 
 from src.research.alpha.predictor import AlphaPredictionResult
+from src.research.alpha.signals import AlphaSignalMappingResult
 from src.research.alpha.trainer import TrainedAlphaModel
 from src.research.alpha_eval.evaluator import AlphaEvaluationResult
 from src.research.promotion import (
@@ -20,6 +21,8 @@ DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT = Path("artifacts") / "alpha"
 _IC_TIMESERIES_FILENAME = "ic_timeseries.csv"
 _ALPHA_METRICS_FILENAME = "alpha_metrics.json"
 _PREDICTIONS_FILENAME = "predictions.parquet"
+_SIGNALS_FILENAME = "signals.parquet"
+_SIGNAL_MAPPING_FILENAME = "signal_mapping.json"
 _TRAINING_SUMMARY_FILENAME = "training_summary.json"
 _COEFFICIENTS_FILENAME = "coefficients.json"
 _CROSS_SECTION_DIAGNOSTICS_FILENAME = "cross_section_diagnostics.json"
@@ -42,6 +45,7 @@ def write_alpha_evaluation_artifacts(
     *,
     trained_model: TrainedAlphaModel | None = None,
     prediction_result: AlphaPredictionResult | None = None,
+    signal_mapping_result: AlphaSignalMappingResult | None = None,
     aligned_frame: pd.DataFrame | None = None,
     parent_manifest_dir: str | Path | None = None,
     run_id: str | None = None,
@@ -58,9 +62,14 @@ def write_alpha_evaluation_artifacts(
     predictions_frame = _artifact_predictions_frame(
         prediction_result.predictions if prediction_result is not None else None
     )
+    signals_frame = _artifact_signals_frame(
+        signal_mapping_result.signals if signal_mapping_result is not None else None
+    )
+    signal_mapping_payload = _signal_mapping_payload(signal_mapping_result=signal_mapping_result)
     training_summary_payload = _training_summary_payload(
         trained_model=trained_model,
         prediction_result=prediction_result,
+        signal_mapping_result=signal_mapping_result,
         run_id=run_id,
         alpha_name=alpha_name,
     )
@@ -86,6 +95,9 @@ def write_alpha_evaluation_artifacts(
     _write_csv(resolved_output_dir / _IC_TIMESERIES_FILENAME, ic_timeseries)
     _write_json(resolved_output_dir / _ALPHA_METRICS_FILENAME, metrics_payload)
     _write_parquet(resolved_output_dir / _PREDICTIONS_FILENAME, predictions_frame)
+    if signal_mapping_result is not None:
+        _write_parquet(resolved_output_dir / _SIGNALS_FILENAME, signals_frame)
+        _write_json(resolved_output_dir / _SIGNAL_MAPPING_FILENAME, signal_mapping_payload)
     _write_json(resolved_output_dir / _TRAINING_SUMMARY_FILENAME, training_summary_payload)
     _write_json(resolved_output_dir / _COEFFICIENTS_FILENAME, coefficients_payload)
     _write_json(
@@ -101,6 +113,7 @@ def write_alpha_evaluation_artifacts(
         training_summary_payload=training_summary_payload,
         coefficients_payload=coefficients_payload,
         cross_section_diagnostics_payload=cross_section_diagnostics_payload,
+        signal_mapping_payload=signal_mapping_payload,
         run_id=run_id,
         alpha_name=alpha_name,
         promotion_evaluation=promotion_evaluation,
@@ -178,10 +191,50 @@ def _artifact_predictions_frame(predictions: pd.DataFrame | None) -> pd.DataFram
     return frame
 
 
+def _artifact_signals_frame(signals: pd.DataFrame | None) -> pd.DataFrame:
+    if signals is None:
+        return pd.DataFrame(columns=["symbol", "ts_utc", "timeframe", "prediction_score", "signal"])
+
+    frame = signals.copy(deep=True)
+    frame.attrs = {}
+    if "ts_utc" in frame.columns:
+        frame["ts_utc"] = pd.to_datetime(frame["ts_utc"], utc=True, errors="coerce")
+    sort_columns = [column for column in ("symbol", "ts_utc", "timeframe") if column in frame.columns]
+    if sort_columns:
+        frame = frame.sort_values(sort_columns, kind="stable").reset_index(drop=True)
+    return frame
+
+
+def _signal_mapping_payload(
+    *,
+    signal_mapping_result: AlphaSignalMappingResult | None,
+) -> dict[str, Any] | None:
+    if signal_mapping_result is None:
+        return None
+    config = signal_mapping_result.config
+    return _normalize_mapping(
+        {
+            "config": {
+                "metadata": dict(config.metadata),
+                "output_column": config.output_column,
+                "policy": config.policy,
+                "prediction_column": config.prediction_column,
+                "quantile": config.quantile,
+            },
+            "cross_section_key": signal_mapping_result.metadata.get("cross_section_key"),
+            "row_count": signal_mapping_result.row_count,
+            "symbol_count": signal_mapping_result.symbol_count,
+            "timestamp_count": signal_mapping_result.timestamp_count,
+            "tie_breaker": signal_mapping_result.metadata.get("tie_breaker"),
+        }
+    )
+
+
 def _training_summary_payload(
     *,
     trained_model: TrainedAlphaModel | None,
     prediction_result: AlphaPredictionResult | None,
+    signal_mapping_result: AlphaSignalMappingResult | None,
     run_id: str | None,
     alpha_name: str | None,
 ) -> dict[str, Any]:
@@ -210,6 +263,19 @@ def _training_summary_payload(
                 ),
             },
             "run_id": run_id,
+            "signal_mapping": (
+                None
+                if signal_mapping_result is None
+                else {
+                    "output_columns": list(signal_mapping_result.metadata.get("output_columns", [])),
+                    "policy": signal_mapping_result.config.policy,
+                    "prediction_column": signal_mapping_result.config.prediction_column,
+                    "quantile": signal_mapping_result.config.quantile,
+                    "row_count": signal_mapping_result.row_count,
+                    "signal_column": signal_mapping_result.config.output_column,
+                    "timestamp_count": signal_mapping_result.timestamp_count,
+                }
+            ),
             "target_column": None if trained_model is None else trained_model.target_column,
             "training": {
                 "fit_columns": [] if trained_model is None else list(trained_model.metadata.get("fit_columns", [])),
@@ -317,6 +383,7 @@ def _build_manifest(
     training_summary_payload: dict[str, Any],
     coefficients_payload: dict[str, Any],
     cross_section_diagnostics_payload: dict[str, Any],
+    signal_mapping_payload: dict[str, Any] | None,
     run_id: str | None,
     alpha_name: str | None,
     promotion_evaluation: Any,
@@ -334,6 +401,7 @@ def _build_manifest(
             _IC_TIMESERIES_FILENAME,
             _MANIFEST_FILENAME,
             _PREDICTIONS_FILENAME,
+            *([_SIGNALS_FILENAME, _SIGNAL_MAPPING_FILENAME] if signal_mapping_payload is not None else []),
             _TRAINING_SUMMARY_FILENAME,
             *(
                 [DEFAULT_PROMOTION_ARTIFACT_FILENAME]
@@ -351,6 +419,14 @@ def _build_manifest(
             "manifest": _MANIFEST_FILENAME,
             "metrics": _ALPHA_METRICS_FILENAME,
             "predictions": _PREDICTIONS_FILENAME,
+            **(
+                {
+                    "signal_mapping": _SIGNAL_MAPPING_FILENAME,
+                    "signals": _SIGNALS_FILENAME,
+                }
+                if signal_mapping_payload is not None
+                else {}
+            ),
             "timeseries": _IC_TIMESERIES_FILENAME,
             "training_summary": _TRAINING_SUMMARY_FILENAME,
         },
@@ -366,6 +442,8 @@ def _build_manifest(
         "metric_summary": dict(result.summary),
         "prediction_row_count": training_summary_payload.get("prediction", {}).get("predict_row_count"),
         "predictions_path": _PREDICTIONS_FILENAME,
+        "signal_mapping_path": None if signal_mapping_payload is None else _SIGNAL_MAPPING_FILENAME,
+        "signals_path": None if signal_mapping_payload is None else _SIGNALS_FILENAME,
         "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
         "row_count": result.row_count,
         "run_id": run_id if run_id is not None else output_dir.name,
@@ -395,15 +473,7 @@ def _augment_parent_manifest(
 
     alpha_files = sorted(
         str(Path(artifact_dir_name, filename).as_posix())
-        for filename in (
-            _ALPHA_METRICS_FILENAME,
-            _COEFFICIENTS_FILENAME,
-            _CROSS_SECTION_DIAGNOSTICS_FILENAME,
-            _IC_TIMESERIES_FILENAME,
-            _MANIFEST_FILENAME,
-            _PREDICTIONS_FILENAME,
-            _TRAINING_SUMMARY_FILENAME,
-        )
+        for filename in list(manifest.get("artifact_files", []))
     )
     payload["artifact_files"] = sorted(set([*artifact_files, *alpha_files]))
     payload["alpha_evaluation"] = {
@@ -421,6 +491,16 @@ def _augment_parent_manifest(
         "manifest_path": Path(artifact_dir_name, _MANIFEST_FILENAME).as_posix(),
         "metrics_path": Path(artifact_dir_name, _ALPHA_METRICS_FILENAME).as_posix(),
         "predictions_path": Path(artifact_dir_name, _PREDICTIONS_FILENAME).as_posix(),
+        "signal_mapping_path": (
+            Path(artifact_dir_name, _SIGNAL_MAPPING_FILENAME).as_posix()
+            if _SIGNAL_MAPPING_FILENAME in manifest.get("artifact_files", [])
+            else None
+        ),
+        "signals_path": (
+            Path(artifact_dir_name, _SIGNALS_FILENAME).as_posix()
+            if _SIGNALS_FILENAME in manifest.get("artifact_files", [])
+            else None
+        ),
         "summary": {
             key: metrics_payload.get(key)
             for key in (

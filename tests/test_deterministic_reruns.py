@@ -13,9 +13,11 @@ import yaml
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
+from src.cli.run_alpha import run_cli as run_alpha_cli
 from src.cli.run_strategy import run_strategy_experiment
 from src.cli.run_portfolio import run_cli as run_portfolio_cli
 from src.research import compare, experiment_tracker
+from src.research.alpha_eval import alpha_evaluation_registry_path
 from src.research.registry import default_registry_path, load_registry
 from src.research.strategy_base import BaseStrategy
 from src.research.walk_forward import run_walk_forward_experiment
@@ -54,6 +56,51 @@ def _write_daily_features_dataset(root: Path, symbol: str = "AAPL", periods: int
     dataset_path.mkdir(parents=True, exist_ok=True)
     feature_df.to_parquet(dataset_path / "part-0.parquet", index=False)
     return feature_df
+
+
+def _write_alpha_features_daily_dataset(root: Path) -> pd.DataFrame:
+    timestamps = pd.date_range("2025-01-01", periods=8, freq="D", tz="UTC")
+    rows: list[dict[str, object]] = []
+    symbols = ["AAA", "BBB", "CCC"]
+    for symbol_index, symbol in enumerate(symbols):
+        base = float(symbol_index + 1)
+        close = 100.0 + base * 10.0
+        for ts_index, ts_utc in enumerate(timestamps):
+            close += 1.2 + base * 0.5 + ts_index * 0.15
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "ts_utc": ts_utc,
+                    "timeframe": "1D",
+                    "date": ts_utc.strftime("%Y-%m-%d"),
+                    "feature_ret_1d": base * 0.03 + ts_index * 0.001,
+                    "feature_ret_5d": base * 0.05 + ts_index * 0.002,
+                    "feature_ret_20d": base * 0.07 + ts_index * 0.003,
+                    "target_ret_1d": base * 0.01 + ts_index * 0.001,
+                    "target_ret_5d": base * 0.02 + ts_index * 0.0015,
+                    "close": close,
+                }
+            )
+
+    frame = pd.DataFrame(rows).sort_values(["symbol", "ts_utc"], kind="stable").reset_index(drop=True)
+    for column in ("symbol", "timeframe", "date"):
+        frame[column] = frame[column].astype("string")
+    for column in (
+        "feature_ret_1d",
+        "feature_ret_5d",
+        "feature_ret_20d",
+        "target_ret_1d",
+        "target_ret_5d",
+        "close",
+    ):
+        frame[column] = pd.to_numeric(frame[column], errors="raise").astype("float64")
+
+    for symbol in symbols:
+        symbol_frame = frame.loc[frame["symbol"].eq(symbol)].copy(deep=True)
+        dataset_path = root / "data" / "curated" / "features_daily" / f"symbol={symbol}" / "year=2025"
+        dataset_path.mkdir(parents=True, exist_ok=True)
+        symbol_frame.to_parquet(dataset_path / "part-0.parquet", index=False)
+    return frame
 
 
 def _write_evaluation_config(path: Path, payload: dict[str, object]) -> None:
@@ -455,3 +502,54 @@ def test_portfolio_reruns_produce_stable_outputs_artifacts_and_registry(
     portfolio_entries = [entry for entry in registry_entries if entry.get("run_id") == first.run_id]
     assert len(portfolio_entries) == 1
     _assert_structured_values_stable(portfolio_entries[0]["metrics"], first.metrics, path="portfolio.registry.metrics")
+
+
+def test_builtin_alpha_full_reruns_produce_stable_artifacts_and_registry_entries(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_alpha_features_daily_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    argv = [
+        "--alpha-name",
+        "cs_linear_ret_1d",
+        "--signal-policy",
+        "top_bottom_quantile",
+        "--signal-quantile",
+        "0.34",
+        "--start",
+        "2025-01-01",
+        "--end",
+        "2025-01-09",
+    ]
+    first = run_alpha_cli(argv)
+    second = run_alpha_cli(argv)
+
+    assert first.run_id == second.run_id
+    assert first.scaffold_path is not None
+    assert second.scaffold_path is not None
+    assert _artifact_bytes(first.artifact_dir) == _artifact_bytes(second.artifact_dir)
+
+    _assert_frame_values_stable(
+        pd.read_parquet(first.artifact_dir / "predictions.parquet"),
+        pd.read_parquet(second.artifact_dir / "predictions.parquet"),
+    )
+    _assert_frame_values_stable(
+        pd.read_parquet(first.artifact_dir / "signals.parquet"),
+        pd.read_parquet(second.artifact_dir / "signals.parquet"),
+    )
+    _assert_frame_values_stable(
+        pd.read_csv(first.artifact_dir / "sleeve_returns.csv"),
+        pd.read_csv(second.artifact_dir / "sleeve_returns.csv"),
+    )
+    _assert_structured_values_stable(
+        _load_json(first.scaffold_path),
+        _load_json(second.scaffold_path),
+        path="alpha.scaffold",
+    )
+
+    registry_entries = load_registry(alpha_evaluation_registry_path(tmp_path / "artifacts" / "alpha"))
+    assert [entry["run_id"] for entry in registry_entries] == [first.run_id]
+    assert registry_entries[0]["alpha_name"] == "cs_linear_ret_1d"
+    assert registry_entries[0]["artifact_path"] == first.artifact_dir.as_posix()

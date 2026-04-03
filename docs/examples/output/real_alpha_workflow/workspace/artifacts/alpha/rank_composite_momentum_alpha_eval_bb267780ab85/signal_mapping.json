@@ -1,0 +1,14 @@
+{
+  "config": {
+    "metadata": {},
+    "output_column": "signal",
+    "policy": "top_bottom_quantile",
+    "prediction_column": "prediction_score",
+    "quantile": 0.34
+  },
+  "cross_section_key": "ts_utc",
+  "row_count": 42,
+  "symbol_count": 6,
+  "tie_breaker": "prediction_score then symbol ascending",
+  "timestamp_count": 7
+}

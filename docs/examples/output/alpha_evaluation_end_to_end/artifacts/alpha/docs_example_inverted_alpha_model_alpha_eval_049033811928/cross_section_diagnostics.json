@@ -1,0 +1,40 @@
+{
+  "cross_section_size": {
+    "max": 3,
+    "mean": 3.0,
+    "min": 3
+  },
+  "forward_return_column": "forward_return",
+  "ic_extrema": {
+    "best_ic": {
+      "ic": 0.9824219271423399,
+      "ts_utc": "2025-01-05T00:00:00Z"
+    },
+    "best_rank_ic": {
+      "rank_ic": 1.0,
+      "ts_utc": "2025-01-01T00:00:00Z"
+    },
+    "worst_ic": {
+      "ic": 0.9819805060619782,
+      "ts_utc": "2025-01-01T00:00:00Z"
+    },
+    "worst_rank_ic": {
+      "rank_ic": 1.0,
+      "ts_utc": "2025-01-01T00:00:00Z"
+    }
+  },
+  "min_cross_section_size": 2,
+  "prediction_column": "prediction_score",
+  "prediction_score": {
+    "max": 21.5,
+    "mean": -0.5,
+    "min": -22.5
+  },
+  "row_count": 15,
+  "symbol_count": 3,
+  "timestamp_count": 5,
+  "valid_periods": {
+    "ic": 5,
+    "rank_ic": 5
+  }
+}

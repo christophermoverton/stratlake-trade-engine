@@ -1,0 +1,108 @@
+{
+  "counts_by_run_type": {
+    "alpha_evaluation": 1,
+    "portfolio": 1
+  },
+  "entries": [
+    {
+      "artifact_path": "artifacts/alpha/rank_composite_momentum_alpha_eval_bb267780ab85",
+      "entity_name": "rank_composite_momentum",
+      "evaluation_mode": "alpha_evaluation",
+      "gate_count": null,
+      "linked_portfolio_count": 1,
+      "linked_portfolio_metric_name": "sharpe_ratio",
+      "linked_portfolio_metric_value": 36.00000000000001,
+      "linked_portfolio_names": "rank_composite_momentum_sleeve_portfolio",
+      "mapping_name": "top_bottom_quantile[q=0.34]",
+      "passed_gate_count": null,
+      "promotion_status": "needs_review",
+      "rank_within_type": 1,
+      "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+      "run_type": "alpha_evaluation",
+      "secondary_metric_name": "mean_ic",
+      "secondary_metric_value": 0.9999952949916516,
+      "selected_metric_name": "ic_ir",
+      "selected_metric_value": 350561232.1486001,
+      "sleeve_metric_name": "sharpe_ratio",
+      "sleeve_metric_value": 35.99999999999999,
+      "sleeve_secondary_metric_name": "total_return",
+      "sleeve_secondary_metric_value": 0.0095666623202173,
+      "timeframe": "1D"
+    },
+    {
+      "artifact_path": "artifacts/portfolios/rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3",
+      "entity_name": "rank_composite_momentum_sleeve_portfolio",
+      "evaluation_mode": "single",
+      "gate_count": null,
+      "linked_portfolio_count": null,
+      "linked_portfolio_metric_name": null,
+      "linked_portfolio_metric_value": null,
+      "linked_portfolio_names": null,
+      "mapping_name": null,
+      "passed_gate_count": null,
+      "promotion_status": "needs_review",
+      "rank_within_type": 1,
+      "run_id": "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3",
+      "run_type": "portfolio",
+      "secondary_metric_name": "total_return",
+      "secondary_metric_value": 0.009566662320207975,
+      "selected_metric_name": "sharpe_ratio",
+      "selected_metric_value": 36.00000000000001,
+      "sleeve_metric_name": null,
+      "sleeve_metric_value": null,
+      "sleeve_secondary_metric_name": null,
+      "sleeve_secondary_metric_value": null,
+      "timeframe": "1D"
+    }
+  ],
+  "entry_count": 2,
+  "filters": {
+    "alpha_name": "rank_composite_momentum",
+    "dataset": null,
+    "portfolio_name": null,
+    "run_types": [
+      "alpha_evaluation",
+      "portfolio"
+    ],
+    "strategy_name": null,
+    "timeframe": null,
+    "top_k_per_type": 1
+  },
+  "plot_paths": {},
+  "review_config": {
+    "filters": {
+      "alpha_name": "rank_composite_momentum",
+      "dataset": null,
+      "portfolio_name": null,
+      "run_types": [
+        "alpha_evaluation",
+        "portfolio"
+      ],
+      "strategy_name": null,
+      "timeframe": null,
+      "top_k_per_type": 1
+    },
+    "output": {
+      "emit_plots": false,
+      "path": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\docs\\examples\\output\\real_alpha_workflow\\review"
+    },
+    "promotion_gates": null,
+    "ranking": {
+      "alpha_evaluation_primary_metric": "ic_ir",
+      "alpha_evaluation_secondary_metric": "mean_ic",
+      "portfolio_primary_metric": "sharpe_ratio",
+      "portfolio_secondary_metric": "total_return",
+      "strategy_primary_metric": "sharpe_ratio",
+      "strategy_secondary_metric": "total_return"
+    }
+  },
+  "review_id": "registry_review_f0e5786e2f00",
+  "run_ids": [
+    "rank_composite_momentum_alpha_eval_bb267780ab85",
+    "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3"
+  ],
+  "skipped_plots": {
+    "alpha_evaluation_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false.",
+    "portfolio_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false."
+  }
+}

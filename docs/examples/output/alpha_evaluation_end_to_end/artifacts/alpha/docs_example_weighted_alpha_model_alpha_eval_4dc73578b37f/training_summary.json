@@ -1,0 +1,40 @@
+{
+  "alpha_name": "docs_example_weighted_alpha_model",
+  "feature_columns": [
+    "feature_alpha",
+    "feature_beta"
+  ],
+  "model_class": "WeightedAlphaModel",
+  "model_name": "docs_example_weighted_alpha_model",
+  "prediction": {
+    "columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "prediction_score"
+    ],
+    "predict_end": null,
+    "predict_row_count": 18,
+    "predict_start": null,
+    "predict_symbol_count": 3,
+    "window_semantics": "[predict_start, predict_end)"
+  },
+  "run_id": "docs_example_weighted_alpha_model_alpha_eval_4dc73578b37f",
+  "signal_mapping": null,
+  "target_column": "target_ret_1d",
+  "training": {
+    "fit_columns": [
+      "symbol",
+      "ts_utc",
+      "target_ret_1d",
+      "feature_alpha",
+      "feature_beta"
+    ],
+    "model_training_metadata": {},
+    "train_end": null,
+    "train_row_count": 18,
+    "train_start": null,
+    "train_symbol_count": 3,
+    "window_semantics": "[train_start, train_end)"
+  }
+}

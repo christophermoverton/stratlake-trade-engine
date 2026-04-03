@@ -1,0 +1,366 @@
+{
+  "alpha": {
+    "alpha_name": "rank_composite_momentum",
+    "artifact_dir": "workspace/artifacts/alpha/rank_composite_momentum_alpha_eval_bb267780ab85",
+    "catalog_path": "C:/Users/christophermoverton/stratlake-trade-engine/configs/alphas.yml",
+    "evaluation": {
+      "ic_ir": 350561232.1486001,
+      "mean_ic": 0.9999952949916516,
+      "mean_rank_ic": 1.0,
+      "n_periods": 2,
+      "rank_ic_ir": 0.0
+    },
+    "mode": "full",
+    "resolved_config": {
+      "alpha_horizon": 5,
+      "dataset": "features_daily",
+      "feature_columns": [
+        "feature_ret_5d",
+        "feature_ret_20d",
+        "feature_close_to_sma20"
+      ],
+      "predict_end": "2025-01-25",
+      "predict_start": "2025-01-18",
+      "target_column": "target_ret_5d",
+      "train_end": "2025-01-18",
+      "train_start": "2025-01-04"
+    },
+    "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+    "signal_mapping": {
+      "policy": "top_bottom_quantile",
+      "quantile": 0.34,
+      "row_count": 42,
+      "signal_counts": {
+        "-1.0": 21,
+        "1.0": 21
+      }
+    },
+    "signals_preview": [
+      {
+        "prediction_score": 1.0,
+        "signal": 1.0,
+        "symbol": "AAA",
+        "ts_utc": "2025-01-18T00:00:00Z"
+      },
+      {
+        "prediction_score": 1.0,
+        "signal": 1.0,
+        "symbol": "AAA",
+        "ts_utc": "2025-01-19T00:00:00Z"
+      },
+      {
+        "prediction_score": 1.0,
+        "signal": 1.0,
+        "symbol": "AAA",
+        "ts_utc": "2025-01-20T00:00:00Z"
+      },
+      {
+        "prediction_score": 1.0,
+        "signal": 1.0,
+        "symbol": "AAA",
+        "ts_utc": "2025-01-21T00:00:00Z"
+      },
+      {
+        "prediction_score": 1.0,
+        "signal": 1.0,
+        "symbol": "AAA",
+        "ts_utc": "2025-01-22T00:00:00Z"
+      },
+      {
+        "prediction_score": 1.0,
+        "signal": 1.0,
+        "symbol": "AAA",
+        "ts_utc": "2025-01-23T00:00:00Z"
+      },
+      {
+        "prediction_score": 1.0,
+        "signal": 1.0,
+        "symbol": "AAA",
+        "ts_utc": "2025-01-24T00:00:00Z"
+      },
+      {
+        "prediction_score": 0.6,
+        "signal": 1.0,
+        "symbol": "BBB",
+        "ts_utc": "2025-01-18T00:00:00Z"
+      }
+    ],
+    "sleeve": {
+      "metrics": {
+        "active_symbol_count_mean": 6.0,
+        "alpha_name": "rank_composite_momentum",
+        "annualized_return": 0.4088346831410503,
+        "annualized_volatility": 0.009528750000000013,
+        "average_execution_friction_per_trade": 0.0,
+        "average_trade_size": 1.0,
+        "average_turnover": 0.14285714285714285,
+        "cumulative_return": 0.0095666623202173,
+        "exposure_pct": 85.71428571428571,
+        "hit_rate": 0.6,
+        "max_drawdown": 0.0,
+        "percent_periods_traded": 14.285714285714285,
+        "profit_factor": 2.144019965908192,
+        "rebalance_count": 6.0,
+        "return_source": "price_column:close",
+        "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+        "sharpe_ratio": 35.99999999999999,
+        "sleeve_row_count": 7,
+        "symbol_count": 6,
+        "timestamp_count": 7,
+        "total_execution_friction": 0.0,
+        "total_return": 0.0095666623202173,
+        "total_slippage_cost": 0.0,
+        "total_transaction_cost": 0.0,
+        "total_turnover": 6.0,
+        "trade_count": 6.0,
+        "turnover": 0.14285714285714285,
+        "volatility": 0.0006002548286977798,
+        "win_rate": 0.8571428571428571
+      },
+      "returns_preview": [
+        {
+          "active_symbol_count": 6,
+          "gross_sleeve_return": 0.0,
+          "net_sleeve_return": 0.0,
+          "sleeve_execution_friction": 0.0,
+          "sleeve_return": 0.0,
+          "sleeve_slippage_cost": 0.0,
+          "sleeve_transaction_cost": 0.0,
+          "timeframe": "1D",
+          "ts_utc": "2025-01-18T00:00:00Z"
+        },
+        {
+          "active_symbol_count": 6,
+          "gross_sleeve_return": 0.0015881249999999,
+          "net_sleeve_return": 0.0015881249999999,
+          "sleeve_execution_friction": 0.0,
+          "sleeve_return": 0.0015881249999999,
+          "sleeve_slippage_cost": 0.0,
+          "sleeve_transaction_cost": 0.0,
+          "timeframe": "1D",
+          "ts_utc": "2025-01-19T00:00:00Z"
+        },
+        {
+          "active_symbol_count": 6,
+          "gross_sleeve_return": 0.001588125,
+          "net_sleeve_return": 0.001588125,
+          "sleeve_execution_friction": 0.0,
+          "sleeve_return": 0.001588125,
+          "sleeve_slippage_cost": 0.0,
+          "sleeve_transaction_cost": 0.0,
+          "timeframe": "1D",
+          "ts_utc": "2025-01-20T00:00:00Z"
+        },
+        {
+          "active_symbol_count": 6,
+          "gross_sleeve_return": 0.0015881249999999,
+          "net_sleeve_return": 0.0015881249999999,
+          "sleeve_execution_friction": 0.0,
+          "sleeve_return": 0.0015881249999999,
+          "sleeve_slippage_cost": 0.0,
+          "sleeve_transaction_cost": 0.0,
+          "timeframe": "1D",
+          "ts_utc": "2025-01-21T00:00:00Z"
+        },
+        {
+          "active_symbol_count": 6,
+          "gross_sleeve_return": 0.0015881249999999,
+          "net_sleeve_return": 0.0015881249999999,
+          "sleeve_execution_friction": 0.0,
+          "sleeve_return": 0.0015881249999999,
+          "sleeve_slippage_cost": 0.0,
+          "sleeve_transaction_cost": 0.0,
+          "timeframe": "1D",
+          "ts_utc": "2025-01-22T00:00:00Z"
+        },
+        {
+          "active_symbol_count": 6,
+          "gross_sleeve_return": 0.001588125,
+          "net_sleeve_return": 0.001588125,
+          "sleeve_execution_friction": 0.0,
+          "sleeve_return": 0.001588125,
+          "sleeve_slippage_cost": 0.0,
+          "sleeve_transaction_cost": 0.0,
+          "timeframe": "1D",
+          "ts_utc": "2025-01-23T00:00:00Z"
+        }
+      ]
+    }
+  },
+  "dataset": {
+    "date_range": {
+      "end": "2025-01-30",
+      "start": "2025-01-01"
+    },
+    "name": "features_daily",
+    "row_count": 180,
+    "symbol_count": 6,
+    "symbols": [
+      "AAA",
+      "BBB",
+      "CCC",
+      "DDD",
+      "EEE",
+      "FFF"
+    ]
+  },
+  "portfolio": {
+    "artifact_dir": "workspace/artifacts/portfolios/rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3",
+    "included": true,
+    "metrics": {
+      "max_drawdown": 0.0,
+      "realized_volatility": 0.009528749999991032,
+      "sharpe_ratio": 36.00000000000001,
+      "total_return": 0.009566662320207975
+    },
+    "portfolio_name": "rank_composite_momentum_sleeve_portfolio",
+    "returns_preview": [
+      {
+        "gross_portfolio_return": 0.0,
+        "net_portfolio_return": 0.0,
+        "portfolio_abs_weight_change": 0.9999999999990904,
+        "portfolio_changed_sleeve_count": 1.0,
+        "portfolio_execution_friction": 0.0,
+        "portfolio_fixed_fee": 0.0,
+        "portfolio_rebalance_event": 1,
+        "portfolio_return": 0.0,
+        "portfolio_slippage_cost": 0.0,
+        "portfolio_slippage_proxy": 0.0,
+        "portfolio_transaction_cost": 0.0,
+        "portfolio_turnover": 0.9999999999990904,
+        "portfolio_weight_change": 0.9999999999990904,
+        "strategy_return__rank_composite_momentum_sleeve": 0.0,
+        "ts_utc": "2025-01-18T00:00:00Z",
+        "weight__rank_composite_momentum_sleeve": 0.9999999999990904
+      },
+      {
+        "gross_portfolio_return": 0.0015881249999984,
+        "net_portfolio_return": 0.0015881249999984,
+        "portfolio_abs_weight_change": 0.0,
+        "portfolio_changed_sleeve_count": 0.0,
+        "portfolio_execution_friction": 0.0,
+        "portfolio_fixed_fee": 0.0,
+        "portfolio_rebalance_event": 0,
+        "portfolio_return": 0.0015881249999984,
+        "portfolio_slippage_cost": 0.0,
+        "portfolio_slippage_proxy": 0.0015881249999984,
+        "portfolio_transaction_cost": 0.0,
+        "portfolio_turnover": 0.0,
+        "portfolio_weight_change": 0.0,
+        "strategy_return__rank_composite_momentum_sleeve": 0.0015881249999999,
+        "ts_utc": "2025-01-19T00:00:00Z",
+        "weight__rank_composite_momentum_sleeve": 0.9999999999990904
+      },
+      {
+        "gross_portfolio_return": 0.0015881249999985,
+        "net_portfolio_return": 0.0015881249999985,
+        "portfolio_abs_weight_change": 0.0,
+        "portfolio_changed_sleeve_count": 0.0,
+        "portfolio_execution_friction": 0.0,
+        "portfolio_fixed_fee": 0.0,
+        "portfolio_rebalance_event": 0,
+        "portfolio_return": 0.0015881249999985,
+        "portfolio_slippage_cost": 0.0,
+        "portfolio_slippage_proxy": 0.0015881249999985,
+        "portfolio_transaction_cost": 0.0,
+        "portfolio_turnover": 0.0,
+        "portfolio_weight_change": 0.0,
+        "strategy_return__rank_composite_momentum_sleeve": 0.001588125,
+        "ts_utc": "2025-01-20T00:00:00Z",
+        "weight__rank_composite_momentum_sleeve": 0.9999999999990904
+      },
+      {
+        "gross_portfolio_return": 0.0015881249999984,
+        "net_portfolio_return": 0.0015881249999984,
+        "portfolio_abs_weight_change": 0.0,
+        "portfolio_changed_sleeve_count": 0.0,
+        "portfolio_execution_friction": 0.0,
+        "portfolio_fixed_fee": 0.0,
+        "portfolio_rebalance_event": 0,
+        "portfolio_return": 0.0015881249999984,
+        "portfolio_slippage_cost": 0.0,
+        "portfolio_slippage_proxy": 0.0015881249999984,
+        "portfolio_transaction_cost": 0.0,
+        "portfolio_turnover": 0.0,
+        "portfolio_weight_change": 0.0,
+        "strategy_return__rank_composite_momentum_sleeve": 0.0015881249999999,
+        "ts_utc": "2025-01-21T00:00:00Z",
+        "weight__rank_composite_momentum_sleeve": 0.9999999999990904
+      },
+      {
+        "gross_portfolio_return": 0.0015881249999984,
+        "net_portfolio_return": 0.0015881249999984,
+        "portfolio_abs_weight_change": 0.0,
+        "portfolio_changed_sleeve_count": 0.0,
+        "portfolio_execution_friction": 0.0,
+        "portfolio_fixed_fee": 0.0,
+        "portfolio_rebalance_event": 0,
+        "portfolio_return": 0.0015881249999984,
+        "portfolio_slippage_cost": 0.0,
+        "portfolio_slippage_proxy": 0.0015881249999984,
+        "portfolio_transaction_cost": 0.0,
+        "portfolio_turnover": 0.0,
+        "portfolio_weight_change": 0.0,
+        "strategy_return__rank_composite_momentum_sleeve": 0.0015881249999999,
+        "ts_utc": "2025-01-22T00:00:00Z",
+        "weight__rank_composite_momentum_sleeve": 0.9999999999990904
+      },
+      {
+        "gross_portfolio_return": 0.0015881249999985,
+        "net_portfolio_return": 0.0015881249999985,
+        "portfolio_abs_weight_change": 0.0,
+        "portfolio_changed_sleeve_count": 0.0,
+        "portfolio_execution_friction": 0.0,
+        "portfolio_fixed_fee": 0.0,
+        "portfolio_rebalance_event": 0,
+        "portfolio_return": 0.0015881249999985,
+        "portfolio_slippage_cost": 0.0,
+        "portfolio_slippage_proxy": 0.0015881249999985,
+        "portfolio_transaction_cost": 0.0,
+        "portfolio_turnover": 0.0,
+        "portfolio_weight_change": 0.0,
+        "strategy_return__rank_composite_momentum_sleeve": 0.001588125,
+        "ts_utc": "2025-01-23T00:00:00Z",
+        "weight__rank_composite_momentum_sleeve": 0.9999999999990904
+      }
+    ],
+    "run_id": "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3"
+  },
+  "review": {
+    "alpha_entry": {
+      "linked_portfolio_count": 1.0,
+      "linked_portfolio_names": "rank_composite_momentum_sleeve_portfolio",
+      "mapping_name": "top_bottom_quantile[q=0.34]",
+      "selected_metric_name": "ic_ir",
+      "selected_metric_value": 350561232.1486001,
+      "sleeve_metric_name": "sharpe_ratio",
+      "sleeve_metric_value": 35.99999999999999
+    },
+    "artifact_dir": "review",
+    "artifact_files": [
+      "leaderboard.csv",
+      "manifest.json",
+      "review_summary.json"
+    ],
+    "portfolio_entry": {
+      "entity_name": "rank_composite_momentum_sleeve_portfolio",
+      "selected_metric_name": "sharpe_ratio",
+      "selected_metric_value": 36.00000000000001
+    },
+    "review_id": "registry_review_f0e5786e2f00",
+    "selected_run_ids": [
+      "rank_composite_momentum_alpha_eval_bb267780ab85",
+      "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3"
+    ]
+  },
+  "workflow": [
+    "build_features_daily_fixture",
+    "resolve_builtin_alpha_from_catalog",
+    "train_and_predict",
+    "evaluate_alpha",
+    "map_predictions_to_signals",
+    "generate_sleeve_artifacts",
+    "optionally_construct_portfolio",
+    "write_review_outputs"
+  ]
+}

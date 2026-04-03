@@ -1,0 +1,49 @@
+{
+  "forward_return_column": "forward_return",
+  "ic_ir": -5628.97212872789,
+  "ic_positive_rate": 0.0,
+  "mean_ic": -0.9822043974027448,
+  "mean_rank_ic": -1.0,
+  "metadata": {
+    "alpha_name": "docs_example_weighted_alpha_model",
+    "artifact_scaffold": {
+      "alpha_metrics": "alpha_metrics.json",
+      "coefficients": "coefficients.json",
+      "cross_section_diagnostics": "cross_section_diagnostics.json",
+      "ic_timeseries": "ic_timeseries.csv",
+      "predictions": "predictions.parquet",
+      "qa_summary": "qa_summary.json",
+      "signal_mapping": "signal_mapping.json",
+      "signals": "signals.parquet",
+      "training_summary": "training_summary.json"
+    },
+    "ic_timeseries_columns": [
+      "ts_utc",
+      "ic",
+      "rank_ic",
+      "sample_size"
+    ],
+    "input_columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "prediction_score",
+      "close",
+      "forward_return"
+    ],
+    "run_id": "docs_example_weighted_alpha_model_alpha_eval_4dc73578b37f",
+    "timeframe": "1D",
+    "ts_utc_end": "2025-01-05T00:00:00Z",
+    "ts_utc_start": "2025-01-01T00:00:00Z"
+  },
+  "min_cross_section_size": 2,
+  "n_periods": 5,
+  "prediction_column": "prediction_score",
+  "rank_ic_ir": 0.0,
+  "row_count": 15,
+  "std_ic": 0.00017449089726168467,
+  "std_rank_ic": 0.0,
+  "symbol_count": 3,
+  "timestamp_count": 5,
+  "valid_timestamps": 5.0
+}

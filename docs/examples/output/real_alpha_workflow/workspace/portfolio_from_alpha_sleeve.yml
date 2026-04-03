@@ -1,0 +1,6 @@
+portfolio_name: rank_composite_momentum_sleeve_portfolio
+allocator: equal_weight
+components:
+- strategy_name: rank_composite_momentum_sleeve
+  run_id: rank_composite_momentum_alpha_eval_bb267780ab85
+  artifact_type: alpha_sleeve

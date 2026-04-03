@@ -1,0 +1,62 @@
+{
+  "alpha_name": "rank_composite_momentum",
+  "feature_columns": [
+    "feature_ret_5d",
+    "feature_ret_20d",
+    "feature_close_to_sma20"
+  ],
+  "model_class": "RankCompositeAlphaModel",
+  "model_name": "rank_composite_momentum",
+  "prediction": {
+    "columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "prediction_score"
+    ],
+    "predict_end": "2025-01-25T00:00:00Z",
+    "predict_row_count": 42,
+    "predict_start": "2025-01-18T00:00:00Z",
+    "predict_symbol_count": 6,
+    "window_semantics": "[predict_start, predict_end)"
+  },
+  "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+  "signal_mapping": {
+    "output_columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "prediction_score",
+      "signal"
+    ],
+    "policy": "top_bottom_quantile",
+    "prediction_column": "prediction_score",
+    "quantile": 0.34,
+    "row_count": 42,
+    "signal_column": "signal",
+    "timestamp_count": 7
+  },
+  "target_column": "target_ret_5d",
+  "training": {
+    "fit_columns": [
+      "symbol",
+      "ts_utc",
+      "target_ret_5d",
+      "feature_ret_5d",
+      "feature_ret_20d",
+      "feature_close_to_sma20"
+    ],
+    "model_training_metadata": {
+      "min_cross_section_size": 2,
+      "n_cross_sections": 14,
+      "n_rows": 84,
+      "normalize": 1,
+      "use_ic_weights": 1
+    },
+    "train_end": "2025-01-18T00:00:00Z",
+    "train_row_count": 84,
+    "train_start": "2025-01-04T00:00:00Z",
+    "train_symbol_count": 6,
+    "window_semantics": "[train_start, train_end)"
+  }
+}

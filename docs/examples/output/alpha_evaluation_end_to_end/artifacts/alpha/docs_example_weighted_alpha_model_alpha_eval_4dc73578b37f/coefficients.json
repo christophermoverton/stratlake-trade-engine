@@ -1,0 +1,11 @@
+{
+  "alpha_name": "docs_example_weighted_alpha_model",
+  "intercept": null,
+  "model_name": "docs_example_weighted_alpha_model",
+  "representation": "feature_means",
+  "run_id": "docs_example_weighted_alpha_model_alpha_eval_4dc73578b37f",
+  "values": {
+    "feature_alpha": 22.5,
+    "feature_beta": 7.5
+  }
+}

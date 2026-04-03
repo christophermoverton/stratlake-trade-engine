@@ -1,0 +1,145 @@
+{
+  "alignment_preview": [
+    {
+      "close": 200.0,
+      "forward_return": 0.014999999999999902,
+      "prediction_score": -17.5,
+      "symbol": "AAA",
+      "ts_utc": "2025-01-01T00:00:00Z"
+    },
+    {
+      "close": 203.0,
+      "forward_return": 0.014778325123152802,
+      "prediction_score": -18.5,
+      "symbol": "AAA",
+      "ts_utc": "2025-01-02T00:00:00Z"
+    },
+    {
+      "close": 206.0,
+      "forward_return": 0.014563106796116498,
+      "prediction_score": -19.5,
+      "symbol": "AAA",
+      "ts_utc": "2025-01-03T00:00:00Z"
+    },
+    {
+      "close": 209.0,
+      "forward_return": 0.014354066985645897,
+      "prediction_score": -20.5,
+      "symbol": "AAA",
+      "ts_utc": "2025-01-04T00:00:00Z"
+    },
+    {
+      "close": 212.0,
+      "forward_return": 0.014150943396226356,
+      "prediction_score": -21.5,
+      "symbol": "AAA",
+      "ts_utc": "2025-01-05T00:00:00Z"
+    },
+    {
+      "close": 300.0,
+      "forward_return": 0.01333333333333342,
+      "prediction_score": 2.5,
+      "symbol": "BBB",
+      "ts_utc": "2025-01-01T00:00:00Z"
+    }
+  ],
+  "comparison": {
+    "comparison_id": "registry_alpha_forecast_bb975d8a6efd",
+    "leaderboard": [
+      {
+        "alpha_name": "docs_example_inverted_alpha_model",
+        "ic_ir": 5628.97212872789,
+        "mean_ic": 0.9822043974027448,
+        "mean_rank_ic": 1.0,
+        "rank": 1,
+        "rank_ic_ir": 0.0,
+        "run_id": "docs_example_inverted_alpha_model_alpha_eval_049033811928"
+      },
+      {
+        "alpha_name": "docs_example_weighted_alpha_model",
+        "ic_ir": -5628.97212872789,
+        "mean_ic": -0.9822043974027448,
+        "mean_rank_ic": -1.0,
+        "rank": 2,
+        "rank_ic_ir": 0.0,
+        "run_id": "docs_example_weighted_alpha_model_alpha_eval_4dc73578b37f"
+      }
+    ],
+    "leaderboard_csv": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/alpha_evaluation_end_to_end/comparisons/leaderboard.csv",
+    "leaderboard_json": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/alpha_evaluation_end_to_end/comparisons/leaderboard.json",
+    "metric": "ic_ir"
+  },
+  "dataset": {
+    "row_count": 18,
+    "symbols": [
+      "AAA",
+      "BBB",
+      "CCC"
+    ],
+    "timeframe": "1D"
+  },
+  "ic_timeseries_preview": [
+    {
+      "ic": -0.9819805060619782,
+      "rank_ic": -1.0,
+      "sample_size": 3,
+      "ts_utc": "2025-01-01T00:00:00Z"
+    },
+    {
+      "ic": -0.9820957008361411,
+      "rank_ic": -1.0,
+      "sample_size": 3,
+      "ts_utc": "2025-01-02T00:00:00Z"
+    },
+    {
+      "ic": -0.9822075774376389,
+      "rank_ic": -1.0,
+      "sample_size": 3,
+      "ts_utc": "2025-01-03T00:00:00Z"
+    },
+    {
+      "ic": -0.9823162755356252,
+      "rank_ic": -1.0,
+      "sample_size": 3,
+      "ts_utc": "2025-01-04T00:00:00Z"
+    },
+    {
+      "ic": -0.9824219271423399,
+      "rank_ic": -1.0,
+      "sample_size": 3,
+      "ts_utc": "2025-01-05T00:00:00Z"
+    }
+  ],
+  "runs": [
+    {
+      "alpha_name": "docs_example_weighted_alpha_model",
+      "artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/alpha_evaluation_end_to_end/artifacts/alpha/docs_example_weighted_alpha_model_alpha_eval_4dc73578b37f",
+      "ic_ir": -5628.97212872789,
+      "mean_ic": -0.9822043974027448,
+      "mean_rank_ic": -1.0,
+      "n_periods": 5,
+      "rank_ic_ir": 0.0,
+      "run_id": "docs_example_weighted_alpha_model_alpha_eval_4dc73578b37f"
+    },
+    {
+      "alpha_name": "docs_example_inverted_alpha_model",
+      "artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/alpha_evaluation_end_to_end/artifacts/alpha/docs_example_inverted_alpha_model_alpha_eval_049033811928",
+      "ic_ir": 5628.97212872789,
+      "mean_ic": 0.9822043974027448,
+      "mean_rank_ic": 1.0,
+      "n_periods": 5,
+      "rank_ic_ir": 0.0,
+      "run_id": "docs_example_inverted_alpha_model_alpha_eval_049033811928"
+    }
+  ],
+  "workflow": [
+    "predict",
+    "align",
+    "validate",
+    "evaluate",
+    "aggregate",
+    "persist",
+    "register",
+    "compare"
+  ]
+}

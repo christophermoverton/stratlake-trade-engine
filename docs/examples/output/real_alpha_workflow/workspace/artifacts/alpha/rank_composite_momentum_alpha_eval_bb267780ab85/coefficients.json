@@ -1,0 +1,12 @@
+{
+  "alpha_name": "rank_composite_momentum",
+  "intercept": null,
+  "model_name": "rank_composite_momentum",
+  "representation": "feature_weight_by_name",
+  "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+  "values": {
+    "feature_close_to_sma20": 0.3333333333333333,
+    "feature_ret_20d": 0.3333333333333333,
+    "feature_ret_5d": 0.3333333333333333
+  }
+}

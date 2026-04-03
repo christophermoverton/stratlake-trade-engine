@@ -1,0 +1,112 @@
+{
+  "alpha_name": "rank_composite_momentum",
+  "checks": {
+    "concentration": {
+      "actual_value": 0.16666666666666666,
+      "description": "Largest single-name share of gross signal exposure at any timestamp.",
+      "direction": "lte",
+      "fail_threshold": 0.75,
+      "status": "pass",
+      "warn_threshold": 0.5
+    },
+    "minimum_valid_timestamps": {
+      "actual_value": 2.0,
+      "description": "Minimum usable evaluation timestamps after alignment and null filtering.",
+      "direction": "gte",
+      "fail_threshold": 2.0,
+      "status": "warn",
+      "warn_threshold": 10.0
+    },
+    "net_exposure_sanity": {
+      "actual_value": 0.0,
+      "description": "Largest absolute net exposure share implied by mapped signals.",
+      "direction": "lte",
+      "fail_threshold": 0.6,
+      "status": "pass",
+      "warn_threshold": 0.35
+    },
+    "post_warmup_null_limit": {
+      "actual_value": 0.0,
+      "description": "Maximum post-warmup null rate across prediction and forward-return fields.",
+      "direction": "lte",
+      "fail_threshold": 0.1,
+      "status": "pass",
+      "warn_threshold": 0.02
+    },
+    "sleeve_turnover": {
+      "actual_value": 0.0,
+      "description": "Average timestamp-to-timestamp sleeve turnover implied by mapped signals.",
+      "direction": "lte",
+      "fail_threshold": 1.25,
+      "status": "pass",
+      "warn_threshold": 0.75
+    },
+    "valid_timestamp_rate": {
+      "actual_value": 1.0,
+      "description": "Share of timestamps that retained enough valid names for IC evaluation.",
+      "direction": "gte",
+      "fail_threshold": 0.4,
+      "status": "pass",
+      "warn_threshold": 0.7
+    }
+  },
+  "cross_section": {
+    "configured_min_cross_section_size": 2,
+    "max_valid_cross_section_size": 6,
+    "mean_valid_cross_section_size": 6.0,
+    "min_valid_cross_section_size": 6,
+    "total_timestamps": 2,
+    "valid_timestamp_rate": 1.0,
+    "valid_timestamps": 2
+  },
+  "date_range": [
+    "2025-01-18T00:00:00Z",
+    "2025-01-19T00:00:00Z"
+  ],
+  "flags": {
+    "concentration": false,
+    "minimum_valid_timestamps": true,
+    "net_exposure_sanity": false,
+    "post_warmup_null_limit": false,
+    "sleeve_turnover": false,
+    "valid_timestamp_rate": false
+  },
+  "forecast": {
+    "ic_ir": 350561232.1486001,
+    "ic_positive_rate": 1.0,
+    "mean_ic": 0.9999952949916516,
+    "mean_rank_ic": 1.0,
+    "rank_ic_ir": 0.0,
+    "valid_timestamps": 2
+  },
+  "nulls": {
+    "forward_return_null_count": 0,
+    "forward_return_null_rate": 0.0,
+    "post_warmup_row_count": 6,
+    "prediction_null_count": 0,
+    "prediction_null_rate": 0.0
+  },
+  "overall_status": "warn",
+  "row_count": 12,
+  "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+  "signals": {
+    "enabled": true,
+    "max_abs_net_exposure": 0.0,
+    "max_abs_net_exposure_share": 0.0,
+    "max_gross_exposure": 6.0,
+    "max_single_name_abs_share": 0.16666666666666666,
+    "max_turnover": 0.0,
+    "mean_active_name_count": 6.0,
+    "mean_gross_exposure": 6.0,
+    "mean_net_exposure": 0.0,
+    "mean_turnover": 0.0,
+    "min_active_name_count": 6.0,
+    "policy": "top_bottom_quantile",
+    "row_count": 42,
+    "symbol_count": 6,
+    "timestamp_count": 7
+  },
+  "symbol_count": 6,
+  "timeframe": "1D",
+  "timestamp_count": 2
+}

@@ -1,0 +1,61 @@
+{
+  "alpha_name": "rank_composite_momentum",
+  "artifact_dir": "artifacts/alpha/rank_composite_momentum_alpha_eval_bb267780ab85",
+  "evaluation_metrics": {
+    "ic_ir": 350561232.1486001,
+    "mean_ic": 0.9999952949916516,
+    "n_periods": 2
+  },
+  "mode": "full",
+  "next_stage": null,
+  "resolved_config": {
+    "alpha_catalog_path": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\configs\\alphas.yml",
+    "alpha_horizon": 5,
+    "alpha_model": "rank_composite_momentum",
+    "alpha_name": "rank_composite_momentum",
+    "artifacts_root": "artifacts\\alpha",
+    "dataset": "features_daily",
+    "end": "2025-01-30",
+    "feature_columns": [
+      "feature_ret_5d",
+      "feature_ret_20d",
+      "feature_close_to_sma20"
+    ],
+    "min_cross_section_size": 2,
+    "model_params": {
+      "normalize": true,
+      "use_ic_weights": true
+    },
+    "model_type": "rank_composite",
+    "predict_end": "2025-01-25",
+    "predict_start": "2025-01-18",
+    "price_column": "close",
+    "run_mode": "full",
+    "signal_mapping": {
+      "policy": "top_bottom_quantile",
+      "quantile": 0.34
+    },
+    "start": "2025-01-01",
+    "target_column": "target_ret_5d",
+    "train_end": "2025-01-18",
+    "train_start": "2025-01-04"
+  },
+  "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+  "signal_mapping": {
+    "config": {
+      "metadata": {},
+      "output_column": "signal",
+      "policy": "top_bottom_quantile",
+      "prediction_column": "prediction_score",
+      "quantile": 0.34
+    },
+    "row_count": 42,
+    "signals_path": "signals.parquet"
+  },
+  "sleeve": {
+    "sleeve_equity_curve_path": "sleeve_equity_curve.csv",
+    "sleeve_metrics_path": "sleeve_metrics.json",
+    "sleeve_returns_path": "sleeve_returns.csv"
+  },
+  "status": "completed"
+}

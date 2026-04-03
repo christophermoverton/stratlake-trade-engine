@@ -29,6 +29,9 @@ supports:
   artifact manifests
 * built-in alpha catalog/config support through `configs/alphas.yml` plus
   `python -m src.cli.run_alpha`
+* a real-data Q1 2026 XGBoost cross-sectional alpha case study on
+  `features_daily`, including registry-backed comparison and sleeve portfolio
+  loading
 * default full alpha runs that persist evaluation artifacts, mapped signals,
   sleeve return streams, sleeve metrics, and `alpha_run_scaffold.json`
 * continuous-signal backtesting where finite numeric exposures are interpreted
@@ -53,6 +56,7 @@ Start with:
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
+* [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
@@ -205,6 +209,7 @@ Quick start:
 python docs/examples/alpha_evaluation_end_to_end.py
 python -m src.cli.run_alpha --alpha-name cs_linear_ret_1d --mode evaluate --start 2025-01-01 --end 2025-03-01
 python -m src.cli.run_alpha --alpha-name rank_composite_momentum --start 2025-01-01 --end 2025-03-01 --signal-policy top_bottom_quantile --signal-quantile 0.2
+python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name ml_cross_sectional_xgb_2026_q1
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
 python -m src.cli.compare_alpha --from-registry
 ```
@@ -212,9 +217,11 @@ python -m src.cli.compare_alpha --from-registry
 Notes:
 
 * `python -m src.cli.run_alpha` is the first-class entrypoint for named built-in alpha configs from `configs/alphas.yml`
+* the Q1 2026 ML case study lives in `configs/alphas_2026_q1.yml` as `ml_cross_sectional_xgb_2026_q1`
 * `--mode evaluate` runs only the evaluation stage; the default `full` mode also writes `signals.parquet`, sleeve artifacts, and `alpha_run_scaffold.json`
 * pass exactly one of `--price-column` or `--realized-return-column`
 * `--model-class` accepts either `module:Class` or `path.py:Class`
+* built-in XGBoost alpha configs require the `xgboost` package in the active environment
 * the end-to-end example writes reproducible outputs under
   `docs/examples/output/alpha_evaluation_end_to_end/`
 
@@ -379,6 +386,23 @@ decision.
 The primary workflow guide lives in
 [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
 
+### 4d. Run the Q1 2026 ML alpha case study
+
+```powershell
+python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name ml_cross_sectional_xgb_2026_q1
+python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name rank_composite_momentum_2026_q1
+python -m src.cli.compare_alpha --from-registry --dataset features_daily --timeframe 1D --evaluation-horizon 5 --mapping-name top_bottom_quantile_q20 --view combined
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios_alpha_2026_q1.yml --portfolio-name ml_cross_sectional_xgb_2026_q1_equal --timeframe 1D
+python -m src.cli.compare_research --from-registry --run-types alpha_evaluation portfolio --dataset features_daily --timeframe 1D --alpha-name ml_cross_sectional_xgb_2026_q1 --portfolio-name ml_cross_sectional_xgb_2026_q1_equal --disable-plots
+```
+
+This case study demonstrates a built-in XGBoost alpha trained on
+`2026-01-01 <= ts_utc < 2026-03-02`, predicted on
+`2026-03-02 <= ts_utc < 2026-04-03`, mapped with
+`top_bottom_quantile[q=0.2]`, and consumed downstream as an
+`artifact_type: alpha_sleeve` portfolio component. See
+[docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md).
+
 ### 5. Run a portfolio
 
 Baseline registry-backed portfolio:
@@ -496,6 +520,10 @@ It demonstrates:
 
 See the companion guide
 [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md).
+
+For the latest real-data ML alpha case study using XGBoost on the Q1 2026
+`features_daily` surface, see
+[docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md).
 
 The lower-level custom-model walkthrough remains available at
 [docs/examples/milestone_11_5_alpha_portfolio_workflow.py](docs/examples/milestone_11_5_alpha_portfolio_workflow.py)
@@ -615,6 +643,11 @@ write:
 * `sleeve_metrics.json`
 * `alpha_run_scaffold.json`
 
+The `manifest.json` and `training_summary.json` files now also carry model
+metadata such as feature columns, model type, and persisted hyperparameters,
+which is especially useful for built-in ML alpha case studies like
+`ml_cross_sectional_xgb_2026_q1`.
+
 `qa_summary.json` is the practical alpha QA surface. It records usable
 timestamp coverage, cross-section breadth, post-warmup null rates, and, when
 signals are present, tradability diagnostics such as implied turnover,
@@ -633,6 +666,7 @@ Start here:
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
+* [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 
 Portfolio references:
 
@@ -654,6 +688,7 @@ Examples:
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
+* [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 
 Merge-readiness notes:

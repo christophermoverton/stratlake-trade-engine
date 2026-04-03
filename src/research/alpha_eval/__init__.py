@@ -37,6 +37,7 @@ from src.research.alpha_eval.registry import (
     load_alpha_evaluation_registry,
     register_alpha_evaluation_run,
 )
+from src.research.alpha_eval.qa import generate_alpha_qa_summary
 from src.research.alpha_eval.sleeves import (
     AlphaSleeveError,
     AlphaSleeveResult,
@@ -72,6 +73,7 @@ __all__ = [
     "filter_by_alpha_name",
     "filter_by_timeframe",
     "generate_alpha_sleeve",
+    "generate_alpha_qa_summary",
     "get_alpha_evaluation_run",
     "load_alpha_evaluation_registry",
     "render_alpha_leaderboard_table",

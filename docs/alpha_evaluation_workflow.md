@@ -145,6 +145,7 @@ analogue is stored as `rank_ic_ir`.
 * `training_summary.json`
 * `coefficients.json`
 * `cross_section_diagnostics.json`
+* `qa_summary.json`
 * `ic_timeseries.csv`
 * `alpha_metrics.json`
 * `manifest.json`
@@ -246,6 +247,8 @@ In the implementation:
 
 Use `alpha_metrics.json` for the headline summary and `ic_timeseries.csv` to
 see whether the result is stable across time rather than driven by one period.
+Use `qa_summary.json` when you want a quick answer to the practical follow-up
+question: "is this alpha not just predictive, but usable?"
 
 Common reading pattern:
 
@@ -253,6 +256,80 @@ Common reading pattern:
 * `ic_ir` tells you whether that relationship is repeatable
 * `mean_rank_ic` helps when ranking matters more than magnitude
 * `n_periods` tells you how many timestamps were actually usable
+* `qa_summary.json` adds practical checks for timestamp coverage, post-warmup
+  nulls, and signal tradability metrics such as implied turnover,
+  concentration, and net-exposure balance
+
+## Alpha QA And Promotion Gates
+
+Alpha runs now persist `qa_summary.json` alongside the existing evaluation
+artifacts. The summary is intentionally practical rather than theoretical and
+focuses on:
+
+* minimum valid timestamps
+* valid timestamp coverage rate
+* minimum and mean valid cross-section size
+* post-warmup prediction and forward-return null rates
+* implied sleeve turnover from mapped signals
+* single-name concentration
+* net-exposure balance
+
+When signal mapping is not configured, the QA summary still records the
+forecast-quality checks and marks signal-tradability review as a warning rather
+than a hard failure.
+
+Promotion gates can now read those QA fields directly through the shared
+`qa_summary` source in `src/research/promotion.py`.
+
+Example:
+
+```powershell
+python -m src.cli.run_alpha `
+  --alpha-name cs_linear_ret_1d `
+  --start 2025-01-01 `
+  --end 2025-03-01 `
+  --promotion-gates configs/alpha_promotion_gates.yml
+```
+
+Example threshold file:
+
+```yaml
+promotion_gates:
+  status_on_pass: eligible
+  status_on_fail: blocked
+  gates:
+    - gate_id: min_valid_timestamps
+      source: qa_summary
+      metric_path: forecast.valid_timestamps
+      comparator: gte
+      threshold: 20
+    - gate_id: min_mean_cross_section
+      source: qa_summary
+      metric_path: cross_section.mean_valid_cross_section_size
+      comparator: gte
+      threshold: 25
+    - gate_id: post_warmup_prediction_nulls
+      source: qa_summary
+      metric_path: nulls.prediction_null_rate
+      comparator: lte
+      threshold: 0.02
+    - gate_id: signal_turnover
+      source: qa_summary
+      metric_path: signals.mean_turnover
+      comparator: lte
+      threshold: 0.75
+      missing_behavior: skip
+    - gate_id: max_single_name_concentration
+      source: qa_summary
+      metric_path: signals.max_single_name_abs_share
+      comparator: lte
+      threshold: 0.35
+      missing_behavior: skip
+```
+
+Those thresholds are examples, not universal truths. Daily broad-universe
+alphas usually want larger valid timestamp counts and cross-sections, while
+smaller research datasets may need looser thresholds during exploratory work.
 
 ## Artifacts And Registry Entries
 
@@ -262,8 +339,8 @@ Registry entries are the cross-run index that point back to those files.
 That relationship enables two workflows:
 
 * audit one run by opening `training_summary.json`, `coefficients.json`,
-  `cross_section_diagnostics.json`, `alpha_metrics.json`, `ic_timeseries.csv`,
-  and `manifest.json`
+  `cross_section_diagnostics.json`, `qa_summary.json`, `alpha_metrics.json`,
+  `ic_timeseries.csv`, and `manifest.json`
 * compare many runs by loading the registry and generating a leaderboard
 
 ## Start Here

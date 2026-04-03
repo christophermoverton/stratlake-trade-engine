@@ -11,6 +11,7 @@ from src.research.alpha.predictor import AlphaPredictionResult
 from src.research.alpha.signals import AlphaSignalMappingResult
 from src.research.alpha.trainer import TrainedAlphaModel
 from src.research.alpha_eval.evaluator import AlphaEvaluationResult
+from src.research.alpha_eval.qa import generate_alpha_qa_summary
 from src.research.promotion import (
     DEFAULT_PROMOTION_ARTIFACT_FILENAME,
     evaluate_promotion_gates,
@@ -26,6 +27,7 @@ _SIGNAL_MAPPING_FILENAME = "signal_mapping.json"
 _TRAINING_SUMMARY_FILENAME = "training_summary.json"
 _COEFFICIENTS_FILENAME = "coefficients.json"
 _CROSS_SECTION_DIAGNOSTICS_FILENAME = "cross_section_diagnostics.json"
+_QA_SUMMARY_FILENAME = "qa_summary.json"
 _MANIFEST_FILENAME = "manifest.json"
 
 
@@ -82,11 +84,19 @@ def write_alpha_evaluation_artifacts(
         result=result,
         aligned_frame=aligned_frame,
     )
+    qa_summary_payload = generate_alpha_qa_summary(
+        aligned_frame if aligned_frame is not None else pd.DataFrame(columns=["symbol", "ts_utc"]),
+        result,
+        alpha_name=alpha_name,
+        run_id=run_id,
+        signal_mapping_result=signal_mapping_result,
+    )
     promotion_evaluation = evaluate_promotion_gates(
         run_type="alpha_evaluation",
         config=promotion_gate_config,
         sources={
             "metrics": dict(result.summary),
+            "qa_summary": qa_summary_payload,
             "metadata": dict(result.metadata),
             "timeseries": ic_timeseries,
         },
@@ -104,6 +114,7 @@ def write_alpha_evaluation_artifacts(
         resolved_output_dir / _CROSS_SECTION_DIAGNOSTICS_FILENAME,
         cross_section_diagnostics_payload,
     )
+    _write_json(resolved_output_dir / _QA_SUMMARY_FILENAME, qa_summary_payload)
     write_promotion_gate_artifact(resolved_output_dir, promotion_evaluation)
 
     manifest = _build_manifest(
@@ -113,6 +124,7 @@ def write_alpha_evaluation_artifacts(
         training_summary_payload=training_summary_payload,
         coefficients_payload=coefficients_payload,
         cross_section_diagnostics_payload=cross_section_diagnostics_payload,
+        qa_summary_payload=qa_summary_payload,
         signal_mapping_payload=signal_mapping_payload,
         run_id=run_id,
         alpha_name=alpha_name,
@@ -383,6 +395,7 @@ def _build_manifest(
     training_summary_payload: dict[str, Any],
     coefficients_payload: dict[str, Any],
     cross_section_diagnostics_payload: dict[str, Any],
+    qa_summary_payload: dict[str, Any],
     signal_mapping_payload: dict[str, Any] | None,
     run_id: str | None,
     alpha_name: str | None,
@@ -401,6 +414,7 @@ def _build_manifest(
             _IC_TIMESERIES_FILENAME,
             _MANIFEST_FILENAME,
             _PREDICTIONS_FILENAME,
+            _QA_SUMMARY_FILENAME,
             *([_SIGNALS_FILENAME, _SIGNAL_MAPPING_FILENAME] if signal_mapping_payload is not None else []),
             _TRAINING_SUMMARY_FILENAME,
             *(
@@ -419,6 +433,7 @@ def _build_manifest(
             "manifest": _MANIFEST_FILENAME,
             "metrics": _ALPHA_METRICS_FILENAME,
             "predictions": _PREDICTIONS_FILENAME,
+            "qa_summary": _QA_SUMMARY_FILENAME,
             **(
                 {
                     "signal_mapping": _SIGNAL_MAPPING_FILENAME,
@@ -442,6 +457,8 @@ def _build_manifest(
         "metric_summary": dict(result.summary),
         "prediction_row_count": training_summary_payload.get("prediction", {}).get("predict_row_count"),
         "predictions_path": _PREDICTIONS_FILENAME,
+        "qa_summary": qa_summary_payload,
+        "qa_summary_path": _QA_SUMMARY_FILENAME,
         "signal_mapping_path": None if signal_mapping_payload is None else _SIGNAL_MAPPING_FILENAME,
         "signals_path": None if signal_mapping_payload is None else _SIGNALS_FILENAME,
         "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
@@ -491,6 +508,7 @@ def _augment_parent_manifest(
         "manifest_path": Path(artifact_dir_name, _MANIFEST_FILENAME).as_posix(),
         "metrics_path": Path(artifact_dir_name, _ALPHA_METRICS_FILENAME).as_posix(),
         "predictions_path": Path(artifact_dir_name, _PREDICTIONS_FILENAME).as_posix(),
+        "qa_summary_path": Path(artifact_dir_name, _QA_SUMMARY_FILENAME).as_posix(),
         "signal_mapping_path": (
             Path(artifact_dir_name, _SIGNAL_MAPPING_FILENAME).as_posix()
             if _SIGNAL_MAPPING_FILENAME in manifest.get("artifact_files", [])

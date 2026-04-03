@@ -78,6 +78,7 @@ def test_register_alpha_evaluation_run_writes_stable_registry_entry(tmp_path: Pa
     assert entry["evaluation_horizon"] == 3
     assert entry["artifact_path"] == artifact_dir.as_posix()
     assert entry["predictions_path"] == (artifact_dir / "predictions.parquet").as_posix()
+    assert entry["qa_summary_path"] == (artifact_dir / "qa_summary.json").as_posix()
     assert entry["training_summary_path"] == (artifact_dir / "training_summary.json").as_posix()
     assert entry["coefficients_path"] == (artifact_dir / "coefficients.json").as_posix()
     assert entry["cross_section_diagnostics_path"] == (artifact_dir / "cross_section_diagnostics.json").as_posix()

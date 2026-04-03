@@ -565,6 +565,28 @@ Core files:
 * `manifest.json`
 * `promotion_gates.json` when review-level promotion gates are configured
 
+### Alpha-evaluation artifacts
+
+Successful alpha-evaluation runs write under `artifacts/alpha/<run_id>/`.
+
+Core files:
+
+* `predictions.parquet`
+* `training_summary.json`
+* `coefficients.json`
+* `cross_section_diagnostics.json`
+* `qa_summary.json`
+* `alpha_metrics.json`
+* `ic_timeseries.csv`
+* `manifest.json`
+* `promotion_gates.json` when alpha promotion gates are configured
+
+`qa_summary.json` is the practical alpha QA surface. It records usable
+timestamp coverage, cross-section breadth, post-warmup null rates, and, when
+signals are present, tradability diagnostics such as implied turnover,
+concentration, and net exposure. Example thresholds live in
+`configs/alpha_promotion_gates.yml`.
+
 ## Documentation Map
 
 Start here:

@@ -92,6 +92,7 @@ def evaluate_alpha_predictions(
             "alpha_metrics": "alpha_metrics.json",
             "cross_section_diagnostics": "cross_section_diagnostics.json",
             "predictions": "predictions.parquet",
+            "qa_summary": "qa_summary.json",
             "signal_mapping": "signal_mapping.json",
             "signals": "signals.parquet",
             "training_summary": "training_summary.json",

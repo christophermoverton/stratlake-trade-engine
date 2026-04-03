@@ -1,0 +1,49 @@
+promotion_gates:
+  status_on_pass: eligible
+  status_on_fail: blocked
+  gates:
+    - gate_id: min_valid_timestamps
+      source: qa_summary
+      metric_path: forecast.valid_timestamps
+      comparator: gte
+      threshold: 20
+      description: Require enough usable timestamps for a stable alpha read.
+    - gate_id: min_mean_cross_section
+      source: qa_summary
+      metric_path: cross_section.mean_valid_cross_section_size
+      comparator: gte
+      threshold: 25
+      description: Require enough names per timestamp to avoid thin cross-sections.
+    - gate_id: post_warmup_prediction_nulls
+      source: qa_summary
+      metric_path: nulls.prediction_null_rate
+      comparator: lte
+      threshold: 0.02
+      description: Limit post-warmup prediction nulls.
+    - gate_id: post_warmup_forward_return_nulls
+      source: qa_summary
+      metric_path: nulls.forward_return_null_rate
+      comparator: lte
+      threshold: 0.02
+      description: Limit post-warmup forward-return nulls.
+    - gate_id: signal_turnover
+      source: qa_summary
+      metric_path: signals.mean_turnover
+      comparator: lte
+      threshold: 0.75
+      missing_behavior: skip
+      description: Keep implied sleeve turnover in a tradable range.
+    - gate_id: max_single_name_concentration
+      source: qa_summary
+      metric_path: signals.max_single_name_abs_share
+      comparator: lte
+      threshold: 0.35
+      missing_behavior: skip
+      description: Avoid one-name-dominant alpha sleeves.
+    - gate_id: max_net_exposure_share
+      source: qa_summary
+      metric_path: signals.max_abs_net_exposure_share
+      comparator: lte
+      threshold: 0.25
+      missing_behavior: skip
+      description: Avoid strongly one-sided sleeves unless explicitly intended.

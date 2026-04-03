@@ -51,6 +51,7 @@ def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_pat
         "ic_timeseries.csv",
         "manifest.json",
         "predictions.parquet",
+        "qa_summary.json",
         "training_summary.json",
     ]
     assert manifest["artifact_groups"]["alpha_evaluation"] == [
@@ -60,11 +61,13 @@ def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_pat
         "ic_timeseries.csv",
         "manifest.json",
         "predictions.parquet",
+        "qa_summary.json",
         "training_summary.json",
     ]
     assert manifest["run_id"] == "run_123"
     assert manifest["alpha_name"] == "demo_alpha"
     assert manifest["artifact_paths"]["predictions"] == "predictions.parquet"
+    assert manifest["artifact_paths"]["qa_summary"] == "qa_summary.json"
     assert manifest["artifact_paths"]["training_summary"] == "training_summary.json"
     assert manifest["timeseries_columns"] == ["ts_utc", "ic", "rank_ic", "n_obs", "sample_size"]
 
@@ -104,6 +107,13 @@ def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_pat
     assert diagnostics_payload["timestamp_count"] == result.timestamp_count
     assert diagnostics_payload["valid_periods"]["ic"] == result.summary["n_periods"]
 
+    qa_summary = json.loads((output_dir / "qa_summary.json").read_text(encoding="utf-8"))
+    assert qa_summary["alpha_name"] == "demo_alpha"
+    assert qa_summary["run_id"] == "run_123"
+    assert qa_summary["forecast"]["valid_timestamps"] == result.summary["n_periods"]
+    assert qa_summary["signals"]["enabled"] is False
+    assert qa_summary["overall_status"] == "warn"
+
     predictions = pd.read_parquet(output_dir / "predictions.parquet")
     assert list(predictions.columns) == ["symbol", "ts_utc", "timeframe", "prediction_score"]
     assert predictions.empty
@@ -131,6 +141,7 @@ def test_write_alpha_evaluation_artifacts_persists_explicit_signal_mapping_outpu
 
     assert "signals.parquet" in manifest["artifact_files"]
     assert "signal_mapping.json" in manifest["artifact_files"]
+    assert "qa_summary.json" in manifest["artifact_files"]
     assert manifest["artifact_paths"]["signals"] == "signals.parquet"
     assert manifest["artifact_paths"]["signal_mapping"] == "signal_mapping.json"
     assert manifest["signals_path"] == "signals.parquet"
@@ -147,6 +158,11 @@ def test_write_alpha_evaluation_artifacts_persists_explicit_signal_mapping_outpu
     training_summary = json.loads((output_dir / "training_summary.json").read_text(encoding="utf-8"))
     assert training_summary["signal_mapping"]["policy"] == "top_bottom_quantile"
     assert training_summary["signal_mapping"]["signal_column"] == "signal"
+
+    qa_summary = json.loads((output_dir / "qa_summary.json").read_text(encoding="utf-8"))
+    assert qa_summary["signals"]["enabled"] is True
+    assert qa_summary["signals"]["policy"] == "top_bottom_quantile"
+    assert "signal_mapping_present" not in qa_summary["checks"]
 
 
 def test_write_alpha_evaluation_artifacts_updates_parent_manifest_idempotently(tmp_path: Path) -> None:
@@ -202,6 +218,7 @@ def test_write_alpha_evaluation_artifacts_updates_parent_manifest_idempotently(t
     assert parent_manifest["alpha_evaluation"]["artifact_path"] == "alpha_eval"
     assert parent_manifest["alpha_evaluation"]["metrics_path"] == "alpha_eval/alpha_metrics.json"
     assert parent_manifest["alpha_evaluation"]["predictions_path"] == "alpha_eval/predictions.parquet"
+    assert parent_manifest["alpha_evaluation"]["qa_summary_path"] == "alpha_eval/qa_summary.json"
     assert parent_manifest["alpha_evaluation"]["training_summary_path"] == "alpha_eval/training_summary.json"
     assert parent_manifest["alpha_evaluation"]["timeseries_path"] == "alpha_eval/ic_timeseries.csv"
     assert "alpha_eval/alpha_metrics.json" in parent_manifest["artifact_files"]
@@ -212,6 +229,7 @@ def test_write_alpha_evaluation_artifacts_updates_parent_manifest_idempotently(t
         "alpha_eval/ic_timeseries.csv",
         "alpha_eval/manifest.json",
         "alpha_eval/predictions.parquet",
+        "alpha_eval/qa_summary.json",
         "alpha_eval/training_summary.json",
     ]
 

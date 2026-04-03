@@ -92,6 +92,9 @@ def build_alpha_evaluation_registry_entry(
         "predictions_path": resolved_artifact_dir.joinpath(
             str(manifest_payload.get("predictions_path", "predictions.parquet"))
         ).as_posix(),
+        "qa_summary_path": resolved_artifact_dir.joinpath(
+            str(manifest_payload.get("qa_summary_path", "qa_summary.json"))
+        ).as_posix(),
         "training_summary_path": resolved_artifact_dir.joinpath(
             str(manifest_payload.get("training_summary_path", "training_summary.json"))
         ).as_posix(),

@@ -92,21 +92,22 @@ def test_write_alpha_evaluation_artifacts_persists_promotion_gate_artifact(tmp_p
         result,
         run_id="run-1",
         alpha_name="demo_alpha",
+        aligned_frame=frame,
         promotion_gate_config={
             "gates": [
                 {
-                    "gate_id": "min_ic_ir",
-                    "source": "metrics",
-                    "metric": "ic_ir",
-                    "comparator": "gte",
-                    "threshold": float(result.summary["ic_ir"]),
-                },
-                {
-                    "gate_id": "sample_size",
-                    "source": "metrics",
-                    "metric": "n_periods",
+                    "gate_id": "min_valid_timestamps",
+                    "source": "qa_summary",
+                    "metric": "forecast.valid_timestamps",
                     "comparator": "gte",
                     "threshold": float(result.summary["n_periods"]),
+                },
+                {
+                    "gate_id": "nulls_clean",
+                    "source": "qa_summary",
+                    "metric": "nulls.prediction_null_rate",
+                    "comparator": "lte",
+                    "threshold": 0.0,
                 },
             ]
         },

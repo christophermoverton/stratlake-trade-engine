@@ -10,7 +10,9 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.research.alpha import AlphaSignalMappingConfig, map_alpha_predictions_to_signals
+from src.research.alpha import AlphaSignalMappingConfig, BaseAlphaModel, map_alpha_predictions_to_signals
+from src.research.alpha.predictor import AlphaPredictionResult
+from src.research.alpha.trainer import TrainedAlphaModel
 from src.research.alpha_eval import evaluate_alpha_predictions, write_alpha_evaluation_artifacts
 
 
@@ -31,6 +33,21 @@ def _alpha_eval_frame() -> pd.DataFrame:
             "forward_return": [0.2, 0.3, 0.1, 0.4, 0.0, 0.2],
         }
     )
+
+
+class _InspectableAlphaModel(BaseAlphaModel):
+    name = "inspectable_alpha_model"
+
+    def __init__(self) -> None:
+        self.model_params = {"max_depth": 4, "random_state": 7}
+        self.feature_importance_by_name = {"feature_alpha": 1.0}
+        self.training_metadata = {"n_rows": 3}
+
+    def _fit(self, df: pd.DataFrame) -> None:
+        return None
+
+    def _predict(self, df: pd.DataFrame) -> pd.Series:
+        return pd.Series(0.0, index=df.index, dtype="float64", name="prediction")
 
 
 def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_path: Path) -> None:
@@ -69,6 +86,13 @@ def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_pat
     assert manifest["artifact_paths"]["predictions"] == "predictions.parquet"
     assert manifest["artifact_paths"]["qa_summary"] == "qa_summary.json"
     assert manifest["artifact_paths"]["training_summary"] == "training_summary.json"
+    assert manifest["model"] == {
+        "feature_columns": [],
+        "hyperparameters": {},
+        "model_class": None,
+        "model_name": None,
+        "model_type": None,
+    }
     assert manifest["timeseries_columns"] == ["ts_utc", "ic", "rank_ic", "n_obs", "sample_size"]
 
     timeseries = pd.read_csv(output_dir / "ic_timeseries.csv")
@@ -94,6 +118,7 @@ def test_write_alpha_evaluation_artifacts_persists_deterministic_outputs(tmp_pat
 
     training_summary = json.loads((output_dir / "training_summary.json").read_text(encoding="utf-8"))
     assert training_summary["alpha_name"] == "demo_alpha"
+    assert training_summary["hyperparameters"] == {}
     assert training_summary["run_id"] == "run_123"
     assert training_summary["model_name"] is None
     assert training_summary["training"]["train_row_count"] is None
@@ -163,6 +188,57 @@ def test_write_alpha_evaluation_artifacts_persists_explicit_signal_mapping_outpu
     assert qa_summary["signals"]["enabled"] is True
     assert qa_summary["signals"]["policy"] == "top_bottom_quantile"
     assert "signal_mapping_present" not in qa_summary["checks"]
+
+
+def test_write_alpha_evaluation_artifacts_includes_model_metadata_in_manifest(tmp_path: Path) -> None:
+    frame = _alpha_eval_frame()
+    result = evaluate_alpha_predictions(frame)
+    trained_model = TrainedAlphaModel(
+        model_name="ml_cross_sectional_xgb_2026_q1",
+        model=_InspectableAlphaModel(),
+        target_column="target_ret_5d",
+        feature_columns=["feature_alpha"],
+        train_start=pd.Timestamp("2026-01-01T00:00:00Z"),
+        train_end=pd.Timestamp("2026-03-02T00:00:00Z"),
+        row_count=3,
+        symbol_count=3,
+        metadata={"fit_columns": ["symbol", "ts_utc", "target_ret_5d", "feature_alpha"]},
+    )
+    prediction_result = AlphaPredictionResult(
+        model_name="ml_cross_sectional_xgb_2026_q1",
+        trained_model=trained_model,
+        target_column="target_ret_5d",
+        feature_columns=["feature_alpha"],
+        predict_start=pd.Timestamp("2026-03-02T00:00:00Z"),
+        predict_end=pd.Timestamp("2026-04-03T00:00:00Z"),
+        row_count=2,
+        symbol_count=2,
+        predictions=frame.loc[:, ["symbol", "ts_utc", "timeframe", "prediction_score"]].copy(),
+        metadata={
+            "prediction_output_columns": ["symbol", "ts_utc", "timeframe", "prediction_score"],
+            "window_semantics": "[predict_start, predict_end)",
+        },
+    )
+
+    manifest = write_alpha_evaluation_artifacts(
+        tmp_path / "artifacts" / "alpha" / "run_meta",
+        result,
+        trained_model=trained_model,
+        prediction_result=prediction_result,
+        run_id="run_meta",
+        alpha_name="ml_cross_sectional_xgb_2026_q1",
+        effective_config={
+            "model_type": "cross_sectional_xgboost",
+        },
+    )
+
+    assert manifest["model"] == {
+        "feature_columns": ["feature_alpha"],
+        "hyperparameters": {"max_depth": 4, "random_state": 7},
+        "model_class": "_InspectableAlphaModel",
+        "model_name": "ml_cross_sectional_xgb_2026_q1",
+        "model_type": "cross_sectional_xgboost",
+    }
 
 
 def test_write_alpha_evaluation_artifacts_updates_parent_manifest_idempotently(tmp_path: Path) -> None:

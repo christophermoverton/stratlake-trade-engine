@@ -238,6 +238,7 @@ def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunRe
         run_id=run_id,
         alpha_name=str(resolved_config["alpha_model"]),
         promotion_gate_config=resolved_config.get("promotion_gates"),
+        effective_config=effective_config,
     )
     register_alpha_evaluation_run(
         run_id=run_id,

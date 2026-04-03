@@ -53,6 +53,7 @@ def write_alpha_evaluation_artifacts(
     run_id: str | None = None,
     alpha_name: str | None = None,
     promotion_gate_config: dict[str, Any] | None = None,
+    effective_config: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Persist deterministic alpha-evaluation artifacts and return a manifest payload."""
 
@@ -129,6 +130,7 @@ def write_alpha_evaluation_artifacts(
         run_id=run_id,
         alpha_name=alpha_name,
         promotion_evaluation=promotion_evaluation,
+        effective_config=effective_config,
     )
     _write_json(resolved_output_dir / _MANIFEST_FILENAME, manifest)
 
@@ -256,8 +258,14 @@ def _training_summary_payload(
         {
             "alpha_name": alpha_name,
             "feature_columns": [] if trained_model is None else list(trained_model.feature_columns),
+            "hyperparameters": (
+                {}
+                if not isinstance(getattr(model, "model_params", None), dict)
+                else dict(getattr(model, "model_params"))
+            ),
             "model_class": None if model is None else type(model).__name__,
             "model_name": None if trained_model is None else trained_model.model_name,
+            "model_type": None if model is None else getattr(model, "name", None),
             "prediction": {
                 "columns": (
                     []
@@ -322,6 +330,7 @@ def _coefficients_payload(
             "coefficient_by_feature",
             "feature_weight_by_name",
             "feature_ic_by_name",
+            "feature_importance_by_name",
             "feature_means",
         ),
     )
@@ -400,6 +409,7 @@ def _build_manifest(
     run_id: str | None,
     alpha_name: str | None,
     promotion_evaluation: Any,
+    effective_config: dict[str, Any] | None,
 ) -> dict[str, Any]:
     artifact_files = sorted(
         set([*(path.name for path in output_dir.iterdir() if path.is_file()), _MANIFEST_FILENAME])
@@ -455,6 +465,17 @@ def _build_manifest(
         "manifest_path": _MANIFEST_FILENAME,
         "metrics_path": _ALPHA_METRICS_FILENAME,
         "metric_summary": dict(result.summary),
+        "model": {
+            "feature_columns": list(training_summary_payload.get("feature_columns", [])),
+            "hyperparameters": dict(training_summary_payload.get("hyperparameters", {})),
+            "model_class": training_summary_payload.get("model_class"),
+            "model_name": training_summary_payload.get("model_name"),
+            "model_type": (
+                None
+                if not isinstance(effective_config, dict)
+                else effective_config.get("model_type")
+            ),
+        },
         "prediction_row_count": training_summary_payload.get("prediction", {}).get("predict_row_count"),
         "predictions_path": _PREDICTIONS_FILENAME,
         "qa_summary": qa_summary_payload,
@@ -628,6 +649,7 @@ def _coefficient_representation(model: Any) -> str:
         "coefficient_by_feature",
         "feature_weight_by_name",
         "feature_ic_by_name",
+        "feature_importance_by_name",
         "feature_means",
     ):
         if isinstance(getattr(model, attribute_name, None), dict):

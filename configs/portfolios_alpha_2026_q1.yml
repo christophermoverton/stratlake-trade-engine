@@ -31,3 +31,17 @@ portfolios:
       target_volatility: 0.10
       lookback_periods: 20
       volatility_epsilon: 1e-8
+
+  ml_cross_sectional_xgb_2026_q1_equal:
+    allocator: equal_weight
+    initial_capital: 1.0
+    alignment_policy: intersection
+    components:
+      - strategy_name: ml_cross_sectional_xgb_2026_q1
+        run_id: "ml_cross_sectional_xgb_2026_q1_alpha_eval_d4c845bd3f5c"
+        artifact_type: alpha_sleeve
+    risk:
+      volatility_window: 20
+      target_volatility: 0.12
+      var_confidence_level: 0.95
+      cvar_confidence_level: 0.95

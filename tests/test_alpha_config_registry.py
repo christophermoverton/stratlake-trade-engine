@@ -10,6 +10,7 @@ import src.research.alpha.registry as alpha_registry
 from src.research.alpha.base import BaseAlphaModel
 from src.research.alpha.builtins import (
     CrossSectionalLinearAlphaModel,
+    CrossSectionalXGBoostAlphaModel,
     RankCompositeAlphaModel,
     RidgeLinearAlphaModel,
 )
@@ -171,6 +172,54 @@ def test_load_alphas_config_uses_native_cross_sectional_linear_model_type() -> N
 
     assert config["model_type"] == "cross_sectional_linear"
     assert config["model_params"]["fit_intercept"] is True
+
+
+def test_custom_catalog_supports_cross_sectional_xgboost_model_type(tmp_path: Path) -> None:
+    config_path = tmp_path / "alphas.yml"
+    config_path.write_text(
+        yaml.safe_dump(
+            {
+                "ml_cross_sectional_xgb_2026_q1": {
+                    "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+                    "dataset": "features_daily",
+                    "target_column": "target_ret_5d",
+                    "feature_columns": [
+                        "feature_ret_1d",
+                        "feature_ret_5d",
+                        "feature_ret_20d",
+                    ],
+                    "model_type": "cross_sectional_xgboost",
+                    "model_params": {
+                        "random_state": 20260302,
+                        "n_estimators": 32,
+                        "max_depth": 3,
+                        "subsample": 1.0,
+                        "colsample_bytree": 1.0,
+                        "colsample_bylevel": 1.0,
+                        "colsample_bynode": 1.0,
+                    },
+                    "alpha_horizon": 5,
+                    "defaults": {
+                        "price_column": "close",
+                        "min_cross_section_size": 25,
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+
+    alphas = load_alphas_config(config_path)
+    assert alphas["ml_cross_sectional_xgb_2026_q1"]["model_type"] == "cross_sectional_xgboost"
+
+    register_builtin_alpha_catalog(config_path)
+    model = alpha_registry.get_alpha_model("ml_cross_sectional_xgb_2026_q1")
+
+    assert isinstance(model, CrossSectionalXGBoostAlphaModel)
+    assert model.model_params["random_state"] == 20260302
+    assert model.model_params["subsample"] == pytest.approx(1.0)
+    assert model.model_params["colsample_bytree"] == pytest.approx(1.0)
 
 
 def test_register_builtin_alpha_catalog_supports_rank_composite_baseline() -> None:

@@ -9,9 +9,11 @@ import yaml
 
 from src.research.alpha.builtins import (
     CrossSectionalLinearAlphaModel,
+    CrossSectionalXGBoostAlphaModel,
     LinearModelSpec,
     RankCompositeAlphaModel,
     RidgeLinearAlphaModel,
+    XGBoostModelSpec,
 )
 from src.research.alpha.registry import _ALPHA_MODEL_REGISTRY, register_alpha_factory
 
@@ -150,6 +152,26 @@ def _build_alpha_factory(alpha_name: str, config: Mapping[str, Any]):
             min_cross_section_size=int(params.get("min_cross_section_size", config.get("min_cross_section_size", 2))),
         )
         return partial(RidgeLinearAlphaModel, spec=spec)
+    if model_type in {"cross_sectional_xgboost", "xgboost_cross_sectional", "xgboost"}:
+        spec = XGBoostModelSpec(
+            random_state=int(params.get("random_state", 20260302)),
+            n_estimators=int(params.get("n_estimators", 200)),
+            max_depth=int(params.get("max_depth", 4)),
+            learning_rate=float(params.get("learning_rate", 0.05)),
+            min_child_weight=float(params.get("min_child_weight", 5.0)),
+            subsample=float(params.get("subsample", 1.0)),
+            colsample_bytree=float(params.get("colsample_bytree", 1.0)),
+            colsample_bylevel=float(params.get("colsample_bylevel", 1.0)),
+            colsample_bynode=float(params.get("colsample_bynode", 1.0)),
+            reg_alpha=float(params.get("reg_alpha", 0.0)),
+            reg_lambda=float(params.get("reg_lambda", 1.0)),
+            gamma=float(params.get("gamma", 0.0)),
+            n_jobs=int(params.get("n_jobs", 1)),
+            tree_method=str(params.get("tree_method", "hist")),
+            objective=str(params.get("objective", "reg:squarederror")),
+            importance_type=str(params.get("importance_type", "gain")),
+        )
+        return partial(CrossSectionalXGBoostAlphaModel, spec=spec)
     if model_type in {"rank_composite_momentum", "rank_composite"}:
         return partial(
             RankCompositeAlphaModel,

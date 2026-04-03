@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 import sys
+import types
 
 import pandas as pd
 import pytest
@@ -10,9 +11,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.research.alpha.builtins import (
     CrossSectionalLinearAlphaModel,
+    CrossSectionalXGBoostAlphaModel,
     LinearModelSpec,
     RankCompositeAlphaModel,
     RidgeLinearAlphaModel,
+    XGBoostModelSpec,
 )
 
 
@@ -105,3 +108,88 @@ def test_rank_composite_alpha_learns_inspectable_ic_weights_and_predicts_orderin
     assert predictions.iloc[0] > predictions.iloc[3] > predictions.iloc[6]
     assert predictions.iloc[1] > predictions.iloc[4] > predictions.iloc[7]
     assert predictions.iloc[2] > predictions.iloc[5] > predictions.iloc[8]
+
+
+def test_cross_sectional_xgboost_alpha_is_deterministic_with_fixed_seed_and_no_sampling(
+    daily_alpha_frame: pd.DataFrame,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeXGBRegressor:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = dict(kwargs)
+            self.feature_importances_ = None
+            self._weights = None
+
+        def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
+            filled = X.fillna(0.0).to_numpy(dtype="float64")
+            target = y.to_numpy(dtype="float64")
+            self._weights = filled.T @ target
+            total = abs(self._weights).sum()
+            if total > 0.0:
+                self.feature_importances_ = abs(self._weights) / total
+            else:
+                self.feature_importances_ = abs(self._weights)
+
+        def predict(self, X: pd.DataFrame):
+            filled = X.fillna(0.0).to_numpy(dtype="float64")
+            return filled @ self._weights
+
+    fake_module = types.SimpleNamespace(XGBRegressor=FakeXGBRegressor)
+    monkeypatch.setitem(sys.modules, "xgboost", fake_module)
+
+    frame = daily_alpha_frame.copy(deep=True)
+    frame["feature_sma_20"] = [1.0, 0.3, -0.5, 0.9, 0.2, -0.6, 0.8, 0.1, -0.7]
+    frame["feature_sma_50"] = [0.8, 0.2, -0.4, 0.7, 0.1, -0.5, 0.6, 0.0, -0.6]
+    frame.loc[frame.index[0], "feature_sma_20"] = None
+    frame.loc[frame.index[1], "feature_sma_50"] = None
+
+    model = CrossSectionalXGBoostAlphaModel(
+        spec=XGBoostModelSpec(
+            random_state=7,
+            n_estimators=25,
+            max_depth=3,
+            learning_rate=0.1,
+            subsample=1.0,
+            colsample_bytree=1.0,
+            colsample_bylevel=1.0,
+            colsample_bynode=1.0,
+            n_jobs=1,
+        )
+    )
+
+    model.fit(frame)
+    prediction_frame = frame.drop(columns=["target_ret_5d"])
+    first = model.predict(prediction_frame)
+    second = model.predict(prediction_frame)
+
+    assert first.equals(second)
+    assert model.model_params["random_state"] == 7
+    assert model.model_params["subsample"] == pytest.approx(1.0)
+    assert model.model_params["colsample_bytree"] == pytest.approx(1.0)
+    assert model.model_params["colsample_bylevel"] == pytest.approx(1.0)
+    assert model.model_params["colsample_bynode"] == pytest.approx(1.0)
+    assert model.model_params["n_jobs"] == 1
+    assert sorted(model.feature_importance_by_name) == sorted(model.feature_columns)
+
+
+def test_cross_sectional_xgboost_alpha_raises_clear_error_when_dependency_missing(
+    daily_alpha_frame: pd.DataFrame,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(sys.modules, "xgboost", raising=False)
+
+    import importlib
+
+    real_import_module = importlib.import_module
+
+    def _raise_for_xgboost(name: str, package: str | None = None):
+        if name == "xgboost":
+            raise ModuleNotFoundError("No module named 'xgboost'")
+        return real_import_module(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", _raise_for_xgboost)
+
+    model = CrossSectionalXGBoostAlphaModel()
+
+    with pytest.raises(RuntimeError, match="xgboost is required"):
+        model.fit(daily_alpha_frame)

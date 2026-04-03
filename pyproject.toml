@@ -13,6 +13,7 @@ dependencies = [
     "python-dotenv",
     "pyyaml",
     "scikit-learn",
+    "xgboost",
 ]
 
 [project.optional-dependencies]

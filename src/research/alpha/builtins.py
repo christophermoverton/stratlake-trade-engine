@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 from dataclasses import dataclass
 
 import numpy as np
@@ -15,6 +16,26 @@ class LinearModelSpec:
     ridge_penalty: float = 0.0
     fit_intercept: bool = True
     min_cross_section_size: int = 2
+
+
+@dataclass(frozen=True)
+class XGBoostModelSpec:
+    random_state: int = 20260302
+    n_estimators: int = 200
+    max_depth: int = 4
+    learning_rate: float = 0.05
+    min_child_weight: float = 5.0
+    subsample: float = 1.0
+    colsample_bytree: float = 1.0
+    colsample_bylevel: float = 1.0
+    colsample_bynode: float = 1.0
+    reg_alpha: float = 0.0
+    reg_lambda: float = 1.0
+    gamma: float = 0.0
+    n_jobs: int = 1
+    tree_method: str = "hist"
+    objective: str = "reg:squarederror"
+    importance_type: str = "gain"
 
 
 class CrossSectionalLinearAlphaModel(BaseAlphaModel):
@@ -95,6 +116,68 @@ class RidgeLinearAlphaModel(CrossSectionalLinearAlphaModel):
     """Cross-sectional ridge baseline with inspectable shrinkage coefficients."""
 
     name = "ridge_linear_alpha_model"
+
+
+class CrossSectionalXGBoostAlphaModel(BaseAlphaModel):
+    """Deterministic pooled cross-sectional XGBoost regressor."""
+
+    name = "cross_sectional_xgboost_alpha_model"
+
+    def __init__(self, *, spec: XGBoostModelSpec | None = None) -> None:
+        resolved_spec = spec or XGBoostModelSpec()
+        _validate_xgboost_spec(resolved_spec)
+
+        self.spec = resolved_spec
+        self.feature_columns: list[str] = []
+        self.target_column: str | None = None
+        self.model = None
+        self.feature_importance_by_name: dict[str, float] = {}
+        self.model_params: dict[str, float | int | str] = _xgboost_params_from_spec(resolved_spec)
+        self.training_metadata: dict[str, float | int | str] = {}
+
+    def _fit(self, df: pd.DataFrame) -> None:
+        self.feature_columns = _resolve_feature_columns(df)
+        self.target_column = _resolve_target_column(df)
+
+        design_matrix = _to_numeric_frame_allowing_missing(df, self.feature_columns)
+        target = _to_numeric_series_allowing_missing(df, self.target_column)
+        valid_rows = ~target.isna()
+        if not bool(valid_rows.any()):
+            raise ValueError("Cross-sectional XGBoost alpha requires at least one non-null target row.")
+
+        design_matrix = design_matrix.loc[valid_rows]
+        target = target.loc[valid_rows]
+        if len(target) < 2:
+            raise ValueError("Cross-sectional XGBoost alpha requires at least two training rows.")
+
+        xgb_regressor_cls = _resolve_xgb_regressor_cls()
+        self.model = xgb_regressor_cls(**self.model_params)
+        self.model.fit(design_matrix, target)
+
+        raw_importance = getattr(self.model, "feature_importances_", None)
+        if raw_importance is None:
+            self.feature_importance_by_name = {}
+        else:
+            self.feature_importance_by_name = {
+                column: float(value)
+                for column, value in zip(self.feature_columns, raw_importance, strict=False)
+            }
+
+        self.training_metadata = {
+            "n_rows": int(len(df)),
+            "n_training_rows": int(len(target)),
+            "n_cross_sections": int(pd.to_datetime(df["ts_utc"], utc=True).nunique()),
+            "target_non_null_rows": int(valid_rows.sum()),
+            **self.model_params,
+        }
+
+    def _predict(self, df: pd.DataFrame) -> pd.Series:
+        if self.model is None:
+            raise RuntimeError("Model must be fit before predict.")
+
+        design_matrix = _to_numeric_frame_allowing_missing(df, self.feature_columns)
+        prediction = self.model.predict(design_matrix)
+        return pd.Series(prediction, index=df.index, dtype="float64", name="prediction")
 
 
 class RankCompositeAlphaModel(BaseAlphaModel):
@@ -199,10 +282,20 @@ def _to_numeric_frame(df: pd.DataFrame, feature_columns: list[str]) -> pd.DataFr
     return numeric.astype("float64")
 
 
+def _to_numeric_frame_allowing_missing(df: pd.DataFrame, feature_columns: list[str]) -> pd.DataFrame:
+    numeric = df.loc[:, feature_columns].apply(pd.to_numeric, errors="coerce")
+    return numeric.astype("float64")
+
+
 def _to_numeric_series(df: pd.DataFrame, column: str) -> pd.Series:
     values = pd.to_numeric(df[column], errors="coerce").astype("float64")
     if values.isna().any():
         raise ValueError(f"Column '{column}' must be numeric and non-null for built-in alpha models.")
+    return pd.Series(values, index=df.index, dtype="float64", name=column)
+
+
+def _to_numeric_series_allowing_missing(df: pd.DataFrame, column: str) -> pd.Series:
+    values = pd.to_numeric(df[column], errors="coerce").astype("float64")
     return pd.Series(values, index=df.index, dtype="float64", name=column)
 
 
@@ -314,3 +407,69 @@ def _augment_design_matrix(matrix: np.ndarray, *, fit_intercept: bool) -> np.nda
         return matrix
     intercept = np.ones((matrix.shape[0], 1), dtype="float64")
     return np.hstack([intercept, matrix])
+
+
+def _validate_xgboost_spec(spec: XGBoostModelSpec) -> None:
+    if spec.n_estimators <= 0:
+        raise ValueError("n_estimators must be greater than zero.")
+    if spec.max_depth <= 0:
+        raise ValueError("max_depth must be greater than zero.")
+    if spec.learning_rate <= 0.0:
+        raise ValueError("learning_rate must be greater than zero.")
+    if spec.min_child_weight < 0.0:
+        raise ValueError("min_child_weight must be greater than or equal to zero.")
+    for field_name in ("subsample", "colsample_bytree", "colsample_bylevel", "colsample_bynode"):
+        value = float(getattr(spec, field_name))
+        if value <= 0.0 or value > 1.0:
+            raise ValueError(f"{field_name} must be in the interval (0, 1].")
+    if spec.reg_alpha < 0.0:
+        raise ValueError("reg_alpha must be greater than or equal to zero.")
+    if spec.reg_lambda < 0.0:
+        raise ValueError("reg_lambda must be greater than or equal to zero.")
+    if spec.gamma < 0.0:
+        raise ValueError("gamma must be greater than or equal to zero.")
+    if spec.n_jobs <= 0:
+        raise ValueError("n_jobs must be greater than zero.")
+    if not spec.tree_method.strip():
+        raise ValueError("tree_method must be a non-empty string.")
+    if not spec.objective.strip():
+        raise ValueError("objective must be a non-empty string.")
+    if not spec.importance_type.strip():
+        raise ValueError("importance_type must be a non-empty string.")
+
+
+def _xgboost_params_from_spec(spec: XGBoostModelSpec) -> dict[str, float | int | str]:
+    return {
+        "colsample_bylevel": float(spec.colsample_bylevel),
+        "colsample_bynode": float(spec.colsample_bynode),
+        "colsample_bytree": float(spec.colsample_bytree),
+        "gamma": float(spec.gamma),
+        "importance_type": str(spec.importance_type),
+        "learning_rate": float(spec.learning_rate),
+        "max_depth": int(spec.max_depth),
+        "min_child_weight": float(spec.min_child_weight),
+        "n_estimators": int(spec.n_estimators),
+        "n_jobs": int(spec.n_jobs),
+        "objective": str(spec.objective),
+        "random_state": int(spec.random_state),
+        "reg_alpha": float(spec.reg_alpha),
+        "reg_lambda": float(spec.reg_lambda),
+        "subsample": float(spec.subsample),
+        "tree_method": str(spec.tree_method),
+        "verbosity": 0,
+    }
+
+
+def _resolve_xgb_regressor_cls():
+    try:
+        module = importlib.import_module("xgboost")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "xgboost is required for model_type 'cross_sectional_xgboost'. "
+            "Install the 'xgboost' package to run this alpha."
+        ) from exc
+
+    xgb_regressor_cls = getattr(module, "XGBRegressor", None)
+    if xgb_regressor_cls is None:
+        raise RuntimeError("xgboost.XGBRegressor is not available in the installed xgboost package.")
+    return xgb_regressor_cls

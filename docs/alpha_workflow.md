@@ -276,33 +276,39 @@ artifacts alongside the evaluation outputs:
 
 ## Example Workflow
 
-The repository ships an end-to-end example:
+The repository ships one primary built-in alpha workflow example:
 
 * script:
-  [examples/milestone_11_5_alpha_portfolio_workflow.py](examples/milestone_11_5_alpha_portfolio_workflow.py)
+  [examples/real_alpha_workflow.py](examples/real_alpha_workflow.py)
 * companion guide:
-  [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
+  [examples/real_alpha_workflow.md](examples/real_alpha_workflow.md)
 
 Run it with:
 
 ```bash
-python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
+python docs/examples/real_alpha_workflow.py
 ```
 
 It demonstrates:
 
-* alpha model registration
-* deterministic training and prediction
-* fixed and rolling alpha splits
-* cross-section inspection
-* continuous-signal backtesting
-* portfolio construction with and without volatility targeting
+* config-driven built-in alpha selection from `configs/alphas.yml`
+* deterministic training, prediction, and alpha evaluation
+* explicit alpha-to-signal mapping
+* sleeve generation and persisted sleeve artifacts
+* downstream portfolio consumption of an `alpha_sleeve`
+* unified review artifact outputs for the alpha run and linked portfolio
 
 Outputs are written under:
 
 ```text
-docs/examples/output/milestone_11_5_alpha_portfolio_workflow/
+docs/examples/output/real_alpha_workflow/
 ```
+
+The older custom-model walkthrough remains available when you want lower-level
+alpha registration details:
+
+* [examples/milestone_11_5_alpha_portfolio_workflow.py](examples/milestone_11_5_alpha_portfolio_workflow.py)
+* [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
 
 ## Related Docs
 
@@ -310,5 +316,6 @@ docs/examples/output/milestone_11_5_alpha_portfolio_workflow/
 * [backtest_runner.md](backtest_runner.md)
 * [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
 * [milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md)
+* [examples/real_alpha_workflow.md](examples/real_alpha_workflow.md)
 * [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [alpha_evaluation_workflow.md](alpha_evaluation_workflow.md)

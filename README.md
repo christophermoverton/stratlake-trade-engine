@@ -43,6 +43,7 @@ Start with:
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
+* [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
@@ -201,7 +202,7 @@ python -m src.cli.compare_alpha --from-registry
 Notes:
 
 * `python -m src.cli.run_alpha` is the first-class entrypoint for named built-in alpha configs from `configs/alphas.yml`
-* `--mode evaluate` runs only the evaluation stage; the default `full` mode currently adds a deterministic `alpha_run_scaffold.json` artifact and reserves sleeve generation for later issues
+* `--mode evaluate` runs only the evaluation stage; the default `full` mode also writes `signals.parquet`, sleeve artifacts, and `alpha_run_scaffold.json`
 * pass exactly one of `--price-column` or `--realized-return-column`
 * `--model-class` accepts either `module:Class` or `path.py:Class`
 * the end-to-end example writes reproducible outputs under
@@ -329,16 +330,16 @@ Simulation-enabled single run:
 python -m src.cli.run_strategy --strategy momentum_v1 --simulation path/to/simulation.yml
 ```
 
-### 4. Run the Milestone 11.5 alpha workflow example
+### 4. Run the real alpha workflow example
 
 ```powershell
-python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
+python docs/examples/real_alpha_workflow.py
 ```
 
-This example demonstrates alpha model registration, deterministic training and
-prediction, fixed and rolling alpha splits, cross-sectional inspection,
-continuous-signal backtesting, and portfolio construction with and without
-volatility targeting.
+This example demonstrates config-driven built-in alpha selection, deterministic
+prediction and evaluation on `features_daily`, explicit signal mapping, alpha
+sleeve generation, downstream portfolio integration, and unified review
+artifacts.
 
 ### 4b. Run the Milestone 12 alpha-evaluation example
 
@@ -460,25 +461,29 @@ Start with:
 ## Example Workflow
 
 The main end-to-end alpha example lives at
-[docs/examples/milestone_11_5_alpha_portfolio_workflow.py](docs/examples/milestone_11_5_alpha_portfolio_workflow.py).
+[docs/examples/real_alpha_workflow.py](docs/examples/real_alpha_workflow.py).
 
 Run it with:
 
 ```powershell
-python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
+python docs/examples/real_alpha_workflow.py
 ```
 
 It demonstrates:
 
-* alpha model registration and deterministic train/predict helpers
-* fixed and rolling alpha splits
-* cross-sectional inspection
-* sign-based and continuous-exposure signal interpretation
-* single-symbol backtesting
-* portfolio construction with and without volatility targeting
-* artifact writing under `docs/examples/output/milestone_11_5_alpha_portfolio_workflow/`
+* config-driven selection of a built-in alpha from `configs/alphas.yml`
+* deterministic alpha prediction, evaluation, and registry-backed artifacts
+* explicit alpha-to-signal mapping
+* sleeve generation under `artifacts/alpha/<run_id>/`
+* portfolio construction from an `alpha_sleeve` component
+* review artifact writing under `docs/examples/output/real_alpha_workflow/`
 
 See the companion guide
+[docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md).
+
+The lower-level custom-model walkthrough remains available at
+[docs/examples/milestone_11_5_alpha_portfolio_workflow.py](docs/examples/milestone_11_5_alpha_portfolio_workflow.py)
+with notes in
 [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md).
 
 The Milestone 12 alpha-evaluation example lives at
@@ -615,6 +620,7 @@ Research integrity and execution references:
 
 Examples:
 
+* [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)

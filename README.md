@@ -43,6 +43,7 @@ Start with:
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
+* [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 * [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
@@ -499,6 +500,9 @@ The primary workflow guide lives at
 [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
 For the real-data 2026 Q1 backfill through gated-review path, see
 [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md).
+For the real-data Q1 2026 alpha continuation on the same `features_daily`
+surface, see
+[docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md).
 
 ## Artifact Overview
 
@@ -603,6 +607,7 @@ Start here:
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
+* [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 
 Portfolio references:
 

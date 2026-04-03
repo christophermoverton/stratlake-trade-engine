@@ -220,3 +220,58 @@ def test_full_alpha_workflow_persists_sleeves_loads_portfolio_and_integrates_wit
     assert alpha_row["mapping_name"] == "top_bottom_quantile[q=0.34]"
     assert alpha_row["linked_portfolio_count"] == 1
     assert alpha_row["linked_portfolio_names"] == "alpha_sleeve_portfolio"
+
+
+def test_run_alpha_accepts_custom_catalog_path_with_custom_alpha_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_features_daily_alpha_dataset(tmp_path)
+    custom_catalog_path = tmp_path / "alphas_custom.yml"
+    custom_catalog_path.write_text(
+        yaml.safe_dump(
+            {
+                "custom_rank_alpha": {
+                    "alpha_name": "custom_rank_alpha",
+                    "dataset": "features_daily",
+                    "target_column": "target_ret_1d",
+                    "feature_columns": [
+                        "feature_ret_1d",
+                        "feature_ret_5d",
+                        "feature_ret_20d",
+                    ],
+                    "model_type": "rank_composite",
+                    "model_params": {
+                        "normalize": True,
+                        "use_ic_weights": True,
+                    },
+                    "alpha_horizon": 1,
+                    "defaults": {
+                        "price_column": "close",
+                        "min_cross_section_size": 2,
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result = run_alpha_cli(
+        [
+            "--config",
+            str(custom_catalog_path),
+            "--alpha-name",
+            "custom_rank_alpha",
+            "--start",
+            "2025-01-01",
+            "--end",
+            "2025-01-09",
+        ]
+    )
+
+    assert result.alpha_name == "custom_rank_alpha"
+    assert result.resolved_config["alpha_catalog_path"] == str(custom_catalog_path)
+    assert result.run_id
+    assert (result.artifact_dir / "alpha_metrics.json").exists()

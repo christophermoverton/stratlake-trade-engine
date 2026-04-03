@@ -166,6 +166,7 @@ def run_resolved_config(resolved_config: dict[str, Any]) -> AlphaEvaluationRunRe
     ensure_model_registered(
         resolved_config.get("alpha_model"),
         model_class_import=resolved_config.get("model_class"),
+        catalog_path=resolved_config.get("alpha_catalog_path"),
     )
     loaded_frame = load_features(
         str(resolved_config["dataset"]),
@@ -363,10 +364,14 @@ def ensure_model_registered(
     model_name: str | None,
     *,
     model_class_import: str | None = None,
+    catalog_path: str | Path | None = None,
 ) -> None:
     """Register one model class dynamically when requested by the CLI."""
 
-    register_builtin_alpha_catalog()
+    if catalog_path is None:
+        register_builtin_alpha_catalog()
+    else:
+        register_builtin_alpha_catalog(path=Path(catalog_path))
     if model_class_import is None:
         return
 

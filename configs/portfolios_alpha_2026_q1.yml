@@ -1,0 +1,33 @@
+portfolios:
+  rank_composite_momentum_2026_q1_equal:
+    allocator: equal_weight
+    initial_capital: 1.0
+    alignment_policy: intersection
+    components:
+      - strategy_name: rank_composite_momentum_2026_q1
+        run_id: "rank_composite_momentum_2026_q1_alpha_eval_33ff16458d15"
+        artifact_type: alpha_sleeve
+    risk:
+      volatility_window: 20
+      target_volatility: 0.12
+      var_confidence_level: 0.95
+      cvar_confidence_level: 0.95
+
+  rank_composite_momentum_2026_q1_targeted:
+    allocator: equal_weight
+    initial_capital: 1.0
+    alignment_policy: intersection
+    components:
+      - strategy_name: rank_composite_momentum_2026_q1
+        run_id: "rank_composite_momentum_2026_q1_alpha_eval_33ff16458d15"
+        artifact_type: alpha_sleeve
+    risk:
+      volatility_window: 20
+      target_volatility: 0.12
+      var_confidence_level: 0.95
+      cvar_confidence_level: 0.95
+    volatility_targeting:
+      enabled: true
+      target_volatility: 0.10
+      lookback_periods: 20
+      volatility_epsilon: 1e-8

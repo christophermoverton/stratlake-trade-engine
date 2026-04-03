@@ -131,6 +131,7 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
     resolved = resolve_alpha_config({}, alpha_name=args.alpha_name, path=config_path)
     cli_overrides = {
         "alpha_name": args.alpha_name,
+        "alpha_catalog_path": str(config_path),
         "dataset": args.dataset,
         "target_column": args.target_column,
         "feature_columns": args.feature_columns,

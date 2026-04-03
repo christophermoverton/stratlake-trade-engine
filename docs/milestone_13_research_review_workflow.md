@@ -233,12 +233,30 @@ Current columns are:
 * `promotion_status`
 * `passed_gate_count`
 * `gate_count`
+* `mapping_name`
+* `sleeve_metric_name`
+* `sleeve_metric_value`
+* `sleeve_secondary_metric_name`
+* `sleeve_secondary_metric_value`
+* `linked_portfolio_count`
+* `linked_portfolio_names`
+* `linked_portfolio_metric_name`
+* `linked_portfolio_metric_value`
 * `artifact_path`
 
 Interpretation:
 
 * `rank_within_type` is local to that run type
 * `selected_metric_name` shows which metric actually drove ranking for that row
+* alpha rows still rank only on `selected_metric_name` then
+  `secondary_metric_name`; sleeve and linked-portfolio fields are downstream
+  context and never change alpha ordering
+* `mapping_name` is the persisted signal mapping label for alpha runs when one
+  exists
+* `sleeve_metric_*` fields summarize the alpha sleeve's own tradability, using
+  `sharpe_ratio` then `total_return` when sleeve artifacts were written
+* `linked_portfolio_*` fields summarize which selected portfolio review rows
+  currently consume that alpha sleeve and the linked portfolio ranking metric
 * `promotion_status` carries forward the saved run's promotion decision such as
   `eligible`, `promoted`, or `blocked`
 * `passed_gate_count` and `gate_count` summarize the saved run's own promotion
@@ -268,6 +286,15 @@ Use it when you want one machine-readable view of:
 * which run ids made the review
 * how many rows were selected per run type
 * whether plots were emitted or intentionally skipped
+
+For alpha rows, `entries` now intentionally separates domains:
+
+* `selected_metric_*` and `secondary_metric_*` remain the raw forecast-quality
+  metrics used for alpha ranking
+* `sleeve_metric_*` carries downstream sleeve tradability metrics when sleeve
+  artifacts exist
+* `linked_portfolio_*` carries downstream portfolio context when one of the
+  selected portfolio review rows includes that alpha sleeve as a component
 
 ### `manifest.json`
 

@@ -17,6 +17,11 @@ between prediction and downstream signal mapping. Milestone 13 then adds the
 registry-backed review layer that compares completed alpha-evaluation runs
 alongside strategy and portfolio outputs in one shared review pack. See
 [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).
+In that unified review output, alpha rows keep forecast-quality ranking
+separate from downstream outcomes: `selected_metric_*` and
+`secondary_metric_*` stay forecast-only, while optional `sleeve_metric_*` and
+`linked_portfolio_*` fields expose sleeve tradability and selected portfolio
+consumption context when those downstream artifacts exist.
 
 ## Quick Start
 

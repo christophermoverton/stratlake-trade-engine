@@ -57,8 +57,8 @@ def _drop_output_path(payload: dict[str, Any]) -> dict[str, Any]:
 def _normalize_review_artifacts(result: Any) -> tuple[dict[str, Any], dict[str, Any]]:
     review_summary = _drop_output_path(_read_json(result.json_path))
     manifest = _drop_output_path(_read_json(result.manifest_path))
-    result.json_path.write_text(json.dumps(review_summary, indent=2, sort_keys=True), encoding="utf-8")
-    result.manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    _write_json_with_lf(result.json_path, review_summary)
+    _write_json_with_lf(result.manifest_path, manifest)
     return review_summary, manifest
 
 
@@ -150,8 +150,13 @@ def _write_summary(
         "review_summary_counts": review_summary["counts_by_run_type"],
     }
 
-    (output_root / SUMMARY_FILENAME).write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+    _write_json_with_lf(output_root / SUMMARY_FILENAME, summary)
     return summary
+
+
+def _write_json_with_lf(path: Path, payload: dict[str, Any]) -> None:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
 
 
 def print_summary(summary: dict[str, Any], output_root: Path) -> None:

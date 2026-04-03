@@ -264,7 +264,7 @@ def write_research_review_artifacts(
         plot_paths=_relative_plot_paths(output_dir, normalized_plot_paths),
         skipped_plots=normalized_skipped_plots,
     )
-    json_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8")
+    _write_json_with_lf(json_path, summary_payload)
 
     promotion_evaluation = evaluate_promotion_gates(
         run_type="review",
@@ -294,8 +294,13 @@ def write_research_review_artifacts(
         plot_paths=normalized_plot_paths,
         skipped_plots=normalized_skipped_plots,
     )
-    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    _write_json_with_lf(manifest_path, manifest)
     return csv_path, json_path, manifest_path, promotion_gate_path
+
+
+def _write_json_with_lf(path: Path, payload: Mapping[str, Any]) -> None:
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
 
 
 def _review_summary_payload(

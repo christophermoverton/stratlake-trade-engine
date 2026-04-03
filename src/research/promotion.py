@@ -209,10 +209,8 @@ def write_promotion_gate_artifact(
     resolved_output_dir = Path(output_dir)
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
     artifact_path = resolved_output_dir / artifact_filename
-    artifact_path.write_text(
-        json.dumps(evaluation.to_payload(), indent=2, sort_keys=True),
-        encoding="utf-8",
-    )
+    with artifact_path.open("w", encoding="utf-8", newline="\n") as handle:
+        json.dump(evaluation.to_payload(), handle, indent=2, sort_keys=True)
     return artifact_path
 
 

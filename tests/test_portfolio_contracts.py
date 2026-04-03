@@ -99,7 +99,7 @@ def _portfolio_config() -> dict[str, object]:
         "allocator": " equal_weight ",
         "components": [
             {"strategy_name": "beta", "run_id": "run-b"},
-            {"strategy_name": "alpha", "run_id": "run-a"},
+            {"strategy_name": "alpha", "run_id": "run-a", "artifact_type": "alpha_sleeve"},
         ],
     }
 
@@ -247,8 +247,8 @@ def test_validate_portfolio_config_accepts_and_normalizes_defaults() -> None:
         "portfolio_name": "Core Portfolio",
         "allocator": "equal_weight",
         "components": [
-            {"strategy_name": "alpha", "run_id": "run-a"},
-            {"strategy_name": "beta", "run_id": "run-b"},
+            {"strategy_name": "alpha", "run_id": "run-a", "artifact_type": "alpha_sleeve"},
+            {"strategy_name": "beta", "run_id": "run-b", "artifact_type": "strategy"},
         ],
         "initial_capital": 1.0,
         "alignment_policy": "intersection",
@@ -336,6 +336,14 @@ def test_validate_portfolio_config_rejects_non_string_allocator() -> None:
     config["allocator"] = 123
 
     with pytest.raises(PortfolioContractError, match="allocator"):
+        validate_portfolio_config(config)
+
+
+def test_validate_portfolio_config_rejects_unsupported_component_artifact_type() -> None:
+    config = _portfolio_config()
+    config["components"][0]["artifact_type"] = "unknown"
+
+    with pytest.raises(PortfolioContractError, match="artifact_type"):
         validate_portfolio_config(config)
 
 

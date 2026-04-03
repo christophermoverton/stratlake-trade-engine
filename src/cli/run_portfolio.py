@@ -16,19 +16,23 @@ from src.config.runtime import resolve_runtime_config
 from src.portfolio import (
     EqualWeightAllocator,
     OptimizerAllocator,
+    SUPPORTED_PORTFOLIO_COMPONENT_ARTIFACT_TYPES,
     SUPPORTED_PORTFOLIO_OPTIMIZERS,
     build_aligned_return_matrix,
     compute_portfolio_metrics,
     construct_portfolio,
+    load_portfolio_component_runs_returns,
     load_strategy_runs_returns,
     register_validated_portfolio_run,
     run_portfolio_walk_forward,
     validate_portfolio_config,
 )
+from src.research.alpha_eval.registry import load_alpha_evaluation_registry
 from src.research import experiment_tracker
 from src.research.metrics import MINUTE_PERIODS_PER_YEAR, TRADING_DAYS_PER_YEAR
 from src.research.promotion import load_promotion_gate_config
 from src.research.registry import (
+    ALPHA_EVALUATION_RUN_TYPE,
     STRATEGY_RUN_TYPE,
     default_registry_path,
     filter_by_run_type,
@@ -334,7 +338,11 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             simulation_result=None,
         )
     else:
-        strategy_returns = load_strategy_runs_returns(run_dirs)
+        strategy_returns = (
+            load_strategy_runs_returns(run_dirs)
+            if all(str(component.get("artifact_type", "strategy")) == "strategy" for component in components)
+            else load_portfolio_component_runs_returns(components)
+        )
         aligned_returns = build_aligned_return_matrix(strategy_returns)
         try:
             portfolio_output = construct_portfolio(
@@ -814,6 +822,7 @@ def _resolve_config_components(raw_components: Sequence[Mapping[str, Any]]) -> l
         resolved.append(
             _resolve_run_component(
                 run_id,
+                artifact_type=component.get("artifact_type"),
                 expected_strategy_name=component.get("strategy_name"),
             )
         )
@@ -824,6 +833,7 @@ def _resolve_explicit_run_id_components(run_ids: Sequence[str]) -> list[dict[str
     resolved = [
         _resolve_run_component(
             _normalize_required_string(run_id, field_name="run_id"),
+            artifact_type="strategy",
             expected_strategy_name=None,
         )
         for run_id in run_ids
@@ -848,6 +858,15 @@ def _resolve_registry_components(
                 "when --from-registry is used. "
                 f"Found at index {index}."
             )
+        artifact_type = _normalize_component_artifact_type(
+            component.get("artifact_type", "strategy"),
+            field_name=f"components[{index}].artifact_type",
+        )
+        if artifact_type != "strategy":
+            raise ValueError(
+                "Portfolio config components with --from-registry currently support only "
+                "artifact_type 'strategy'."
+            )
         strategy_name = _normalize_required_string(
             component.get("strategy_name"),
             field_name=f"components[{index}].strategy_name",
@@ -869,27 +888,45 @@ def _resolve_registry_components(
         resolved.append(
             _resolve_run_component(
                 _normalize_required_string(selected.get("run_id"), field_name="run_id"),
+                artifact_type=artifact_type,
                 expected_strategy_name=strategy_name,
             )
         )
     return _sorted_components(resolved)
 
 
-def _resolve_run_component(run_id: str, *, expected_strategy_name: object | None) -> dict[str, Any]:
-    registry_entry = _find_registry_entry_for_run_id(run_id)
+def _resolve_run_component(
+    run_id: str,
+    *,
+    artifact_type: object | None,
+    expected_strategy_name: object | None,
+) -> dict[str, Any]:
+    normalized_artifact_type = _normalize_component_artifact_type(artifact_type, field_name="artifact_type")
+    registry_entry = _find_registry_entry_for_run_id(run_id, artifact_type=normalized_artifact_type)
     run_dir = (
         Path(str(registry_entry["artifact_path"]))
         if registry_entry is not None and registry_entry.get("artifact_path") is not None
-        else experiment_tracker.ARTIFACTS_ROOT / run_id
+        else _default_artifact_dir_for_run(run_id, artifact_type=normalized_artifact_type)
     )
     if not run_dir.exists():
-        raise ValueError(f"Strategy run '{run_id}' could not be resolved to an artifact directory.")
+        raise ValueError(
+            f"Portfolio component run '{run_id}' with artifact_type '{normalized_artifact_type}' "
+            "could not be resolved to an artifact directory."
+        )
 
-    loader_frame = load_strategy_runs_returns([run_dir])
+    loader_frame = load_portfolio_component_runs_returns(
+        [
+            {
+                "source_artifact_path": run_dir,
+                "artifact_type": normalized_artifact_type,
+                "strategy_name": expected_strategy_name,
+            }
+        ]
+    )
     strategy_names = sorted(loader_frame["strategy_name"].astype("string").unique().tolist())
     if len(strategy_names) != 1:
         raise ValueError(
-            f"Strategy run '{run_id}' resolved to an invalid component strategy set: "
+            f"Portfolio component run '{run_id}' resolved to an invalid component strategy set: "
             f"{strategy_names}."
         )
     strategy_name = str(strategy_names[0])
@@ -902,26 +939,55 @@ def _resolve_run_component(run_id: str, *, expected_strategy_name: object | None
     return {
         "strategy_name": strategy_name,
         "run_id": run_id,
+        "artifact_type": normalized_artifact_type,
         "source_artifact_path": run_dir.as_posix(),
     }
 
 
-def _find_registry_entry_for_run_id(run_id: str) -> dict[str, Any] | None:
-    registry_path = default_registry_path(experiment_tracker.ARTIFACTS_ROOT)
-    if not registry_path.exists():
+def _find_registry_entry_for_run_id(run_id: str, *, artifact_type: str) -> dict[str, Any] | None:
+    if artifact_type == "strategy":
+        registry_path = default_registry_path(experiment_tracker.ARTIFACTS_ROOT)
+        if not registry_path.exists():
+            return None
+        entries = filter_by_run_type(load_registry(registry_path), STRATEGY_RUN_TYPE)
+    elif artifact_type == "alpha_sleeve":
+        entries = load_alpha_evaluation_registry()
+    else:  # pragma: no cover - guarded by _normalize_component_artifact_type
         return None
-    entries = filter_by_run_type(load_registry(registry_path), STRATEGY_RUN_TYPE)
     for entry in entries:
-        if entry.get("run_id") == run_id:
+        if entry.get("run_id") == run_id and _registry_entry_matches_artifact_type(entry, artifact_type=artifact_type):
             return entry
     return None
+
+
+def _default_artifact_dir_for_run(run_id: str, *, artifact_type: str) -> Path:
+    if artifact_type == "strategy":
+        return experiment_tracker.ARTIFACTS_ROOT / run_id
+    if artifact_type == "alpha_sleeve":
+        return Path("artifacts") / "alpha" / run_id
+    raise ValueError(
+        f"artifact_type must be one of {list(SUPPORTED_PORTFOLIO_COMPONENT_ARTIFACT_TYPES)!r}."
+    )
+
+
+def _registry_entry_matches_artifact_type(entry: Mapping[str, Any], *, artifact_type: str) -> bool:
+    run_type = entry.get("run_type")
+    if artifact_type == "strategy":
+        return run_type == STRATEGY_RUN_TYPE
+    if artifact_type == "alpha_sleeve":
+        return run_type == ALPHA_EVALUATION_RUN_TYPE
+    return False
 
 
 def _sorted_components(components: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
     normalized = [dict(component) for component in components]
     return sorted(
         normalized,
-        key=lambda component: (str(component["strategy_name"]), str(component["run_id"])),
+        key=lambda component: (
+            str(component["strategy_name"]),
+            str(component["run_id"]),
+            str(component.get("artifact_type", "strategy")),
+        ),
     )
 
 
@@ -978,6 +1044,18 @@ def _normalize_required_string(value: object, *, field_name: str) -> str:
     normalized = value.strip()
     if not normalized:
         raise ValueError(f"{field_name} must be a non-empty string.")
+    return normalized
+
+
+def _normalize_component_artifact_type(value: object, *, field_name: str) -> str:
+    normalized = _normalize_required_string(
+        "strategy" if value is None else str(value),
+        field_name=field_name,
+    ).lower()
+    if normalized not in SUPPORTED_PORTFOLIO_COMPONENT_ARTIFACT_TYPES:
+        raise ValueError(
+            f"{field_name} must be one of {list(SUPPORTED_PORTFOLIO_COMPONENT_ARTIFACT_TYPES)!r}."
+        )
     return normalized
 
 

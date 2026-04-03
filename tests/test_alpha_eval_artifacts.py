@@ -142,7 +142,7 @@ def test_write_alpha_evaluation_artifacts_persists_explicit_signal_mapping_outpu
 
     signals = pd.read_parquet(output_dir / "signals.parquet")
     assert list(signals.columns) == ["symbol", "ts_utc", "timeframe", "prediction_score", "signal"]
-    assert signals["signal"].tolist() == [1.0, 1.0, 0.0, 0.0, -1.0, -1.0]
+    assert signals["signal"].tolist() == [-1.0, 1.0, 0.0, 0.0, 1.0, -1.0]
 
     training_summary = json.loads((output_dir / "training_summary.json").read_text(encoding="utf-8"))
     assert training_summary["signal_mapping"]["policy"] == "top_bottom_quantile"

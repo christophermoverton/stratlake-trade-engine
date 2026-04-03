@@ -50,9 +50,11 @@ models when you need a custom implementation. The registry now supports
 `python -m src.cli.run_alpha` is now the first-class built-in alpha runner.
 It resolves one named config from `configs/alphas.yml`, runs it on
 `features_daily`, prints a concise summary, and defaults to `full` mode. That
-default currently persists the evaluation outputs plus an
-`alpha_run_scaffold.json` file that marks sleeve generation as the next staged
-step. Use `--mode evaluate` for evaluation-only runs with no scaffold file.
+default now persists the evaluation outputs, maps signals with
+`rank_long_short` when no explicit policy is supplied, generates a deterministic
+sleeve return stream, and writes an `alpha_run_scaffold.json` file describing
+the completed flow. Use `--mode evaluate` for evaluation-only runs with no
+sleeve artifacts or scaffold file.
 
 The example writes deterministic outputs under:
 
@@ -136,14 +138,21 @@ analogue is stored as `rank_ic_ir`.
 `write_alpha_evaluation_artifacts(...)` writes:
 
 * `predictions.parquet`
-* `signals.parquet` when explicit signal mapping is configured
-* `signal_mapping.json` when explicit signal mapping is configured
+* `signals.parquet` when signal mapping is configured
+* `signal_mapping.json` when signal mapping is configured
 * `training_summary.json`
 * `coefficients.json`
 * `cross_section_diagnostics.json`
 * `ic_timeseries.csv`
 * `alpha_metrics.json`
 * `manifest.json`
+
+`python -m src.cli.run_alpha --mode full` then adds:
+
+* `sleeve_returns.csv`
+* `sleeve_equity_curve.csv`
+* `sleeve_metrics.json`
+* `alpha_run_scaffold.json`
 
 Default location:
 

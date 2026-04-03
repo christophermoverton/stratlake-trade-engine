@@ -127,12 +127,24 @@ def test_run_cli_full_mode_writes_deterministic_scaffold_artifact(
     assert first.scaffold_path is not None
     assert second.scaffold_path is not None
     assert first.scaffold_path.read_bytes() == second.scaffold_path.read_bytes()
+    assert (first.artifact_dir / "signals.parquet").exists()
+    assert (first.artifact_dir / "sleeve_returns.csv").exists()
+    assert (first.artifact_dir / "sleeve_equity_curve.csv").exists()
+    assert (first.artifact_dir / "sleeve_metrics.json").exists()
+    assert (first.artifact_dir / "signals.parquet").read_bytes() == (second.artifact_dir / "signals.parquet").read_bytes()
+    assert (first.artifact_dir / "sleeve_returns.csv").read_bytes() == (second.artifact_dir / "sleeve_returns.csv").read_bytes()
+    assert (first.artifact_dir / "sleeve_equity_curve.csv").read_bytes() == (second.artifact_dir / "sleeve_equity_curve.csv").read_bytes()
+    assert (first.artifact_dir / "sleeve_metrics.json").read_bytes() == (second.artifact_dir / "sleeve_metrics.json").read_bytes()
 
     payload = json.loads(first.scaffold_path.read_text(encoding="utf-8"))
     assert payload["alpha_name"] == "cs_linear_ret_1d"
     assert payload["run_id"] == first.run_id
-    assert payload["status"] == "pending_sleeve_generation"
-    assert payload["next_stage"] == "sleeve_generation"
+    assert payload["status"] == "completed"
+    assert payload["next_stage"] is None
+    assert payload["signal_mapping"]["config"]["policy"] == "rank_long_short"
+    assert payload["sleeve"]["sleeve_returns_path"] == "sleeve_returns.csv"
+    assert payload["sleeve"]["sleeve_equity_curve_path"] == "sleeve_equity_curve.csv"
+    assert payload["sleeve"]["sleeve_metrics_path"] == "sleeve_metrics.json"
     assert payload["resolved_config"]["dataset"] == "features_daily"
 
 

@@ -239,12 +239,18 @@ for one timestamp across many symbols.
 
 ## Relationship To Backtesting
 
-Alpha predictions are not backtested automatically. The current workflow is:
+Alpha predictions can now be converted into a deterministic downstream sleeve
+using the same `run_backtest(...)` assumptions as the strategy layer. The
+practical first-use default in `python -m src.cli.run_alpha --mode full` is a
+market-neutral `rank_long_short` mapping.
+
+The workflow is:
 
 1. train a registered alpha model
 2. predict on an out-of-sample window
 3. map `prediction_score` into a `signal`
-4. run `run_backtest(...)`
+4. generate one sleeve return stream via `run_backtest(...)`
+5. hand the sleeve into downstream portfolio construction when desired
 
 The mapping step is intentionally explicit so research code decides how raw
 scores become exposures.
@@ -258,6 +264,15 @@ Examples:
 
 `run_backtest(...)` accepts finite numeric `signal` values, so alpha workflows
 can preserve continuous exposure magnitude when that is the intended behavior.
+
+`python -m src.cli.run_alpha --mode full` now persists deterministic sleeve
+artifacts alongside the evaluation outputs:
+
+* `signals.parquet`
+* `sleeve_returns.csv`
+* `sleeve_equity_curve.csv`
+* `sleeve_metrics.json`
+* `alpha_run_scaffold.json`
 
 ## Example Workflow
 

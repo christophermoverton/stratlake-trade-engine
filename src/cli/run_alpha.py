@@ -17,12 +17,20 @@ from src.cli.run_alpha_evaluation import (
 from src.data.load_features import SUPPORTED_FEATURE_DATASETS
 from src.research.alpha import AlphaPredictionError, AlphaTrainingError
 from src.research.alpha.catalog import ALPHAS_CONFIG, resolve_alpha_config
-from src.research.alpha_eval import AlphaEvaluationError, ForwardReturnAlignmentError
+from src.research.alpha_eval import (
+    AlphaEvaluationError,
+    ForwardReturnAlignmentError,
+    alpha_evaluation_registry_path,
+    generate_alpha_sleeve,
+    register_alpha_evaluation_run,
+    write_alpha_sleeve_artifacts,
+)
 from src.research.promotion import load_promotion_gate_config
 from src.research.registry import RegistryError
 
 SUPPORTED_RUN_MODES = ("evaluate", "full")
 FULL_RUN_SCAFFOLD_FILE = "alpha_run_scaffold.json"
+DEFAULT_FULL_RUN_SIGNAL_MAPPING = {"policy": "rank_long_short"}
 
 
 @dataclass(frozen=True)
@@ -151,6 +159,8 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
     for key, value in cli_overrides.items():
         if value is not None:
             resolved[key] = value
+    if mode == "full" and signal_mapping is None:
+        signal_mapping = dict(DEFAULT_FULL_RUN_SIGNAL_MAPPING)
     if signal_mapping is not None:
         resolved["signal_mapping"] = signal_mapping
 
@@ -194,6 +204,30 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaRunResult:
 
     scaffold_path: Path | None = None
     if resolved_config["run_mode"] == "full":
+        if evaluation_result.signal_mapping_result is None:
+            raise ValueError("Full alpha runs require signal mapping to generate a sleeve.")
+        sleeve_result = generate_alpha_sleeve(
+            signals=evaluation_result.signal_mapping_result.signals,
+            dataset=evaluation_result.loaded_frame,
+            price_column=_optional_string(resolved_config.get("price_column")),
+            realized_return_column=_optional_string(resolved_config.get("realized_return_column")),
+            alpha_name=str(resolved_config["alpha_name"]),
+            run_id=evaluation_result.run_id,
+        )
+        updated_manifest = write_alpha_sleeve_artifacts(
+            evaluation_result.artifact_dir,
+            sleeve_result,
+            update_manifest=True,
+        )
+        register_alpha_evaluation_run(
+            run_id=evaluation_result.run_id,
+            alpha_name=str(resolved_config["alpha_model"]),
+            effective_config=evaluation_result.resolved_config,
+            evaluation_result=evaluation_result.evaluation_result,
+            artifact_dir=evaluation_result.artifact_dir,
+            manifest=updated_manifest or evaluation_result.manifest,
+            registry_path=alpha_evaluation_registry_path(Path(str(resolved_config["artifacts_root"]))),
+        )
         scaffold_path = write_full_run_scaffold(
             artifact_dir=evaluation_result.artifact_dir,
             evaluation=evaluation_result,
@@ -226,8 +260,8 @@ def write_full_run_scaffold(
         "alpha_name": str(evaluation.alpha_name),
         "run_id": str(evaluation.run_id),
         "mode": "full",
-        "status": "pending_sleeve_generation",
-        "next_stage": "sleeve_generation",
+        "status": "completed",
+        "next_stage": None,
         "artifact_dir": artifact_dir.as_posix(),
         "evaluation_metrics": {
             "mean_ic": float(evaluation.evaluation_result.summary["mean_ic"]),
@@ -243,6 +277,11 @@ def write_full_run_scaffold(
                 "signals_path": "signals.parquet",
             }
         ),
+        "sleeve": {
+            "sleeve_returns_path": "sleeve_returns.csv",
+            "sleeve_equity_curve_path": "sleeve_equity_curve.csv",
+            "sleeve_metrics_path": "sleeve_metrics.json",
+        },
         "resolved_config": {
             key: value
             for key, value in resolved_config.items()
@@ -265,8 +304,15 @@ def print_summary(result: AlphaRunResult) -> None:
     print(f"n_periods: {int(summary['n_periods'])}")
     print(f"artifact_dir: {result.artifact_dir.as_posix()}")
     if result.scaffold_path is not None:
-        print("status: pending_sleeve_generation")
+        print("status: completed")
         print(f"scaffold_path: {result.scaffold_path.as_posix()}")
+
+
+def _optional_string(value: Any) -> str | None:
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def main() -> None:

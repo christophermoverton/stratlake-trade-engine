@@ -36,6 +36,8 @@ python -m src.cli.run_alpha_evaluation --alpha-name cs_linear_ret_1d --start 202
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close
 python -m src.cli.run_alpha_evaluation --alpha-model your_model --model-class path/to/model.py:YourModel --dataset features_daily --target-column target_ret_1d --price-column close --signal-policy rank_long_short
 python -m src.cli.compare_alpha --from-registry
+python -m src.cli.compare_alpha --from-registry --view sleeve --sleeve-metric sharpe_ratio
+python -m src.cli.compare_alpha --from-registry --view combined --metric ic_ir --sleeve-metric sharpe_ratio --dataset features_daily --horizon 5 --mapping-name top_bottom_quantile[q=0.2]
 ```
 
 Built-in alpha definitions now live in `configs/alphas.yml`. Each named entry
@@ -174,7 +176,24 @@ metrics, and concrete artifact paths.
 ### Compare
 
 `python -m src.cli.compare_alpha --from-registry` loads alpha-evaluation runs
-from the registry, ranks them by a selected metric, and writes a leaderboard.
+from the registry, ranks them by a selected view, and writes a leaderboard.
+
+Supported views:
+
+* `forecast`: rank on forecast quality only, using `--metric`
+* `sleeve`: rank on downstream tradability only, using `--sleeve-metric`
+* `combined`: rank forecast first, then sleeve as a deterministic tie-breaker
+
+Useful filters:
+
+* `--dataset`
+* `--timeframe`
+* `--evaluation-horizon` or `--horizon`
+* `--mapping-name`
+
+`--mapping-name` matches the persisted signal mapping name when one exists in
+mapping metadata. Otherwise the CLI derives a stable fallback label from the
+policy, such as `top_bottom_quantile[q=0.2]`.
 
 Default comparison output:
 
@@ -186,6 +205,13 @@ Files:
 
 * `leaderboard.csv`
 * `leaderboard.json`
+
+CLI output keeps the domains separate:
+
+* forecast view prints forecast-quality columns such as `ic_ir` and `mean_ic`
+* sleeve view prints tradability columns such as `sharpe_ratio`,
+  `total_return`, and `turnover`
+* combined view prints both with explicit `forecast_*` and `sleeve_*` labels
 
 ## Metrics
 

@@ -10,7 +10,9 @@ from src.research.alpha_eval.artifacts import (
 )
 from src.research.alpha_eval.compare import (
     DEFAULT_ALPHA_COMPARISON_METRIC,
+    DEFAULT_ALPHA_COMPARISON_VIEW,
     DEFAULT_ALPHA_COMPARISONS_ROOT,
+    DEFAULT_ALPHA_SLEEVE_COMPARISON_METRIC,
     AlphaEvaluationComparisonError,
     AlphaEvaluationComparisonResult,
     AlphaEvaluationLeaderboardEntry,
@@ -53,7 +55,9 @@ __all__ = [
     "AlphaSleeveError",
     "AlphaSleeveResult",
     "DEFAULT_ALPHA_COMPARISON_METRIC",
+    "DEFAULT_ALPHA_COMPARISON_VIEW",
     "DEFAULT_ALPHA_COMPARISONS_ROOT",
+    "DEFAULT_ALPHA_SLEEVE_COMPARISON_METRIC",
     "DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT",
     "ForwardReturnAlignmentError",
     "augment_alpha_manifest_with_sleeve",

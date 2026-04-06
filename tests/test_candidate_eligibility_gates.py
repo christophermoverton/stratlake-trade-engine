@@ -714,8 +714,10 @@ class TestEndToEndWithGating:
             for key in (
                 "run_id", "universe_count", "eligible_count", "rejected_count",
                 "selected_count", "primary_metric", "filters", "thresholds",
-                "eligibility_summary", "universe_csv", "selected_csv",
+                "eligibility_summary", "redundancy_thresholds", "redundancy_summary",
+                "universe_csv", "selected_csv",
                 "rejected_csv", "eligibility_csv", "summary_json", "manifest_json",
+                "correlation_csv",
             ):
                 assert key in result, f"Missing result key: {key}"
 
@@ -757,7 +759,7 @@ class TestEndToEndWithGating:
                 min_ic_ir=1.0,
             )
             for key in ("universe_csv", "selected_csv", "rejected_csv", "eligibility_csv",
-                        "summary_json", "manifest_json"):
+                    "correlation_csv", "summary_json", "manifest_json"):
                 assert Path(result[key]).exists(), f"Missing artifact: {key}"
 
     def test_eligibility_csv_structure(self):

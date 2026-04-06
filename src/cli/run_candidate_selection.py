@@ -26,13 +26,16 @@ class CandidateSelectionRunResult:
     eligible_count: int
     rejected_count: int
     selected_count: int
+    pruned_by_redundancy: int
     primary_metric: str
     filters: dict[str, Any]
     thresholds: dict[str, Any]
+    redundancy_thresholds: dict[str, Any]
     universe_csv: Path
     selected_csv: Path
     rejected_csv: Path
     eligibility_csv: Path
+    correlation_csv: Path
     summary_json: Path
     manifest_json: Path
 
@@ -123,6 +126,23 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Reject candidates whose ic_ir metric is missing.",
     )
 
+    redundancy_group = parser.add_argument_group(
+        "redundancy filtering",
+        "Optional deterministic cross-candidate redundancy pruning based on sleeve-return correlation.",
+    )
+    redundancy_group.add_argument(
+        "--max-pairwise-correlation",
+        type=float,
+        dest="max_pairwise_correlation",
+        help="Absolute pairwise sleeve-return correlation threshold in [0, 1]. If omitted, redundancy pruning is disabled.",
+    )
+    redundancy_group.add_argument(
+        "--min-overlap-observations",
+        type=int,
+        dest="min_overlap_observations",
+        help="Minimum overlapping timestamps required to evaluate pairwise correlation. Defaults to 10.",
+    )
+
     return parser.parse_args(argv)
 
 
@@ -151,6 +171,8 @@ def run_cli(argv: Sequence[str] | None = None) -> CandidateSelectionRunResult:
         min_history_length=args.min_history_length,
         require_mean_ic=args.require_mean_ic,
         require_ic_ir=args.require_ic_ir,
+        max_pairwise_correlation=args.max_pairwise_correlation,
+        min_overlap_observations=args.min_overlap_observations,
     )
 
     return CandidateSelectionRunResult(
@@ -159,13 +181,16 @@ def run_cli(argv: Sequence[str] | None = None) -> CandidateSelectionRunResult:
         eligible_count=result["eligible_count"],
         rejected_count=result["rejected_count"],
         selected_count=result["selected_count"],
+        pruned_by_redundancy=result.get("redundancy_summary", {}).get("pruned_by_redundancy", 0),
         primary_metric=result["primary_metric"],
         filters=result["filters"],
         thresholds=result["thresholds"],
+        redundancy_thresholds=result.get("redundancy_thresholds", {}),
         universe_csv=Path(result["universe_csv"]),
         selected_csv=Path(result["selected_csv"]),
         rejected_csv=Path(result["rejected_csv"]),
         eligibility_csv=Path(result["eligibility_csv"]),
+        correlation_csv=Path(result["correlation_csv"]),
         summary_json=Path(result["summary_json"]),
         manifest_json=Path(result["manifest_json"]),
     )
@@ -178,6 +203,7 @@ def print_candidate_selection_summary(result: CandidateSelectionRunResult) -> No
     print(f"  Universe count:  {result.universe_count}")
     print(f"  Eligible count:  {result.eligible_count}")
     print(f"  Rejected count:  {result.rejected_count}")
+    print(f"  Pruned (redundancy): {result.pruned_by_redundancy}")
     print(f"  Selected count:  {result.selected_count}")
     print(f"  Primary metric:  {result.primary_metric}")
     print()
@@ -185,6 +211,7 @@ def print_candidate_selection_summary(result: CandidateSelectionRunResult) -> No
     print(f"  Eligibility CSV: {result.eligibility_csv}")
     print(f"  Selected CSV:    {result.selected_csv}")
     print(f"  Rejected CSV:    {result.rejected_csv}")
+    print(f"  Correlation CSV: {result.correlation_csv}")
     print(f"  Summary JSON:    {result.summary_json}")
     print()
     if result.filters.get("alpha_name"):
@@ -202,6 +229,14 @@ def print_candidate_selection_summary(result: CandidateSelectionRunResult) -> No
     if active_thresholds:
         print("  Active eligibility thresholds:")
         for k, v in sorted(active_thresholds.items()):
+            print(f"    {k}: {v}")
+
+    active_redundancy_thresholds = {
+        k: v for k, v in result.redundancy_thresholds.items() if v is not None and v is not False
+    }
+    if active_redundancy_thresholds:
+        print("  Active redundancy thresholds:")
+        for k, v in sorted(active_redundancy_thresholds.items()):
             print(f"    {k}: {v}")
 
 

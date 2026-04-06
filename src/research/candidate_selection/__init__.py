@@ -40,6 +40,14 @@ from src.research.candidate_selection.persistence import (
     resolve_candidate_selection_artifact_dir,
     write_candidate_selection_artifacts,
     write_eligibility_artifacts,
+    write_redundancy_artifacts,
+)
+from src.research.candidate_selection.redundancy import (
+    RedundancyError,
+    RedundancyRejection,
+    RedundancyThresholds,
+    apply_redundancy_filter,
+    resolve_redundancy_thresholds,
 )
 from src.research.candidate_selection.ranker import (
     rank_candidates,
@@ -57,10 +65,13 @@ __all__ = [
     "CandidateRecord",
     "EligibilityResult",
     "EligibilityThresholds",
+    "RedundancyThresholds",
+    "RedundancyRejection",
     # Errors
     "CandidateSelectionError",
     "CandidatePersistenceError",
     "CandidateValidationError",
+    "RedundancyError",
     # Loaders
     "load_candidate_universe",
     # Eligibility
@@ -68,6 +79,8 @@ __all__ = [
     "filter_by_eligibility",
     "summarize_eligibility",
     "resolve_eligibility_thresholds",
+    "resolve_redundancy_thresholds",
+    "apply_redundancy_filter",
     # Ranking
     "rank_candidates",
     "select_top_candidates",
@@ -76,6 +89,7 @@ __all__ = [
     "resolve_candidate_selection_artifact_dir",
     "write_candidate_selection_artifacts",
     "write_eligibility_artifacts",
+    "write_redundancy_artifacts",
     # Validation
     "validate_candidate_universe",
     "validate_ranked_universe",
@@ -103,6 +117,9 @@ def run_candidate_selection(
     min_history_length: int | None = None,
     require_mean_ic: bool = False,
     require_ic_ir: bool = False,
+    # Redundancy filtering thresholds
+    max_pairwise_correlation: float | None = None,
+    min_overlap_observations: int | None = None,
 ) -> dict[str, Any]:
     """Execute end-to-end candidate selection pipeline with optional eligibility gating.
 
@@ -110,8 +127,9 @@ def run_candidate_selection(
         1. Load candidate universe from the alpha evaluation registry.
         2. Evaluate eligibility gates (if any threshold is configured).
         3. Rank eligible candidates deterministically.
-        4. Select top N candidates.
-        5. Validate and persist all artifacts.
+        4. Apply deterministic redundancy filtering over ranked eligible candidates.
+        5. Select top N candidates from redundancy-filtered candidates.
+        6. Validate and persist all artifacts.
 
     When no eligibility thresholds are configured (all ``None``), every
     candidate passes gating and the behavior is identical to Milestone 15
@@ -134,6 +152,10 @@ def run_candidate_selection(
         min_history_length: Minimum observation count (None = disabled).
         require_mean_ic: Fail candidates whose mean_ic is missing.
         require_ic_ir: Fail candidates whose ic_ir is missing.
+        max_pairwise_correlation: Absolute pairwise sleeve return correlation threshold.
+            None disables redundancy pruning.
+        min_overlap_observations: Minimum overlapping timestamps required for
+            valid pairwise correlation.
 
     Returns:
         Result dict with run_id, counts, artifact paths, and eligibility summary.
@@ -184,10 +206,22 @@ def run_candidate_selection(
     ranked_universe = rank_candidates(eligible_candidates, primary_metric=primary_metric)
     validate_ranked_universe(ranked_universe)
 
-    # Stage 4: Select top N
-    selected = select_top_candidates(ranked_universe, max_count=max_candidate_count)
+    # Stage 4: Redundancy filtering
+    redundancy_thresholds = resolve_redundancy_thresholds(
+        max_pairwise_correlation=max_pairwise_correlation,
+        min_overlap_observations=min_overlap_observations,
+    )
+    filtered_candidates, redundancy_rejections, correlation_matrix, overlap_matrix, redundancy_summary = (
+        apply_redundancy_filter(
+            ranked_universe,
+            thresholds=redundancy_thresholds,
+        )
+    )
 
-    # Stage 5: Persist artifacts
+    # Stage 5: Select top N
+    selected = select_top_candidates(filtered_candidates, max_count=max_candidate_count)
+
+    # Stage 6: Persist artifacts
     run_id = build_candidate_selection_run_id(
         filters=filters,
         candidate_ids=[c.candidate_id for c in universe],  # hash over full universe for stability
@@ -221,20 +255,39 @@ def run_candidate_selection(
         artifacts_root=output_artifacts_root,
     )
 
+    correlation_csv, selected_csv, rejected_csv, summary_json, manifest_json = write_redundancy_artifacts(
+        eligible_candidates=ranked_universe,
+        selected_candidates=selected,
+        rejected_candidates_eligibility=rejected_candidates,
+        eligibility_results=eligibility_results,
+        redundancy_rejections=redundancy_rejections,
+        correlation_matrix=correlation_matrix,
+        redundancy_summary={
+            **{k: v for k, v in redundancy_summary.items() if k != "thresholds"},
+            "redundancy_thresholds": redundancy_thresholds.to_dict(),
+            "overlap_matrix_rows": int(len(overlap_matrix.index)),
+        },
+        run_id=run_id,
+        artifacts_root=output_artifacts_root,
+    )
+
     return {
         "run_id": run_id,
         "universe_count": len(universe),
         "eligible_count": len(eligible_candidates),
-        "rejected_count": len(rejected_candidates),
+        "rejected_count": len(rejected_candidates) + len(redundancy_rejections),
         "selected_count": len(selected),
         "primary_metric": primary_metric,
         "filters": filters,
         "thresholds": thresholds.to_dict(),
+        "redundancy_thresholds": redundancy_thresholds.to_dict(),
         "eligibility_summary": elig_summary,
+        "redundancy_summary": redundancy_summary,
         "universe_csv": str(universe_csv),
         "selected_csv": str(selected_csv),
         "rejected_csv": str(rejected_csv),
         "eligibility_csv": str(eligibility_csv),
+        "correlation_csv": str(correlation_csv),
         "summary_json": str(summary_json),
         "manifest_json": str(manifest_json),
     }

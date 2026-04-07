@@ -42,8 +42,10 @@ class CandidateSelectionRunResult:
     allocation_csv: Path | None
     summary_json: Path
     manifest_json: Path
+    artifact_dir: Path
     allocation_method: str | None
     allocation_enabled: bool
+    registry_entry: dict[str, Any] | None = None
     allocation_constraints: dict[str, Any] = field(default_factory=dict)
     allocation_summary: dict[str, Any] = field(default_factory=dict)
 
@@ -192,6 +194,17 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Disable allocation governance stage and keep Issue 1-3 behavior.",
     )
 
+    parser.add_argument(
+        "--register-run",
+        action="store_true",
+        default=False,
+        help="Upsert this candidate-selection run into artifacts/candidate_selection/registry.jsonl.",
+    )
+    parser.add_argument(
+        "--registry-path",
+        help="Optional override for candidate-selection registry path.",
+    )
+
     return parser.parse_args(argv)
 
 
@@ -263,6 +276,8 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         "min_allocation_weight": args.min_allocation_weight,
         "allocation_weight_sum_tolerance": args.allocation_weight_sum_tolerance,
         "allocation_rounding_decimals": args.allocation_rounding_decimals,
+        "register_run": args.register_run,
+        "registry_path": args.registry_path,
     }
     for key, value in cli_payload.items():
         if value is not None:
@@ -276,6 +291,7 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
     resolved["metric"] = str(resolved.get("metric") or "ic_ir")
     resolved["allocation_method"] = str(resolved.get("allocation_method") or "equal_weight")
     resolved["allocation_enabled"] = bool(resolved.get("allocation_enabled", True))
+    resolved["register_run"] = bool(resolved.get("register_run", False))
     return resolved
 
 
@@ -314,6 +330,8 @@ def run_cli(argv: Sequence[str] | None = None) -> CandidateSelectionRunResult:
         allocation_weight_sum_tolerance=resolved.get("allocation_weight_sum_tolerance", 1e-12),
         allocation_rounding_decimals=resolved.get("allocation_rounding_decimals", 12),
         allocation_enabled=bool(resolved.get("allocation_enabled", True)),
+        register_run=bool(resolved.get("register_run", False)),
+        registry_path=resolved.get("registry_path"),
     )
 
     return CandidateSelectionRunResult(
@@ -335,8 +353,10 @@ def run_cli(argv: Sequence[str] | None = None) -> CandidateSelectionRunResult:
         allocation_csv=None if result.get("allocation_csv") is None else Path(result["allocation_csv"]),
         summary_json=Path(result["summary_json"]),
         manifest_json=Path(result["manifest_json"]),
+        artifact_dir=Path(result["artifact_dir"]),
         allocation_method=result.get("allocation_summary", {}).get("allocation_method"),
         allocation_enabled=bool(result.get("allocation_summary", {}).get("allocation_enabled", False)),
+        registry_entry=result.get("registry_entry"),
         allocation_constraints=dict(result.get("allocation_constraints", {})),
         allocation_summary=dict(result.get("allocation_summary", {})),
     )
@@ -361,6 +381,10 @@ def print_candidate_selection_summary(result: CandidateSelectionRunResult) -> No
     if result.allocation_csv is not None:
         print(f"  Allocation CSV:  {result.allocation_csv}")
     print(f"  Summary JSON:    {result.summary_json}")
+    print(f"  Manifest JSON:   {result.manifest_json}")
+    print(f"  Artifact dir:    {result.artifact_dir}")
+    if isinstance(result.registry_entry, dict):
+        print(f"  Registry entry:  {result.registry_entry.get('run_id')}")
     print()
     if result.filters.get("alpha_name"):
         print(f"  Filter alpha_name: {result.filters['alpha_name']}")

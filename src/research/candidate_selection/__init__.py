@@ -45,11 +45,13 @@ from src.research.candidate_selection.persistence import (
     CandidatePersistenceError,
     build_candidate_selection_run_id,
     resolve_candidate_selection_artifact_dir,
+    write_candidate_selection_run_artifacts,
     write_candidate_selection_artifacts,
     write_eligibility_artifacts,
     write_allocation_artifacts,
     write_redundancy_artifacts,
 )
+from src.research.candidate_selection.registry import register_candidate_selection_run
 from src.research.candidate_selection.redundancy import (
     RedundancyError,
     RedundancyRejection,
@@ -101,9 +103,11 @@ __all__ = [
     "build_candidate_selection_run_id",
     "resolve_candidate_selection_artifact_dir",
     "write_candidate_selection_artifacts",
+    "write_candidate_selection_run_artifacts",
     "write_eligibility_artifacts",
     "write_allocation_artifacts",
     "write_redundancy_artifacts",
+    "register_candidate_selection_run",
     # Validation
     "validate_candidate_universe",
     "validate_ranked_universe",
@@ -142,6 +146,8 @@ def run_candidate_selection(
     allocation_weight_sum_tolerance: float = 1e-12,
     allocation_rounding_decimals: int = 12,
     allocation_enabled: bool = True,
+    register_run: bool = False,
+    registry_path: str | Path | None = None,
 ) -> dict[str, Any]:
     """Execute end-to-end candidate selection pipeline with optional eligibility gating.
 
@@ -224,6 +230,10 @@ def run_candidate_selection(
     eligible_candidates, rejected_candidates = filter_by_eligibility(universe, eligibility_results)
     elig_summary = summarize_eligibility(eligibility_results, thresholds)
 
+    # Rank full universe for complete artifact provenance.
+    ranked_full_universe = rank_candidates(universe, primary_metric=primary_metric)
+    validate_ranked_universe(ranked_full_universe)
+
     # Stage 3: Rank eligible candidates
     ranked_universe = rank_candidates(eligible_candidates, primary_metric=primary_metric)
     validate_ranked_universe(ranked_universe)
@@ -243,57 +253,36 @@ def run_candidate_selection(
     # Stage 5: Select top N
     selected = select_top_candidates(filtered_candidates, max_count=max_candidate_count)
 
+    # Candidates beyond max_count are recorded as deterministic rejections.
+    capped_rejections = (
+        []
+        if max_candidate_count is None
+        else [candidate for candidate in filtered_candidates[max(0, int(max_candidate_count)):]]
+    )
+
     # Stage 6: Persist artifacts
     run_id = build_candidate_selection_run_id(
         filters=filters,
         candidate_ids=[c.candidate_id for c in universe],  # hash over full universe for stability
         primary_metric=primary_metric,
-    )
-
-    # Write base universe artifacts
-    universe_csv, _selected_csv, summary_json, manifest_json = write_candidate_selection_artifacts(
-        universe=ranked_universe,
-        selected=selected,
-        run_id=run_id,
-        filters=filters,
-        primary_metric=primary_metric,
-        artifacts_root=output_artifacts_root,
-    )
-
-    # Write eligibility artifacts (overwrites selected_candidates.csv with gate-filtered version)
-    eligibility_csv, selected_csv, rejected_csv, summary_json = write_eligibility_artifacts(
-        eligibility_results=eligibility_results,
-        eligible_candidates=ranked_universe,
-        rejected_candidates=rejected_candidates,
-        eligibility_summary={
-            **elig_summary,
-            "run_id": run_id,
-            "universe_count": len(universe),
-            "selected_count": len(selected),
-            "primary_metric": primary_metric,
-            "filters": filters,
+        max_candidate_count=max_candidate_count,
+        thresholds=thresholds.to_dict(),
+        redundancy_thresholds=redundancy_thresholds.to_dict(),
+        allocation_config={
+            "allocation_enabled": bool(allocation_enabled),
+            "allocation_method": allocation_method,
+            "max_weight_per_candidate": max_weight_per_candidate,
+            "min_allocation_candidate_count": min_allocation_candidate_count,
+            "min_allocation_weight": min_allocation_weight,
+            "allocation_weight_sum_tolerance": allocation_weight_sum_tolerance,
+            "allocation_rounding_decimals": allocation_rounding_decimals,
         },
-        run_id=run_id,
-        artifacts_root=output_artifacts_root,
     )
 
-    correlation_csv, selected_csv, rejected_csv, summary_json, manifest_json = write_redundancy_artifacts(
-        eligible_candidates=ranked_universe,
-        selected_candidates=selected,
-        rejected_candidates_eligibility=rejected_candidates,
-        eligibility_results=eligibility_results,
-        redundancy_rejections=redundancy_rejections,
-        correlation_matrix=correlation_matrix,
-        redundancy_summary={
-            **{k: v for k, v in redundancy_summary.items() if k != "thresholds"},
-            "redundancy_thresholds": redundancy_thresholds.to_dict(),
-            "overlap_matrix_rows": int(len(overlap_matrix.index)),
-        },
-        run_id=run_id,
-        artifacts_root=output_artifacts_root,
-    )
+    selected_post_allocation = list(selected)
 
     allocation_csv: str | None = None
+    allocation_decisions: list[AllocationDecision] = []
     allocation_summary: dict[str, Any] = {
         "allocation_enabled": False,
         "allocation_method": None,
@@ -312,48 +301,28 @@ def run_candidate_selection(
             method=allocation_method,
             constraints=allocation_constraints,
         )
-        allocation_csv_path, selected_csv, summary_json, manifest_json = write_allocation_artifacts(
-            selected_candidates=selected,
-            allocation_decisions=allocation_decisions,
-            allocation_summary=allocation_stage_summary,
-            allocation_constraints=allocation_constraints.to_dict(),
-            run_id=run_id,
-            artifacts_root=output_artifacts_root,
-        )
         allocated_ids = {decision.candidate_id for decision in allocation_decisions}
-        selected = [
+        selected_post_allocation = [
             candidate
             for candidate in selected
             if candidate.candidate_id in allocated_ids
         ]
-        allocation_csv = str(allocation_csv_path)
         allocation_summary = {
             **allocation_stage_summary,
             "allocation_enabled": True,
         }
     elif allocation_enabled:
-        allocation_csv_path, selected_csv, summary_json, manifest_json = write_allocation_artifacts(
-            selected_candidates=selected,
-            allocation_decisions=[],
-            allocation_summary={
-                "allocation_method": str(allocation_method),
-                "allocated_candidates": 0,
-                "constraint_adjusted_candidates": 0,
-                "weight_sum": None,
-                "weight_min": None,
-                "weight_max": None,
-                "concentration_hhi": None,
-            },
-            allocation_constraints=allocation_constraints.to_dict(),
-            run_id=run_id,
-            artifacts_root=output_artifacts_root,
-        )
-        allocation_csv = str(allocation_csv_path)
+        allocation_decisions = []
+        selected_post_allocation = []
         allocation_summary = {
             "allocation_enabled": True,
             "allocation_method": str(allocation_method),
             "allocated_candidates": 0,
             "constraint_adjusted_candidates": 0,
+            "weight_sum": None,
+            "weight_min": None,
+            "weight_max": None,
+            "concentration_hhi": None,
         }
     else:
         allocation_summary = {
@@ -361,12 +330,135 @@ def run_candidate_selection(
             "allocation_constraints": allocation_constraints.to_dict(),
         }
 
+    rejected_rows: list[dict[str, Any]] = []
+    eligibility_failed_checks = {
+        result.candidate_id: result.failed_checks
+        for result in eligibility_results
+        if not result.is_eligible
+    }
+    by_candidate_id = {candidate.candidate_id: candidate for candidate in ranked_full_universe}
+
+    for candidate in rejected_candidates:
+        row = candidate.to_dict()
+        row.update(
+            {
+                "rejected_stage": "eligibility_gate",
+                "rejection_reason": "eligibility_failed",
+                "failed_checks": eligibility_failed_checks.get(candidate.candidate_id, ""),
+                "rejected_against_candidate_id": None,
+                "observed_correlation": None,
+                "configured_max_correlation": None,
+                "overlap_observations": None,
+            }
+        )
+        rejected_rows.append(row)
+
+    for rejection in redundancy_rejections:
+        candidate = by_candidate_id.get(rejection.candidate_id)
+        if candidate is None:
+            continue
+        row = candidate.to_dict()
+        row.update(
+            {
+                "rejected_stage": rejection.rejected_stage,
+                "rejection_reason": rejection.rejection_reason,
+                "failed_checks": "",
+                "rejected_against_candidate_id": rejection.rejected_against_candidate_id,
+                "observed_correlation": rejection.observed_correlation,
+                "configured_max_correlation": rejection.configured_max_correlation,
+                "overlap_observations": rejection.overlap_observations,
+            }
+        )
+        rejected_rows.append(row)
+
+    for candidate in capped_rejections:
+        row = candidate.to_dict()
+        row.update(
+            {
+                "rejected_stage": "redundancy_filter",
+                "rejection_reason": "max_candidate_count_limit",
+                "failed_checks": "",
+                "rejected_against_candidate_id": None,
+                "observed_correlation": None,
+                "configured_max_correlation": redundancy_thresholds.max_pairwise_correlation,
+                "overlap_observations": None,
+            }
+        )
+        rejected_rows.append(row)
+
+    stage_order = {"eligibility_gate": 0, "redundancy_filter": 1}
+    rejected_rows = sorted(
+        rejected_rows,
+        key=lambda row: (
+            stage_order.get(str(row.get("rejected_stage")), 9),
+            int(row.get("selection_rank") or 0),
+            str(row.get("candidate_id") or ""),
+        ),
+    )
+
+    if max_candidate_count is not None:
+        redundancy_summary = {
+            **redundancy_summary,
+            "pruned_by_redundancy": int(redundancy_summary.get("pruned_by_redundancy", 0)) + len(capped_rejections),
+        }
+
+    (
+        universe_csv,
+        eligibility_csv,
+        correlation_csv,
+        selected_csv,
+        rejected_csv,
+        allocation_csv_path,
+        summary_json,
+        manifest_json,
+        selection_summary_payload,
+        manifest_payload,
+    ) = write_candidate_selection_run_artifacts(
+        run_id=run_id,
+        artifacts_root=output_artifacts_root,
+        universe=ranked_full_universe,
+        eligibility_results=eligibility_results,
+        selected_candidates=selected_post_allocation,
+        rejected_rows=rejected_rows,
+        correlation_matrix=correlation_matrix,
+        allocation_decisions=allocation_decisions,
+        allocation_enabled=bool(allocation_enabled),
+        allocation_method=(str(allocation_method) if allocation_enabled else None),
+        allocation_constraints=allocation_constraints.to_dict(),
+        allocation_summary=allocation_summary,
+        filters=filters,
+        primary_metric=primary_metric,
+        thresholds=thresholds.to_dict(),
+        redundancy_thresholds=redundancy_thresholds.to_dict(),
+        redundancy_summary=redundancy_summary,
+        provenance={
+            "dataset": dataset,
+            "timeframe": timeframe,
+            "evaluation_horizon": evaluation_horizon,
+        },
+        allocation_weight_sum_tolerance=float(allocation_weight_sum_tolerance),
+    )
+
+    if allocation_enabled:
+        allocation_csv = str(allocation_csv_path)
+
+    registry_entry: dict[str, Any] | None = None
+    if register_run:
+        registry_entry = register_candidate_selection_run(
+            artifacts_root=output_artifacts_root,
+            run_id=run_id,
+            artifact_dir=resolve_candidate_selection_artifact_dir(run_id, output_artifacts_root),
+            manifest=manifest_payload,
+            selection_summary=selection_summary_payload,
+            registry_path=registry_path,
+        )
+
     return {
         "run_id": run_id,
         "universe_count": len(universe),
         "eligible_count": len(eligible_candidates),
-        "rejected_count": len(rejected_candidates) + len(redundancy_rejections),
-        "selected_count": len(selected),
+        "rejected_count": len(rejected_rows),
+        "selected_count": len(selected_post_allocation),
         "primary_metric": primary_metric,
         "filters": filters,
         "thresholds": thresholds.to_dict(),
@@ -375,6 +467,7 @@ def run_candidate_selection(
         "allocation_summary": allocation_summary,
         "eligibility_summary": elig_summary,
         "redundancy_summary": redundancy_summary,
+        "artifact_dir": str(resolve_candidate_selection_artifact_dir(run_id, output_artifacts_root)),
         "universe_csv": str(universe_csv),
         "selected_csv": str(selected_csv),
         "rejected_csv": str(rejected_csv),
@@ -383,4 +476,5 @@ def run_candidate_selection(
         "allocation_csv": allocation_csv,
         "summary_json": str(summary_json),
         "manifest_json": str(manifest_json),
+        "registry_entry": registry_entry,
     }

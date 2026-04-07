@@ -14,6 +14,7 @@ dependencies = [
     "pyyaml",
     "scikit-learn",
     "xgboost",
+    "lightgbm",
 ]
 
 [project.optional-dependencies]

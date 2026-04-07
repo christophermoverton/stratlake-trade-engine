@@ -781,7 +781,7 @@ def test_run_cli_rejects_missing_run_ids(tmp_path: Path, monkeypatch: pytest.Mon
 
 
 def test_run_cli_rejects_invalid_argument_combinations() -> None:
-    with pytest.raises(ValueError, match="exactly one of --portfolio-config or --run-ids"):
+    with pytest.raises(ValueError, match="Provide exactly one input mode"):
         run_cli(["--portfolio-name", "core_portfolio", "--timeframe", "1D"])
 
     with pytest.raises(ValueError, match="cannot be combined with --from-registry"):

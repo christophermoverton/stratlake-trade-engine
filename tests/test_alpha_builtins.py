@@ -11,7 +11,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.research.alpha.builtins import (
     CrossSectionalLinearAlphaModel,
+    CrossSectionalLightGBMAlphaModel,
     CrossSectionalXGBoostAlphaModel,
+    LightGBMModelSpec,
     LinearModelSpec,
     RankCompositeAlphaModel,
     RidgeLinearAlphaModel,
@@ -163,6 +165,8 @@ def test_cross_sectional_xgboost_alpha_is_deterministic_with_fixed_seed_and_no_s
     second = model.predict(prediction_frame)
 
     assert first.equals(second)
+    assert first.dtype == "float64"
+    assert first.index.equals(prediction_frame.index)
     assert model.model_params["random_state"] == 7
     assert model.model_params["subsample"] == pytest.approx(1.0)
     assert model.model_params["colsample_bytree"] == pytest.approx(1.0)
@@ -192,4 +196,80 @@ def test_cross_sectional_xgboost_alpha_raises_clear_error_when_dependency_missin
     model = CrossSectionalXGBoostAlphaModel()
 
     with pytest.raises(RuntimeError, match="xgboost is required"):
+        model.fit(daily_alpha_frame)
+
+
+def test_cross_sectional_lightgbm_alpha_is_deterministic_with_fixed_seed_and_no_sampling(
+    daily_alpha_frame: pd.DataFrame,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeLGBMRegressor:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = dict(kwargs)
+            self.feature_importances_ = None
+            self._weights = None
+
+        def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
+            filled = X.fillna(0.0).to_numpy(dtype="float64")
+            target = y.to_numpy(dtype="float64")
+            self._weights = filled.T @ target
+            self.feature_importances_ = abs(self._weights)
+
+        def predict(self, X: pd.DataFrame):
+            filled = X.fillna(0.0).to_numpy(dtype="float64")
+            return filled @ self._weights
+
+    fake_module = types.SimpleNamespace(LGBMRegressor=FakeLGBMRegressor)
+    monkeypatch.setitem(sys.modules, "lightgbm", fake_module)
+
+    frame = daily_alpha_frame.copy(deep=True)
+    frame["feature_sma_20"] = [1.0, 0.3, -0.5, 0.9, 0.2, -0.6, 0.8, 0.1, -0.7]
+    frame["feature_sma_50"] = [0.8, 0.2, -0.4, 0.7, 0.1, -0.5, 0.6, 0.0, -0.6]
+    frame.loc[frame.index[0], "feature_sma_20"] = None
+    frame.loc[frame.index[1], "feature_sma_50"] = None
+
+    model = CrossSectionalLightGBMAlphaModel(
+        spec=LightGBMModelSpec(
+            random_state=7,
+            n_estimators=25,
+            learning_rate=0.1,
+            subsample=1.0,
+            colsample_bytree=1.0,
+            n_jobs=1,
+        )
+    )
+
+    model.fit(frame)
+    prediction_frame = frame.drop(columns=["target_ret_5d"])
+    first = model.predict(prediction_frame)
+    second = model.predict(prediction_frame)
+
+    assert first.equals(second)
+    assert model.model_params["random_state"] == 7
+    assert model.model_params["subsample"] == pytest.approx(1.0)
+    assert model.model_params["colsample_bytree"] == pytest.approx(1.0)
+    assert model.model_params["n_jobs"] == 1
+    assert sorted(model.feature_importance_by_name) == sorted(model.feature_columns)
+
+
+def test_cross_sectional_lightgbm_alpha_raises_clear_error_when_dependency_missing(
+    daily_alpha_frame: pd.DataFrame,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.delitem(sys.modules, "lightgbm", raising=False)
+
+    import importlib
+
+    real_import_module = importlib.import_module
+
+    def _raise_for_lightgbm(name: str, package: str | None = None):
+        if name == "lightgbm":
+            raise ModuleNotFoundError("No module named 'lightgbm'")
+        return real_import_module(name, package)
+
+    monkeypatch.setattr(importlib, "import_module", _raise_for_lightgbm)
+
+    model = CrossSectionalLightGBMAlphaModel()
+
+    with pytest.raises(RuntimeError, match="lightgbm is required"):
         model.fit(daily_alpha_frame)

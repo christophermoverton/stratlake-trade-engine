@@ -99,6 +99,33 @@ def load_candidate_selection_artifacts(
     except (json.JSONDecodeError, ValueError, OSError) as exc:
         raise CandidateArtifactValidationError(f"Failed to load manifest.json: {exc}") from exc
 
+    # Backfill sleeve ids for historical candidate artifacts where sleeve identity
+    # is equivalent to alpha run id and was not materialized into CSV outputs.
+    if "sleeve_run_id" in selected_candidates.columns and "alpha_run_id" in selected_candidates.columns:
+        selected_candidates["sleeve_run_id"] = selected_candidates["sleeve_run_id"].astype("string")
+        missing_selected_sleeve = selected_candidates["sleeve_run_id"].isna() | (
+            selected_candidates["sleeve_run_id"].astype("string").str.strip() == ""
+        )
+        if bool(missing_selected_sleeve.any()):
+            selected_candidates.loc[missing_selected_sleeve, "sleeve_run_id"] = selected_candidates.loc[
+                missing_selected_sleeve, "alpha_run_id"
+            ]
+
+    if "sleeve_run_id" in allocation_weights.columns and "candidate_id" in allocation_weights.columns:
+        allocation_weights["sleeve_run_id"] = allocation_weights["sleeve_run_id"].astype("string")
+        sleeve_by_candidate_id = {
+            str(row["candidate_id"]): str(row["sleeve_run_id"])
+            for _, row in selected_candidates.iterrows()
+            if pd.notna(row.get("candidate_id")) and pd.notna(row.get("sleeve_run_id"))
+        }
+        missing_weight_sleeve = allocation_weights["sleeve_run_id"].isna() | (
+            allocation_weights["sleeve_run_id"].astype("string").str.strip() == ""
+        )
+        if bool(missing_weight_sleeve.any()):
+            allocation_weights.loc[missing_weight_sleeve, "sleeve_run_id"] = allocation_weights.loc[
+                missing_weight_sleeve, "candidate_id"
+            ].astype("string").map(sleeve_by_candidate_id)
+
     return selected_candidates, allocation_weights, manifest, run_id
 
 

@@ -571,7 +571,7 @@ def _validate_cli_args(args: argparse.Namespace, *, timeframe: str) -> None:
         raise ValueError("The --from-registry flag requires --portfolio-config.")
     if args.from_registry and has_candidate_selection:
         raise ValueError("The --from-registry flag cannot be combined with --from-candidate-selection.")
-    if args.portfolio_name and not has_config and not has_run_ids:
+    if args.portfolio_name and not has_config and not has_run_ids and not has_candidate_selection:
         raise ValueError("The --portfolio-name argument requires --portfolio-config or --run-ids.")
     if has_run_ids and not args.portfolio_name:
         raise ValueError("The --portfolio-name argument is required when using --run-ids.")

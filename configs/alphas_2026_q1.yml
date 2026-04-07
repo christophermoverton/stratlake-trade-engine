@@ -73,3 +73,47 @@ ml_cross_sectional_xgb_2026_q1:
   defaults:
     price_column: close
     min_cross_section_size: 25
+
+ml_cross_sectional_lgbm_2026_q1:
+  alpha_name: ml_cross_sectional_lgbm_2026_q1
+  dataset: features_daily
+  target_column: target_ret_5d
+  feature_columns:
+    - feature_ret_1d
+    - feature_ret_5d
+    - feature_ret_20d
+    - feature_vol_20d
+    - feature_sma_20
+    - feature_sma_50
+    - feature_close_to_sma20
+  model_type: cross_sectional_lightgbm
+  model_params:
+    random_state: 20260302
+    n_estimators: 200
+    max_depth: -1
+    learning_rate: 0.05
+    num_leaves: 31
+    min_child_samples: 20
+    subsample: 1.0
+    colsample_bytree: 1.0
+    reg_alpha: 0.0
+    reg_lambda: 0.0
+    n_jobs: 1
+    objective: regression
+    boosting_type: gbdt
+  alpha_horizon: 5
+  start: "2026-01-01"
+  end: "2026-04-03"
+  train_start: "2026-01-01"
+  train_end: "2026-03-02"
+  predict_start: "2026-03-02"
+  predict_end: "2026-04-03"
+  signal_mapping:
+    policy: top_bottom_quantile
+    quantile: 0.2
+    metadata:
+      name: top_bottom_quantile_q20
+      case_study: q1_2026_ml_lgbm_features_daily
+  defaults:
+    price_column: close
+    min_cross_section_size: 25

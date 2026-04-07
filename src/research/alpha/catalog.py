@@ -9,7 +9,9 @@ import yaml
 
 from src.research.alpha.builtins import (
     CrossSectionalLinearAlphaModel,
+    CrossSectionalLightGBMAlphaModel,
     CrossSectionalXGBoostAlphaModel,
+    LightGBMModelSpec,
     LinearModelSpec,
     RankCompositeAlphaModel,
     RidgeLinearAlphaModel,
@@ -172,6 +174,23 @@ def _build_alpha_factory(alpha_name: str, config: Mapping[str, Any]):
             importance_type=str(params.get("importance_type", "gain")),
         )
         return partial(CrossSectionalXGBoostAlphaModel, spec=spec)
+    if model_type in {"cross_sectional_lightgbm", "lightgbm_cross_sectional", "lightgbm"}:
+        spec = LightGBMModelSpec(
+            random_state=int(params.get("random_state", 20260302)),
+            n_estimators=int(params.get("n_estimators", 200)),
+            max_depth=int(params.get("max_depth", -1)),
+            learning_rate=float(params.get("learning_rate", 0.05)),
+            num_leaves=int(params.get("num_leaves", 31)),
+            min_child_samples=int(params.get("min_child_samples", 20)),
+            subsample=float(params.get("subsample", 1.0)),
+            colsample_bytree=float(params.get("colsample_bytree", 1.0)),
+            reg_alpha=float(params.get("reg_alpha", 0.0)),
+            reg_lambda=float(params.get("reg_lambda", 0.0)),
+            n_jobs=int(params.get("n_jobs", 1)),
+            objective=str(params.get("objective", "regression")),
+            boosting_type=str(params.get("boosting_type", "gbdt")),
+        )
+        return partial(CrossSectionalLightGBMAlphaModel, spec=spec)
     if model_type in {"rank_composite_momentum", "rank_composite"}:
         return partial(
             RankCompositeAlphaModel,

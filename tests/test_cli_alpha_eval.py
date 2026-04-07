@@ -20,11 +20,13 @@ from src.cli.run_alpha_evaluation import (
     run_cli,
 )
 from src.research.alpha.base import BaseAlphaModel
+from src.research.alpha.catalog import register_builtin_alpha_catalog
 from src.research.alpha_eval import alpha_evaluation_registry_path
 from src.research.registry import load_registry
 
 TARGET_COLUMN = "target_ret_1d"
 MODEL_NAME = "cli_alpha_eval_weighted_model"
+REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 class CliAlphaEvalWeightedModel(BaseAlphaModel):
@@ -104,6 +106,56 @@ def _write_alpha_eval_dataset(root: Path) -> pd.DataFrame:
     for symbol in symbols:
         symbol_frame = frame.loc[frame["symbol"].eq(symbol)].copy(deep=True)
         dataset_dir = root / "data" / "curated" / "features_daily" / f"symbol={symbol}" / "year=2025"
+        dataset_dir.mkdir(parents=True, exist_ok=True)
+        symbol_frame.to_parquet(dataset_dir / "part-0.parquet", index=False)
+    return frame
+
+
+def _write_q1_ml_alpha_eval_dataset(root: Path) -> pd.DataFrame:
+    timestamps = pd.date_range("2026-01-01", periods=10, freq="D", tz="UTC")
+    rows: list[dict[str, object]] = []
+    symbols = ["AAA", "BBB", "CCC"]
+    for symbol_index, symbol in enumerate(symbols):
+        for ts_index, ts_utc in enumerate(timestamps):
+            scale = float(symbol_index + 1)
+            rows.append(
+                {
+                    "symbol": symbol,
+                    "ts_utc": ts_utc,
+                    "timeframe": "1D",
+                    "date": ts_utc.strftime("%Y-%m-%d"),
+                    "target_ret_5d": scale * 0.01 + ts_index * 0.001,
+                    "feature_ret_1d": scale * 0.1 + ts_index * 0.01,
+                    "feature_ret_5d": scale * 0.2 + ts_index * 0.015,
+                    "feature_ret_20d": scale * 0.3 + ts_index * 0.02,
+                    "feature_vol_20d": None,
+                    "feature_sma_20": None,
+                    "feature_sma_50": None,
+                    "feature_close_to_sma20": None,
+                    "close": scale * 100.0 + ts_index * 1.5,
+                }
+            )
+
+    frame = pd.DataFrame(rows).sort_values(["symbol", "ts_utc"], kind="stable").reset_index(drop=True)
+    for column in ("symbol", "timeframe", "date"):
+        frame[column] = frame[column].astype("string")
+    numeric_columns = [
+        "target_ret_5d",
+        "feature_ret_1d",
+        "feature_ret_5d",
+        "feature_ret_20d",
+        "feature_vol_20d",
+        "feature_sma_20",
+        "feature_sma_50",
+        "feature_close_to_sma20",
+        "close",
+    ]
+    for column in numeric_columns:
+        frame[column] = pd.to_numeric(frame[column], errors="raise").astype("float64")
+
+    for symbol in symbols:
+        symbol_frame = frame.loc[frame["symbol"].eq(symbol)].copy(deep=True)
+        dataset_dir = root / "data" / "curated" / "features_daily" / f"symbol={symbol}" / "year=2026"
         dataset_dir.mkdir(parents=True, exist_ok=True)
         symbol_frame.to_parquet(dataset_dir / "part-0.parquet", index=False)
     return frame
@@ -324,6 +376,73 @@ def test_run_cli_persists_optional_signal_mapping_artifacts(
         result.signal_mapping_result.signals.reset_index(drop=True),
         check_dtype=False,
     )
+
+
+def test_run_cli_supports_lightgbm_case_study_via_catalog_config(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    class FakeLGBMRegressor:
+        def __init__(self, **kwargs) -> None:
+            self.kwargs = dict(kwargs)
+            self.feature_importances_ = None
+            self._weights = None
+
+        def fit(self, X: pd.DataFrame, y: pd.Series) -> None:
+            filled = X.fillna(0.0).to_numpy(dtype="float64")
+            target = y.to_numpy(dtype="float64")
+            self._weights = filled.T @ target
+            self.feature_importances_ = abs(self._weights)
+
+        def predict(self, X: pd.DataFrame):
+            filled = X.fillna(0.0).to_numpy(dtype="float64")
+            return filled @ self._weights
+
+    monkeypatch.setitem(sys.modules, "lightgbm", type("M", (), {"LGBMRegressor": FakeLGBMRegressor})())
+    _write_q1_ml_alpha_eval_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    register_builtin_alpha_catalog(REPO_ROOT / "configs" / "alphas_2026_q1.yml")
+
+    result = run_cli(
+        [
+            "--alpha-model",
+            "ml_cross_sectional_lgbm_2026_q1",
+            "--dataset",
+            "features_daily",
+            "--target-column",
+            "target_ret_5d",
+            "--feature-columns",
+            "feature_ret_1d",
+            "feature_ret_5d",
+            "feature_ret_20d",
+            "feature_vol_20d",
+            "feature_sma_20",
+            "feature_sma_50",
+            "feature_close_to_sma20",
+            "--price-column",
+            "close",
+            "--start",
+            "2026-01-01",
+            "--end",
+            "2026-01-11",
+            "--train-start",
+            "2026-01-01",
+            "--train-end",
+            "2026-01-07",
+            "--predict-start",
+            "2026-01-07",
+            "--predict-end",
+            "2026-01-11",
+            "--alpha-horizon",
+            "1",
+            "--min-cross-section-size",
+            "2",
+        ]
+    )
+
+    assert result.alpha_name == "ml_cross_sectional_lgbm_2026_q1"
+    assert result.prediction_frame.columns.tolist() == ["symbol", "ts_utc", "timeframe", "prediction_score"]
+    assert result.evaluation_result.summary["n_periods"] > 0
 
 
 def test_run_cli_supports_config_and_ticker_file_inputs(

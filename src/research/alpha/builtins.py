@@ -38,6 +38,23 @@ class XGBoostModelSpec:
     importance_type: str = "gain"
 
 
+@dataclass(frozen=True)
+class LightGBMModelSpec:
+    random_state: int = 20260302
+    n_estimators: int = 200
+    max_depth: int = -1
+    learning_rate: float = 0.05
+    num_leaves: int = 31
+    min_child_samples: int = 20
+    subsample: float = 1.0
+    colsample_bytree: float = 1.0
+    reg_alpha: float = 0.0
+    reg_lambda: float = 0.0
+    n_jobs: int = 1
+    objective: str = "regression"
+    boosting_type: str = "gbdt"
+
+
 class CrossSectionalLinearAlphaModel(BaseAlphaModel):
     """Pooled cross-sectional linear alpha with inspectable coefficients."""
 
@@ -152,6 +169,68 @@ class CrossSectionalXGBoostAlphaModel(BaseAlphaModel):
 
         xgb_regressor_cls = _resolve_xgb_regressor_cls()
         self.model = xgb_regressor_cls(**self.model_params)
+        self.model.fit(design_matrix, target)
+
+        raw_importance = getattr(self.model, "feature_importances_", None)
+        if raw_importance is None:
+            self.feature_importance_by_name = {}
+        else:
+            self.feature_importance_by_name = {
+                column: float(value)
+                for column, value in zip(self.feature_columns, raw_importance, strict=False)
+            }
+
+        self.training_metadata = {
+            "n_rows": int(len(df)),
+            "n_training_rows": int(len(target)),
+            "n_cross_sections": int(pd.to_datetime(df["ts_utc"], utc=True).nunique()),
+            "target_non_null_rows": int(valid_rows.sum()),
+            **self.model_params,
+        }
+
+    def _predict(self, df: pd.DataFrame) -> pd.Series:
+        if self.model is None:
+            raise RuntimeError("Model must be fit before predict.")
+
+        design_matrix = _to_numeric_frame_allowing_missing(df, self.feature_columns)
+        prediction = self.model.predict(design_matrix)
+        return pd.Series(prediction, index=df.index, dtype="float64", name="prediction")
+
+
+class CrossSectionalLightGBMAlphaModel(BaseAlphaModel):
+    """Deterministic pooled cross-sectional LightGBM regressor."""
+
+    name = "cross_sectional_lightgbm_alpha_model"
+
+    def __init__(self, *, spec: LightGBMModelSpec | None = None) -> None:
+        resolved_spec = spec or LightGBMModelSpec()
+        _validate_lightgbm_spec(resolved_spec)
+
+        self.spec = resolved_spec
+        self.feature_columns: list[str] = []
+        self.target_column: str | None = None
+        self.model = None
+        self.feature_importance_by_name: dict[str, float] = {}
+        self.model_params: dict[str, float | int | str] = _lightgbm_params_from_spec(resolved_spec)
+        self.training_metadata: dict[str, float | int | str] = {}
+
+    def _fit(self, df: pd.DataFrame) -> None:
+        self.feature_columns = _resolve_feature_columns(df)
+        self.target_column = _resolve_target_column(df)
+
+        design_matrix = _to_numeric_frame_allowing_missing(df, self.feature_columns)
+        target = _to_numeric_series_allowing_missing(df, self.target_column)
+        valid_rows = ~target.isna()
+        if not bool(valid_rows.any()):
+            raise ValueError("Cross-sectional LightGBM alpha requires at least one non-null target row.")
+
+        design_matrix = design_matrix.loc[valid_rows]
+        target = target.loc[valid_rows]
+        if len(target) < 2:
+            raise ValueError("Cross-sectional LightGBM alpha requires at least two training rows.")
+
+        lgbm_regressor_cls = _resolve_lgbm_regressor_cls()
+        self.model = lgbm_regressor_cls(**self.model_params)
         self.model.fit(design_matrix, target)
 
         raw_importance = getattr(self.model, "feature_importances_", None)
@@ -460,6 +539,52 @@ def _xgboost_params_from_spec(spec: XGBoostModelSpec) -> dict[str, float | int |
     }
 
 
+def _validate_lightgbm_spec(spec: LightGBMModelSpec) -> None:
+    if spec.n_estimators <= 0:
+        raise ValueError("n_estimators must be greater than zero.")
+    if spec.max_depth == 0 or spec.max_depth < -1:
+        raise ValueError("max_depth must be -1 (unbounded) or greater than zero.")
+    if spec.learning_rate <= 0.0:
+        raise ValueError("learning_rate must be greater than zero.")
+    if spec.num_leaves <= 1:
+        raise ValueError("num_leaves must be greater than one.")
+    if spec.min_child_samples < 1:
+        raise ValueError("min_child_samples must be greater than or equal to one.")
+    for field_name in ("subsample", "colsample_bytree"):
+        value = float(getattr(spec, field_name))
+        if value <= 0.0 or value > 1.0:
+            raise ValueError(f"{field_name} must be in the interval (0, 1].")
+    if spec.reg_alpha < 0.0:
+        raise ValueError("reg_alpha must be greater than or equal to zero.")
+    if spec.reg_lambda < 0.0:
+        raise ValueError("reg_lambda must be greater than or equal to zero.")
+    if spec.n_jobs <= 0:
+        raise ValueError("n_jobs must be greater than zero.")
+    if not spec.objective.strip():
+        raise ValueError("objective must be a non-empty string.")
+    if not spec.boosting_type.strip():
+        raise ValueError("boosting_type must be a non-empty string.")
+
+
+def _lightgbm_params_from_spec(spec: LightGBMModelSpec) -> dict[str, float | int | str]:
+    return {
+        "boosting_type": str(spec.boosting_type),
+        "colsample_bytree": float(spec.colsample_bytree),
+        "learning_rate": float(spec.learning_rate),
+        "max_depth": int(spec.max_depth),
+        "min_child_samples": int(spec.min_child_samples),
+        "n_estimators": int(spec.n_estimators),
+        "n_jobs": int(spec.n_jobs),
+        "num_leaves": int(spec.num_leaves),
+        "objective": str(spec.objective),
+        "random_state": int(spec.random_state),
+        "reg_alpha": float(spec.reg_alpha),
+        "reg_lambda": float(spec.reg_lambda),
+        "subsample": float(spec.subsample),
+        "verbosity": -1,
+    }
+
+
 def _resolve_xgb_regressor_cls():
     try:
         module = importlib.import_module("xgboost")
@@ -473,3 +598,18 @@ def _resolve_xgb_regressor_cls():
     if xgb_regressor_cls is None:
         raise RuntimeError("xgboost.XGBRegressor is not available in the installed xgboost package.")
     return xgb_regressor_cls
+
+
+def _resolve_lgbm_regressor_cls():
+    try:
+        module = importlib.import_module("lightgbm")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "lightgbm is required for model_type 'cross_sectional_lightgbm'. "
+            "Install the 'lightgbm' package to run this alpha."
+        ) from exc
+
+    lgbm_regressor_cls = getattr(module, "LGBMRegressor", None)
+    if lgbm_regressor_cls is None:
+        raise RuntimeError("lightgbm.LGBMRegressor is not available in the installed lightgbm package.")
+    return lgbm_regressor_cls

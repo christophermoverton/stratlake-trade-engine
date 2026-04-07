@@ -13,6 +13,7 @@ from src.research.candidate_selection.schema import CandidateRecord
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 if TYPE_CHECKING:
+    from src.research.candidate_selection.allocation import AllocationDecision
     from src.research.candidate_selection.eligibility import EligibilityResult
     from src.research.candidate_selection.redundancy import RedundancyRejection
 
@@ -415,3 +416,124 @@ def write_redundancy_artifacts(
         ) from exc
 
     return correlation_csv, selected_csv, rejected_csv, summary_json, manifest_json
+
+
+def write_allocation_artifacts(
+    *,
+    selected_candidates: list[CandidateRecord],
+    allocation_decisions: list["AllocationDecision"],
+    allocation_summary: dict[str, Any],
+    allocation_constraints: dict[str, Any],
+    run_id: str,
+    artifacts_root: str | Path = DEFAULT_CANDIDATE_ARTIFACTS_ROOT,
+) -> tuple[Path, Path, Path, Path]:
+    """Write allocation governance artifacts and update selected outputs.
+
+    Persists:
+        - allocation_weights.csv: deterministic final weights per allocated candidate.
+        - selected_candidates.csv: selected candidates augmented with allocation columns.
+        - selection_summary.json: merged with allocation method/constraints/diagnostics.
+        - manifest.json: augmented with allocation artifact references and metadata.
+    """
+
+    artifact_dir = resolve_candidate_selection_artifact_dir(run_id, artifacts_root)
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    allocation_csv = artifact_dir / "allocation_weights.csv"
+    selected_csv = artifact_dir / "selected_candidates.csv"
+    summary_json = artifact_dir / "selection_summary.json"
+    manifest_json = artifact_dir / "manifest.json"
+
+    try:
+        decision_by_id = {decision.candidate_id: decision.to_dict() for decision in allocation_decisions}
+
+        if allocation_decisions:
+            from src.research.candidate_selection.allocation import AllocationDecision
+
+            allocation_rows = [
+                decision_by_id[candidate.candidate_id]
+                for candidate in selected_candidates
+                if candidate.candidate_id in decision_by_id
+            ]
+            allocation_df = pd.DataFrame(allocation_rows)
+            allocation_df = allocation_df[AllocationDecision.csv_columns()]
+        else:
+            from src.research.candidate_selection.allocation import AllocationDecision
+
+            allocation_df = pd.DataFrame(columns=AllocationDecision.csv_columns())
+        allocation_df.to_csv(allocation_csv, index=False, lineterminator="\n", encoding="utf-8")
+
+        selected_rows: list[dict[str, Any]] = []
+        for candidate in selected_candidates:
+            decision = decision_by_id.get(candidate.candidate_id)
+            if decision is None:
+                continue
+            row = candidate.to_dict()
+            row.update(
+                {
+                    "allocation_weight": decision.get("allocation_weight"),
+                    "allocation_method": decision.get("allocation_method"),
+                    "pre_constraint_weight": decision.get("pre_constraint_weight"),
+                    "constraint_adjusted_flag": decision.get("constraint_adjusted_flag"),
+                }
+            )
+            selected_rows.append(row)
+
+        selected_cols = CandidateRecord.csv_columns() + [
+            "allocation_weight",
+            "allocation_method",
+            "pre_constraint_weight",
+            "constraint_adjusted_flag",
+        ]
+        if selected_rows:
+            selected_df = pd.DataFrame(selected_rows)
+            selected_df = selected_df[selected_cols]
+        else:
+            selected_df = pd.DataFrame(columns=selected_cols)
+        selected_df.to_csv(selected_csv, index=False, lineterminator="\n", encoding="utf-8")
+
+        existing_summary: dict[str, Any] = {}
+        if summary_json.exists():
+            try:
+                existing_summary = json.loads(summary_json.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                existing_summary = {}
+
+        merged_summary = {
+            **existing_summary,
+            **allocation_summary,
+            "allocation_constraints": canonicalize_value(allocation_constraints),
+            "selected_count": len(selected_rows),
+        }
+        summary_json.write_text(
+            json.dumps(merged_summary, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+
+        existing_manifest: dict[str, Any] = {}
+        if manifest_json.exists():
+            try:
+                existing_manifest = json.loads(manifest_json.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                existing_manifest = {}
+
+        merged_manifest = {
+            **existing_manifest,
+            "allocation_applied": True,
+            "allocation_method": allocation_summary.get("allocation_method"),
+            "allocation_weights_csv": str(allocation_csv),
+            "selected_candidates_csv": str(selected_csv),
+            "selected_count": len(selected_rows),
+            "allocation_constraints": canonicalize_value(allocation_constraints),
+            "allocated_candidates": int(allocation_summary.get("allocated_candidates", len(selected_rows))),
+        }
+        manifest_json.write_text(
+            json.dumps(merged_manifest, indent=2, sort_keys=True),
+            encoding="utf-8",
+        )
+    except (IOError, OSError) as exc:
+        raise CandidatePersistenceError(
+            f"Failed to write allocation artifacts to {artifact_dir}: {exc}"
+        ) from exc
+
+    return allocation_csv, selected_csv, summary_json, manifest_json

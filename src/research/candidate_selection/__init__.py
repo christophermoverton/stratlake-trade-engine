@@ -26,6 +26,13 @@ from src.research.candidate_selection.eligibility import (
     filter_by_eligibility,
     summarize_eligibility,
 )
+from src.research.candidate_selection.allocation import (
+    AllocationConstraints,
+    AllocationDecision,
+    AllocationError,
+    allocate_candidates,
+    resolve_allocation_constraints,
+)
 from src.research.candidate_selection.gates import (
     EligibilityThresholds,
     resolve_eligibility_thresholds,
@@ -40,6 +47,7 @@ from src.research.candidate_selection.persistence import (
     resolve_candidate_selection_artifact_dir,
     write_candidate_selection_artifacts,
     write_eligibility_artifacts,
+    write_allocation_artifacts,
     write_redundancy_artifacts,
 )
 from src.research.candidate_selection.redundancy import (
@@ -67,11 +75,14 @@ __all__ = [
     "EligibilityThresholds",
     "RedundancyThresholds",
     "RedundancyRejection",
+    "AllocationConstraints",
+    "AllocationDecision",
     # Errors
     "CandidateSelectionError",
     "CandidatePersistenceError",
     "CandidateValidationError",
     "RedundancyError",
+    "AllocationError",
     # Loaders
     "load_candidate_universe",
     # Eligibility
@@ -80,7 +91,9 @@ __all__ = [
     "summarize_eligibility",
     "resolve_eligibility_thresholds",
     "resolve_redundancy_thresholds",
+    "resolve_allocation_constraints",
     "apply_redundancy_filter",
+    "allocate_candidates",
     # Ranking
     "rank_candidates",
     "select_top_candidates",
@@ -89,6 +102,7 @@ __all__ = [
     "resolve_candidate_selection_artifact_dir",
     "write_candidate_selection_artifacts",
     "write_eligibility_artifacts",
+    "write_allocation_artifacts",
     "write_redundancy_artifacts",
     # Validation
     "validate_candidate_universe",
@@ -120,6 +134,14 @@ def run_candidate_selection(
     # Redundancy filtering thresholds
     max_pairwise_correlation: float | None = None,
     min_overlap_observations: int | None = None,
+    # Allocation governance
+    allocation_method: str = "equal_weight",
+    max_weight_per_candidate: float | None = None,
+    min_allocation_candidate_count: int | None = None,
+    min_allocation_weight: float | None = None,
+    allocation_weight_sum_tolerance: float = 1e-12,
+    allocation_rounding_decimals: int = 12,
+    allocation_enabled: bool = True,
 ) -> dict[str, Any]:
     """Execute end-to-end candidate selection pipeline with optional eligibility gating.
 
@@ -271,6 +293,74 @@ def run_candidate_selection(
         artifacts_root=output_artifacts_root,
     )
 
+    allocation_csv: str | None = None
+    allocation_summary: dict[str, Any] = {
+        "allocation_enabled": False,
+        "allocation_method": None,
+        "allocated_candidates": 0,
+    }
+    allocation_constraints = resolve_allocation_constraints(
+        max_weight_per_candidate=max_weight_per_candidate,
+        min_candidate_count=min_allocation_candidate_count,
+        min_weight_threshold=min_allocation_weight,
+        weight_sum_tolerance=allocation_weight_sum_tolerance,
+        rounding_decimals=allocation_rounding_decimals,
+    )
+    if allocation_enabled and selected:
+        allocation_decisions, allocation_stage_summary = allocate_candidates(
+            selected,
+            method=allocation_method,
+            constraints=allocation_constraints,
+        )
+        allocation_csv_path, selected_csv, summary_json, manifest_json = write_allocation_artifacts(
+            selected_candidates=selected,
+            allocation_decisions=allocation_decisions,
+            allocation_summary=allocation_stage_summary,
+            allocation_constraints=allocation_constraints.to_dict(),
+            run_id=run_id,
+            artifacts_root=output_artifacts_root,
+        )
+        allocated_ids = {decision.candidate_id for decision in allocation_decisions}
+        selected = [
+            candidate
+            for candidate in selected
+            if candidate.candidate_id in allocated_ids
+        ]
+        allocation_csv = str(allocation_csv_path)
+        allocation_summary = {
+            **allocation_stage_summary,
+            "allocation_enabled": True,
+        }
+    elif allocation_enabled:
+        allocation_csv_path, selected_csv, summary_json, manifest_json = write_allocation_artifacts(
+            selected_candidates=selected,
+            allocation_decisions=[],
+            allocation_summary={
+                "allocation_method": str(allocation_method),
+                "allocated_candidates": 0,
+                "constraint_adjusted_candidates": 0,
+                "weight_sum": None,
+                "weight_min": None,
+                "weight_max": None,
+                "concentration_hhi": None,
+            },
+            allocation_constraints=allocation_constraints.to_dict(),
+            run_id=run_id,
+            artifacts_root=output_artifacts_root,
+        )
+        allocation_csv = str(allocation_csv_path)
+        allocation_summary = {
+            "allocation_enabled": True,
+            "allocation_method": str(allocation_method),
+            "allocated_candidates": 0,
+            "constraint_adjusted_candidates": 0,
+        }
+    else:
+        allocation_summary = {
+            **allocation_summary,
+            "allocation_constraints": allocation_constraints.to_dict(),
+        }
+
     return {
         "run_id": run_id,
         "universe_count": len(universe),
@@ -281,6 +371,8 @@ def run_candidate_selection(
         "filters": filters,
         "thresholds": thresholds.to_dict(),
         "redundancy_thresholds": redundancy_thresholds.to_dict(),
+        "allocation_constraints": allocation_constraints.to_dict(),
+        "allocation_summary": allocation_summary,
         "eligibility_summary": elig_summary,
         "redundancy_summary": redundancy_summary,
         "universe_csv": str(universe_csv),
@@ -288,6 +380,7 @@ def run_candidate_selection(
         "rejected_csv": str(rejected_csv),
         "eligibility_csv": str(eligibility_csv),
         "correlation_csv": str(correlation_csv),
+        "allocation_csv": allocation_csv,
         "summary_json": str(summary_json),
         "manifest_json": str(manifest_json),
     }

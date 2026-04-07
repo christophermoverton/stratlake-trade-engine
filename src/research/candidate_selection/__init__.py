@@ -138,6 +138,8 @@ def run_candidate_selection(
     # Redundancy filtering thresholds
     max_pairwise_correlation: float | None = None,
     min_overlap_observations: int | None = None,
+    skip_eligibility: bool = False,
+    skip_redundancy: bool = False,
     # Allocation governance
     allocation_method: str = "equal_weight",
     max_weight_per_candidate: float | None = None,
@@ -216,15 +218,33 @@ def run_candidate_selection(
     validate_candidate_universe(universe)
 
     # Stage 2: Eligibility gating
-    thresholds = resolve_eligibility_thresholds(
-        min_mean_ic=min_mean_ic,
-        min_mean_rank_ic=min_mean_rank_ic,
-        min_ic_ir=min_ic_ir,
-        min_rank_ic_ir=min_rank_ic_ir,
-        min_history_length=min_history_length,
-        require_mean_ic=require_mean_ic,
-        require_ic_ir=require_ic_ir,
-    )
+    if skip_eligibility:
+        has_eligibility_inputs = any(
+            value is not None
+            for value in (
+                min_mean_ic,
+                min_mean_rank_ic,
+                min_ic_ir,
+                min_rank_ic_ir,
+                min_history_length,
+            )
+        ) or bool(require_mean_ic) or bool(require_ic_ir)
+        if has_eligibility_inputs:
+            raise CandidateSelectionError(
+                "Eligibility stage is disabled but eligibility thresholds were provided. "
+                "Remove thresholds or enable eligibility."
+            )
+        thresholds = resolve_eligibility_thresholds()
+    else:
+        thresholds = resolve_eligibility_thresholds(
+            min_mean_ic=min_mean_ic,
+            min_mean_rank_ic=min_mean_rank_ic,
+            min_ic_ir=min_ic_ir,
+            min_rank_ic_ir=min_rank_ic_ir,
+            min_history_length=min_history_length,
+            require_mean_ic=require_mean_ic,
+            require_ic_ir=require_ic_ir,
+        )
 
     eligibility_results = evaluate_eligibility(universe, thresholds)
     eligible_candidates, rejected_candidates = filter_by_eligibility(universe, eligibility_results)
@@ -239,10 +259,18 @@ def run_candidate_selection(
     validate_ranked_universe(ranked_universe)
 
     # Stage 4: Redundancy filtering
-    redundancy_thresholds = resolve_redundancy_thresholds(
-        max_pairwise_correlation=max_pairwise_correlation,
-        min_overlap_observations=min_overlap_observations,
-    )
+    if skip_redundancy:
+        if max_pairwise_correlation is not None or min_overlap_observations is not None:
+            raise CandidateSelectionError(
+                "Redundancy stage is disabled but redundancy thresholds were provided. "
+                "Remove thresholds or enable redundancy."
+            )
+        redundancy_thresholds = resolve_redundancy_thresholds()
+    else:
+        redundancy_thresholds = resolve_redundancy_thresholds(
+            max_pairwise_correlation=max_pairwise_correlation,
+            min_overlap_observations=min_overlap_observations,
+        )
     filtered_candidates, redundancy_rejections, correlation_matrix, overlap_matrix, redundancy_summary = (
         apply_redundancy_filter(
             ranked_universe,
@@ -402,6 +430,13 @@ def run_candidate_selection(
             "pruned_by_redundancy": int(redundancy_summary.get("pruned_by_redundancy", 0)) + len(capped_rejections),
         }
 
+    stage_execution = {
+        "universe": True,
+        "eligibility": not bool(skip_eligibility),
+        "redundancy": not bool(skip_redundancy),
+        "allocation": bool(allocation_enabled),
+    }
+
     (
         universe_csv,
         eligibility_csv,
@@ -435,6 +470,7 @@ def run_candidate_selection(
             "dataset": dataset,
             "timeframe": timeframe,
             "evaluation_horizon": evaluation_horizon,
+            "stage_execution": stage_execution,
         },
         allocation_weight_sum_tolerance=float(allocation_weight_sum_tolerance),
     )
@@ -467,6 +503,7 @@ def run_candidate_selection(
         "allocation_summary": allocation_summary,
         "eligibility_summary": elig_summary,
         "redundancy_summary": redundancy_summary,
+        "stage_execution": stage_execution,
         "artifact_dir": str(resolve_candidate_selection_artifact_dir(run_id, output_artifacts_root)),
         "universe_csv": str(universe_csv),
         "selected_csv": str(selected_csv),

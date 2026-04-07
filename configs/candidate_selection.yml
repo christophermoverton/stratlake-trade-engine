@@ -1,0 +1,33 @@
+candidate_selection:
+  artifacts_root: artifacts/alpha
+  output_path: artifacts/candidate_selection
+
+  dataset: bars_daily
+  timeframe: 1D
+  evaluation_horizon: 5
+  mapping_name: rank_long_short
+  metric: ic_ir
+
+  eligibility:
+    min_ic: 0.01
+    min_ic_ir: 0.2
+    min_history_length: 60
+
+  redundancy:
+    max_correlation: 0.85
+    min_overlap_observations: 10
+
+  allocation:
+    method: equal_weight
+    max_weight: 0.2
+    min_candidates: 3
+
+  execution:
+    strict_mode: true
+    skip_eligibility: false
+    skip_redundancy: false
+    skip_allocation: false
+    enable_review: false
+
+  output:
+    registry_path: artifacts/candidate_selection/registry.jsonl

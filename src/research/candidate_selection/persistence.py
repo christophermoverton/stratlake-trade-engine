@@ -651,6 +651,14 @@ def write_candidate_selection_run_artifacts(
             if candidate.mapping_name is not None and str(candidate.mapping_name).strip()
         }
     )
+    stage_execution = provenance.get("stage_execution")
+    if not isinstance(stage_execution, dict):
+        stage_execution = {
+            "universe": True,
+            "eligibility": True,
+            "redundancy": True,
+            "allocation": bool(allocation_enabled),
+        }
 
     summary_payload: dict[str, Any] = {
         "run_id": run_id,
@@ -676,6 +684,7 @@ def write_candidate_selection_run_artifacts(
         "weight_max": allocation_summary.get("weight_max"),
         "concentration_hhi": allocation_summary.get("concentration_hhi"),
         "primary_metric": primary_metric,
+        "stage_execution": canonicalize_value(stage_execution),
         "key_metrics": {
             "mean_ic": _finite_mean(candidate.mean_ic for candidate in selected_candidates),
             "average_ic_ir": _finite_mean(candidate.ic_ir for candidate in selected_candidates),
@@ -778,6 +787,7 @@ def write_candidate_selection_run_artifacts(
             "selected_candidates": int(len(selected_candidates)),
         },
         "allocation_applied": bool(allocation_enabled),
+        "stage_execution": canonicalize_value(stage_execution),
         "allocation_method": allocation_method,
         "allocated_candidates": int(len(allocation_df)),
         "allocation_constraints": canonicalize_value(allocation_constraints),
@@ -803,6 +813,7 @@ def write_candidate_selection_run_artifacts(
             "timeframe": provenance.get("timeframe"),
             "evaluation_horizon": provenance.get("evaluation_horizon"),
             "mapping_names": mapping_names,
+            "stage_execution": canonicalize_value(stage_execution),
             "upstream": {
                 "alpha_run_ids": sorted({candidate.alpha_run_id for candidate in universe}),
                 "alpha_artifact_paths": sorted({candidate.artifact_path for candidate in universe}),

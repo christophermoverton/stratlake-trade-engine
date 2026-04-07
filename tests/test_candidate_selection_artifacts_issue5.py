@@ -293,3 +293,36 @@ def test_validation_fails_on_partition_mismatch() -> None:
                 },
                 allocation_weight_sum_tolerance=1e-12,
             )
+
+
+def test_manifest_records_stage_execution_when_stages_skipped() -> None:
+    with tempfile.TemporaryDirectory() as tmpdir:
+        root = Path(tmpdir)
+        alpha_root = root / "alpha"
+        output_root = root / "candidate_selection"
+        alpha_root.mkdir(parents=True, exist_ok=True)
+        _write_alpha_registry(alpha_root)
+
+        result = run_candidate_selection(
+            artifacts_root=alpha_root,
+            output_artifacts_root=output_root,
+            skip_eligibility=True,
+            skip_redundancy=True,
+            allocation_enabled=False,
+        )
+
+        manifest = json.loads((output_root / result["run_id"] / "manifest.json").read_text(encoding="utf-8"))
+        summary = json.loads((output_root / result["run_id"] / "selection_summary.json").read_text(encoding="utf-8"))
+
+        assert manifest["stage_execution"] == {
+            "allocation": False,
+            "eligibility": False,
+            "redundancy": False,
+            "universe": True,
+        }
+        assert summary["stage_execution"] == {
+            "allocation": False,
+            "eligibility": False,
+            "redundancy": False,
+            "universe": True,
+        }

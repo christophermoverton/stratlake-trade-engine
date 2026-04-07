@@ -461,6 +461,14 @@ def _build_manifest(
         },
         "run_id": run_id,
         "timestamp": _utc_timestamp_from_run_id(run_id),
+        # Candidate-selection provenance (if this portfolio was built from candidate selection)
+        **(
+            {
+                "candidate_selection_provenance": config.get("candidate_selection_provenance")
+            }
+            if config.get("candidate_selection_provenance") is not None
+            else {}
+        ),
     }
 
 

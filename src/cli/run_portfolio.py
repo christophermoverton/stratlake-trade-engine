@@ -27,6 +27,13 @@ from src.portfolio import (
     run_portfolio_walk_forward,
     validate_portfolio_config,
 )
+from src.portfolio.candidate_component_loader import (
+    CandidateComponentLoaderError,
+    load_candidate_selection_artifacts,
+    resolve_candidate_components,
+    validate_candidate_selection_artifacts,
+    build_candidate_driven_portfolio_config,
+)
 from src.research.alpha_eval.registry import load_alpha_evaluation_registry
 from src.research import experiment_tracker
 from src.research.metrics import MINUTE_PERIODS_PER_YEAR, TRADING_DAYS_PER_YEAR
@@ -115,6 +122,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--from-registry",
         action="store_true",
         help="Select the latest matching run per configured strategy from the strategy registry.",
+    )
+    parser.add_argument(
+        "--from-candidate-selection",
+        help="Build portfolio from candidate selection outputs. Provide path to candidate selection artifact directory.",
     )
     parser.add_argument(
         "--evaluation",
@@ -277,6 +288,10 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
         portfolio_name=args.portfolio_name,
         explicit_run_ids=parse_run_ids(args.run_ids),
         from_registry=bool(args.from_registry),
+        from_candidate_selection=(
+            None if getattr(args, "from_candidate_selection", None) is None
+            else Path(getattr(args, "from_candidate_selection"))
+        ),
         timeframe=timeframe,
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
         execution_override=execution_override,
@@ -541,16 +556,27 @@ def main() -> None:
 def _validate_cli_args(args: argparse.Namespace, *, timeframe: str) -> None:
     has_config = args.portfolio_config is not None
     has_run_ids = bool(parse_run_ids(args.run_ids))
-    if has_config == has_run_ids:
-        raise ValueError("Provide exactly one of --portfolio-config or --run-ids.")
+    has_candidate_selection = getattr(args, "from_candidate_selection", None) is not None
+    
+    # Check that exactly one input mode is specified
+    input_modes = [has_config, has_run_ids, has_candidate_selection]
+    if sum(1 for mode in input_modes if mode) != 1:
+        raise ValueError(
+            "Provide exactly one input mode: --portfolio-config, --run-ids, or --from-candidate-selection."
+        )
+    
     if args.from_registry and has_run_ids:
         raise ValueError("The --run-ids argument cannot be combined with --from-registry.")
     if args.from_registry and not has_config:
         raise ValueError("The --from-registry flag requires --portfolio-config.")
+    if args.from_registry and has_candidate_selection:
+        raise ValueError("The --from-registry flag cannot be combined with --from-candidate-selection.")
     if args.portfolio_name and not has_config and not has_run_ids:
         raise ValueError("The --portfolio-name argument requires --portfolio-config or --run-ids.")
     if has_run_ids and not args.portfolio_name:
         raise ValueError("The --portfolio-name argument is required when using --run-ids.")
+    if has_candidate_selection and not args.portfolio_name:
+        raise ValueError("The --portfolio-name argument is required when using --from-candidate-selection.")
     if timeframe not in SUPPORTED_TIMEFRAMES:
         supported = ", ".join(SUPPORTED_TIMEFRAMES)
         raise ValueError(f"Unsupported timeframe {timeframe!r}. Supported values: {supported}.")
@@ -573,6 +599,7 @@ def _resolve_portfolio_inputs(
     portfolio_name: str | None,
     explicit_run_ids: Sequence[str],
     from_registry: bool,
+    from_candidate_selection: Path | None,
     timeframe: str,
     evaluation_path: Path | None,
     execution_override: Mapping[str, Any] | None,
@@ -592,6 +619,11 @@ def _resolve_portfolio_inputs(
             )
         else:
             components = _resolve_config_components(base_definition["components"])
+    elif from_candidate_selection is not None:
+        components, base_definition, candidate_config = _resolve_candidate_selection_components(
+            candidate_selection_artifact_dir=from_candidate_selection,
+            portfolio_name=portfolio_name,
+        )
     else:
         components = _resolve_explicit_run_id_components(explicit_run_ids)
         base_definition = {
@@ -893,6 +925,74 @@ def _resolve_registry_components(
             )
         )
     return _sorted_components(resolved)
+
+
+def _resolve_candidate_selection_components(
+    *,
+    candidate_selection_artifact_dir: Path,
+    portfolio_name: str | None,
+) -> tuple[list[dict[str, Any]], dict[str, Any], dict[str, Any]]:
+    """Resolve portfolio components from candidate selection outputs.
+    
+    Args:
+        candidate_selection_artifact_dir: Path to candidate selection artifact directory.
+        portfolio_name: Portfolio name to use.
+    
+    Returns:
+        Tuple of (components, base_definition, candidate_config).
+    
+    Raises:
+        ValueError: If artifact loading or resolution fails.
+    """
+    try:
+        selected_candidates, allocation_weights, manifest, run_id = (
+            load_candidate_selection_artifacts(candidate_selection_artifact_dir)
+        )
+    except CandidateComponentLoaderError as exc:
+        raise ValueError(f"Failed to load candidate selection artifacts: {exc}") from exc
+
+    try:
+        validate_candidate_selection_artifacts(
+            selected_candidates,
+            allocation_weights,
+            manifest,
+        )
+    except CandidateComponentLoaderError as exc:
+        raise ValueError(f"Candidate selection artifacts failed validation: {exc}") from exc
+
+    try:
+        components = resolve_candidate_components(
+            selected_candidates,
+            allocation_weights,
+            manifest,
+            candidate_selection_artifact_dir=candidate_selection_artifact_dir,
+            candidate_selection_run_id=run_id,
+        )
+    except CandidateComponentLoaderError as exc:
+        raise ValueError(f"Failed to resolve candidate components: {exc}") from exc
+
+    # Components are already sorted by resolve_candidate_components
+    resolved_components = _sorted_components(components)
+
+    # Build portfolio config from candidate inputs
+    base_definition = build_candidate_driven_portfolio_config(
+        components=resolved_components,
+        portfolio_name=portfolio_name or "candidate_driven_portfolio",
+        candidate_selection_run_id=run_id,
+        manifest=manifest,
+        selected_count=len(selected_candidates),
+        allocator=DEFAULT_ALLOCATOR,
+        initial_capital=DEFAULT_INITIAL_CAPITAL,
+        alignment_policy=DEFAULT_ALIGNMENT_POLICY,
+    )
+
+    candidate_config = {
+        "artifact_dir": str(candidate_selection_artifact_dir),
+        "run_id": run_id,
+        "selected_count": len(selected_candidates),
+    }
+
+    return resolved_components, base_definition, candidate_config
 
 
 def _resolve_run_component(

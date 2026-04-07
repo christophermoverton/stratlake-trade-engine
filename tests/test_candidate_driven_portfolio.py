@@ -8,20 +8,17 @@ import sys
 
 import pandas as pd
 import pytest
-import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.portfolio.candidate_component_loader import (
     CandidateArtifactNotFoundError,
     CandidateArtifactValidationError,
-    CandidateComponentLoaderError,
     load_candidate_selection_artifacts,
     validate_candidate_selection_artifacts,
     resolve_candidate_components,
     build_candidate_driven_portfolio_config,
 )
-from src.portfolio.loaders import load_portfolio_component_runs_returns
 
 
 class TestCandidateArtifactLoading:

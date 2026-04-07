@@ -6,7 +6,7 @@ from typing import Any
 import pandas as pd
 
 from src.research.alpha.cross_section import iter_cross_sections
-from src.research.alpha_eval.validation import AlphaEvaluationError, validate_alpha_evaluation_input
+from src.research.alpha_eval.validation import validate_alpha_evaluation_input
 
 
 @dataclass(frozen=True)

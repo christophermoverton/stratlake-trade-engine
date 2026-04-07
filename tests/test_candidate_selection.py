@@ -3,15 +3,12 @@
 from __future__ import annotations
 
 import tempfile
-from pathlib import Path
-from typing import Any
 import json
 
 import pytest
 
 from src.research.candidate_selection import (
     CandidateRecord,
-    CandidateSelectionError,
     CandidateValidationError,
     build_candidate_selection_run_id,
     rank_candidates,

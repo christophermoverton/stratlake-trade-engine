@@ -265,7 +265,6 @@ def apply_redundancy_filter(
     kept: list[CandidateRecord] = []
     rejected: list[RedundancyRejection] = []
 
-    by_id = {c.candidate_id: c for c in ranked_candidates}
     for candidate in ranked_candidates:
         rejected_against: RedundancyRejection | None = None
         for survivor in kept:

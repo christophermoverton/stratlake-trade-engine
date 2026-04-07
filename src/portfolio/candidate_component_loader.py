@@ -9,11 +9,9 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import Any
 
 import pandas as pd
-
-from src.research.candidate_selection.allocation import AllocationDecision
 
 
 class CandidateComponentLoaderError(ValueError):
@@ -264,8 +262,6 @@ def resolve_candidate_components(
     Raises:
         CandidateComponentLoaderError: If component resolution fails.
     """
-    artifact_dir = Path(candidate_selection_artifact_dir)
-
     # Build weight lookup
     weight_by_candidate = {
         row["candidate_id"]: float(row["allocation_weight"])

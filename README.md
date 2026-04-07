@@ -8,13 +8,13 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 14 Summary
+## Milestone 15 Summary
 
-Milestone 14 promotes StratLake into a
-deterministic research-review platform that can carry one built-in alpha from
-catalog config, through evaluation and explicit signal mapping, into one sleeve,
-optional portfolio consumption, and shared review outputs. The repository now
-supports:
+Milestone 15 adds a governed candidate-selection and allocation layer between
+alpha evaluation and portfolio construction. StratLake now supports a
+deterministic path from evaluated alpha sleeves to candidate decisions,
+redundancy control, governed allocation, candidate-driven portfolio
+construction, and candidate-level review outputs. The repository now supports:
 
 * alpha model registration through a deterministic `BaseAlphaModel` interface
 * deterministic alpha training and prediction helpers with explicit half-open
@@ -27,6 +27,14 @@ supports:
   leaderboard-ready summaries
 * registry-backed alpha-evaluation persistence, comparison, and reproducible
   artifact manifests
+* governed candidate selection with deterministic ranking, eligibility gates,
+  redundancy filtering, and allocation constraints
+* candidate-selection artifact contracts under
+  `artifacts/candidate_selection/<run_id>/` with manifest-backed reproducibility
+* candidate-driven portfolio construction through
+  `python -m src.cli.run_portfolio --from-candidate-selection ...`
+* candidate review and explainability outputs under
+  `artifacts/reviews/candidate_selection_<run_id>/`
 * built-in alpha catalog/config support through `configs/alphas.yml` plus
   `python -m src.cli.run_alpha`
 * a real-data Q1 2026 XGBoost cross-sectional alpha case study on
@@ -54,10 +62,14 @@ Start with:
 * [docs/alpha_evaluation_workflow.md](docs/alpha_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
+* [docs/milestone_15_candidate_selection_issue_1.md](docs/milestone_15_candidate_selection_issue_1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
+* [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
 * [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
+* [docs/examples/candidate_selection_portfolio_case_study.py](docs/examples/candidate_selection_portfolio_case_study.py)
+* [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
@@ -87,6 +99,10 @@ The repository currently supports:
 * deterministic return simulation for strategy or portfolio outputs
 * strict-mode enforcement across strategy and portfolio CLIs
 * deterministic promotion gates for alpha, strategy, and portfolio review
+* candidate-selection governance with deterministic eligibility, redundancy,
+  and allocation stages
+* candidate-driven portfolio wiring from approved candidate sets
+* candidate review outputs that explain selection and contribution decisions
 * manifest-backed unified research review artifacts with deterministic review summaries
 * unified runtime configuration with auditable persisted settings
 * deterministic artifacts, manifests, and registry-backed reuse
@@ -102,23 +118,33 @@ At a high level, StratLake is an artifact-driven research pipeline:
 
 ```text
 features
-    ->
+  ->
 alpha
-    ->
-train
-    ->
+  ->
 predict
-    ->
-cross-section
-    ->
-signal
-    ->
-backtest
-    ->
+  ->
+align
+  ->
+validate
+  ->
+evaluate
+  ->
+aggregate
+  ->
+persist
+  ->
+register
+  ->
+compare
+  ->
+candidate selection
+  ->
+allocation
+  ->
 portfolio
-    ->
+  ->
 risk
-    ->
+  ->
 artifacts
 ```
 
@@ -230,6 +256,39 @@ built-in configs. It resolves one named alpha from `configs/alphas.yml`,
 evaluates forecast quality, maps predictions into explicit signals, generates a
 deterministic sleeve return stream, and leaves one scaffold artifact that keeps
 the downstream alpha-to-sleeve flow auditable.
+
+## Candidate Selection And Governed Allocation (Milestone 15)
+
+Milestone 15 introduces a governed layer between alpha comparison and portfolio
+construction:
+
+```text
+Alpha -> Predict -> Align -> Validate -> Evaluate -> Aggregate -> Persist -> Register -> Compare -> Candidate Selection -> Allocation -> Portfolio
+```
+
+What it provides:
+
+* deterministic candidate-universe loading from alpha-evaluation registry data
+* explicit eligibility thresholds on forecast-quality and history metrics
+* redundancy pruning via pairwise-correlation checks with overlap controls
+* governed allocation with deterministic constraints and audited weight outputs
+* candidate-selection manifests and registry-backed candidate review artifacts
+* candidate-driven portfolio construction from approved candidates only
+
+Start here:
+
+* [docs/milestone_15_candidate_selection_issue_1.md](docs/milestone_15_candidate_selection_issue_1.md)
+* [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
+* [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
+
+Quick start:
+
+```powershell
+python -m src.cli.run_candidate_selection --config configs/candidate_selection.yml
+python -m src.cli.run_portfolio --from-candidate-selection artifacts/candidate_selection/<candidate_selection_run_id> --portfolio-name your_candidate_driven_portfolio --timeframe 1D
+python docs/examples/candidate_selection_portfolio_case_study.py
+python docs/examples/real_world_candidate_selection_portfolio_case_study.py
+```
 
 ## Cross-Sectional Utilities
 
@@ -402,6 +461,27 @@ This case study demonstrates a built-in XGBoost alpha trained on
 `top_bottom_quantile[q=0.2]`, and consumed downstream as an
 `artifact_type: alpha_sleeve` portfolio component. See
 [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md).
+
+### 4e. Run the Milestone 15 candidate-selection and governed-allocation workflows
+
+Deterministic synthetic example:
+
+```powershell
+python docs/examples/candidate_selection_portfolio_case_study.py
+```
+
+Real-data governed case study:
+
+```powershell
+python docs/examples/real_world_candidate_selection_portfolio_case_study.py
+```
+
+Production CLI path:
+
+```powershell
+python -m src.cli.run_candidate_selection --config configs/candidate_selection.yml
+python -m src.cli.run_portfolio --from-candidate-selection artifacts/candidate_selection/<candidate_selection_run_id> --portfolio-name your_candidate_driven_portfolio --timeframe 1D
+```
 
 ### 5. Run a portfolio
 
@@ -601,6 +681,33 @@ Walk-forward portfolio runs also include:
 * `metrics_by_split.csv`
 * `splits/<split_id>/...`
 
+### Candidate-selection artifacts
+
+Successful candidate-selection runs write under
+`artifacts/candidate_selection/<run_id>/`.
+
+Core files:
+
+* `candidate_universe.csv`
+* `eligibility_filter_results.csv`
+* `correlation_matrix.csv`
+* `selected_candidates.csv`
+* `rejected_candidates.csv`
+* `allocation_weights.csv`
+* `selection_summary.json`
+* `manifest.json`
+
+Optional review outputs from candidate-selection review runs write under
+`artifacts/reviews/candidate_selection_<run_id>/` and include:
+
+* `candidate_decisions.csv`
+* `candidate_summary.csv`
+* `candidate_contributions.csv`
+* `diversification_summary.json`
+* `candidate_review_summary.json`
+* `candidate_review_report.md`
+* `manifest.json`
+
 See:
 
 * [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
@@ -664,6 +771,7 @@ Start here:
 * [docs/strategy_evaluation_workflow.md](docs/strategy_evaluation_workflow.md)
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
+* [docs/milestone_15_candidate_selection_issue_1.md](docs/milestone_15_candidate_selection_issue_1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
@@ -688,6 +796,8 @@ Examples:
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
+* [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
+* [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 

@@ -272,7 +272,7 @@ def test_registry_latest_lookup_and_comparison_outputs_remain_stable_for_identic
     monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
 
     first_run = run_strategy_experiment("momentum_v1")
-    second_run = run_strategy_experiment("momentum_v1")
+    run_strategy_experiment("momentum_v1")
     buy_and_hold_run = run_strategy_experiment("buy_and_hold_v1")
 
     registry_entries = load_registry(default_registry_path(artifact_root))

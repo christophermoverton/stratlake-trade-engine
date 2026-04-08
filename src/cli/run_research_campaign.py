@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 from contextlib import contextmanager
 from dataclasses import dataclass, field
+import hashlib
+import json
 from pathlib import Path
 import sys
 from typing import Any, Iterator, Sequence
@@ -21,6 +23,31 @@ from src.config.research_campaign import (
     load_research_campaign_config,
     resolve_research_campaign_config,
 )
+from src.data.load_features import FeaturePaths, SUPPORTED_FEATURE_DATASETS
+from src.research.alpha.catalog import load_alphas_config
+from src.research.alpha_eval.registry import alpha_evaluation_registry_path
+from src.research.candidate_selection.registry import candidate_selection_registry_path
+from src.research.experiment_tracker import ARTIFACTS_ROOT as STRATEGY_ARTIFACTS_ROOT
+from src.research.registry import default_registry_path, load_registry
+
+PREFLIGHT_SUMMARY_FILENAME = "preflight_summary.json"
+CAMPAIGN_CONFIG_FILENAME = "campaign_config.json"
+
+
+@dataclass(frozen=True)
+class CampaignPreflightCheck:
+    check_id: str
+    status: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CampaignPreflightResult:
+    status: str
+    summary_path: Path
+    summary: dict[str, Any]
+    checks: tuple[CampaignPreflightCheck, ...]
 
 
 @dataclass(frozen=True)
@@ -33,6 +60,10 @@ class CampaignStageRecord:
 @dataclass(frozen=True)
 class ResearchCampaignRunResult:
     config: ResearchCampaignConfig
+    campaign_run_id: str
+    campaign_artifact_dir: Path
+    preflight_summary_path: Path
+    preflight_summary: dict[str, Any]
     stage_records: tuple[CampaignStageRecord, ...]
     alpha_results: tuple[Any, ...]
     strategy_results: tuple[Any, ...]
@@ -78,15 +109,29 @@ def run_cli(argv: Sequence[str] | None = None) -> ResearchCampaignRunResult:
 
 def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRunResult:
     records: list[CampaignStageRecord] = []
+    campaign_run_id = _build_campaign_run_id(config)
+    campaign_artifact_dir = _campaign_artifact_dir(config, campaign_run_id=campaign_run_id)
+    _persist_campaign_config(campaign_artifact_dir, config)
 
-    preflight_details = _run_preflight(config)
+    preflight_result = _run_preflight(config, campaign_run_id=campaign_run_id, campaign_artifact_dir=campaign_artifact_dir)
     records.append(
         CampaignStageRecord(
             stage_name="preflight",
-            status="completed",
-            details=preflight_details,
+            status="completed" if preflight_result.status == "passed" else "failed",
+            details=preflight_result.summary,
         )
     )
+    if preflight_result.status != "passed":
+        failures = [
+            check.message
+            for check in preflight_result.checks
+            if check.status == "failed"
+        ]
+        raise ValueError(
+            "Campaign preflight failed. "
+            f"See {preflight_result.summary_path.as_posix()}. "
+            + (" | ".join(failures) if failures else "One or more checks failed.")
+        )
 
     alpha_results = _run_alpha_research(config)
     strategy_results = _run_strategy_research(config)
@@ -171,6 +216,10 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
 
     return ResearchCampaignRunResult(
         config=config,
+        campaign_run_id=campaign_run_id,
+        campaign_artifact_dir=campaign_artifact_dir,
+        preflight_summary_path=preflight_result.summary_path,
+        preflight_summary=preflight_result.summary,
         stage_records=tuple(records),
         alpha_results=tuple(alpha_results),
         strategy_results=tuple(strategy_results),
@@ -186,7 +235,12 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
 def print_summary(result: ResearchCampaignRunResult) -> None:
     print("Research Campaign Summary")
     print("-------------------------")
-    print(f"Preflight: ok ({len(result.stage_records)} stages tracked)")
+    print(
+        "Preflight: "
+        f"{result.preflight_summary.get('status', 'unknown')} "
+        f"({len(result.stage_records)} stages tracked) | "
+        f"summary={result.preflight_summary_path.as_posix()}"
+    )
     print(
         f"Research: alpha_runs={len(result.alpha_results)} | "
         f"strategy_runs={len(result.strategy_results)}"
@@ -249,63 +303,365 @@ def _format_run_failure(exc: Exception) -> str:
     return f"Run failed: {message}"
 
 
-def _run_preflight(config: ResearchCampaignConfig) -> dict[str, Any]:
+def _run_preflight(
+    config: ResearchCampaignConfig,
+    *,
+    campaign_run_id: str,
+    campaign_artifact_dir: Path,
+) -> CampaignPreflightResult:
+    checks: list[CampaignPreflightCheck] = []
+    alpha_catalog = {}
+    strategy_catalog = {}
+    portfolio_config_payload: dict[str, Any] = {}
+
+    def add_check(
+        check_id: str,
+        ok: bool,
+        message: str,
+        **details: Any,
+    ) -> None:
+        checks.append(
+            CampaignPreflightCheck(
+                check_id=check_id,
+                status="passed" if ok else "failed",
+                message=message,
+                details=_normalize_jsonable(details),
+            )
+        )
+
     alpha_names = config.targets.alpha_names
     strategy_names = config.targets.strategy_names
 
-    if not alpha_names and not strategy_names:
-        raise ValueError(
-            "Campaign requires at least one alpha or strategy target in targets.alpha_names or targets.strategy_names."
-        )
-
-    if config.candidate_selection.enabled and not config.candidate_selection.alpha_name:
-        raise ValueError(
-            "Candidate selection requires one resolved alpha_name via candidate_selection.alpha_name or a single targets.alpha_names entry."
-        )
-
-    if config.portfolio.enabled and not config.portfolio.portfolio_name:
-        raise ValueError(
-            "Portfolio stage requires one resolved portfolio_name via portfolio.portfolio_name or a single targets.portfolio_names entry."
-        )
-
-    if config.portfolio.enabled and config.portfolio.from_candidate_selection and not config.candidate_selection.enabled:
-        raise ValueError(
-            "portfolio.from_candidate_selection requires candidate_selection.enabled to be true in the same campaign."
-        )
-
-    if (
-        config.candidate_selection.enabled
-        and config.candidate_selection.execution.enable_review
-        and not config.portfolio.enabled
-    ):
-        raise ValueError(
-            "candidate_selection.execution.enable_review requires portfolio.enabled so the review stage has portfolio artifacts."
-        )
-
-    _require_existing_path(config.targets.alpha_catalog_path, field_name="targets.alpha_catalog_path")
-    _require_existing_path(
-        config.targets.strategy_config_path,
-        field_name="targets.strategy_config_path",
+    add_check(
+        "targets.present",
+        bool(alpha_names or strategy_names),
+        (
+            "Campaign has at least one alpha or strategy target."
+            if alpha_names or strategy_names
+            else "Campaign requires at least one alpha or strategy target in targets.alpha_names or targets.strategy_names."
+        ),
+        alpha_target_count=len(alpha_names),
+        strategy_target_count=len(strategy_names),
     )
-    if config.portfolio.enabled and not config.portfolio.from_candidate_selection:
-        _require_existing_path(
-            config.targets.portfolio_config_path,
-            field_name="targets.portfolio_config_path",
+    add_check(
+        "candidate_selection.alpha_name",
+        (not config.candidate_selection.enabled) or bool(config.candidate_selection.alpha_name),
+        (
+            "Candidate selection alpha_name resolved."
+            if (not config.candidate_selection.enabled) or bool(config.candidate_selection.alpha_name)
+            else "Candidate selection requires one resolved alpha_name via candidate_selection.alpha_name or a single targets.alpha_names entry."
+        ),
+        enabled=config.candidate_selection.enabled,
+        alpha_name=config.candidate_selection.alpha_name,
+    )
+    add_check(
+        "portfolio.portfolio_name",
+        (not config.portfolio.enabled) or bool(config.portfolio.portfolio_name),
+        (
+            "Portfolio name resolved."
+            if (not config.portfolio.enabled) or bool(config.portfolio.portfolio_name)
+            else "Portfolio stage requires one resolved portfolio_name via portfolio.portfolio_name or a single targets.portfolio_names entry."
+        ),
+        enabled=config.portfolio.enabled,
+        portfolio_name=config.portfolio.portfolio_name,
+    )
+    add_check(
+        "portfolio.from_candidate_selection",
+        (not config.portfolio.enabled)
+        or (not config.portfolio.from_candidate_selection)
+        or config.candidate_selection.enabled,
+        (
+            "Portfolio candidate-selection dependency is satisfied."
+            if (not config.portfolio.enabled)
+            or (not config.portfolio.from_candidate_selection)
+            or config.candidate_selection.enabled
+            else "portfolio.from_candidate_selection requires candidate_selection.enabled to be true in the same campaign."
+        ),
+        portfolio_enabled=config.portfolio.enabled,
+        from_candidate_selection=config.portfolio.from_candidate_selection,
+        candidate_selection_enabled=config.candidate_selection.enabled,
+    )
+    add_check(
+        "candidate_review.requires_portfolio",
+        (not config.candidate_selection.enabled)
+        or (not config.candidate_selection.execution.enable_review)
+        or config.portfolio.enabled,
+        (
+            "Candidate review dependency is satisfied."
+            if (not config.candidate_selection.enabled)
+            or (not config.candidate_selection.execution.enable_review)
+            or config.portfolio.enabled
+            else "candidate_selection.execution.enable_review requires portfolio.enabled so the review stage has portfolio artifacts."
+        ),
+        candidate_selection_enabled=config.candidate_selection.enabled,
+        enable_review=config.candidate_selection.execution.enable_review,
+        portfolio_enabled=config.portfolio.enabled,
+    )
+
+    alpha_catalog_path = Path(config.targets.alpha_catalog_path)
+    strategy_config_path = Path(config.targets.strategy_config_path)
+    portfolio_config_path = Path(config.targets.portfolio_config_path)
+
+    add_check(
+        "paths.alpha_catalog",
+        alpha_catalog_path.exists(),
+        (
+            f"targets.alpha_catalog_path exists: {alpha_catalog_path.as_posix()}"
+            if alpha_catalog_path.exists()
+            else f"targets.alpha_catalog_path does not exist: {alpha_catalog_path.as_posix()}"
+        ),
+        path=alpha_catalog_path,
+    )
+    if alpha_catalog_path.exists():
+        try:
+            alpha_catalog = load_alphas_config(alpha_catalog_path)
+            add_check(
+                "catalog.alpha.load",
+                True,
+                f"Loaded alpha catalog from {alpha_catalog_path.as_posix()}.",
+                alpha_count=len(alpha_catalog),
+            )
+        except Exception as exc:
+            add_check(
+                "catalog.alpha.load",
+                False,
+                f"Failed to load alpha catalog: {exc}",
+                path=alpha_catalog_path,
+            )
+    for alpha_name in alpha_names:
+        add_check(
+            f"catalog.alpha.target.{alpha_name}",
+            alpha_name in alpha_catalog,
+            (
+                f"Resolved alpha target '{alpha_name}'."
+                if alpha_name in alpha_catalog
+                else f"Unknown alpha '{alpha_name}' in targets.alpha_names."
+            ),
+            alpha_name=alpha_name,
         )
 
-    return {
-        "alpha_target_count": len(alpha_names),
-        "strategy_target_count": len(strategy_names),
-        "candidate_selection_enabled": config.candidate_selection.enabled,
-        "portfolio_enabled": config.portfolio.enabled,
-        "review_enabled": True,
+    add_check(
+        "paths.strategy_config",
+        strategy_config_path.exists(),
+        (
+            f"targets.strategy_config_path exists: {strategy_config_path.as_posix()}"
+            if strategy_config_path.exists()
+            else f"targets.strategy_config_path does not exist: {strategy_config_path.as_posix()}"
+        ),
+        path=strategy_config_path,
+    )
+    if strategy_config_path.exists():
+        try:
+            strategy_catalog = run_strategy_cli.load_strategies_config(strategy_config_path)
+            add_check(
+                "catalog.strategy.load",
+                True,
+                f"Loaded strategy config from {strategy_config_path.as_posix()}.",
+                strategy_count=len(strategy_catalog),
+            )
+        except Exception as exc:
+            add_check(
+                "catalog.strategy.load",
+                False,
+                f"Failed to load strategy config: {exc}",
+                path=strategy_config_path,
+            )
+    for strategy_name in strategy_names:
+        add_check(
+            f"catalog.strategy.target.{strategy_name}",
+            strategy_name in strategy_catalog,
+            (
+                f"Resolved strategy target '{strategy_name}'."
+                if strategy_name in strategy_catalog
+                else f"Unknown strategy '{strategy_name}' in targets.strategy_names."
+            ),
+            strategy_name=strategy_name,
+        )
+
+    require_portfolio_config = config.portfolio.enabled and not config.portfolio.from_candidate_selection
+    add_check(
+        "paths.portfolio_config",
+        (not require_portfolio_config) or portfolio_config_path.exists(),
+        (
+            f"targets.portfolio_config_path exists: {portfolio_config_path.as_posix()}"
+            if (not require_portfolio_config) or portfolio_config_path.exists()
+            else f"targets.portfolio_config_path does not exist: {portfolio_config_path.as_posix()}"
+        ),
+        required=require_portfolio_config,
+        path=portfolio_config_path,
+    )
+    if require_portfolio_config and portfolio_config_path.exists():
+        try:
+            portfolio_config_payload = run_portfolio_cli.load_portfolio_config(portfolio_config_path)
+            add_check(
+                "catalog.portfolio.load",
+                True,
+                f"Loaded portfolio config from {portfolio_config_path.as_posix()}.",
+                path=portfolio_config_path,
+            )
+        except Exception as exc:
+            add_check(
+                "catalog.portfolio.load",
+                False,
+                f"Failed to load portfolio config: {exc}",
+                path=portfolio_config_path,
+            )
+        if config.portfolio.portfolio_name is not None and portfolio_config_payload:
+            try:
+                run_portfolio_cli.resolve_portfolio_definition(
+                    portfolio_config_payload,
+                    portfolio_name=config.portfolio.portfolio_name,
+                )
+                add_check(
+                    "catalog.portfolio.target",
+                    True,
+                    f"Resolved portfolio target '{config.portfolio.portfolio_name}'.",
+                    portfolio_name=config.portfolio.portfolio_name,
+                )
+            except Exception as exc:
+                add_check(
+                    "catalog.portfolio.target",
+                    False,
+                    f"Failed to resolve portfolio target '{config.portfolio.portfolio_name}': {exc}",
+                    portfolio_name=config.portfolio.portfolio_name,
+                )
+
+    feature_paths = FeaturePaths()
+    dataset_consumers = _collect_required_datasets(
+        config,
+        alpha_catalog=alpha_catalog,
+        strategy_catalog=strategy_catalog,
+    )
+    dataset_records: list[dict[str, Any]] = []
+    for dataset_name, consumers in sorted(dataset_consumers.items()):
+        parquet_count = 0
+        dataset_root: Path | None = None
+        dataset_ok = False
+        message = ""
+        try:
+            dataset_root = feature_paths.dataset_root(dataset_name)
+            dataset_ok = dataset_root.exists()
+            if dataset_ok:
+                parquet_count = sum(1 for _ in dataset_root.glob("**/*.parquet"))
+                dataset_ok = parquet_count > 0
+            message = (
+                f"Dataset '{dataset_name}' is available."
+                if dataset_ok
+                else f"Dataset '{dataset_name}' has no parquet files under {dataset_root.as_posix()}."
+            )
+        except Exception as exc:
+            message = f"Dataset '{dataset_name}' failed validation: {exc}"
+        add_check(
+            f"dataset.{dataset_name}",
+            dataset_ok,
+            message,
+            dataset=dataset_name,
+            consumers=consumers,
+            dataset_root=None if dataset_root is None else dataset_root.as_posix(),
+            parquet_file_count=parquet_count,
+            features_root=feature_paths.root.as_posix(),
+        )
+        dataset_records.append(
+            {
+                "dataset": dataset_name,
+                "consumers": list(consumers),
+                "dataset_root": None if dataset_root is None else dataset_root.as_posix(),
+                "parquet_file_count": parquet_count,
+            }
+        )
+
+    artifact_roots = _campaign_artifact_roots(config)
+    for label, root in artifact_roots.items():
+        ok, message = _ensure_directory(root)
+        add_check(
+            f"artifacts.{label}",
+            ok,
+            message,
+            path=root.as_posix(),
+        )
+
+    if config.candidate_selection.enabled and config.candidate_selection.execution.from_registry:
+        registry_path = (
+            Path(config.candidate_selection.output.registry_path)
+            if config.candidate_selection.output.registry_path is not None
+            else candidate_selection_registry_path(config.candidate_selection.output.path)
+        )
+        ok, message, entry_count = _validate_registry_path(registry_path)
+        add_check(
+            "registry.candidate_selection",
+            ok,
+            message,
+            path=registry_path.as_posix(),
+            entry_count=entry_count,
+        )
+
+    if config.portfolio.enabled and config.portfolio.from_registry and not strategy_names:
+        strategy_registry_path = default_registry_path(STRATEGY_ARTIFACTS_ROOT)
+        ok, message, entry_count = _validate_registry_path(strategy_registry_path)
+        add_check(
+            "registry.strategy",
+            ok,
+            message,
+            path=strategy_registry_path.as_posix(),
+            entry_count=entry_count,
+        )
+
+    failed_checks = [check for check in checks if check.status == "failed"]
+    summary = {
+        "campaign_run_id": campaign_run_id,
+        "status": "failed" if failed_checks else "passed",
+        "campaign_artifact_dir": campaign_artifact_dir.as_posix(),
+        "config_path": (campaign_artifact_dir / CAMPAIGN_CONFIG_FILENAME).as_posix(),
+        "environment": {
+            "cwd": Path.cwd().as_posix(),
+            "features_root": feature_paths.root.as_posix(),
+            "strategy_artifacts_root": STRATEGY_ARTIFACTS_ROOT.as_posix(),
+            "alpha_registry_path": alpha_evaluation_registry_path(config.outputs.alpha_artifacts_root).as_posix(),
+        },
+        "targets": {
+            "alpha_names": list(alpha_names),
+            "strategy_names": list(strategy_names),
+            "portfolio_names": list(config.targets.portfolio_names),
+            "resolved_candidate_selection_alpha_name": config.candidate_selection.alpha_name,
+            "resolved_portfolio_name": config.portfolio.portfolio_name,
+        },
+        "datasets": dataset_records,
+        "artifact_roots": {
+            key: value.as_posix()
+            for key, value in artifact_roots.items()
+        },
+        "check_counts": {
+            "total": len(checks),
+            "passed": sum(1 for check in checks if check.status == "passed"),
+            "failed": len(failed_checks),
+        },
+        "failed_checks": [check.check_id for check in failed_checks],
+        "checks": [
+            {
+                "check_id": check.check_id,
+                "status": check.status,
+                "message": check.message,
+                "details": check.details,
+            }
+            for check in checks
+        ],
     }
+    summary_path = campaign_artifact_dir / PREFLIGHT_SUMMARY_FILENAME
+    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+    return CampaignPreflightResult(
+        status=str(summary["status"]),
+        summary_path=summary_path,
+        summary=summary,
+        checks=tuple(checks),
+    )
 
 
 def _run_alpha_research(config: ResearchCampaignConfig) -> list[Any]:
     results: list[Any] = []
     for alpha_name in config.targets.alpha_names:
         argv = ["--alpha-name", alpha_name, "--config", config.targets.alpha_catalog_path]
+        if config.outputs.alpha_artifacts_root:
+            argv.extend(["--artifacts-root", config.outputs.alpha_artifacts_root])
         if config.dataset_selection.dataset is not None:
             argv.extend(["--dataset", config.dataset_selection.dataset])
         if config.time_windows.start is not None:
@@ -603,6 +959,114 @@ def _comparison_output_path(
     if config.outputs.comparison_output_path is None:
         return None
     return Path(config.outputs.comparison_output_path) / stage_name
+
+
+def _build_campaign_run_id(config: ResearchCampaignConfig) -> str:
+    payload = json.dumps(config.to_dict(), sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+    return f"research_campaign_{digest}"
+
+
+def _campaign_artifact_dir(config: ResearchCampaignConfig, *, campaign_run_id: str) -> Path:
+    return Path(config.outputs.campaign_artifacts_root) / campaign_run_id
+
+
+def _persist_campaign_config(campaign_artifact_dir: Path, config: ResearchCampaignConfig) -> Path:
+    campaign_artifact_dir.mkdir(parents=True, exist_ok=True)
+    path = campaign_artifact_dir / CAMPAIGN_CONFIG_FILENAME
+    path.write_text(json.dumps(config.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    return path
+
+
+def _collect_required_datasets(
+    config: ResearchCampaignConfig,
+    *,
+    alpha_catalog: dict[str, dict[str, Any]],
+    strategy_catalog: dict[str, dict[str, Any]],
+) -> dict[str, list[str]]:
+    dataset_consumers: dict[str, list[str]] = {}
+
+    def register(dataset_name: str | None, consumer: str) -> None:
+        if dataset_name is None:
+            return
+        normalized = str(dataset_name).strip()
+        if not normalized:
+            return
+        dataset_consumers.setdefault(normalized, [])
+        if consumer not in dataset_consumers[normalized]:
+            dataset_consumers[normalized].append(consumer)
+
+    for alpha_name in config.targets.alpha_names:
+        alpha_config = alpha_catalog.get(alpha_name, {})
+        register(
+            config.dataset_selection.dataset or alpha_config.get("dataset"),
+            f"alpha:{alpha_name}",
+        )
+
+    for strategy_name in config.targets.strategy_names:
+        strategy_config = strategy_catalog.get(strategy_name, {})
+        register(
+            strategy_config.get("dataset"),
+            f"strategy:{strategy_name}",
+        )
+
+    if config.dataset_selection.dataset and not config.targets.alpha_names:
+        register(config.dataset_selection.dataset, "campaign.dataset_selection")
+
+    return {
+        dataset: consumers
+        for dataset, consumers in dataset_consumers.items()
+        if dataset in SUPPORTED_FEATURE_DATASETS or consumers
+    }
+
+
+def _campaign_artifact_roots(config: ResearchCampaignConfig) -> dict[str, Path]:
+    roots: dict[str, Path] = {
+        "campaign_artifacts_root": Path(config.outputs.campaign_artifacts_root),
+        "alpha_artifacts_root": Path(config.outputs.alpha_artifacts_root),
+        "candidate_selection_artifacts_root": Path(config.candidate_selection.artifacts_root),
+        "candidate_selection_output_path": Path(config.candidate_selection.output.path),
+        "portfolio_artifacts_root": Path(config.outputs.portfolio_artifacts_root),
+    }
+    if config.outputs.comparison_output_path is not None:
+        roots["comparison_output_path"] = Path(config.outputs.comparison_output_path)
+    if config.review.output.path is not None:
+        roots["review_output_path"] = Path(config.review.output.path)
+    if config.candidate_selection.output.review_output_path is not None:
+        roots["candidate_review_output_path"] = Path(config.candidate_selection.output.review_output_path)
+    return roots
+
+
+def _ensure_directory(path: Path) -> tuple[bool, str]:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError as exc:
+        return False, f"Failed to create or access directory {path.as_posix()}: {exc}"
+    if not path.exists() or not path.is_dir():
+        return False, f"Path is not a directory: {path.as_posix()}"
+    return True, f"Directory is available: {path.as_posix()}"
+
+
+def _validate_registry_path(path: Path) -> tuple[bool, str, int]:
+    try:
+        entries = load_registry(path)
+    except Exception as exc:
+        return False, f"Failed to load registry {path.as_posix()}: {exc}", 0
+    if not path.exists():
+        return False, f"Registry path does not exist: {path.as_posix()}", 0
+    if not entries:
+        return False, f"Registry path has no entries: {path.as_posix()}", 0
+    return True, f"Registry is available: {path.as_posix()}", len(entries)
+
+
+def _normalize_jsonable(value: Any) -> Any:
+    if isinstance(value, Path):
+        return value.as_posix()
+    if isinstance(value, dict):
+        return {str(key): _normalize_jsonable(item) for key, item in value.items()}
+    if isinstance(value, list | tuple):
+        return [_normalize_jsonable(item) for item in value]
+    return value
 
 
 @contextmanager

@@ -107,6 +107,8 @@ The repository currently supports:
 * unified runtime configuration with auditable persisted settings
 * unified research campaign configuration for shared dataset, target, comparison,
   candidate-selection, portfolio, review, and output-path settings
+* campaign preflight validation with persisted `preflight_summary.json` reports
+  before expensive research execution starts
 * deterministic artifacts, manifests, and registry-backed reuse
 
 Feature naming note:
@@ -726,6 +728,16 @@ Core files:
 * `review_summary.json`
 * `manifest.json`
 * `promotion_gates.json` when review-level promotion gates are configured
+
+### Research campaign artifacts
+
+Successful or failed campaign preflight runs write under
+`artifacts/research_campaigns/<campaign_run_id>/`.
+
+Core files:
+
+* `campaign_config.json`
+* `preflight_summary.json`
 
 ### Alpha-evaluation artifacts
 

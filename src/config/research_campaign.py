@@ -129,6 +129,7 @@ _OUTPUT_KEYS = frozenset(
         "alpha_artifacts_root",
         "candidate_selection_output_path",
         "candidate_selection_registry_path",
+        "campaign_artifacts_root",
         "portfolio_artifacts_root",
         "comparison_output_path",
         "review_output_path",
@@ -375,6 +376,7 @@ class CampaignOutputsConfig:
     alpha_artifacts_root: str
     candidate_selection_output_path: str
     candidate_selection_registry_path: str | None
+    campaign_artifacts_root: str
     portfolio_artifacts_root: str
     comparison_output_path: str | None
     review_output_path: str | None
@@ -384,6 +386,7 @@ class CampaignOutputsConfig:
             "alpha_artifacts_root": self.alpha_artifacts_root,
             "candidate_selection_output_path": self.candidate_selection_output_path,
             "candidate_selection_registry_path": self.candidate_selection_registry_path,
+            "campaign_artifacts_root": self.campaign_artifacts_root,
             "portfolio_artifacts_root": self.portfolio_artifacts_root,
             "comparison_output_path": self.comparison_output_path,
             "review_output_path": self.review_output_path,
@@ -407,6 +410,7 @@ class ResearchCampaignConfig:
             alpha_artifacts_root="artifacts/alpha",
             candidate_selection_output_path=_DEFAULT_CANDIDATE_SELECTION_OUTPUT_PATH,
             candidate_selection_registry_path=None,
+            campaign_artifacts_root="artifacts/research_campaigns",
             portfolio_artifacts_root="artifacts/portfolios",
             comparison_output_path=None,
             review_output_path=None,
@@ -808,6 +812,11 @@ def _resolve_candidate_selection(
     inherited = CampaignCandidateSelectionConfig(
         **{
             **base.__dict__,
+            "artifacts_root": (
+                outputs.alpha_artifacts_root
+                if base.artifacts_root == "artifacts/alpha"
+                else base.artifacts_root
+            ),
             "dataset": base.dataset if base.dataset is not None else shared_dataset.dataset,
             "timeframe": base.timeframe if base.timeframe is not None else shared_dataset.timeframe,
             "evaluation_horizon": base.evaluation_horizon
@@ -1250,6 +1259,10 @@ def _resolve_outputs(payload: Any, *, base: CampaignOutputsConfig) -> CampaignOu
             payload.get("candidate_selection_registry_path"),
             field_name="outputs.candidate_selection_registry_path",
             default=base.candidate_selection_registry_path,
+        ),
+        campaign_artifacts_root=_normalize_required_path_string(
+            payload.get("campaign_artifacts_root", base.campaign_artifacts_root),
+            field_name="outputs.campaign_artifacts_root",
         ),
         portfolio_artifacts_root=_normalize_required_path_string(
             payload.get("portfolio_artifacts_root", base.portfolio_artifacts_root),

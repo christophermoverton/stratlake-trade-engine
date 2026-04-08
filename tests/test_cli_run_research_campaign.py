@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -11,6 +12,13 @@ from src.cli.run_research_campaign import (
     run_research_campaign,
 )
 from src.config.research_campaign import resolve_research_campaign_config
+
+
+def _write_feature_fixture(root: Path, dataset: str = "features_daily") -> Path:
+    dataset_root = root / "curated" / dataset / "symbol=AAA" / "year=2025"
+    dataset_root.mkdir(parents=True, exist_ok=True)
+    (dataset_root / "part-0.parquet").write_text("fixture", encoding="utf-8")
+    return dataset_root
 
 
 def test_parse_args_accepts_optional_config_path() -> None:
@@ -27,8 +35,40 @@ def test_run_research_campaign_executes_stages_in_deterministic_order(
     alpha_catalog = tmp_path / "alphas.yml"
     strategy_config = tmp_path / "strategies.yml"
     portfolio_config = tmp_path / "portfolios.yml"
-    for path in (alpha_catalog, strategy_config, portfolio_config):
-        path.write_text("{}", encoding="utf-8")
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text(
+        """
+momentum_v1:
+  dataset: features_daily
+  parameters: {}
+""".strip(),
+        encoding="utf-8",
+    )
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
 
     config = resolve_research_campaign_config(
         {
@@ -81,6 +121,7 @@ def test_run_research_campaign_executes_stages_in_deterministic_order(
             },
             "outputs": {
                 "alpha_artifacts_root": (tmp_path / "alpha_artifacts").as_posix(),
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
                 "comparison_output_path": (tmp_path / "comparisons").as_posix(),
                 "portfolio_artifacts_root": (tmp_path / "portfolio_artifacts").as_posix(),
             },
@@ -152,10 +193,15 @@ def test_run_research_campaign_executes_stages_in_deterministic_order(
     assert result.candidate_selection_result.run_id == "candidate_run"
     assert result.portfolio_result.run_id == "portfolio_run"
     assert result.review_result.review_id == "review_run"
+    assert result.preflight_summary_path.exists()
+    assert result.campaign_artifact_dir.exists()
+    assert result.preflight_summary["status"] == "passed"
+    assert result.preflight_summary["check_counts"]["failed"] == 0
 
     alpha_argv = dict(enumerate(call_order[0][1]))
     assert "--alpha-name" in alpha_argv.values()
     assert "--config" in alpha_argv.values()
+    assert "--artifacts-root" in alpha_argv.values()
 
     candidate_argv = call_order[4][1]
     assert "--register-run" in candidate_argv
@@ -174,6 +220,7 @@ def test_run_research_campaign_executes_stages_in_deterministic_order(
     assert "--disable-plots" in review_argv
 
     assert "Research Campaign Summary" in stdout
+    assert "Preflight: passed" in stdout
     assert "Research: alpha_runs=1 | strategy_runs=1" in stdout
     assert "Comparison: alpha=alpha_cmp | strategy=strategy_cmp" in stdout
     assert "Selection/Portfolio: candidate=candidate_run | portfolio=portfolio_run" in stdout
@@ -181,11 +228,37 @@ def test_run_research_campaign_executes_stages_in_deterministic_order(
     assert "review_id=review_run" in stdout
 
 
-def test_run_research_campaign_preflight_requires_candidate_alpha_name(tmp_path: Path) -> None:
+def test_run_research_campaign_preflight_requires_candidate_alpha_name(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     alpha_catalog = tmp_path / "alphas.yml"
     strategy_config = tmp_path / "strategies.yml"
-    alpha_catalog.write_text("{}", encoding="utf-8")
-    strategy_config.write_text("{}", encoding="utf-8")
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+alpha_two:
+  alpha_name: alpha_two
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
 
     config = resolve_research_campaign_config(
         {
@@ -197,11 +270,20 @@ def test_run_research_campaign_preflight_requires_candidate_alpha_name(tmp_path:
             "candidate_selection": {
                 "enabled": True,
             },
+            "outputs": {
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+            },
         }
     )
 
     with pytest.raises(ValueError, match="Candidate selection requires one resolved alpha_name"):
         run_research_campaign(config)
+
+    summaries = list((tmp_path / "campaign_artifacts").glob("*/preflight_summary.json"))
+    assert len(summaries) == 1
+    summary = json.loads(summaries[0].read_text(encoding="utf-8"))
+    assert summary["status"] == "failed"
+    assert "candidate_selection.alpha_name" in summary["failed_checks"]
 
 
 def test_run_cli_uses_resolved_config_from_loader(
@@ -210,8 +292,23 @@ def test_run_cli_uses_resolved_config_from_loader(
 ) -> None:
     alpha_catalog = tmp_path / "alphas.yml"
     strategy_config = tmp_path / "strategies.yml"
-    alpha_catalog.write_text("{}", encoding="utf-8")
-    strategy_config.write_text("{}", encoding="utf-8")
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
 
     config = resolve_research_campaign_config(
         {
@@ -219,7 +316,10 @@ def test_run_cli_uses_resolved_config_from_loader(
                 "alpha_names": ["alpha_one"],
                 "alpha_catalog_path": alpha_catalog.as_posix(),
                 "strategy_config_path": strategy_config.as_posix(),
-            }
+            },
+            "outputs": {
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+            },
         }
     )
 
@@ -237,3 +337,4 @@ def test_run_cli_uses_resolved_config_from_loader(
 
     assert result.alpha_results[0].run_id == "alpha_run"
     assert result.review_result.review_id == "review_run"
+    assert result.preflight_summary["status"] == "passed"

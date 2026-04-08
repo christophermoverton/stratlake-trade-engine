@@ -20,10 +20,12 @@ def test_resolve_research_campaign_config_loads_defaults() -> None:
     assert config.dataset_selection.dataset is None
     assert config.comparison.alpha_view == "combined"
     assert config.candidate_selection.metric == "ic_ir"
+    assert config.candidate_selection.artifacts_root == "artifacts/alpha"
     assert config.candidate_selection.output.path == "artifacts/candidate_selection"
     assert config.portfolio.enabled is False
     assert config.review.ranking.strategy_primary_metric == "sharpe_ratio"
     assert config.outputs.alpha_artifacts_root == "artifacts/alpha"
+    assert config.outputs.campaign_artifacts_root == "artifacts/research_campaigns"
 
 
 def test_load_research_campaign_config_supports_nested_payload_and_inheritance(
@@ -43,6 +45,7 @@ research_campaign:
     strategy_names: [momentum_v1]
     portfolio_names: [candidate_portfolio]
   outputs:
+    alpha_artifacts_root: artifacts/alpha/q1
     review_output_path: artifacts/reviews/q1
   candidate_selection:
     enabled: true
@@ -62,6 +65,7 @@ research_campaign:
     assert config.candidate_selection.evaluation_horizon == 5
     assert config.candidate_selection.mapping_name == "top_bottom_quantile_q20"
     assert config.candidate_selection.alpha_name == "ml_alpha_q1"
+    assert config.candidate_selection.artifacts_root == "artifacts/alpha/q1"
     assert config.portfolio.portfolio_name == "candidate_portfolio"
     assert config.portfolio.timeframe == "1D"
     assert config.review.filters.dataset == "features_daily"
@@ -91,6 +95,7 @@ research_campaign:
       max_weight: 0.25
   outputs:
     candidate_selection_output_path: artifacts/candidate_selection/custom
+    campaign_artifacts_root: artifacts/research_campaigns/custom
 """.strip(),
         encoding="utf-8",
     )
@@ -120,6 +125,7 @@ research_campaign:
         config.candidate_selection.output.registry_path
         == "artifacts/candidate_selection/custom/registry.jsonl"
     )
+    assert config.outputs.campaign_artifacts_root == "artifacts/research_campaigns/custom"
     assert config.portfolio.enabled is True
 
 

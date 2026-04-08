@@ -108,6 +108,7 @@ research_campaign:
     alpha_artifacts_root: artifacts/alpha
     candidate_selection_output_path: artifacts/candidate_selection
     candidate_selection_registry_path:
+    campaign_artifacts_root: artifacts/research_campaigns
     portfolio_artifacts_root: artifacts/portfolios
     comparison_output_path:
     review_output_path:

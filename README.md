@@ -105,6 +105,8 @@ The repository currently supports:
 * candidate review outputs that explain selection and contribution decisions
 * manifest-backed unified research review artifacts with deterministic review summaries
 * unified runtime configuration with auditable persisted settings
+* unified research campaign configuration for shared dataset, target, comparison,
+  candidate-selection, portfolio, review, and output-path settings
 * deterministic artifacts, manifests, and registry-backed reuse
 
 Feature naming note:
@@ -362,6 +364,7 @@ See:
 * [docs/research_validity_framework.md](docs/research_validity_framework.md)
 * [docs/execution_model.md](docs/execution_model.md)
 * [docs/runtime_configuration.md](docs/runtime_configuration.md)
+* [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
 * [docs/strict_mode.md](docs/strict_mode.md)
 * [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 
@@ -787,6 +790,7 @@ Research integrity and execution references:
 * [docs/research_validity_framework.md](docs/research_validity_framework.md)
 * [docs/execution_model.md](docs/execution_model.md)
 * [docs/runtime_configuration.md](docs/runtime_configuration.md)
+* [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
 * [docs/strict_mode.md](docs/strict_mode.md)
 * [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 

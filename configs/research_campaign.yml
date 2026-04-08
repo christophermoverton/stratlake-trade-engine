@@ -1,0 +1,113 @@
+research_campaign:
+  dataset_selection:
+    dataset:
+    timeframe:
+    evaluation_horizon:
+    mapping_name:
+    tickers_path:
+
+  time_windows:
+    start:
+    end:
+    train_start:
+    train_end:
+    predict_start:
+    predict_end:
+
+  targets:
+    alpha_names: []
+    strategy_names: []
+    portfolio_names: []
+    alpha_catalog_path: configs/alphas.yml
+    strategy_config_path: configs/strategies.yml
+    portfolio_config_path: configs/portfolios.yml
+
+  comparison:
+    enabled: false
+    from_registry: true
+    top_k:
+    alpha_view: combined
+    alpha_metric: ic_ir
+    alpha_sleeve_metric: sharpe_ratio
+    strategy_metric: sharpe_ratio
+
+  candidate_selection:
+    enabled: false
+    artifacts_root: artifacts/alpha
+    alpha_name:
+    dataset:
+    timeframe:
+    evaluation_horizon:
+    mapping_name:
+    metric: ic_ir
+    max_candidates:
+    eligibility:
+      min_ic:
+      min_rank_ic:
+      min_ic_ir:
+      min_rank_ic_ir:
+      min_history_length:
+      min_coverage:
+    redundancy:
+      max_correlation:
+      min_overlap_observations:
+    allocation:
+      method: equal_weight
+      max_weight:
+      min_candidates:
+      min_weight:
+      weight_sum_tolerance: 1.0e-12
+      rounding_decimals: 12
+    execution:
+      strict_mode: false
+      skip_eligibility: false
+      skip_redundancy: false
+      skip_allocation: false
+      enable_review: false
+      no_markdown_review: false
+      register_run: false
+      from_registry: false
+    output:
+      path: artifacts/candidate_selection
+      registry_path:
+      review_output_path:
+
+  portfolio:
+    enabled: false
+    portfolio_name:
+    timeframe:
+    from_registry: false
+    from_candidate_selection: false
+    evaluation_path:
+    optimizer_method:
+
+  review:
+    filters:
+      run_types:
+        - alpha_evaluation
+        - strategy
+        - portfolio
+      timeframe:
+      dataset:
+      alpha_name:
+      strategy_name:
+      portfolio_name:
+      top_k_per_type:
+    ranking:
+      alpha_evaluation_primary_metric: ic_ir
+      alpha_evaluation_secondary_metric: mean_ic
+      strategy_primary_metric: sharpe_ratio
+      strategy_secondary_metric: total_return
+      portfolio_primary_metric: sharpe_ratio
+      portfolio_secondary_metric: total_return
+    output:
+      path:
+      emit_plots: true
+
+  outputs:
+    alpha_artifacts_root: artifacts/alpha
+    candidate_selection_output_path: artifacts/candidate_selection
+    candidate_selection_registry_path:
+    portfolio_artifacts_root: artifacts/portfolios
+    comparison_output_path:
+    review_output_path:

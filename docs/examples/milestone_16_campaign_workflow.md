@@ -16,8 +16,8 @@ docs/examples/data/milestone_16_campaign_configs/
 
 Included examples:
 
-* `full_campaign.yml`
-* `registry_chained_campaign.yml`
+* [data/milestone_16_campaign_configs/full_campaign.yml](data/milestone_16_campaign_configs/full_campaign.yml)
+* [data/milestone_16_campaign_configs/registry_chained_campaign.yml](data/milestone_16_campaign_configs/registry_chained_campaign.yml)
 
 ## Run It
 

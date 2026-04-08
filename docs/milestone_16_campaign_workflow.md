@@ -168,7 +168,7 @@ docs/examples/data/milestone_16_campaign_configs/
 ### Full end-to-end campaign
 
 Use
-`docs/examples/data/milestone_16_campaign_configs/full_campaign.yml`
+[examples/data/milestone_16_campaign_configs/full_campaign.yml](examples/data/milestone_16_campaign_configs/full_campaign.yml)
 when you want the campaign runner to execute fresh research, comparison,
 candidate selection, portfolio construction, candidate review, and unified
 review in one pass.
@@ -186,7 +186,7 @@ This example demonstrates:
 ### Registry-chained downstream campaign
 
 Use
-`docs/examples/data/milestone_16_campaign_configs/registry_chained_campaign.yml`
+[examples/data/milestone_16_campaign_configs/registry_chained_campaign.yml](examples/data/milestone_16_campaign_configs/registry_chained_campaign.yml)
 when upstream alpha work already exists and you want the campaign to resolve a
 candidate-selection artifact from the registry, then continue with portfolio
 construction and unified review.

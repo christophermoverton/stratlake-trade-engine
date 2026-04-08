@@ -7,7 +7,7 @@ import hashlib
 import json
 from pathlib import Path
 import sys
-from typing import Any, Iterator, Sequence
+from typing import Any, Iterator, Mapping, Sequence
 
 from src.cli import compare_alpha as compare_alpha_cli
 from src.cli import compare_research as compare_research_cli
@@ -57,6 +57,17 @@ class CampaignStageRecord:
     stage_name: str
     status: str
     details: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class CampaignArtifactReference:
+    stage_name: str
+    source: str
+    run_id: str
+    artifact_dir: Path
+    registry_path: Path | None = None
+    match_criteria: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -118,6 +129,8 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
     campaign_run_id = _build_campaign_run_id(config)
     campaign_artifact_dir = _campaign_artifact_dir(config, campaign_run_id=campaign_run_id)
     _persist_campaign_config(campaign_artifact_dir, config)
+    candidate_selection_reference: CampaignArtifactReference | None = None
+    portfolio_reference: CampaignArtifactReference | None = None
 
     preflight_result = _run_preflight(config, campaign_run_id=campaign_run_id, campaign_artifact_dir=campaign_artifact_dir)
     records.append(
@@ -190,7 +203,7 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
 
     candidate_selection_result = None
     if config.candidate_selection.enabled:
-        candidate_selection_result = _run_candidate_selection(config)
+        candidate_selection_result, candidate_selection_reference = _run_candidate_selection(config)
     records.append(
         CampaignStageRecord(
             stage_name="candidate_selection",
@@ -198,19 +211,40 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             details={
                 "run_id": None
                 if candidate_selection_result is None
-                else str(candidate_selection_result.run_id)
+                else str(candidate_selection_result.run_id),
+                "input_reference": (
+                    None
+                    if candidate_selection_reference is None
+                    else _artifact_reference_payload(candidate_selection_reference)
+                ),
             },
         )
     )
 
     portfolio_result = None
     if config.portfolio.enabled:
-        portfolio_result = _run_portfolio(config, candidate_selection_result=candidate_selection_result)
+        portfolio_result, portfolio_reference, candidate_selection_reference = _run_portfolio(
+            config,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+        )
     records.append(
         CampaignStageRecord(
             stage_name="portfolio",
             status="completed" if portfolio_result is not None else "skipped",
-            details={"run_id": None if portfolio_result is None else str(portfolio_result.run_id)},
+            details={
+                "run_id": None if portfolio_result is None else str(portfolio_result.run_id),
+                "input_candidate_selection": (
+                    None
+                    if candidate_selection_reference is None
+                    else _artifact_reference_payload(candidate_selection_reference)
+                ),
+                "input_reference": (
+                    None
+                    if portfolio_reference is None
+                    else _artifact_reference_payload(portfolio_reference)
+                ),
+            },
         )
     )
 
@@ -219,7 +253,9 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         candidate_review_result = _run_candidate_review(
             config,
             candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
             portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
         )
     records.append(
         CampaignStageRecord(
@@ -235,6 +271,16 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                 "portfolio_run_id": None
                 if candidate_review_result is None
                 else _string_or_none(candidate_review_result, "portfolio_run_id"),
+                "input_candidate_selection": (
+                    None
+                    if candidate_selection_reference is None
+                    else _artifact_reference_payload(candidate_selection_reference)
+                ),
+                "input_portfolio": (
+                    None
+                    if portfolio_reference is None
+                    else _artifact_reference_payload(portfolio_reference)
+                ),
             },
         )
     )
@@ -373,6 +419,408 @@ def _format_run_failure(exc: Exception) -> str:
     return f"Run failed: {message}"
 
 
+def _artifact_reference_payload(reference: CampaignArtifactReference) -> dict[str, Any]:
+    payload = {
+        "stage_name": reference.stage_name,
+        "source": reference.source,
+        "run_id": reference.run_id,
+        "artifact_dir": reference.artifact_dir.as_posix(),
+        "registry_path": None if reference.registry_path is None else reference.registry_path.as_posix(),
+        "match_criteria": canonicalize_value(reference.match_criteria),
+        "metadata": canonicalize_value(reference.metadata),
+    }
+    return canonicalize_value(payload)
+
+
+def _candidate_selection_registry_path_for_campaign(config: ResearchCampaignConfig) -> Path:
+    if config.candidate_selection.output.registry_path is not None:
+        return Path(config.candidate_selection.output.registry_path)
+    return candidate_selection_registry_path(config.candidate_selection.output.path)
+
+
+def _portfolio_registry_path(config: ResearchCampaignConfig) -> Path:
+    return default_registry_path(Path(config.outputs.portfolio_artifacts_root))
+
+
+def _candidate_selection_match_criteria(config: ResearchCampaignConfig) -> dict[str, Any]:
+    candidate = config.candidate_selection
+    return canonicalize_value(
+        {
+            "alpha_name": candidate.alpha_name,
+            "dataset": candidate.dataset,
+            "timeframe": candidate.timeframe,
+            "evaluation_horizon": candidate.evaluation_horizon,
+            "mapping_name": candidate.mapping_name,
+        }
+    )
+
+
+def _portfolio_match_criteria(
+    config: ResearchCampaignConfig,
+    *,
+    candidate_selection_reference: CampaignArtifactReference | None = None,
+) -> dict[str, Any]:
+    return canonicalize_value(
+        {
+            "portfolio_name": config.portfolio.portfolio_name,
+            "timeframe": config.portfolio.timeframe,
+            "candidate_selection_run_id": (
+                None if candidate_selection_reference is None else candidate_selection_reference.run_id
+            ),
+        }
+    )
+
+
+def _validate_candidate_selection_resolution(config: ResearchCampaignConfig) -> tuple[bool, str]:
+    try:
+        reference = _resolve_candidate_selection_reference(config)
+    except ValueError as exc:
+        return False, str(exc)
+    return (
+        True,
+        "Resolved candidate-selection registry input "
+        f"'{reference.run_id}' from {reference.registry_path.as_posix()}."
+        if reference.registry_path is not None
+        else f"Resolved candidate-selection registry input '{reference.run_id}'.",
+    )
+
+
+def _validate_portfolio_resolution(config: ResearchCampaignConfig) -> tuple[bool, str]:
+    try:
+        reference = _resolve_portfolio_reference(config, candidate_selection_reference=None)
+    except ValueError as exc:
+        return False, str(exc)
+    return (
+        True,
+        "Resolved portfolio registry input "
+        f"'{reference.run_id}' from {reference.registry_path.as_posix()}."
+        if reference.registry_path is not None
+        else f"Resolved portfolio registry input '{reference.run_id}'.",
+    )
+
+
+def _can_resolve_candidate_selection_reference(config: ResearchCampaignConfig) -> bool:
+    ok, _message = _validate_candidate_selection_resolution(config)
+    return ok
+
+
+def _can_resolve_portfolio_reference(config: ResearchCampaignConfig) -> bool:
+    ok, _message = _validate_portfolio_resolution(config)
+    return ok
+
+
+def _resolve_candidate_selection_reference(config: ResearchCampaignConfig) -> CampaignArtifactReference:
+    registry_path = _candidate_selection_registry_path_for_campaign(config)
+    criteria = _candidate_selection_match_criteria(config)
+    entries = _load_required_registry_entries(registry_path, run_type="candidate_selection")
+    matches = _filter_candidate_selection_registry_entries(entries, criteria, registry_path=registry_path)
+    selected = _select_single_registry_match(
+        matches,
+        stage_name="candidate_selection",
+        registry_path=registry_path,
+        criteria=criteria,
+    )
+    return CampaignArtifactReference(
+        stage_name="candidate_selection",
+        source="registry",
+        run_id=str(selected["run_id"]),
+        artifact_dir=Path(str(selected["artifact_dir"])),
+        registry_path=registry_path,
+        match_criteria=criteria,
+        metadata=selected["metadata"],
+    )
+
+
+def _resolve_portfolio_reference(
+    config: ResearchCampaignConfig,
+    *,
+    candidate_selection_reference: CampaignArtifactReference | None,
+) -> CampaignArtifactReference:
+    registry_path = _portfolio_registry_path(config)
+    criteria = _portfolio_match_criteria(
+        config,
+        candidate_selection_reference=candidate_selection_reference,
+    )
+    entries = _load_required_registry_entries(registry_path, run_type="portfolio")
+    matches = _filter_portfolio_registry_entries(entries, criteria, registry_path=registry_path)
+    selected = _select_single_registry_match(
+        matches,
+        stage_name="portfolio",
+        registry_path=registry_path,
+        criteria=criteria,
+    )
+    return CampaignArtifactReference(
+        stage_name="portfolio",
+        source="registry",
+        run_id=str(selected["run_id"]),
+        artifact_dir=Path(str(selected["artifact_dir"])),
+        registry_path=registry_path,
+        match_criteria=criteria,
+        metadata=selected["metadata"],
+    )
+
+
+def _load_required_registry_entries(registry_path: Path, *, run_type: str) -> list[dict[str, Any]]:
+    try:
+        entries = load_registry(registry_path)
+    except Exception as exc:
+        raise ValueError(f"Failed to load {run_type} registry {registry_path.as_posix()}: {exc}") from exc
+    if not registry_path.exists():
+        raise ValueError(f"{run_type} registry path does not exist: {registry_path.as_posix()}")
+    filtered = [entry for entry in entries if str(entry.get("run_type") or "") == run_type]
+    if not filtered:
+        raise ValueError(f"No {run_type} entries found in registry: {registry_path.as_posix()}")
+    return filtered
+
+
+def _filter_candidate_selection_registry_entries(
+    entries: Sequence[dict[str, Any]],
+    criteria: Mapping[str, Any],
+    *,
+    registry_path: Path,
+) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    incomplete_messages: list[str] = []
+    for entry in entries:
+        try:
+            metadata = _candidate_selection_entry_metadata(entry)
+        except ValueError as exc:
+            incomplete_messages.append(str(exc))
+            continue
+        if not _entry_matches_candidate_selection_criteria(metadata, criteria):
+            continue
+        matches.append(
+            {
+                "run_id": str(entry.get("run_id")),
+                "artifact_dir": metadata["artifact_dir"],
+                "metadata": metadata,
+            }
+        )
+    if not matches and incomplete_messages:
+        formatted = " | ".join(sorted(set(incomplete_messages)))
+        raise ValueError(
+            "Candidate-selection registry state is incomplete for campaign chaining at "
+            f"{registry_path.as_posix()}: {formatted}"
+        )
+    return matches
+
+
+def _filter_portfolio_registry_entries(
+    entries: Sequence[dict[str, Any]],
+    criteria: Mapping[str, Any],
+    *,
+    registry_path: Path,
+) -> list[dict[str, Any]]:
+    matches: list[dict[str, Any]] = []
+    incomplete_messages: list[str] = []
+    for entry in entries:
+        try:
+            metadata = _portfolio_entry_metadata(entry)
+        except ValueError as exc:
+            incomplete_messages.append(str(exc))
+            continue
+        if not _entry_matches_portfolio_criteria(metadata, criteria):
+            continue
+        matches.append(
+            {
+                "run_id": str(entry.get("run_id")),
+                "artifact_dir": metadata["artifact_dir"],
+                "metadata": metadata,
+            }
+        )
+    if not matches and incomplete_messages:
+        formatted = " | ".join(sorted(set(incomplete_messages)))
+        raise ValueError(
+            "Portfolio registry state is incomplete for campaign chaining at "
+            f"{registry_path.as_posix()}: {formatted}"
+        )
+    return matches
+
+
+def _select_single_registry_match(
+    matches: Sequence[dict[str, Any]],
+    *,
+    stage_name: str,
+    registry_path: Path,
+    criteria: Mapping[str, Any],
+) -> dict[str, Any]:
+    if not matches:
+        raise ValueError(
+            f"No {stage_name} registry entry matched campaign criteria "
+            f"{serialize_criteria(criteria)} in {registry_path.as_posix()}."
+        )
+    ordered = sorted(
+        matches,
+        key=lambda match: (str(match["run_id"]), str(match["artifact_dir"])),
+    )
+    if len(ordered) > 1:
+        run_ids = ", ".join(str(match["run_id"]) for match in ordered)
+        raise ValueError(
+            f"Ambiguous {stage_name} registry state for campaign criteria "
+            f"{serialize_criteria(criteria)} in {registry_path.as_posix()}: {run_ids}"
+        )
+    return ordered[0]
+
+
+def serialize_criteria(criteria: Mapping[str, Any]) -> str:
+    items = [
+        f"{key}={value}"
+        for key, value in sorted(criteria.items())
+        if value is not None
+    ]
+    return ", ".join(items) if items else "(no filters)"
+
+
+def _candidate_selection_entry_metadata(entry: Mapping[str, Any]) -> dict[str, Any]:
+    run_id = str(entry.get("run_id") or "").strip()
+    if not run_id:
+        raise ValueError("candidate_selection entry missing run_id.")
+    artifact_path = entry.get("artifact_path")
+    if not isinstance(artifact_path, str) or not artifact_path.strip():
+        raise ValueError(f"candidate_selection entry '{run_id}' missing artifact_path.")
+    artifact_dir = Path(artifact_path)
+    if not artifact_dir.exists():
+        raise ValueError(
+            f"candidate_selection entry '{run_id}' points to missing artifact dir {artifact_dir.as_posix()}."
+        )
+
+    manifest_path_text = entry.get("manifest_path")
+    manifest_path = (
+        Path(str(manifest_path_text))
+        if isinstance(manifest_path_text, str) and manifest_path_text.strip()
+        else artifact_dir / "manifest.json"
+    )
+    manifest = _read_json_mapping(
+        manifest_path,
+        missing_message=(
+            f"candidate_selection entry '{run_id}' is incomplete: manifest missing at {manifest_path.as_posix()}."
+        ),
+        invalid_message=(
+            f"candidate_selection entry '{run_id}' has invalid manifest at {manifest_path.as_posix()}."
+        ),
+    )
+    provenance = manifest.get("provenance")
+    if not isinstance(provenance, Mapping):
+        provenance = {}
+    config_snapshot = manifest.get("config_snapshot")
+    if not isinstance(config_snapshot, Mapping):
+        config_snapshot = {}
+    filters = config_snapshot.get("filters")
+    if not isinstance(filters, Mapping):
+        filters = {}
+
+    mapping_names = provenance.get("mapping_names")
+    if not isinstance(mapping_names, list):
+        mapping_names = []
+    normalized_mapping_names = sorted(
+        {
+            str(item).strip()
+            for item in mapping_names
+            if str(item).strip()
+        }
+    )
+    return canonicalize_value(
+        {
+            "artifact_dir": artifact_dir.as_posix(),
+            "manifest_path": manifest_path.as_posix(),
+            "alpha_name": filters.get("alpha_name"),
+            "dataset": entry.get("dataset", provenance.get("dataset")),
+            "timeframe": entry.get("timeframe", provenance.get("timeframe")),
+            "evaluation_horizon": entry.get(
+                "evaluation_horizon",
+                provenance.get("evaluation_horizon"),
+            ),
+            "mapping_names": normalized_mapping_names,
+            "primary_metric": (
+                entry.get("metadata", {}).get("primary_metric")
+                if isinstance(entry.get("metadata"), Mapping)
+                else None
+            ),
+            "upstream_alpha_run_ids": (
+                provenance.get("upstream", {}).get("alpha_run_ids")
+                if isinstance(provenance.get("upstream"), Mapping)
+                else None
+            ),
+        }
+    )
+
+
+def _portfolio_entry_metadata(entry: Mapping[str, Any]) -> dict[str, Any]:
+    run_id = str(entry.get("run_id") or "").strip()
+    if not run_id:
+        raise ValueError("portfolio entry missing run_id.")
+    artifact_path = entry.get("artifact_path")
+    if not isinstance(artifact_path, str) or not artifact_path.strip():
+        raise ValueError(f"portfolio entry '{run_id}' missing artifact_path.")
+    artifact_dir = Path(artifact_path)
+    if not artifact_dir.exists():
+        raise ValueError(f"portfolio entry '{run_id}' points to missing artifact dir {artifact_dir.as_posix()}.")
+
+    config = entry.get("config")
+    if not isinstance(config, Mapping):
+        config = {}
+    candidate_provenance = config.get("candidate_selection_provenance")
+    if not isinstance(candidate_provenance, Mapping):
+        candidate_provenance = {}
+
+    return canonicalize_value(
+        {
+            "artifact_dir": artifact_dir.as_posix(),
+            "portfolio_name": entry.get("portfolio_name"),
+            "timeframe": entry.get("timeframe"),
+            "candidate_selection_run_id": candidate_provenance.get("run_id"),
+            "component_run_ids": entry.get("component_run_ids"),
+        }
+    )
+
+
+def _read_json_mapping(path: Path, *, missing_message: str, invalid_message: str) -> dict[str, Any]:
+    if not path.exists():
+        raise ValueError(missing_message)
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError) as exc:
+        raise ValueError(invalid_message) from exc
+    if not isinstance(payload, dict):
+        raise ValueError(invalid_message)
+    return payload
+
+
+def _entry_matches_candidate_selection_criteria(
+    metadata: Mapping[str, Any],
+    criteria: Mapping[str, Any],
+) -> bool:
+    if criteria.get("alpha_name") is not None and metadata.get("alpha_name") != criteria.get("alpha_name"):
+        return False
+    if criteria.get("dataset") is not None and metadata.get("dataset") != criteria.get("dataset"):
+        return False
+    if criteria.get("timeframe") is not None and metadata.get("timeframe") != criteria.get("timeframe"):
+        return False
+    if criteria.get("evaluation_horizon") is not None and metadata.get("evaluation_horizon") != criteria.get("evaluation_horizon"):
+        return False
+    if criteria.get("mapping_name") is not None:
+        mapping_names = metadata.get("mapping_names")
+        if not isinstance(mapping_names, list) or criteria.get("mapping_name") not in mapping_names:
+            return False
+    return True
+
+
+def _entry_matches_portfolio_criteria(
+    metadata: Mapping[str, Any],
+    criteria: Mapping[str, Any],
+) -> bool:
+    if criteria.get("portfolio_name") is not None and metadata.get("portfolio_name") != criteria.get("portfolio_name"):
+        return False
+    if criteria.get("timeframe") is not None and metadata.get("timeframe") != criteria.get("timeframe"):
+        return False
+    if (
+        criteria.get("candidate_selection_run_id") is not None
+        and metadata.get("candidate_selection_run_id") != criteria.get("candidate_selection_run_id")
+    ):
+        return False
+    return True
+
+
 def _run_preflight(
     config: ResearchCampaignConfig,
     *,
@@ -439,13 +887,18 @@ def _run_preflight(
         "portfolio.from_candidate_selection",
         (not config.portfolio.enabled)
         or (not config.portfolio.from_candidate_selection)
-        or config.candidate_selection.enabled,
+        or config.candidate_selection.enabled
+        or _can_resolve_candidate_selection_reference(config),
         (
             "Portfolio candidate-selection dependency is satisfied."
             if (not config.portfolio.enabled)
             or (not config.portfolio.from_candidate_selection)
             or config.candidate_selection.enabled
-            else "portfolio.from_candidate_selection requires candidate_selection.enabled to be true in the same campaign."
+            or _can_resolve_candidate_selection_reference(config)
+            else (
+                "portfolio.from_candidate_selection requires either candidate_selection.enabled "
+                "or one unambiguous candidate-selection registry match."
+            )
         ),
         portfolio_enabled=config.portfolio.enabled,
         from_candidate_selection=config.portfolio.from_candidate_selection,
@@ -455,13 +908,18 @@ def _run_preflight(
         "candidate_review.requires_portfolio",
         (not config.candidate_selection.enabled)
         or (not config.candidate_selection.execution.enable_review)
-        or config.portfolio.enabled,
+        or config.portfolio.enabled
+        or _can_resolve_portfolio_reference(config),
         (
             "Candidate review dependency is satisfied."
             if (not config.candidate_selection.enabled)
             or (not config.candidate_selection.execution.enable_review)
             or config.portfolio.enabled
-            else "candidate_selection.execution.enable_review requires portfolio.enabled so the review stage has portfolio artifacts."
+            or _can_resolve_portfolio_reference(config)
+            else (
+                "candidate_selection.execution.enable_review requires either portfolio.enabled "
+                "or one unambiguous portfolio registry match."
+            )
         ),
         candidate_selection_enabled=config.candidate_selection.enabled,
         enable_review=config.candidate_selection.execution.enable_review,
@@ -664,6 +1122,27 @@ def _run_preflight(
             path=registry_path.as_posix(),
             entry_count=entry_count,
         )
+        candidate_ok, candidate_message = _validate_candidate_selection_resolution(config)
+        add_check(
+            "registry.candidate_selection.resolution",
+            candidate_ok,
+            candidate_message,
+            path=registry_path.as_posix(),
+        )
+
+    if config.portfolio.enabled and config.portfolio.from_candidate_selection and not config.candidate_selection.enabled:
+        registry_path = (
+            Path(config.candidate_selection.output.registry_path)
+            if config.candidate_selection.output.registry_path is not None
+            else candidate_selection_registry_path(config.candidate_selection.output.path)
+        )
+        candidate_ok, candidate_message = _validate_candidate_selection_resolution(config)
+        add_check(
+            "registry.candidate_selection.portfolio_input",
+            candidate_ok,
+            candidate_message,
+            path=registry_path.as_posix(),
+        )
 
     if config.portfolio.enabled and config.portfolio.from_registry and not strategy_names:
         strategy_registry_path = default_registry_path(STRATEGY_ARTIFACTS_ROOT)
@@ -674,6 +1153,16 @@ def _run_preflight(
             message,
             path=strategy_registry_path.as_posix(),
             entry_count=entry_count,
+        )
+
+    if config.candidate_selection.enabled and config.candidate_selection.execution.enable_review and not config.portfolio.enabled:
+        portfolio_registry_path = _portfolio_registry_path(config)
+        portfolio_ok, portfolio_message = _validate_portfolio_resolution(config)
+        add_check(
+            "registry.portfolio.candidate_review",
+            portfolio_ok,
+            portfolio_message,
+            path=portfolio_registry_path.as_posix(),
         )
 
     failed_checks = [check for check in checks if check.status == "failed"]
@@ -820,7 +1309,9 @@ def _run_strategy_comparison(config: ResearchCampaignConfig) -> Any | None:
         return compare_strategies_cli.run_cli(argv)
 
 
-def _run_candidate_selection(config: ResearchCampaignConfig) -> Any:
+def _run_candidate_selection(
+    config: ResearchCampaignConfig,
+) -> tuple[Any, CampaignArtifactReference | None]:
     candidate = config.candidate_selection
     argv = [
         "--artifacts-root",
@@ -911,18 +1402,25 @@ def _run_candidate_selection(config: ResearchCampaignConfig) -> Any:
         argv.append("--skip-redundancy")
     if candidate.execution.skip_allocation:
         argv.append("--skip-allocation")
+    reference = None
     if candidate.execution.from_registry:
-        argv.append("--from-registry")
+        reference = _resolve_candidate_selection_reference(config)
+        argv.extend(["--candidate-selection-path", reference.artifact_dir.as_posix()])
     if candidate.execution.register_run:
         argv.append("--register-run")
     if candidate.execution.no_markdown_review:
         argv.append("--no-markdown-review")
     if candidate.output.registry_path is not None:
         argv.extend(["--registry-path", candidate.output.registry_path])
-    return run_candidate_selection_cli.run_cli(argv)
+    return run_candidate_selection_cli.run_cli(argv), reference
 
 
-def _run_portfolio(config: ResearchCampaignConfig, *, candidate_selection_result: Any | None) -> Any:
+def _run_portfolio(
+    config: ResearchCampaignConfig,
+    *,
+    candidate_selection_result: Any | None,
+    candidate_selection_reference: CampaignArtifactReference | None,
+) -> tuple[Any, CampaignArtifactReference | None, CampaignArtifactReference | None]:
     portfolio = config.portfolio
     argv = [
         "--portfolio-name",
@@ -930,14 +1428,30 @@ def _run_portfolio(config: ResearchCampaignConfig, *, candidate_selection_result
         "--timeframe",
         str(portfolio.timeframe),
     ]
+    portfolio_input_reference = None
     if portfolio.from_candidate_selection:
-        if candidate_selection_result is None:
-            raise ValueError("Portfolio stage requires a completed candidate selection result.")
+        if candidate_selection_result is None and candidate_selection_reference is None:
+            candidate_selection_reference = _resolve_candidate_selection_reference(config)
         argv.extend(
             [
                 "--from-candidate-selection",
-                Path(candidate_selection_result.artifact_dir).as_posix(),
+                (
+                    Path(candidate_selection_result.artifact_dir).as_posix()
+                    if candidate_selection_result is not None
+                    else candidate_selection_reference.artifact_dir.as_posix()
+                ),
             ]
+        )
+        portfolio_input_reference = (
+            candidate_selection_reference
+            if candidate_selection_reference is not None
+            else CampaignArtifactReference(
+                stage_name="candidate_selection",
+                source="same_campaign",
+                run_id=str(candidate_selection_result.run_id),
+                artifact_dir=Path(candidate_selection_result.artifact_dir),
+                metadata={"consumer": "portfolio"},
+            )
         )
     else:
         argv.extend(["--portfolio-config", config.targets.portfolio_config_path])
@@ -949,23 +1463,46 @@ def _run_portfolio(config: ResearchCampaignConfig, *, candidate_selection_result
         argv.extend(["--optimizer-method", portfolio.optimizer_method])
     if config.outputs.portfolio_artifacts_root:
         argv.extend(["--output-dir", config.outputs.portfolio_artifacts_root])
-    return run_portfolio_cli.run_cli(argv)
+    return run_portfolio_cli.run_cli(argv), portfolio_input_reference, candidate_selection_reference
 
 
 def _run_candidate_review(
     config: ResearchCampaignConfig,
     *,
     candidate_selection_result: Any | None,
+    candidate_selection_reference: CampaignArtifactReference | None,
     portfolio_result: Any | None,
+    portfolio_reference: CampaignArtifactReference | None,
 ) -> Any:
-    if candidate_selection_result is None or portfolio_result is None:
-        raise ValueError("Candidate review requires completed candidate selection and portfolio stages.")
+    resolved_candidate_dir = (
+        None
+        if candidate_selection_result is None
+        else Path(candidate_selection_result.artifact_dir)
+    )
+    if resolved_candidate_dir is None and candidate_selection_reference is not None:
+        resolved_candidate_dir = candidate_selection_reference.artifact_dir
+
+    resolved_portfolio_dir = (
+        None
+        if portfolio_result is None
+        else Path(portfolio_result.experiment_dir)
+    )
+    if resolved_portfolio_dir is None:
+        if portfolio_reference is None:
+            portfolio_reference = _resolve_portfolio_reference(
+                config,
+                candidate_selection_reference=candidate_selection_reference,
+            )
+        resolved_portfolio_dir = portfolio_reference.artifact_dir
+
+    if resolved_candidate_dir is None or resolved_portfolio_dir is None:
+        raise ValueError("Candidate review requires resolved candidate selection and portfolio artifacts.")
 
     argv = [
         "--candidate-selection-path",
-        Path(candidate_selection_result.artifact_dir).as_posix(),
+        resolved_candidate_dir.as_posix(),
         "--portfolio-path",
-        Path(portfolio_result.experiment_dir).as_posix(),
+        resolved_portfolio_dir.as_posix(),
     ]
     review_output_path = config.candidate_selection.output.review_output_path
     if review_output_path is not None:

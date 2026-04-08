@@ -21,6 +21,65 @@ def _write_feature_fixture(root: Path, dataset: str = "features_daily") -> Path:
     return dataset_root
 
 
+def _write_candidate_selection_registry_entry(
+    registry_path: Path,
+    *,
+    run_id: str,
+    artifact_dir: Path,
+    alpha_name: str,
+    dataset: str,
+    timeframe: str,
+    evaluation_horizon: int,
+    mapping_names: list[str],
+) -> None:
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "run_id": run_id,
+        "config_snapshot": {
+            "filters": {
+                "alpha_name": alpha_name,
+            },
+            "primary_metric": "ic_ir",
+        },
+        "provenance": {
+            "dataset": dataset,
+            "timeframe": timeframe,
+            "evaluation_horizon": evaluation_horizon,
+            "mapping_names": mapping_names,
+            "upstream": {"alpha_run_ids": [f"{alpha_name}_alpha_run"]},
+        },
+    }
+    summary = {"run_id": run_id, "selected_candidates": 2}
+    (artifact_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (artifact_dir / "selection_summary.json").write_text(json.dumps(summary), encoding="utf-8")
+    registry_path.parent.mkdir(parents=True, exist_ok=True)
+    entry = {
+        "run_id": run_id,
+        "run_type": "candidate_selection",
+        "timestamp": "2026-04-01T00:00:00Z",
+        "alpha_name": alpha_name,
+        "dataset": dataset,
+        "timeframe": timeframe,
+        "evaluation_horizon": evaluation_horizon,
+        "artifact_path": artifact_dir.as_posix(),
+        "manifest_path": (artifact_dir / "manifest.json").as_posix(),
+        "summary_path": (artifact_dir / "selection_summary.json").as_posix(),
+        "metadata": {
+            "mapping_names": mapping_names,
+            "primary_metric": "ic_ir",
+        },
+    }
+    existing_lines = []
+    if registry_path.exists():
+        existing_lines = [
+            line
+            for line in registry_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    existing_lines.append(json.dumps(entry))
+    registry_path.write_text("\n".join(existing_lines) + "\n", encoding="utf-8")
+
+
 def test_parse_args_accepts_optional_config_path() -> None:
     args = parse_args(["--config", "configs/custom_campaign.yml"])
 
@@ -383,3 +442,328 @@ alpha_one:
     assert result.preflight_summary["status"] == "passed"
     assert result.campaign_manifest_path.exists()
     assert result.campaign_summary_path.exists()
+
+
+def test_run_research_campaign_resolves_candidate_selection_registry_for_portfolio_chaining(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    candidate_root = tmp_path / "candidate_selection"
+    candidate_registry = candidate_root / "registry.jsonl"
+    candidate_artifact_dir = candidate_root / "candidate_run_registry"
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    _write_feature_fixture(features_root)
+    _write_candidate_selection_registry_entry(
+        candidate_registry,
+        run_id="candidate_run_registry",
+        artifact_dir=candidate_artifact_dir,
+        alpha_name="alpha_one",
+        dataset="features_daily",
+        timeframe="1D",
+        evaluation_horizon=5,
+        mapping_names=["top_bottom_quantile_q20"],
+    )
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "portfolio_names": ["candidate_portfolio"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+                "portfolio_config_path": portfolio_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+            },
+            "time_windows": {
+                "start": "2025-01-01",
+                "end": "2025-03-01",
+                "train_start": "2025-01-01",
+                "train_end": "2025-02-01",
+                "predict_start": "2025-02-01",
+                "predict_end": "2025-03-01",
+            },
+            "portfolio": {
+                "enabled": True,
+                "from_candidate_selection": True,
+            },
+            "candidate_selection": {
+                "enabled": False,
+                "alpha_name": "alpha_one",
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+                "output": {
+                    "path": candidate_root.as_posix(),
+                    "registry_path": candidate_registry.as_posix(),
+                },
+            },
+            "review": {
+                "output": {
+                    "path": (tmp_path / "reviews").as_posix(),
+                    "emit_plots": False,
+                }
+            },
+            "outputs": {
+                "alpha_artifacts_root": (tmp_path / "alpha_artifacts").as_posix(),
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+                "portfolio_artifacts_root": (tmp_path / "portfolio_artifacts").as_posix(),
+            },
+        }
+    )
+
+    portfolio_calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+        lambda argv: portfolio_calls.append(list(argv))
+        or SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+            portfolio_name="candidate_portfolio",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    result = run_research_campaign(config)
+
+    assert len(portfolio_calls) == 1
+    assert "--from-candidate-selection" in portfolio_calls[0]
+    assert candidate_artifact_dir.as_posix() in portfolio_calls[0]
+    portfolio_record = next(record for record in result.stage_records if record.stage_name == "portfolio")
+    assert portfolio_record.details["input_candidate_selection"]["source"] == "registry"
+    assert portfolio_record.details["input_candidate_selection"]["run_id"] == "candidate_run_registry"
+
+
+def test_run_research_campaign_resolves_candidate_selection_stage_from_registry_with_explicit_path(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    features_root = tmp_path / "features_root"
+    candidate_root = tmp_path / "candidate_selection"
+    candidate_registry = candidate_root / "registry.jsonl"
+    candidate_artifact_dir = candidate_root / "candidate_run_registry"
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    _write_feature_fixture(features_root)
+    _write_candidate_selection_registry_entry(
+        candidate_registry,
+        run_id="candidate_run_registry",
+        artifact_dir=candidate_artifact_dir,
+        alpha_name="alpha_one",
+        dataset="features_daily",
+        timeframe="1D",
+        evaluation_horizon=5,
+        mapping_names=["top_bottom_quantile_q20"],
+    )
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+            },
+            "candidate_selection": {
+                "enabled": True,
+                "execution": {
+                    "from_registry": True,
+                },
+                "output": {
+                    "path": candidate_root.as_posix(),
+                    "registry_path": candidate_registry.as_posix(),
+                },
+            },
+            "review": {
+                "output": {
+                    "path": (tmp_path / "reviews").as_posix(),
+                    "emit_plots": False,
+                }
+            },
+            "outputs": {
+                "alpha_artifacts_root": (tmp_path / "alpha_artifacts").as_posix(),
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+            },
+        }
+    )
+
+    candidate_calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+        lambda argv: candidate_calls.append(list(argv))
+        or SimpleNamespace(run_id="candidate_run_registry", artifact_dir=candidate_artifact_dir),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    result = run_research_campaign(config)
+
+    assert len(candidate_calls) == 1
+    assert "--candidate-selection-path" in candidate_calls[0]
+    assert candidate_artifact_dir.as_posix() in candidate_calls[0]
+    assert "--from-registry" not in candidate_calls[0]
+    candidate_record = next(record for record in result.stage_records if record.stage_name == "candidate_selection")
+    assert candidate_record.details["input_reference"]["source"] == "registry"
+    assert candidate_record.details["input_reference"]["run_id"] == "candidate_run_registry"
+
+
+def test_run_research_campaign_fails_when_candidate_selection_registry_match_is_ambiguous(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    candidate_root = tmp_path / "candidate_selection"
+    candidate_registry = candidate_root / "registry.jsonl"
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    _write_feature_fixture(features_root)
+    _write_candidate_selection_registry_entry(
+        candidate_registry,
+        run_id="candidate_run_a",
+        artifact_dir=candidate_root / "candidate_run_a",
+        alpha_name="alpha_one",
+        dataset="features_daily",
+        timeframe="1D",
+        evaluation_horizon=5,
+        mapping_names=["top_bottom_quantile_q20"],
+    )
+    _write_candidate_selection_registry_entry(
+        candidate_registry,
+        run_id="candidate_run_b",
+        artifact_dir=candidate_root / "candidate_run_b",
+        alpha_name="alpha_one",
+        dataset="features_daily",
+        timeframe="1D",
+        evaluation_horizon=5,
+        mapping_names=["top_bottom_quantile_q20"],
+    )
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "portfolio_names": ["candidate_portfolio"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+                "portfolio_config_path": portfolio_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+            },
+            "portfolio": {
+                "enabled": True,
+                "from_candidate_selection": True,
+            },
+            "candidate_selection": {
+                "enabled": False,
+                "output": {
+                    "path": candidate_root.as_posix(),
+                    "registry_path": candidate_registry.as_posix(),
+                },
+            },
+            "outputs": {
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+            },
+        }
+    )
+
+    with pytest.raises(ValueError, match="Ambiguous candidate_selection registry state"):
+        run_research_campaign(config)

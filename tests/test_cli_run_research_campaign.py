@@ -195,8 +195,13 @@ portfolios:
     assert result.review_result.review_id == "review_run"
     assert result.preflight_summary_path.exists()
     assert result.campaign_artifact_dir.exists()
+    assert result.campaign_manifest_path.exists()
+    assert result.campaign_summary_path.exists()
     assert result.preflight_summary["status"] == "passed"
     assert result.preflight_summary["check_counts"]["failed"] == 0
+
+    campaign_manifest = json.loads(result.campaign_manifest_path.read_text(encoding="utf-8"))
+    campaign_summary = json.loads(result.campaign_summary_path.read_text(encoding="utf-8"))
 
     alpha_argv = dict(enumerate(call_order[0][1]))
     assert "--alpha-name" in alpha_argv.values()
@@ -220,12 +225,42 @@ portfolios:
     assert "--disable-plots" in review_argv
 
     assert "Research Campaign Summary" in stdout
+    assert f"Campaign: {result.campaign_run_id}" in stdout
     assert "Preflight: passed" in stdout
     assert "Research: alpha_runs=1 | strategy_runs=1" in stdout
     assert "Comparison: alpha=alpha_cmp | strategy=strategy_cmp" in stdout
     assert "Selection/Portfolio: candidate=candidate_run | portfolio=portfolio_run" in stdout
     assert "Review: candidate_review=" in stdout
     assert "review_id=review_run" in stdout
+    assert "Campaign Artifacts: manifest=" in stdout
+
+    assert campaign_manifest["run_type"] == "research_campaign"
+    assert campaign_manifest["campaign_run_id"] == result.campaign_run_id
+    assert campaign_manifest["status"] == "completed"
+    assert campaign_manifest["summary_path"] == "summary.json"
+    assert campaign_manifest["stage_statuses"]["candidate_review"] == "completed"
+    assert campaign_manifest["selected_run_ids"]["portfolio_run_id"] == "portfolio_run"
+
+    assert campaign_summary["run_type"] == "research_campaign"
+    assert campaign_summary["campaign_run_id"] == result.campaign_run_id
+    assert campaign_summary["status"] == "completed"
+    assert campaign_summary["selected_run_ids"]["alpha_run_ids"] == ["alpha_run"]
+    assert campaign_summary["selected_run_ids"]["strategy_run_ids"] == ["strategy_run"]
+    assert campaign_summary["selected_run_ids"]["candidate_selection_run_id"] == "candidate_run"
+    assert campaign_summary["selected_run_ids"]["portfolio_run_id"] == "portfolio_run"
+    assert campaign_summary["selected_run_ids"]["review_id"] == "review_run"
+    assert campaign_summary["stage_statuses"]["candidate_review"] == "completed"
+    assert campaign_summary["output_paths"]["candidate_review_dir"] == review_dir.as_posix()
+    assert "candidate_review_counts" in campaign_summary["final_outcomes"]
+    assert [stage["stage_name"] for stage in campaign_summary["stages"]] == [
+        "preflight",
+        "research",
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review",
+    ]
 
 
 def test_run_research_campaign_preflight_requires_candidate_alpha_name(
@@ -285,6 +320,14 @@ alpha_two:
     assert summary["status"] == "failed"
     assert "candidate_selection.alpha_name" in summary["failed_checks"]
 
+    campaign_dir = summaries[0].parent
+    campaign_manifest = json.loads((campaign_dir / "manifest.json").read_text(encoding="utf-8"))
+    campaign_summary = json.loads((campaign_dir / "summary.json").read_text(encoding="utf-8"))
+    assert campaign_manifest["status"] == "failed"
+    assert campaign_summary["status"] == "failed"
+    assert campaign_summary["stage_statuses"]["preflight"] == "failed"
+    assert campaign_summary["selected_run_ids"]["alpha_run_ids"] == []
+
 
 def test_run_cli_uses_resolved_config_from_loader(
     monkeypatch: pytest.MonkeyPatch,
@@ -338,3 +381,5 @@ alpha_one:
     assert result.alpha_results[0].run_id == "alpha_run"
     assert result.review_result.review_id == "review_run"
     assert result.preflight_summary["status"] == "passed"
+    assert result.campaign_manifest_path.exists()
+    assert result.campaign_summary_path.exists()

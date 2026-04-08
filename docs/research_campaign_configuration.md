@@ -19,7 +19,8 @@ The campaign schema supports these sections:
 * `review`: unified research review filters, ranking, outputs, and promotion
   gate wiring through the existing `ReviewConfig` contract
 * `outputs`: common artifact roots and shared output destinations, including
-  the campaign artifact root used for persisted preflight reports
+  the campaign artifact root used for persisted campaign manifests, summaries,
+  and preflight reports
 
 The repository example lives at `configs/research_campaign.yml`.
 
@@ -72,11 +73,34 @@ Each campaign persists:
 
 * `campaign_config.json`
 * `preflight_summary.json`
+* `manifest.json`
+* `summary.json`
 
 under `outputs.campaign_artifacts_root/<campaign_run_id>/`.
 
 If preflight fails, the runner exits before expensive execution starts and the
-written `preflight_summary.json` records the failing checks.
+written `preflight_summary.json` records the failing checks. The campaign-level
+`manifest.json` and `summary.json` are also still emitted so automation can
+inspect the failed stage state without parsing exception text.
+
+## Campaign Artifacts
+
+The campaign directory now acts as the top-level stitched artifact surface for
+the full workflow:
+
+* `manifest.json`: deterministic file inventory and stage/run index for the
+  campaign artifact directory itself
+* `summary.json`: machine-readable stitched campaign output with:
+  * stage status for preflight, research, comparison, candidate selection,
+    portfolio, candidate review, and unified review
+  * selected run IDs and comparison/review IDs
+  * key alpha, strategy, candidate-selection, portfolio, and review metrics
+  * output file paths for downstream stage artifacts
+  * final review and promotion outcomes when review promotion gates are present
+
+`summary.json` is intended for automation, orchestration, and audit tooling,
+while `manifest.json` is the stable inventory entry point for the campaign
+directory.
 
 ## Loading
 

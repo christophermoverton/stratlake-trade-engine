@@ -28,10 +28,12 @@ from src.research.alpha.catalog import load_alphas_config
 from src.research.alpha_eval.registry import alpha_evaluation_registry_path
 from src.research.candidate_selection.registry import candidate_selection_registry_path
 from src.research.experiment_tracker import ARTIFACTS_ROOT as STRATEGY_ARTIFACTS_ROOT
-from src.research.registry import default_registry_path, load_registry
+from src.research.registry import canonicalize_value, default_registry_path, load_registry
 
 PREFLIGHT_SUMMARY_FILENAME = "preflight_summary.json"
 CAMPAIGN_CONFIG_FILENAME = "campaign_config.json"
+CAMPAIGN_MANIFEST_FILENAME = "manifest.json"
+CAMPAIGN_SUMMARY_FILENAME = "summary.json"
 
 
 @dataclass(frozen=True)
@@ -62,7 +64,11 @@ class ResearchCampaignRunResult:
     config: ResearchCampaignConfig
     campaign_run_id: str
     campaign_artifact_dir: Path
+    campaign_manifest_path: Path
+    campaign_summary_path: Path
     preflight_summary_path: Path
+    campaign_manifest: dict[str, Any]
+    campaign_summary: dict[str, Any]
     preflight_summary: dict[str, Any]
     stage_records: tuple[CampaignStageRecord, ...]
     alpha_results: tuple[Any, ...]
@@ -122,6 +128,22 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         )
     )
     if preflight_result.status != "passed":
+        _write_campaign_artifacts(
+            config=config,
+            campaign_run_id=campaign_run_id,
+            campaign_artifact_dir=campaign_artifact_dir,
+            preflight_result=preflight_result,
+            stage_records=records,
+            alpha_results=[],
+            strategy_results=[],
+            alpha_comparison_result=None,
+            strategy_comparison_result=None,
+            candidate_selection_result=None,
+            portfolio_result=None,
+            candidate_review_result=None,
+            review_result=None,
+            status="failed",
+        )
         failures = [
             check.message
             for check in preflight_result.checks
@@ -199,6 +221,23 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             candidate_selection_result=candidate_selection_result,
             portfolio_result=portfolio_result,
         )
+    records.append(
+        CampaignStageRecord(
+            stage_name="candidate_review",
+            status="completed" if candidate_review_result is not None else "skipped",
+            details={
+                "review_dir": None
+                if candidate_review_result is None
+                else str(candidate_review_result.review_dir),
+                "candidate_selection_run_id": None
+                if candidate_review_result is None
+                else _string_or_none(candidate_review_result, "candidate_selection_run_id"),
+                "portfolio_run_id": None
+                if candidate_review_result is None
+                else _string_or_none(candidate_review_result, "portfolio_run_id"),
+            },
+        )
+    )
 
     review_result = _run_research_review(config)
     records.append(
@@ -214,11 +253,32 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         )
     )
 
+    manifest_path, summary_path, manifest_payload, summary_payload = _write_campaign_artifacts(
+        config=config,
+        campaign_run_id=campaign_run_id,
+        campaign_artifact_dir=campaign_artifact_dir,
+        preflight_result=preflight_result,
+        stage_records=records,
+        alpha_results=alpha_results,
+        strategy_results=strategy_results,
+        alpha_comparison_result=alpha_comparison_result,
+        strategy_comparison_result=strategy_comparison_result,
+        candidate_selection_result=candidate_selection_result,
+        portfolio_result=portfolio_result,
+        candidate_review_result=candidate_review_result,
+        review_result=review_result,
+        status="completed",
+    )
+
     return ResearchCampaignRunResult(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        campaign_manifest_path=manifest_path,
+        campaign_summary_path=summary_path,
         preflight_summary_path=preflight_result.summary_path,
+        campaign_manifest=manifest_payload,
+        campaign_summary=summary_payload,
         preflight_summary=preflight_result.summary,
         stage_records=tuple(records),
         alpha_results=tuple(alpha_results),
@@ -235,6 +295,11 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
 def print_summary(result: ResearchCampaignRunResult) -> None:
     print("Research Campaign Summary")
     print("-------------------------")
+    print(
+        f"Campaign: {result.campaign_run_id} | "
+        f"status={result.campaign_summary.get('status', 'unknown')} | "
+        f"dir={result.campaign_artifact_dir.as_posix()}"
+    )
     print(
         "Preflight: "
         f"{result.preflight_summary.get('status', 'unknown')} "
@@ -285,6 +350,11 @@ def print_summary(result: ResearchCampaignRunResult) -> None:
         "Review: "
         f"candidate_review={candidate_review_dir or 'skipped'} | "
         f"review_id={result.review_result.review_id}"
+    )
+    print(
+        "Campaign Artifacts: "
+        f"manifest={result.campaign_manifest_path.as_posix()} | "
+        f"summary={result.campaign_summary_path.as_posix()}"
     )
 
 
@@ -1067,6 +1137,470 @@ def _normalize_jsonable(value: Any) -> Any:
     if isinstance(value, list | tuple):
         return [_normalize_jsonable(item) for item in value]
     return value
+
+
+def _write_campaign_artifacts(
+    *,
+    config: ResearchCampaignConfig,
+    campaign_run_id: str,
+    campaign_artifact_dir: Path,
+    preflight_result: CampaignPreflightResult,
+    stage_records: Sequence[CampaignStageRecord],
+    alpha_results: Sequence[Any],
+    strategy_results: Sequence[Any],
+    alpha_comparison_result: Any | None,
+    strategy_comparison_result: Any | None,
+    candidate_selection_result: Any | None,
+    portfolio_result: Any | None,
+    candidate_review_result: Any | None,
+    review_result: Any | None,
+    status: str,
+) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
+    summary_payload = _build_campaign_summary(
+        config=config,
+        campaign_run_id=campaign_run_id,
+        campaign_artifact_dir=campaign_artifact_dir,
+        preflight_result=preflight_result,
+        stage_records=stage_records,
+        alpha_results=alpha_results,
+        strategy_results=strategy_results,
+        alpha_comparison_result=alpha_comparison_result,
+        strategy_comparison_result=strategy_comparison_result,
+        candidate_selection_result=candidate_selection_result,
+        portfolio_result=portfolio_result,
+        candidate_review_result=candidate_review_result,
+        review_result=review_result,
+        status=status,
+    )
+    manifest_payload = _build_campaign_manifest(
+        config=config,
+        campaign_run_id=campaign_run_id,
+        campaign_artifact_dir=campaign_artifact_dir,
+        summary_payload=summary_payload,
+    )
+    summary_path = campaign_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
+    manifest_path = campaign_artifact_dir / CAMPAIGN_MANIFEST_FILENAME
+    summary_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
+    manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
+    return manifest_path, summary_path, manifest_payload, summary_payload
+
+
+def _build_campaign_summary(
+    *,
+    config: ResearchCampaignConfig,
+    campaign_run_id: str,
+    campaign_artifact_dir: Path,
+    preflight_result: CampaignPreflightResult,
+    stage_records: Sequence[CampaignStageRecord],
+    alpha_results: Sequence[Any],
+    strategy_results: Sequence[Any],
+    alpha_comparison_result: Any | None,
+    strategy_comparison_result: Any | None,
+    candidate_selection_result: Any | None,
+    portfolio_result: Any | None,
+    candidate_review_result: Any | None,
+    review_result: Any | None,
+    status: str,
+) -> dict[str, Any]:
+    selected_run_ids = {
+        "alpha_run_ids": sorted(str(result.run_id) for result in alpha_results),
+        "strategy_run_ids": sorted(str(result.run_id) for result in strategy_results),
+        "candidate_selection_run_id": _string_or_none(candidate_selection_result, "run_id"),
+        "portfolio_run_id": _string_or_none(portfolio_result, "run_id"),
+        "review_id": _string_or_none(review_result, "review_id"),
+    }
+    output_paths = {
+        "campaign_artifact_dir": campaign_artifact_dir.as_posix(),
+        "campaign_config": (campaign_artifact_dir / CAMPAIGN_CONFIG_FILENAME).as_posix(),
+        "preflight_summary": preflight_result.summary_path.as_posix(),
+        "campaign_manifest": (campaign_artifact_dir / CAMPAIGN_MANIFEST_FILENAME).as_posix(),
+        "campaign_summary": (campaign_artifact_dir / CAMPAIGN_SUMMARY_FILENAME).as_posix(),
+        "alpha_artifact_dirs": sorted(_path_or_none(result, "artifact_dir") for result in alpha_results),
+        "strategy_artifact_dirs": sorted(_path_or_none(result, "experiment_dir") for result in strategy_results),
+        "alpha_comparison_csv": _path_or_none(alpha_comparison_result, "csv_path"),
+        "alpha_comparison_summary": _path_or_none(alpha_comparison_result, "json_path"),
+        "strategy_comparison_csv": _path_or_none(strategy_comparison_result, "csv_path"),
+        "strategy_comparison_summary": _path_or_none(strategy_comparison_result, "json_path"),
+        "candidate_selection_artifact_dir": _path_or_none(candidate_selection_result, "artifact_dir"),
+        "candidate_selection_summary": _path_or_none(candidate_selection_result, "summary_json"),
+        "candidate_selection_manifest": _path_or_none(candidate_selection_result, "manifest_json"),
+        "portfolio_artifact_dir": _path_or_none(portfolio_result, "experiment_dir"),
+        "candidate_review_dir": _path_or_none(candidate_review_result, "review_dir"),
+        "candidate_review_summary": _path_or_none(candidate_review_result, "candidate_review_summary_json"),
+        "candidate_review_manifest": _path_or_none(candidate_review_result, "manifest_json"),
+        "review_leaderboard_csv": _path_or_none(review_result, "csv_path"),
+        "review_summary": _path_or_none(review_result, "json_path"),
+        "review_manifest": _path_or_none(review_result, "manifest_path"),
+        "review_promotion_gates": _path_or_none(review_result, "promotion_gate_path"),
+    }
+    output_paths["alpha_artifact_dirs"] = [path for path in output_paths["alpha_artifact_dirs"] if path is not None]
+    output_paths["strategy_artifact_dirs"] = [path for path in output_paths["strategy_artifact_dirs"] if path is not None]
+
+    stages = [
+        _campaign_stage_summary(
+            record=record,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            alpha_comparison_result=alpha_comparison_result,
+            strategy_comparison_result=strategy_comparison_result,
+            candidate_selection_result=candidate_selection_result,
+            portfolio_result=portfolio_result,
+            candidate_review_result=candidate_review_result,
+            review_result=review_result,
+        )
+        for record in stage_records
+    ]
+
+    final_outcomes = {
+        "preflight_status": preflight_result.status,
+        "review_promotion_status": _mapping_value(_campaign_review_promotion_summary(review_result), "promotion_status"),
+        "review_promotion_gate_status": _mapping_value(_campaign_review_promotion_summary(review_result), "evaluation_status"),
+        "review_promotion_gate_summary": _campaign_review_promotion_summary(review_result),
+        "review_counts_by_run_type": _counts_by_run_type(list(getattr(review_result, "entries", []))),
+        "candidate_review_counts": (
+            None
+            if candidate_review_result is None
+            else {
+                "total_candidates": _coerce_int(getattr(candidate_review_result, "total_candidates", None)),
+                "selected_candidates": _coerce_int(getattr(candidate_review_result, "selected_candidates", None)),
+                "rejected_candidates": _coerce_int(getattr(candidate_review_result, "rejected_candidates", None)),
+            }
+        ),
+    }
+
+    key_metrics = {
+        "alpha_runs": [_alpha_key_metrics(result) for result in sorted(alpha_results, key=lambda item: str(item.run_id))],
+        "strategy_runs": [_strategy_key_metrics(result) for result in sorted(strategy_results, key=lambda item: str(item.run_id))],
+        "candidate_selection": _candidate_selection_key_metrics(candidate_selection_result),
+        "portfolio": _portfolio_key_metrics(portfolio_result),
+        "review": _review_key_metrics(review_result),
+    }
+
+    payload = {
+        "run_type": "research_campaign",
+        "campaign_run_id": campaign_run_id,
+        "status": status,
+        "preflight_status": preflight_result.status,
+        "targets": canonicalize_value(
+            {
+                "alpha_names": list(config.targets.alpha_names),
+                "strategy_names": list(config.targets.strategy_names),
+                "portfolio_names": list(config.targets.portfolio_names),
+                "candidate_selection_alpha_name": config.candidate_selection.alpha_name,
+                "portfolio_name": config.portfolio.portfolio_name,
+            }
+        ),
+        "stage_statuses": {record.stage_name: record.status for record in stage_records},
+        "stages": stages,
+        "selected_run_ids": selected_run_ids,
+        "key_metrics": key_metrics,
+        "output_paths": output_paths,
+        "final_outcomes": final_outcomes,
+    }
+    return canonicalize_value(payload)
+
+
+def _build_campaign_manifest(
+    *,
+    config: ResearchCampaignConfig,
+    campaign_run_id: str,
+    campaign_artifact_dir: Path,
+    summary_payload: dict[str, Any],
+) -> dict[str, Any]:
+    artifact_files = sorted(
+        [
+            CAMPAIGN_CONFIG_FILENAME,
+            PREFLIGHT_SUMMARY_FILENAME,
+            CAMPAIGN_MANIFEST_FILENAME,
+            CAMPAIGN_SUMMARY_FILENAME,
+        ]
+    )
+    artifact_groups = {
+        "campaign": artifact_files,
+        "core": artifact_files,
+        "preflight": [PREFLIGHT_SUMMARY_FILENAME],
+        "summary": [CAMPAIGN_SUMMARY_FILENAME],
+    }
+    payload = {
+        "run_type": "research_campaign",
+        "campaign_run_id": campaign_run_id,
+        "status": summary_payload["status"],
+        "artifact_files": artifact_files,
+        "artifact_groups": artifact_groups,
+        "artifacts": {
+            CAMPAIGN_CONFIG_FILENAME: {"path": CAMPAIGN_CONFIG_FILENAME},
+            PREFLIGHT_SUMMARY_FILENAME: {"path": PREFLIGHT_SUMMARY_FILENAME},
+            CAMPAIGN_MANIFEST_FILENAME: {"path": CAMPAIGN_MANIFEST_FILENAME},
+            CAMPAIGN_SUMMARY_FILENAME: {
+                "path": CAMPAIGN_SUMMARY_FILENAME,
+                "stage_count": len(summary_payload["stages"]),
+            },
+        },
+        "campaign_artifact_dir": campaign_artifact_dir.as_posix(),
+        "stage_statuses": dict(summary_payload["stage_statuses"]),
+        "selected_run_ids": dict(summary_payload["selected_run_ids"]),
+        "targets": canonicalize_value(
+            {
+                "alpha_names": list(config.targets.alpha_names),
+                "strategy_names": list(config.targets.strategy_names),
+                "portfolio_names": list(config.targets.portfolio_names),
+            }
+        ),
+        "summary_path": CAMPAIGN_SUMMARY_FILENAME,
+    }
+    return canonicalize_value(payload)
+
+
+def _campaign_stage_summary(
+    *,
+    record: CampaignStageRecord,
+    alpha_results: Sequence[Any],
+    strategy_results: Sequence[Any],
+    alpha_comparison_result: Any | None,
+    strategy_comparison_result: Any | None,
+    candidate_selection_result: Any | None,
+    portfolio_result: Any | None,
+    candidate_review_result: Any | None,
+    review_result: Any | None,
+) -> dict[str, Any]:
+    selected_run_ids: dict[str, Any] = {}
+    key_metrics: dict[str, Any] = {}
+    output_paths: dict[str, Any] = {}
+    outcomes: dict[str, Any] = {}
+
+    if record.stage_name == "preflight":
+        outcomes["failed_checks"] = list(record.details.get("failed_checks", []))
+        output_paths["summary"] = PREFLIGHT_SUMMARY_FILENAME
+    elif record.stage_name == "research":
+        selected_run_ids = {
+            "alpha_run_ids": sorted(str(result.run_id) for result in alpha_results),
+            "strategy_run_ids": sorted(str(result.run_id) for result in strategy_results),
+        }
+        key_metrics = {
+            "alpha_runs": [_alpha_key_metrics(result) for result in sorted(alpha_results, key=lambda item: str(item.run_id))],
+            "strategy_runs": [_strategy_key_metrics(result) for result in sorted(strategy_results, key=lambda item: str(item.run_id))],
+        }
+        output_paths = {
+            "alpha_artifact_dirs": [path for path in sorted(_path_or_none(result, "artifact_dir") for result in alpha_results) if path],
+            "strategy_artifact_dirs": [path for path in sorted(_path_or_none(result, "experiment_dir") for result in strategy_results) if path],
+        }
+    elif record.stage_name == "comparison":
+        selected_run_ids = {
+            "alpha_comparison_id": _string_or_none(alpha_comparison_result, "comparison_id"),
+            "strategy_comparison_id": _string_or_none(strategy_comparison_result, "comparison_id"),
+        }
+        output_paths = {
+            "alpha_comparison_csv": _path_or_none(alpha_comparison_result, "csv_path"),
+            "alpha_comparison_summary": _path_or_none(alpha_comparison_result, "json_path"),
+            "strategy_comparison_csv": _path_or_none(strategy_comparison_result, "csv_path"),
+            "strategy_comparison_summary": _path_or_none(strategy_comparison_result, "json_path"),
+        }
+    elif record.stage_name == "candidate_selection":
+        selected_run_ids = {"candidate_selection_run_id": _string_or_none(candidate_selection_result, "run_id")}
+        key_metrics = _candidate_selection_key_metrics(candidate_selection_result) or {}
+        output_paths = {
+            "artifact_dir": _path_or_none(candidate_selection_result, "artifact_dir"),
+            "summary_json": _path_or_none(candidate_selection_result, "summary_json"),
+            "manifest_json": _path_or_none(candidate_selection_result, "manifest_json"),
+        }
+    elif record.stage_name == "portfolio":
+        selected_run_ids = {"portfolio_run_id": _string_or_none(portfolio_result, "run_id")}
+        key_metrics = _portfolio_key_metrics(portfolio_result) or {}
+        output_paths = {"artifact_dir": _path_or_none(portfolio_result, "experiment_dir")}
+    elif record.stage_name == "candidate_review":
+        selected_run_ids = {
+            "candidate_selection_run_id": _string_or_none(candidate_review_result, "candidate_selection_run_id"),
+            "portfolio_run_id": _string_or_none(candidate_review_result, "portfolio_run_id"),
+        }
+        outcomes = (
+            {}
+            if candidate_review_result is None
+            else {
+                "total_candidates": _coerce_int(getattr(candidate_review_result, "total_candidates", None)),
+                "selected_candidates": _coerce_int(getattr(candidate_review_result, "selected_candidates", None)),
+                "rejected_candidates": _coerce_int(getattr(candidate_review_result, "rejected_candidates", None)),
+            }
+        )
+        output_paths = {
+            "review_dir": _path_or_none(candidate_review_result, "review_dir"),
+            "summary_json": _path_or_none(candidate_review_result, "candidate_review_summary_json"),
+            "manifest_json": _path_or_none(candidate_review_result, "manifest_json"),
+        }
+    elif record.stage_name == "review":
+        selected_run_ids = {"review_id": _string_or_none(review_result, "review_id")}
+        key_metrics = _review_key_metrics(review_result) or {}
+        outcomes = _campaign_review_promotion_summary(review_result) or {}
+        output_paths = {
+            "leaderboard_csv": _path_or_none(review_result, "csv_path"),
+            "summary_json": _path_or_none(review_result, "json_path"),
+            "manifest_json": _path_or_none(review_result, "manifest_path"),
+            "promotion_gates_json": _path_or_none(review_result, "promotion_gate_path"),
+        }
+
+    payload = {
+        "stage_name": record.stage_name,
+        "status": record.status,
+        "selected_run_ids": selected_run_ids,
+        "key_metrics": key_metrics,
+        "output_paths": output_paths,
+        "outcomes": outcomes,
+        "details": _normalize_jsonable(record.details),
+    }
+    return canonicalize_value(payload)
+
+
+def _alpha_key_metrics(result: Any) -> dict[str, Any]:
+    summary = getattr(getattr(result, "evaluation", None), "evaluation_result", None)
+    summary_payload = getattr(summary, "summary", {}) if summary is not None else {}
+    sleeve_summary = _mapping_value(getattr(result, "evaluation", None), "manifest")
+    sleeve_metrics = sleeve_summary.get("sleeve", {}).get("metric_summary") if isinstance(sleeve_summary, dict) else {}
+    return canonicalize_value(
+        {
+            "alpha_name": _string_or_none(result, "alpha_name"),
+            "run_id": _string_or_none(result, "run_id"),
+            "mean_ic": _coerce_float(summary_payload.get("mean_ic")),
+            "ic_ir": _coerce_float(summary_payload.get("ic_ir")),
+            "n_periods": _coerce_int(summary_payload.get("n_periods")),
+            "sleeve_sharpe_ratio": _coerce_float((sleeve_metrics or {}).get("sharpe_ratio")),
+            "sleeve_total_return": _coerce_float((sleeve_metrics or {}).get("total_return")),
+        }
+    )
+
+
+def _strategy_key_metrics(result: Any) -> dict[str, Any]:
+    metrics = getattr(result, "metrics", {})
+    return canonicalize_value(
+        {
+            "strategy_name": _string_or_none(result, "strategy_name"),
+            "run_id": _string_or_none(result, "run_id"),
+            "cumulative_return": _coerce_float(metrics.get("cumulative_return")),
+            "sharpe_ratio": _coerce_float(metrics.get("sharpe_ratio")),
+            "max_drawdown": _coerce_float(metrics.get("max_drawdown")),
+        }
+    )
+
+
+def _candidate_selection_key_metrics(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    return canonicalize_value(
+        {
+            "run_id": _string_or_none(result, "run_id"),
+            "primary_metric": _string_or_none(result, "primary_metric"),
+            "universe_count": _coerce_int(getattr(result, "universe_count", None)),
+            "eligible_count": _coerce_int(getattr(result, "eligible_count", None)),
+            "selected_count": _coerce_int(getattr(result, "selected_count", None)),
+            "rejected_count": _coerce_int(getattr(result, "rejected_count", None)),
+            "pruned_by_redundancy": _coerce_int(getattr(result, "pruned_by_redundancy", None)),
+        }
+    )
+
+
+def _portfolio_key_metrics(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    metrics = getattr(result, "metrics", {})
+    return canonicalize_value(
+        {
+            "run_id": _string_or_none(result, "run_id"),
+            "portfolio_name": _string_or_none(result, "portfolio_name"),
+            "component_count": _coerce_int(getattr(result, "component_count", None)),
+            "total_return": _coerce_float(metrics.get("total_return")),
+            "sharpe_ratio": _coerce_float(metrics.get("sharpe_ratio")),
+            "max_drawdown": _coerce_float(metrics.get("max_drawdown")),
+        }
+    )
+
+
+def _review_key_metrics(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    entries = list(getattr(result, "entries", []))
+    return canonicalize_value(
+        {
+            "review_id": _string_or_none(result, "review_id"),
+            "entry_count": len(entries),
+            "counts_by_run_type": _counts_by_run_type(entries),
+        }
+    )
+
+
+def _campaign_review_promotion_summary(result: Any | None) -> dict[str, Any] | None:
+    if result is None:
+        return None
+    promotion_gate_path = getattr(result, "promotion_gate_path", None)
+    if not isinstance(promotion_gate_path, Path) or not promotion_gate_path.exists():
+        return None
+    try:
+        payload = json.loads(promotion_gate_path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return canonicalize_value(
+        {
+            "evaluation_status": payload.get("evaluation_status"),
+            "promotion_status": payload.get("promotion_status"),
+            "gate_count": payload.get("gate_count"),
+            "passed_gate_count": payload.get("passed_gate_count"),
+            "failed_gate_count": payload.get("failed_gate_count"),
+            "missing_gate_count": payload.get("missing_gate_count"),
+        }
+    )
+
+
+def _counts_by_run_type(entries: Sequence[Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for entry in entries:
+        run_type = getattr(entry, "run_type", None)
+        if not isinstance(run_type, str):
+            continue
+        counts[run_type] = counts.get(run_type, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _string_or_none(obj: Any | None, attribute: str) -> str | None:
+    if obj is None:
+        return None
+    value = getattr(obj, attribute, None)
+    if value is None:
+        return None
+    return str(value)
+
+
+def _path_or_none(obj: Any | None, attribute: str) -> str | None:
+    if obj is None:
+        return None
+    value = getattr(obj, attribute, None)
+    if value is None:
+        return None
+    return Path(value).as_posix() if isinstance(value, Path) else str(value)
+
+
+def _mapping_value(obj: Any | None, attribute: str) -> dict[str, Any] | None:
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        value = obj.get(attribute)
+    else:
+        value = getattr(obj, attribute, None)
+    return value if isinstance(value, dict) else value
+
+
+def _coerce_float(value: Any) -> float | None:
+    if value is None:
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _coerce_int(value: Any) -> int | None:
+    numeric = _coerce_float(value)
+    if numeric is None:
+        return None
+    return int(numeric)
 
 
 @contextmanager

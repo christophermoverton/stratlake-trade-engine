@@ -1,0 +1,81 @@
+{
+  "artifact_files": [
+    "campaign_config.json",
+    "manifest.json",
+    "preflight_summary.json",
+    "summary.json"
+  ],
+  "artifact_groups": {
+    "campaign": [
+      "campaign_config.json",
+      "manifest.json",
+      "preflight_summary.json",
+      "summary.json"
+    ],
+    "core": [
+      "campaign_config.json",
+      "manifest.json",
+      "preflight_summary.json",
+      "summary.json"
+    ],
+    "preflight": [
+      "preflight_summary.json"
+    ],
+    "summary": [
+      "summary.json"
+    ]
+  },
+  "artifacts": {
+    "campaign_config.json": {
+      "path": "campaign_config.json"
+    },
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "preflight_summary.json": {
+      "path": "preflight_summary.json"
+    },
+    "summary.json": {
+      "path": "summary.json",
+      "stage_count": 7
+    }
+  },
+  "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_94ccbc7ce13d",
+  "campaign_run_id": "research_campaign_94ccbc7ce13d",
+  "run_type": "research_campaign",
+  "selected_run_ids": {
+    "alpha_run_ids": [
+      "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+      "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+      "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+      "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306"
+    ],
+    "candidate_selection_run_id": "candidate_selection_e35992810577",
+    "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+    "review_id": "registry_review_63c30be06cb7",
+    "strategy_run_ids": []
+  },
+  "stage_statuses": {
+    "candidate_review": "completed",
+    "candidate_selection": "completed",
+    "comparison": "completed",
+    "portfolio": "completed",
+    "preflight": "completed",
+    "research": "completed",
+    "review": "completed"
+  },
+  "status": "completed",
+  "summary_path": "summary.json",
+  "targets": {
+    "alpha_names": [
+      "ml_cross_sectional_xgb_2026_q1",
+      "ml_cross_sectional_lgbm_2026_q1",
+      "ml_cross_sectional_elastic_net_2026_q1",
+      "rank_composite_momentum_2026_q1"
+    ],
+    "portfolio_names": [
+      "real_world_m16_campaign_case_study"
+    ],
+    "strategy_names": []
+  }
+}

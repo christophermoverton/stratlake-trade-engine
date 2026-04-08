@@ -18,6 +18,7 @@ Included examples:
 
 * [data/milestone_16_campaign_configs/full_campaign.yml](data/milestone_16_campaign_configs/full_campaign.yml)
 * [data/milestone_16_campaign_configs/registry_chained_campaign.yml](data/milestone_16_campaign_configs/registry_chained_campaign.yml)
+* [data/milestone_16_campaign_configs/real_world_campaign.yml](data/milestone_16_campaign_configs/real_world_campaign.yml)
 
 ## Run It
 
@@ -31,6 +32,12 @@ Registry-chained downstream example:
 
 ```powershell
 python -m src.cli.run_research_campaign --config docs/examples/data/milestone_16_campaign_configs/registry_chained_campaign.yml
+```
+
+Real-data campaign case study:
+
+```powershell
+python docs/examples/real_world_campaign_case_study.py
 ```
 
 ## What It Demonstrates

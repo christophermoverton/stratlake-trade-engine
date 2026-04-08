@@ -55,6 +55,17 @@ class LightGBMModelSpec:
     boosting_type: str = "gbdt"
 
 
+@dataclass(frozen=True)
+class ElasticNetModelSpec:
+    alpha: float = 0.1
+    l1_ratio: float = 0.5
+    fit_intercept: bool = True
+    max_iter: int = 2000
+    tol: float = 1e-4
+    selection: str = "cyclic"
+    min_cross_section_size: int = 2
+
+
 class CrossSectionalLinearAlphaModel(BaseAlphaModel):
     """Pooled cross-sectional linear alpha with inspectable coefficients."""
 
@@ -256,6 +267,69 @@ class CrossSectionalLightGBMAlphaModel(BaseAlphaModel):
 
         design_matrix = _to_numeric_frame_allowing_missing(df, self.feature_columns)
         prediction = self.model.predict(design_matrix)
+        return pd.Series(prediction, index=df.index, dtype="float64", name="prediction")
+
+
+class CrossSectionalElasticNetAlphaModel(BaseAlphaModel):
+    """Deterministic pooled cross-sectional Elastic Net regressor."""
+
+    name = "cross_sectional_elastic_net_alpha_model"
+
+    def __init__(self, *, spec: ElasticNetModelSpec | None = None) -> None:
+        resolved_spec = spec or ElasticNetModelSpec()
+        _validate_elastic_net_spec(resolved_spec)
+
+        self.spec = resolved_spec
+        self.feature_columns: list[str] = []
+        self.target_column: str | None = None
+        self.model = None
+        self.coefficient_by_feature: dict[str, float] = {}
+        self.model_params: dict[str, float | int | str | bool] = _elastic_net_params_from_spec(resolved_spec)
+        self.training_metadata: dict[str, float | int | str | bool] = {}
+
+    def _fit(self, df: pd.DataFrame) -> None:
+        self.feature_columns = _resolve_feature_columns(df)
+        self.target_column = _resolve_target_column(df)
+        design_matrix = _to_numeric_frame(df, self.feature_columns)
+        target = _to_numeric_series(df, self.target_column)
+        training_matrix, training_target = _build_cross_sectional_training_arrays(
+            design_matrix,
+            target,
+            ts_utc=df["ts_utc"],
+            min_cross_section_size=self.spec.min_cross_section_size,
+        )
+
+        elastic_net_cls = _resolve_elastic_net_regressor_cls()
+        self.model = elastic_net_cls(**self.model_params)
+        self.model.fit(training_matrix, training_target)
+
+        coefficients = getattr(self.model, "coef_", None)
+        if coefficients is None:
+            self.coefficient_by_feature = {}
+        else:
+            self.coefficient_by_feature = {
+                column: float(value)
+                for column, value in zip(self.feature_columns, coefficients, strict=False)
+            }
+
+        self.training_metadata = {
+            "n_rows": int(len(df)),
+            "n_training_samples": int(training_matrix.shape[0]),
+            "n_cross_sections": int(pd.to_datetime(df["ts_utc"], utc=True).nunique()),
+            **self.model_params,
+        }
+
+    def _predict(self, df: pd.DataFrame) -> pd.Series:
+        if self.model is None:
+            raise RuntimeError("Model must be fit before predict.")
+
+        design_matrix = _to_numeric_frame(df, self.feature_columns)
+        transformed = _demean_by_cross_section(
+            design_matrix,
+            ts_utc=df["ts_utc"],
+            min_cross_section_size=self.spec.min_cross_section_size,
+        )
+        prediction = self.model.predict(transformed.to_numpy(dtype="float64"))
         return pd.Series(prediction, index=df.index, dtype="float64", name="prediction")
 
 
@@ -585,6 +659,33 @@ def _lightgbm_params_from_spec(spec: LightGBMModelSpec) -> dict[str, float | int
     }
 
 
+def _validate_elastic_net_spec(spec: ElasticNetModelSpec) -> None:
+    if spec.alpha < 0.0:
+        raise ValueError("alpha must be greater than or equal to zero.")
+    if not (0.0 <= spec.l1_ratio <= 1.0):
+        raise ValueError("l1_ratio must be in the interval [0, 1].")
+    if spec.max_iter <= 0:
+        raise ValueError("max_iter must be greater than zero.")
+    if spec.tol <= 0.0:
+        raise ValueError("tol must be greater than zero.")
+    if spec.selection.strip().lower() not in {"cyclic", "random"}:
+        raise ValueError("selection must be either 'cyclic' or 'random'.")
+    if spec.min_cross_section_size < 2:
+        raise ValueError("min_cross_section_size must be greater than or equal to two.")
+
+
+def _elastic_net_params_from_spec(spec: ElasticNetModelSpec) -> dict[str, float | int | str | bool]:
+    return {
+        "alpha": float(spec.alpha),
+        "fit_intercept": bool(spec.fit_intercept),
+        "l1_ratio": float(spec.l1_ratio),
+        "max_iter": int(spec.max_iter),
+        "random_state": 20260302,
+        "selection": str(spec.selection).strip().lower(),
+        "tol": float(spec.tol),
+    }
+
+
 def _resolve_xgb_regressor_cls():
     try:
         module = importlib.import_module("xgboost")
@@ -613,3 +714,20 @@ def _resolve_lgbm_regressor_cls():
     if lgbm_regressor_cls is None:
         raise RuntimeError("lightgbm.LGBMRegressor is not available in the installed lightgbm package.")
     return lgbm_regressor_cls
+
+
+def _resolve_elastic_net_regressor_cls():
+    try:
+        module = importlib.import_module("sklearn.linear_model")
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "scikit-learn is required for model_type 'cross_sectional_elastic_net'. "
+            "Install the 'scikit-learn' package to run this alpha."
+        ) from exc
+
+    elastic_net_cls = getattr(module, "ElasticNet", None)
+    if elastic_net_cls is None:
+        raise RuntimeError(
+            "sklearn.linear_model.ElasticNet is not available in the installed scikit-learn package."
+        )
+    return elastic_net_cls

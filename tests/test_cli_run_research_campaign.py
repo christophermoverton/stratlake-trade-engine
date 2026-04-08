@@ -326,6 +326,8 @@ portfolios:
     review_argv = call_order[7][1]
     assert "--from-registry" in review_argv
     assert "--disable-plots" in review_argv
+    assert "--alpha-artifacts-root" in review_argv
+    assert "--portfolio-artifacts-root" in review_argv
 
     assert "Research Campaign Summary" in stdout
     assert f"Campaign: {result.campaign_run_id}" in stdout
@@ -366,7 +368,7 @@ portfolios:
     ]
 
 
-def test_run_research_campaign_preflight_requires_candidate_alpha_name(
+def test_run_research_campaign_allows_multi_alpha_candidate_selection_without_explicit_alpha_filter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -414,22 +416,41 @@ alpha_two:
         }
     )
 
-    with pytest.raises(ValueError, match="Candidate selection requires one resolved alpha_name"):
-        run_research_campaign(config)
+    candidate_selection_calls: list[list[str]] = []
 
-    summaries = list((tmp_path / "campaign_artifacts").glob("*/preflight_summary.json"))
-    assert len(summaries) == 1
-    summary = json.loads(summaries[0].read_text(encoding="utf-8"))
-    assert summary["status"] == "failed"
-    assert "candidate_selection.alpha_name" in summary["failed_checks"]
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            alpha_name=argv[argv.index("--alpha-name") + 1],
+            run_id=f"{argv[argv.index('--alpha-name') + 1]}_run",
+            artifact_dir=tmp_path / "alpha",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+        lambda argv: candidate_selection_calls.append(list(argv))
+        or SimpleNamespace(
+            run_id="candidate_run",
+            artifact_dir=tmp_path / "candidate_selection" / "candidate_run",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run"),
+    )
 
-    campaign_dir = summaries[0].parent
-    campaign_manifest = json.loads((campaign_dir / "manifest.json").read_text(encoding="utf-8"))
-    campaign_summary = json.loads((campaign_dir / "summary.json").read_text(encoding="utf-8"))
-    assert campaign_manifest["status"] == "failed"
-    assert campaign_summary["status"] == "failed"
-    assert campaign_summary["stage_statuses"]["preflight"] == "failed"
-    assert campaign_summary["selected_run_ids"]["alpha_run_ids"] == []
+    result = run_research_campaign(config)
+
+    assert result.preflight_summary["status"] == "passed"
+    assert candidate_selection_calls
+    assert "--alpha-name" not in candidate_selection_calls[0]
+    check = next(
+        item
+        for item in result.preflight_summary["checks"]
+        if item["check_id"] == "candidate_selection.alpha_name"
+    )
+    assert check["status"] == "passed"
+    assert "full campaign alpha universe" in check["message"]
 
 
 def test_run_cli_uses_resolved_config_from_loader(

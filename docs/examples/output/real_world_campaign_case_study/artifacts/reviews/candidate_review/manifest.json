@@ -1,0 +1,23 @@
+{
+  "artifact_files": [
+    "candidate_contributions.csv",
+    "candidate_decisions.csv",
+    "candidate_review_report.md",
+    "candidate_review_summary.json",
+    "candidate_summary.csv",
+    "diversification_summary.json",
+    "manifest.json"
+  ],
+  "candidate_selection_run_id": "candidate_selection_e35992810577",
+  "input_artifacts": {
+    "candidate_selection_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/candidate_selection/candidate_selection_e35992810577",
+    "portfolio_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/portfolios/real_world_m16_campaign_case_study_portfolio_cc99ba561315"
+  },
+  "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+  "row_counts": {
+    "candidate_contributions": 3,
+    "candidate_decisions": 4,
+    "candidate_summary": 4
+  },
+  "run_type": "candidate_selection_review"
+}

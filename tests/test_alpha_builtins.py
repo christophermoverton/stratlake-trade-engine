@@ -10,9 +10,11 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.research.alpha.builtins import (
+    CrossSectionalElasticNetAlphaModel,
     CrossSectionalLinearAlphaModel,
     CrossSectionalLightGBMAlphaModel,
     CrossSectionalXGBoostAlphaModel,
+    ElasticNetModelSpec,
     LightGBMModelSpec,
     LinearModelSpec,
     RankCompositeAlphaModel,
@@ -273,3 +275,37 @@ def test_cross_sectional_lightgbm_alpha_raises_clear_error_when_dependency_missi
 
     with pytest.raises(RuntimeError, match="lightgbm is required"):
         model.fit(daily_alpha_frame)
+
+
+def test_cross_sectional_elastic_net_alpha_is_deterministic_and_tracks_coefficients(
+    daily_alpha_frame: pd.DataFrame,
+) -> None:
+    frame = daily_alpha_frame.copy(deep=True)
+    frame["feature_ret_1d"] = [0.9, 0.15, -0.5, 0.8, 0.1, -0.6, 0.7, 0.05, -0.7]
+    frame["feature_vol_20d"] = [0.2, 0.18, 0.22, 0.19, 0.17, 0.23, 0.21, 0.16, 0.24]
+
+    model = CrossSectionalElasticNetAlphaModel(
+        spec=ElasticNetModelSpec(
+            alpha=0.05,
+            l1_ratio=0.35,
+            fit_intercept=True,
+            max_iter=4000,
+            tol=1e-5,
+            selection="cyclic",
+            min_cross_section_size=2,
+        )
+    )
+
+    model.fit(frame)
+    prediction_frame = frame.drop(columns=["target_ret_5d"])
+    first = model.predict(prediction_frame)
+    second = model.predict(prediction_frame)
+
+    assert first.equals(second)
+    assert first.dtype == "float64"
+    assert first.index.equals(prediction_frame.index)
+    assert model.model_params["alpha"] == pytest.approx(0.05)
+    assert model.model_params["l1_ratio"] == pytest.approx(0.35)
+    assert model.model_params["selection"] == "cyclic"
+    assert sorted(model.coefficient_by_feature) == sorted(model.feature_columns)
+    assert model.training_metadata["n_training_samples"] == len(frame)

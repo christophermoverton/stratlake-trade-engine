@@ -1,0 +1,16 @@
+{
+  "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+  "intercept": null,
+  "model_name": "ml_cross_sectional_xgb_2026_q1",
+  "representation": "feature_importance_by_name",
+  "run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+  "values": {
+    "feature_close_to_sma20": 0.11355283111333847,
+    "feature_ret_1d": 0.06571844220161438,
+    "feature_ret_20d": 0.17645612359046936,
+    "feature_ret_5d": 0.09228061139583588,
+    "feature_sma_20": 0.18698002398014069,
+    "feature_sma_50": 0.19998551905155182,
+    "feature_vol_20d": 0.1650264412164688
+  }
+}

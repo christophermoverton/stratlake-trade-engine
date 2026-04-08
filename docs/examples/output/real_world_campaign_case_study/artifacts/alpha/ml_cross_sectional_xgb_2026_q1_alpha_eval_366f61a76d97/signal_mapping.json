@@ -1,0 +1,17 @@
+{
+  "config": {
+    "metadata": {
+      "case_study": "q1_2026_ml_xgb_features_daily",
+      "name": "top_bottom_quantile_q20"
+    },
+    "output_column": "signal",
+    "policy": "top_bottom_quantile",
+    "prediction_column": "prediction_score",
+    "quantile": 0.2
+  },
+  "cross_section_key": "ts_utc",
+  "row_count": 1200,
+  "symbol_count": 50,
+  "tie_breaker": "prediction_score then symbol ascending",
+  "timestamp_count": 24
+}

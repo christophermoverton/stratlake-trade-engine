@@ -1,0 +1,76 @@
+{
+  "alpha_name": "ml_cross_sectional_elastic_net_2026_q1",
+  "artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha/ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+  "evaluation_metrics": {
+    "ic_ir": 0.8272437066429204,
+    "mean_ic": 0.12084441007118236,
+    "n_periods": 19
+  },
+  "mode": "full",
+  "next_stage": null,
+  "resolved_config": {
+    "alpha_catalog_path": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\configs\\alphas_2026_q1.yml",
+    "alpha_horizon": 5,
+    "alpha_model": "ml_cross_sectional_elastic_net_2026_q1",
+    "alpha_name": "ml_cross_sectional_elastic_net_2026_q1",
+    "artifacts_root": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\docs\\examples\\output\\real_world_campaign_case_study\\artifacts\\alpha",
+    "dataset": "features_daily",
+    "end": "2026-04-03",
+    "feature_columns": [
+      "feature_ret_1d",
+      "feature_ret_5d",
+      "feature_ret_20d",
+      "feature_vol_20d",
+      "feature_sma_20",
+      "feature_sma_50",
+      "feature_close_to_sma20"
+    ],
+    "min_cross_section_size": 25,
+    "model_params": {
+      "alpha": 0.05,
+      "fit_intercept": true,
+      "l1_ratio": 0.35,
+      "max_iter": 5000,
+      "selection": "cyclic",
+      "tol": 0.0001
+    },
+    "model_type": "cross_sectional_elastic_net",
+    "predict_end": "2026-04-03",
+    "predict_start": "2026-03-02",
+    "price_column": "close",
+    "run_mode": "full",
+    "signal_mapping": {
+      "metadata": {
+        "case_study": "q1_2026_ml_elastic_net_features_daily",
+        "name": "top_bottom_quantile_q20"
+      },
+      "policy": "top_bottom_quantile",
+      "quantile": 0.2
+    },
+    "start": "2026-01-01",
+    "target_column": "target_ret_5d",
+    "train_end": "2026-03-02",
+    "train_start": "2026-01-01"
+  },
+  "run_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+  "signal_mapping": {
+    "config": {
+      "metadata": {
+        "case_study": "q1_2026_ml_elastic_net_features_daily",
+        "name": "top_bottom_quantile_q20"
+      },
+      "output_column": "signal",
+      "policy": "top_bottom_quantile",
+      "prediction_column": "prediction_score",
+      "quantile": 0.2
+    },
+    "row_count": 1200,
+    "signals_path": "signals.parquet"
+  },
+  "sleeve": {
+    "sleeve_equity_curve_path": "sleeve_equity_curve.csv",
+    "sleeve_metrics_path": "sleeve_metrics.json",
+    "sleeve_returns_path": "sleeve_returns.csv"
+  },
+  "status": "completed"
+}

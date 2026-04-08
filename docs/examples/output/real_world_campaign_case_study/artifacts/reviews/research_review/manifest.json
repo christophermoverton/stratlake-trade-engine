@@ -1,0 +1,135 @@
+{
+  "artifact_files": [
+    "leaderboard.csv",
+    "manifest.json",
+    "review_summary.json"
+  ],
+  "artifact_groups": {
+    "core": [
+      "leaderboard.csv",
+      "manifest.json",
+      "review_summary.json"
+    ],
+    "leaderboard": [
+      "leaderboard.csv"
+    ],
+    "plots": [],
+    "qa": [],
+    "review": [
+      "leaderboard.csv",
+      "manifest.json",
+      "review_summary.json"
+    ],
+    "summary": [
+      "review_summary.json"
+    ]
+  },
+  "artifacts": {
+    "leaderboard.csv": {
+      "columns": [
+        "run_type",
+        "rank_within_type",
+        "entity_name",
+        "run_id",
+        "selected_metric_name",
+        "selected_metric_value",
+        "secondary_metric_name",
+        "secondary_metric_value",
+        "timeframe",
+        "evaluation_mode",
+        "promotion_status",
+        "passed_gate_count",
+        "gate_count",
+        "mapping_name",
+        "sleeve_metric_name",
+        "sleeve_metric_value",
+        "sleeve_secondary_metric_name",
+        "sleeve_secondary_metric_value",
+        "linked_portfolio_count",
+        "linked_portfolio_names",
+        "linked_portfolio_metric_name",
+        "linked_portfolio_metric_value",
+        "artifact_path"
+      ],
+      "path": "leaderboard.csv",
+      "rows": 5
+    },
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "review_summary.json": {
+      "path": "review_summary.json",
+      "rows": 5
+    }
+  },
+  "counts_by_run_type": {
+    "alpha_evaluation": 4,
+    "portfolio": 1
+  },
+  "evaluation_mode": "registry_review",
+  "files_written": 3,
+  "leaderboard_path": "leaderboard.csv",
+  "plot_paths": {},
+  "promotion_gate_summary": null,
+  "review_config": {
+    "filters": {
+      "alpha_name": null,
+      "dataset": "features_daily",
+      "portfolio_name": "real_world_m16_campaign_case_study",
+      "run_types": [
+        "alpha_evaluation",
+        "portfolio"
+      ],
+      "strategy_name": null,
+      "timeframe": "1D",
+      "top_k_per_type": 4
+    },
+    "output": {
+      "emit_plots": false,
+      "path": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\docs\\examples\\output\\real_world_campaign_case_study\\artifacts\\reviews\\research_review"
+    },
+    "promotion_gates": null,
+    "ranking": {
+      "alpha_evaluation_primary_metric": "ic_ir",
+      "alpha_evaluation_secondary_metric": "mean_ic",
+      "portfolio_primary_metric": "sharpe_ratio",
+      "portfolio_secondary_metric": "total_return",
+      "strategy_primary_metric": "sharpe_ratio",
+      "strategy_secondary_metric": "total_return"
+    }
+  },
+  "review_filters": {
+    "alpha_name": null,
+    "dataset": "features_daily",
+    "portfolio_name": "real_world_m16_campaign_case_study",
+    "run_types": [
+      "alpha_evaluation",
+      "portfolio"
+    ],
+    "strategy_name": null,
+    "timeframe": "1D",
+    "top_k_per_type": 4
+  },
+  "review_id": "registry_review_63c30be06cb7",
+  "review_metrics": {
+    "alpha_entry_count": 4,
+    "blocked_entry_count": 0,
+    "eligible_entry_count": 0,
+    "entry_count": 5,
+    "portfolio_entry_count": 1,
+    "promoted_entry_count": 0,
+    "reviewed_entry_count": 5,
+    "strategy_entry_count": 0
+  },
+  "review_summary_path": "review_summary.json",
+  "row_count": 5,
+  "selected_metrics": {
+    "alpha_evaluation": "ic_ir",
+    "portfolio": "sharpe_ratio"
+  },
+  "skipped_plots": {
+    "alpha_evaluation_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false.",
+    "portfolio_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false."
+  },
+  "timestamp": "2008-03-07T04:58:03Z"
+}

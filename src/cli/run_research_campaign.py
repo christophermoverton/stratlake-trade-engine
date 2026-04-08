@@ -863,11 +863,11 @@ def _run_preflight(
     )
     add_check(
         "candidate_selection.alpha_name",
-        (not config.candidate_selection.enabled) or bool(config.candidate_selection.alpha_name),
+        True,
         (
-            "Candidate selection alpha_name resolved."
-            if (not config.candidate_selection.enabled) or bool(config.candidate_selection.alpha_name)
-            else "Candidate selection requires one resolved alpha_name via candidate_selection.alpha_name or a single targets.alpha_names entry."
+            "Candidate selection alpha_name filter resolved."
+            if bool(config.candidate_selection.alpha_name)
+            else "Candidate selection will evaluate the full campaign alpha universe for the configured dataset/timeframe filters."
         ),
         enabled=config.candidate_selection.enabled,
         alpha_name=config.candidate_selection.alpha_name,
@@ -1316,13 +1316,13 @@ def _run_candidate_selection(
     argv = [
         "--artifacts-root",
         candidate.artifacts_root,
-        "--alpha-name",
-        str(candidate.alpha_name),
         "--metric",
         candidate.metric,
         "--output-path",
         candidate.output.path,
     ]
+    if candidate.alpha_name is not None:
+        argv.extend(["--alpha-name", candidate.alpha_name])
     if candidate.dataset is not None:
         argv.extend(["--dataset", candidate.dataset])
     if candidate.timeframe is not None:
@@ -1529,6 +1529,9 @@ def _run_research_review(config: ResearchCampaignConfig) -> Any:
         argv.extend(["--portfolio-name", review.filters.portfolio_name])
     if review.filters.top_k_per_type is not None:
         argv.extend(["--top-k", str(review.filters.top_k_per_type)])
+    argv.extend(["--alpha-artifacts-root", config.outputs.alpha_artifacts_root])
+    argv.extend(["--strategy-artifacts-root", str(STRATEGY_ARTIFACTS_ROOT)])
+    argv.extend(["--portfolio-artifacts-root", config.outputs.portfolio_artifacts_root])
     argv.extend(
         [
             "--alpha-metric",

@@ -1,0 +1,52 @@
+{
+  "components": [
+    {
+      "artifact_type": "alpha_sleeve",
+      "provenance": {
+        "allocation_weight": 0.333333333333,
+        "alpha_name": "ml_cross_sectional_elastic_net_2026_q1",
+        "alpha_run_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+        "candidate_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+        "candidate_selection_run_id": "candidate_selection_e35992810577",
+        "mapping_name": "top_bottom_quantile_q20",
+        "selection_rank": 3,
+        "sleeve_run_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0"
+      },
+      "run_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+      "source_artifact_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha/ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+      "strategy_name": "ml_cross_sectional_elastic_net_2026_q1__ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0"
+    },
+    {
+      "artifact_type": "alpha_sleeve",
+      "provenance": {
+        "allocation_weight": 0.333333333334,
+        "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+        "alpha_run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+        "candidate_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+        "candidate_selection_run_id": "candidate_selection_e35992810577",
+        "mapping_name": "top_bottom_quantile_q20",
+        "selection_rank": 1,
+        "sleeve_run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97"
+      },
+      "run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+      "source_artifact_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha/ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+      "strategy_name": "ml_cross_sectional_xgb_2026_q1__ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97"
+    },
+    {
+      "artifact_type": "alpha_sleeve",
+      "provenance": {
+        "allocation_weight": 0.333333333333,
+        "alpha_name": "rank_composite_momentum_2026_q1",
+        "alpha_run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+        "candidate_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+        "candidate_selection_run_id": "candidate_selection_e35992810577",
+        "mapping_name": "top_bottom_quantile_q20",
+        "selection_rank": 4,
+        "sleeve_run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306"
+      },
+      "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+      "source_artifact_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha/rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+      "strategy_name": "rank_composite_momentum_2026_q1__rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306"
+    }
+  ]
+}

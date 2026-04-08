@@ -1,0 +1,64 @@
+{
+  "alpha_name": "rank_composite_momentum_2026_q1",
+  "feature_columns": [
+    "feature_ret_5d",
+    "feature_ret_20d",
+    "feature_close_to_sma20"
+  ],
+  "hyperparameters": {},
+  "model_class": "RankCompositeAlphaModel",
+  "model_name": "rank_composite_momentum_2026_q1",
+  "model_type": "rank_composite_alpha_model",
+  "prediction": {
+    "columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "prediction_score"
+    ],
+    "predict_end": "2026-04-03T00:00:00Z",
+    "predict_row_count": 1200,
+    "predict_start": "2026-03-02T00:00:00Z",
+    "predict_symbol_count": 50,
+    "window_semantics": "[predict_start, predict_end)"
+  },
+  "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+  "signal_mapping": {
+    "output_columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "prediction_score",
+      "signal"
+    ],
+    "policy": "top_bottom_quantile",
+    "prediction_column": "prediction_score",
+    "quantile": 0.2,
+    "row_count": 1200,
+    "signal_column": "signal",
+    "timestamp_count": 24
+  },
+  "target_column": "target_ret_5d",
+  "training": {
+    "fit_columns": [
+      "symbol",
+      "ts_utc",
+      "target_ret_5d",
+      "feature_ret_5d",
+      "feature_ret_20d",
+      "feature_close_to_sma20"
+    ],
+    "model_training_metadata": {
+      "min_cross_section_size": 25,
+      "n_cross_sections": 39,
+      "n_rows": 1950,
+      "normalize": 1,
+      "use_ic_weights": 1
+    },
+    "train_end": "2026-03-02T00:00:00Z",
+    "train_row_count": 1950,
+    "train_start": "2026-01-01T00:00:00Z",
+    "train_symbol_count": 50,
+    "window_semantics": "[train_start, train_end)"
+  }
+}

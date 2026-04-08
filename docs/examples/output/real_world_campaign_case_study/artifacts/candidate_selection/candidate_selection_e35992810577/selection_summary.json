@@ -1,0 +1,76 @@
+{
+  "allocated_candidates": 3,
+  "allocation_constraints": {
+    "max_weight_per_candidate": 0.5,
+    "min_candidate_count": 2,
+    "min_weight_threshold": null,
+    "rounding_decimals": 12,
+    "weight_sum_tolerance": 1e-12
+  },
+  "allocation_method": "equal_weight",
+  "allocation_summary": {
+    "allocated_candidates": 3,
+    "allocation_enabled": true,
+    "allocation_method": "equal_weight",
+    "concentration_hhi": 0.33333333333333337,
+    "constraint_adjusted_candidates": 0,
+    "constraints": {
+      "max_weight_per_candidate": 0.5,
+      "min_candidate_count": 2,
+      "min_weight_threshold": null,
+      "rounding_decimals": 12,
+      "weight_sum_tolerance": 1e-12
+    },
+    "weight_max": 0.333333333334,
+    "weight_min": 0.333333333333,
+    "weight_sum": 1.0
+  },
+  "concentration_hhi": 0.33333333333333337,
+  "constraint_adjusted_candidates": 0,
+  "eligible_candidates": 4,
+  "key_metrics": {
+    "average_ic_ir": 0.9005408798877877,
+    "candidate_count_distribution": {
+      "eligible": 4,
+      "selected": 3,
+      "total": 4
+    },
+    "mean_ic": 0.12250760196075511
+  },
+  "primary_metric": "ic_ir",
+  "pruned_by_redundancy": 1,
+  "redundancy_thresholds": {
+    "max_pairwise_correlation": 0.75,
+    "min_overlap_observations": 10
+  },
+  "rejected_candidates": 1,
+  "rejected_candidates_by_stage": {
+    "eligibility": 0,
+    "redundancy": 1
+  },
+  "rejected_count": 1,
+  "retained_after_redundancy": 3,
+  "run_id": "candidate_selection_e35992810577",
+  "selected_candidates": 3,
+  "selected_count": 3,
+  "stage_execution": {
+    "allocation": true,
+    "eligibility": true,
+    "redundancy": true,
+    "universe": true
+  },
+  "thresholds": {
+    "min_history_length": 10,
+    "min_ic_ir": -1.0,
+    "min_mean_ic": -1.0,
+    "min_mean_rank_ic": -1.0,
+    "min_rank_ic_ir": -1.0,
+    "require_ic_ir": false,
+    "require_mean_ic": false
+  },
+  "total_candidates": 4,
+  "universe_count": 4,
+  "weight_max": 0.333333333334,
+  "weight_min": 0.333333333333,
+  "weight_sum": 1.0
+}

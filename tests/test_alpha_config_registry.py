@@ -9,6 +9,7 @@ import yaml
 import src.research.alpha.registry as alpha_registry
 from src.research.alpha.base import BaseAlphaModel
 from src.research.alpha.builtins import (
+    CrossSectionalElasticNetAlphaModel,
     CrossSectionalLinearAlphaModel,
     CrossSectionalLightGBMAlphaModel,
     CrossSectionalXGBoostAlphaModel,
@@ -47,6 +48,7 @@ def test_alphas_config_parses_successfully() -> None:
     assert "cs_linear_ret_1d" in alphas
     assert "cs_linear_ret_5d" in alphas
     assert "ridge_ret_5d" in alphas
+    assert "elastic_net_ret_5d" in alphas
     assert "rank_composite_momentum" in alphas
 
 
@@ -169,6 +171,47 @@ def test_register_builtin_alpha_catalog_supports_native_ridge_baseline() -> None
         "feature_ret_5d",
         "feature_vol_20d",
     ]
+
+
+def test_register_builtin_alpha_catalog_supports_native_elastic_net_baseline() -> None:
+    register_builtin_alpha_catalog()
+
+    model = alpha_registry.get_alpha_model("elastic_net_ret_5d")
+    frame = pd.DataFrame(
+        {
+            "symbol": pd.Series(["AAA", "AAA", "BBB", "BBB"], dtype="string"),
+            "ts_utc": pd.to_datetime(
+                [
+                    "2025-01-01T00:00:00Z",
+                    "2025-01-02T00:00:00Z",
+                    "2025-01-01T00:00:00Z",
+                    "2025-01-02T00:00:00Z",
+                ],
+                utc=True,
+            ),
+            "target_ret_5d": [0.1, 0.2, -0.1, -0.2],
+            "feature_ret_1d": [1.0, 2.0, -1.0, -2.0],
+            "feature_ret_5d": [0.5, 1.0, -0.5, -1.0],
+            "feature_ret_20d": [0.25, 0.5, -0.25, -0.5],
+            "feature_vol_20d": [0.2, 0.3, 0.2, 0.3],
+            "feature_close_to_sma20": [0.01, 0.02, -0.01, -0.02],
+        }
+    ).sort_values(["symbol", "ts_utc"], kind="stable").reset_index(drop=True)
+
+    model.fit(frame)
+    predictions = model.predict(frame.drop(columns=["target_ret_5d"]))
+
+    assert predictions.dtype == "float64"
+    assert len(predictions) == len(frame)
+    assert isinstance(model, CrossSectionalElasticNetAlphaModel)
+    assert sorted(model.coefficient_by_feature) == [
+        "feature_close_to_sma20",
+        "feature_ret_1d",
+        "feature_ret_20d",
+        "feature_ret_5d",
+        "feature_vol_20d",
+    ]
+
 
 def test_load_alphas_config_uses_native_cross_sectional_linear_model_type() -> None:
     config = get_alpha_config("cs_linear_ret_1d")
@@ -308,6 +351,20 @@ def test_register_builtin_alpha_catalog_supports_rank_composite_baseline() -> No
     assert sum(abs(weight) for weight in model.feature_weight_by_name.values()) == pytest.approx(1.0)
     assert predictions.iloc[0] > predictions.iloc[2]
     assert predictions.iloc[1] > predictions.iloc[3]
+
+
+def test_q1_catalog_contains_elastic_net_case_study_and_registers_model() -> None:
+    q1_config_path = REPO_ROOT / "configs" / "alphas_2026_q1.yml"
+    alphas = load_alphas_config(q1_config_path)
+
+    assert alphas["ml_cross_sectional_elastic_net_2026_q1"]["model_type"] == "cross_sectional_elastic_net"
+
+    register_builtin_alpha_catalog(q1_config_path)
+    model = alpha_registry.get_alpha_model("ml_cross_sectional_elastic_net_2026_q1")
+
+    assert isinstance(model, CrossSectionalElasticNetAlphaModel)
+    assert model.model_params["alpha"] == pytest.approx(0.05)
+    assert model.model_params["l1_ratio"] == pytest.approx(0.35)
 
 
 def test_q1_catalog_contains_lightgbm_case_study_and_registers_model() -> None:

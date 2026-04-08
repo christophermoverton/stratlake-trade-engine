@@ -1,0 +1,173 @@
+{
+  "allocation_summary": {
+    "concentration_hhi": 0.33333333333333337,
+    "configured_allocation_summary": {
+      "allocated_candidates": 3,
+      "allocation_enabled": true,
+      "allocation_method": "equal_weight",
+      "concentration_hhi": 0.33333333333333337,
+      "constraint_adjusted_candidates": 0,
+      "constraints": {
+        "max_weight_per_candidate": 0.5,
+        "min_candidate_count": 2,
+        "min_weight_threshold": null,
+        "rounding_decimals": 12,
+        "weight_sum_tolerance": 1e-12
+      },
+      "weight_max": 0.333333333334,
+      "weight_min": 0.333333333333,
+      "weight_sum": 1.0
+    },
+    "weight_sum": 1.0
+  },
+  "candidate_selection_run_id": "candidate_selection_e35992810577",
+  "counts": {
+    "rejected_by_stage": {
+      "eligibility": 0,
+      "redundancy": 1
+    },
+    "rejected_candidates": 1,
+    "selected_candidates": 3,
+    "total_candidates": 4
+  },
+  "diversification_summary": {
+    "average_abs_correlation_selected_vs_rejected": 0.5559364758146407,
+    "average_pairwise_abs_correlation_selected": 0.289211546752227,
+    "average_pairwise_correlation_selected": 0.05474667667062005,
+    "concentration": {
+      "herfindahl_index": 0.33333333333333337,
+      "top3_concentration_ratio": 1.0
+    },
+    "rejected_candidate_count": 1,
+    "selected_candidate_count": 3
+  },
+  "key_observations": [
+    {
+      "name": "selection_rate",
+      "value": 0.75
+    },
+    {
+      "name": "eligibility_rejection_rate",
+      "value": 0.0
+    },
+    {
+      "name": "redundancy_rejection_rate",
+      "value": 0.25
+    },
+    {
+      "name": "average_selected_allocation_weight",
+      "value": 0.3333333333333333
+    },
+    {
+      "name": "selected_avg_abs_pairwise_correlation",
+      "value": 0.289211546752227
+    }
+  ],
+  "portfolio_metrics": {
+    "annualized_return": 0.08841849862390871,
+    "annualized_volatility": 0.020886541053111638,
+    "average_execution_friction_per_trade": 0.0,
+    "average_fixed_fee_per_trade": 0.0,
+    "average_gross_exposure": 0.9999999999990905,
+    "average_leverage": 0.9999999999990905,
+    "average_net_exposure": 0.9999999999990905,
+    "average_trade_size": 0.9999999999990905,
+    "average_turnover": 0.04166666666662877,
+    "conditional_value_at_risk": 0.0019060161714443999,
+    "conditional_value_at_risk_confidence_level": 0.95,
+    "cumulative_return": 0.008101759628482474,
+    "current_drawdown": 0.0027004595295651024,
+    "current_drawdown_duration": 4.0,
+    "estimated_post_target_volatility": null,
+    "estimated_pre_target_volatility": 0.022202083060691866,
+    "execution_drag_total_return": 0.0,
+    "exposure_pct": 100.0,
+    "gross_annualized_return": 0.08841849862390871,
+    "gross_cumulative_return": 0.008101759628482474,
+    "gross_total_return": 0.008101759628482474,
+    "hit_rate": 0.625,
+    "latest_rolling_volatility": 0.022202083060691866,
+    "max_drawdown": 0.004632462958028327,
+    "max_drawdown_duration": 4.0,
+    "max_gross_exposure": 0.9999999999990905,
+    "max_leverage": 0.9999999999990905,
+    "max_net_exposure": 0.9999999999990905,
+    "max_single_weight": 0.33333333333303017,
+    "max_weight_sum_deviation": 9.094947017729282e-13,
+    "min_net_exposure": 0.9999999999990905,
+    "net_total_return": 0.008101759628482474,
+    "percent_periods_traded": 4.166666666666666,
+    "profit_factor": 1.8996614268719028,
+    "realized_volatility": 0.020886541053111638,
+    "rebalance_count": 1.0,
+    "rolling_volatility_latest": 0.022202083060691866,
+    "rolling_volatility_max": 0.022202083060691866,
+    "rolling_volatility_mean": 0.020372950316728897,
+    "rolling_volatility_window": 20.0,
+    "sanity_issue_count": 0.0,
+    "sanity_status": "pass",
+    "sanity_strict_mode": false,
+    "sanity_warning_count": 0.0,
+    "sharpe_ratio": 4.06716156929312,
+    "target_volatility": null,
+    "total_execution_friction": 0.0,
+    "total_fixed_fee": 0.0,
+    "total_return": 0.008101759628482474,
+    "total_slippage_cost": 0.0,
+    "total_transaction_cost": 0.0,
+    "total_turnover": 0.9999999999990905,
+    "trade_count": 1.0,
+    "turnover": 0.04166666666662877,
+    "validation_issue_count": 0.0,
+    "value_at_risk": 0.0014066173809777207,
+    "value_at_risk_confidence_level": 0.95,
+    "volatility": 0.0013157284136874883,
+    "volatility_scaling_factor": null,
+    "volatility_target_scale": null,
+    "volatility_target_scale_capped": 0.0,
+    "volatility_targeting_enabled": 0.0,
+    "win_rate": 0.625
+  },
+  "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+  "run_type": "candidate_selection_review",
+  "top_contributors": [
+    {
+      "average_weight": 0.3333333333330301,
+      "candidate_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+      "return_contribution": 0.009444664311377235,
+      "return_contribution_share": 1.1673951278315897
+    },
+    {
+      "average_weight": 0.3333333333330301,
+      "candidate_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+      "return_contribution": 0.002381577952784934,
+      "return_contribution_share": 0.29437176451926694
+    },
+    {
+      "average_weight": 0.3333333333330301,
+      "candidate_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+      "return_contribution": -0.003735867303526101,
+      "return_contribution_share": -0.4617668923508566
+    }
+  ],
+  "weakest_contributors": [
+    {
+      "average_weight": 0.3333333333330301,
+      "candidate_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+      "return_contribution": -0.003735867303526101,
+      "return_contribution_share": -0.4617668923508566
+    },
+    {
+      "average_weight": 0.3333333333330301,
+      "candidate_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+      "return_contribution": 0.002381577952784934,
+      "return_contribution_share": 0.29437176451926694
+    },
+    {
+      "average_weight": 0.3333333333330301,
+      "candidate_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+      "return_contribution": 0.009444664311377235,
+      "return_contribution_share": 1.1673951278315897
+    }
+  ]
+}

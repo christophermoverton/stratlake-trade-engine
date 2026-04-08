@@ -1,0 +1,100 @@
+research_campaign:
+  dataset_selection:
+    dataset: features_daily
+    timeframe: 1D
+    evaluation_horizon: 5
+    mapping_name: top_bottom_quantile_q20
+
+  time_windows:
+    start: "2025-01-01"
+    end: "2025-03-01"
+    train_start: "2025-01-01"
+    train_end: "2025-02-01"
+    predict_start: "2025-02-01"
+    predict_end: "2025-03-01"
+
+  targets:
+    alpha_names:
+      - ml_cross_sectional_xgb_2026_q1
+    strategy_names:
+      - momentum_v1
+      - mean_reversion_v1
+    portfolio_names:
+      - real_world_m15_candidate_driven
+    alpha_catalog_path: configs/alphas_2026_q1.yml
+    strategy_config_path: configs/strategies.yml
+    portfolio_config_path: configs/portfolios_alpha_2026_q1.yml
+
+  comparison:
+    enabled: true
+    from_registry: true
+    top_k: 3
+    alpha_view: combined
+    alpha_metric: ic_ir
+    alpha_sleeve_metric: sharpe_ratio
+    strategy_metric: sharpe_ratio
+
+  candidate_selection:
+    enabled: true
+    metric: ic_ir
+    max_candidates: 3
+    eligibility:
+      min_mean_ic: -1.0
+      min_mean_rank_ic: -1.0
+      min_ic_ir: -1.0
+      min_rank_ic_ir: -1.0
+      min_history_length: 10
+      min_coverage: 0.5
+    redundancy:
+      max_pairwise_correlation: 0.75
+      min_overlap_observations: 10
+    allocation:
+      allocation_method: equal_weight
+      max_weight_per_candidate: 1.0
+      min_allocation_candidate_count: 1
+      min_allocation_weight: 0.0
+      allocation_weight_sum_tolerance: 1.0e-12
+      allocation_rounding_decimals: 12
+    execution:
+      strict_mode: false
+      skip_eligibility: false
+      skip_redundancy: false
+      skip_allocation: false
+      enable_review: true
+      no_markdown_review: false
+      register_run: true
+      from_registry: false
+    output:
+      path: artifacts/candidate_selection
+      review_output_path: artifacts/reviews
+
+  portfolio:
+    enabled: true
+    from_candidate_selection: true
+    optimizer_method: equal_weight
+
+  review:
+    filters:
+      run_types:
+        - alpha_evaluation
+        - strategy
+        - portfolio
+      top_k_per_type: 3
+    ranking:
+      alpha_evaluation_primary_metric: ic_ir
+      alpha_evaluation_secondary_metric: mean_ic
+      strategy_primary_metric: sharpe_ratio
+      strategy_secondary_metric: total_return
+      portfolio_primary_metric: sharpe_ratio
+      portfolio_secondary_metric: total_return
+    output:
+      path: artifacts/reviews
+      emit_plots: false
+
+  outputs:
+    alpha_artifacts_root: artifacts/alpha
+    candidate_selection_output_path: artifacts/candidate_selection
+    campaign_artifacts_root: artifacts/research_campaigns
+    portfolio_artifacts_root: artifacts/portfolios
+    comparison_output_path: artifacts/campaign_comparisons
+    review_output_path: artifacts/reviews

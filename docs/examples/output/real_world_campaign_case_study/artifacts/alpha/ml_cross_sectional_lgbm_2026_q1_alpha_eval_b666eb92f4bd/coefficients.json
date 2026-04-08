@@ -1,0 +1,16 @@
+{
+  "alpha_name": "ml_cross_sectional_lgbm_2026_q1",
+  "intercept": null,
+  "model_name": "ml_cross_sectional_lgbm_2026_q1",
+  "representation": "feature_importance_by_name",
+  "run_id": "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+  "values": {
+    "feature_close_to_sma20": 717.0,
+    "feature_ret_1d": 575.0,
+    "feature_ret_20d": 810.0,
+    "feature_ret_5d": 671.0,
+    "feature_sma_20": 1208.0,
+    "feature_sma_50": 946.0,
+    "feature_vol_20d": 1073.0
+  }
+}

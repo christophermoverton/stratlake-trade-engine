@@ -1,0 +1,16 @@
+{
+  "alpha_name": "ml_cross_sectional_elastic_net_2026_q1",
+  "intercept": null,
+  "model_name": "ml_cross_sectional_elastic_net_2026_q1",
+  "representation": "coefficient_by_feature",
+  "run_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+  "values": {
+    "feature_close_to_sma20": 0.0,
+    "feature_ret_1d": 0.0,
+    "feature_ret_20d": 0.0,
+    "feature_ret_5d": 0.0,
+    "feature_sma_20": 4.3142040680743104e-05,
+    "feature_sma_50": -5.536270029919958e-05,
+    "feature_vol_20d": 0.0
+  }
+}

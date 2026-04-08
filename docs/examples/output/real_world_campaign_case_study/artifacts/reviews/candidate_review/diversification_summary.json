@@ -1,0 +1,11 @@
+{
+  "average_abs_correlation_selected_vs_rejected": 0.5559364758146407,
+  "average_pairwise_abs_correlation_selected": 0.289211546752227,
+  "average_pairwise_correlation_selected": 0.05474667667062005,
+  "concentration": {
+    "herfindahl_index": 0.33333333333333337,
+    "top3_concentration_ratio": 1.0
+  },
+  "rejected_candidate_count": 1,
+  "selected_candidate_count": 3
+}

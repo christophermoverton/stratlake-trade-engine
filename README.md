@@ -8,10 +8,11 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 15 Summary
+## Milestone 16 Summary
 
-Milestone 15 adds a governed candidate-selection and allocation layer between
-alpha evaluation and portfolio construction. StratLake now supports a
+Milestone 16 adds a campaign-orchestration layer above the governed
+candidate-selection and allocation workflow introduced in Milestone 15.
+StratLake now supports a
 deterministic path from evaluated alpha sleeves to candidate decisions,
 redundancy control, governed allocation, candidate-driven portfolio
 construction, and candidate-level review outputs. The repository now supports:
@@ -37,9 +38,9 @@ construction, and candidate-level review outputs. The repository now supports:
   `artifacts/reviews/candidate_selection_<run_id>/`
 * built-in alpha catalog/config support through `configs/alphas.yml` plus
   `python -m src.cli.run_alpha`
-* a real-data Q1 2026 XGBoost cross-sectional alpha case study on
-  `features_daily`, including registry-backed comparison and sleeve portfolio
-  loading
+* real-data Q1 2026 ML alpha case studies on `features_daily`, including
+  XGBoost, LightGBM, and Elastic Net baselines plus campaign-backed comparison,
+  candidate selection, portfolio construction, and review
 * default full alpha runs that persist evaluation artifacts, mapped signals,
   sleeve return streams, sleeve metrics, and `alpha_run_scaffold.json`
 * continuous-signal backtesting where finite numeric exposures are interpreted
@@ -70,6 +71,7 @@ Start with:
 * [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
 * [docs/examples/candidate_selection_portfolio_case_study.py](docs/examples/candidate_selection_portfolio_case_study.py)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
+* [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
@@ -105,6 +107,14 @@ The repository currently supports:
 * candidate review outputs that explain selection and contribution decisions
 * manifest-backed unified research review artifacts with deterministic review summaries
 * unified runtime configuration with auditable persisted settings
+* unified research campaign configuration for shared dataset, target, comparison,
+  candidate-selection, portfolio, review, and output-path settings
+* campaign-level orchestration through
+  `python -m src.cli.run_research_campaign --config ...`
+* campaign preflight validation with persisted `preflight_summary.json` reports
+  before expensive research execution starts
+* stitched campaign `manifest.json` and `summary.json` artifacts for
+  automation and multi-stage auditability
 * deterministic artifacts, manifests, and registry-backed reuse
 
 Feature naming note:
@@ -243,11 +253,11 @@ python -m src.cli.compare_alpha --from-registry
 Notes:
 
 * `python -m src.cli.run_alpha` is the first-class entrypoint for named built-in alpha configs from `configs/alphas.yml`
-* the Q1 2026 ML case study lives in `configs/alphas_2026_q1.yml` as `ml_cross_sectional_xgb_2026_q1`
+* the Q1 2026 ML catalog lives in `configs/alphas_2026_q1.yml` and includes `ml_cross_sectional_xgb_2026_q1`, `ml_cross_sectional_lgbm_2026_q1`, and `ml_cross_sectional_elastic_net_2026_q1`
 * `--mode evaluate` runs only the evaluation stage; the default `full` mode also writes `signals.parquet`, sleeve artifacts, and `alpha_run_scaffold.json`
 * pass exactly one of `--price-column` or `--realized-return-column`
 * `--model-class` accepts either `module:Class` or `path.py:Class`
-* built-in XGBoost alpha configs require the `xgboost` package in the active environment
+* built-in XGBoost, LightGBM, and Elastic Net configs require their underlying packages in the active environment
 * the end-to-end example writes reproducible outputs under
   `docs/examples/output/alpha_evaluation_end_to_end/`
 
@@ -288,6 +298,42 @@ python -m src.cli.run_candidate_selection --config configs/candidate_selection.y
 python -m src.cli.run_portfolio --from-candidate-selection artifacts/candidate_selection/<candidate_selection_run_id> --portfolio-name your_candidate_driven_portfolio --timeframe 1D
 python docs/examples/candidate_selection_portfolio_case_study.py
 python docs/examples/real_world_candidate_selection_portfolio_case_study.py
+```
+
+## Research Campaign Orchestration (Milestone 16)
+
+Milestone 16 adds one campaign-level entrypoint above the existing CLIs:
+
+```text
+Preflight -> Research -> Comparison -> Candidate Selection -> Portfolio -> Review
+```
+
+What it provides:
+
+* one normalized campaign config for shared dataset, targets, time windows, and
+  output roots
+* fail-fast campaign preflight before multi-stage execution begins
+* deterministic stage ordering across alpha, strategy, comparison,
+  candidate-selection, portfolio, candidate review, and unified review
+* one stitched campaign artifact directory under
+  `artifacts/research_campaigns/<campaign_run_id>/`
+* campaign-level `summary.json` and `manifest.json` files for automation and
+  auditability
+
+Start here:
+
+* [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
+* [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
+* [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
+* [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
+* [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
+
+Quick start:
+
+```powershell
+python -m src.cli.run_research_campaign
+python -m src.cli.run_research_campaign --config docs/examples/data/milestone_16_campaign_configs/full_campaign.yml
+python docs/examples/real_world_campaign_case_study.py
 ```
 
 ## Cross-Sectional Utilities
@@ -362,6 +408,8 @@ See:
 * [docs/research_validity_framework.md](docs/research_validity_framework.md)
 * [docs/execution_model.md](docs/execution_model.md)
 * [docs/runtime_configuration.md](docs/runtime_configuration.md)
+* [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
+* [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
 * [docs/strict_mode.md](docs/strict_mode.md)
 * [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 
@@ -445,21 +493,23 @@ decision.
 The primary workflow guide lives in
 [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
 
-### 4d. Run the Q1 2026 ML alpha case study
+### 4d. Run the Q1 2026 ML alpha case studies
 
 ```powershell
 python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name ml_cross_sectional_xgb_2026_q1
+python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name ml_cross_sectional_lgbm_2026_q1
+python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name ml_cross_sectional_elastic_net_2026_q1
 python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name rank_composite_momentum_2026_q1
 python -m src.cli.compare_alpha --from-registry --dataset features_daily --timeframe 1D --evaluation-horizon 5 --mapping-name top_bottom_quantile_q20 --view combined
 python -m src.cli.run_portfolio --portfolio-config configs/portfolios_alpha_2026_q1.yml --portfolio-name ml_cross_sectional_xgb_2026_q1_equal --timeframe 1D
 python -m src.cli.compare_research --from-registry --run-types alpha_evaluation portfolio --dataset features_daily --timeframe 1D --alpha-name ml_cross_sectional_xgb_2026_q1 --portfolio-name ml_cross_sectional_xgb_2026_q1_equal --disable-plots
 ```
 
-This case study demonstrates a built-in XGBoost alpha trained on
+These case studies demonstrate built-in Q1 2026 ML alphas trained on
 `2026-01-01 <= ts_utc < 2026-03-02`, predicted on
 `2026-03-02 <= ts_utc < 2026-04-03`, mapped with
-`top_bottom_quantile[q=0.2]`, and consumed downstream as an
-`artifact_type: alpha_sleeve` portfolio component. See
+`top_bottom_quantile[q=0.2]`, and consumed downstream as
+`artifact_type: alpha_sleeve` portfolio components. See
 [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md).
 
 ### 4e. Run the Milestone 15 candidate-selection and governed-allocation workflows
@@ -482,6 +532,17 @@ Production CLI path:
 python -m src.cli.run_candidate_selection --config configs/candidate_selection.yml
 python -m src.cli.run_portfolio --from-candidate-selection artifacts/candidate_selection/<candidate_selection_run_id> --portfolio-name your_candidate_driven_portfolio --timeframe 1D
 ```
+
+### 4f. Run the Milestone 16 real-world campaign case study
+
+```powershell
+python docs/examples/real_world_campaign_case_study.py
+```
+
+This case study runs the campaign orchestration flow end to end on repository
+`features_daily` data using the Q1 2026 XGBoost, LightGBM, Elastic Net, and
+rank-composite alphas, then writes stitched campaign, candidate-selection,
+candidate-review, portfolio, and research-review summaries.
 
 ### 5. Run a portfolio
 
@@ -601,8 +662,10 @@ It demonstrates:
 See the companion guide
 [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md).
 
-For the latest real-data ML alpha case study using XGBoost on the Q1 2026
-`features_daily` surface, see
+For the latest real-data Milestone 16 campaign-backed case study on the Q1
+2026 `features_daily` surface, see
+[docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md).
+For the standalone XGBoost alpha workflow, see
 [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md).
 
 The lower-level custom-model walkthrough remains available at
@@ -724,6 +787,18 @@ Core files:
 * `manifest.json`
 * `promotion_gates.json` when review-level promotion gates are configured
 
+### Research campaign artifacts
+
+Successful or failed campaign preflight runs write under
+`artifacts/research_campaigns/<campaign_run_id>/`.
+
+Core files:
+
+* `campaign_config.json`
+* `preflight_summary.json`
+* `manifest.json`
+* `summary.json`
+
 ### Alpha-evaluation artifacts
 
 Successful alpha-evaluation runs write under `artifacts/alpha/<run_id>/`.
@@ -772,6 +847,8 @@ Start here:
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/milestone_15_candidate_selection_issue_1.md](docs/milestone_15_candidate_selection_issue_1.md)
+* [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
+* [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
@@ -787,6 +864,7 @@ Research integrity and execution references:
 * [docs/research_validity_framework.md](docs/research_validity_framework.md)
 * [docs/execution_model.md](docs/execution_model.md)
 * [docs/runtime_configuration.md](docs/runtime_configuration.md)
+* [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
 * [docs/strict_mode.md](docs/strict_mode.md)
 * [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 
@@ -796,6 +874,8 @@ Examples:
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
+* [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
+* [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
 * [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
@@ -806,6 +886,7 @@ Merge-readiness notes:
 * [docs/milestone_10_merge_readiness.md](docs/milestone_10_merge_readiness.md)
 * [docs/milestone_11_merge_readiness.md](docs/milestone_11_merge_readiness.md)
 * [docs/milestone_13_merge_readiness.md](docs/milestone_13_merge_readiness.md)
+* [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 
 ## Repository Layout
 

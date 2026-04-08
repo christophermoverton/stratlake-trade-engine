@@ -1,0 +1,40 @@
+{
+  "cross_section_size": {
+    "max": 50,
+    "mean": 50.0,
+    "min": 50
+  },
+  "forward_return_column": "forward_return",
+  "ic_extrema": {
+    "best_ic": {
+      "ic": 0.5134294506479127,
+      "ts_utc": "2026-03-25T04:00:00Z"
+    },
+    "best_rank_ic": {
+      "rank_ic": 0.4457623049219688,
+      "ts_utc": "2026-03-05T05:00:00Z"
+    },
+    "worst_ic": {
+      "ic": -0.008822053559442183,
+      "ts_utc": "2026-03-16T04:00:00Z"
+    },
+    "worst_rank_ic": {
+      "rank_ic": -0.02885954381752701,
+      "ts_utc": "2026-03-16T04:00:00Z"
+    }
+  },
+  "min_cross_section_size": 25,
+  "prediction_column": "prediction_score",
+  "prediction_score": {
+    "max": 0.16113357936494394,
+    "mean": 0.0014547676369642988,
+    "min": -0.1478787281074387
+  },
+  "row_count": 950,
+  "symbol_count": 50,
+  "timestamp_count": 19,
+  "valid_periods": {
+    "ic": 19,
+    "rank_ic": 19
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "forward_return_column": "forward_return",
+  "ic_ir": 1.589418842850813,
+  "ic_positive_rate": 0.9473684210526315,
+  "mean_ic": 0.24848289027411252,
+  "mean_rank_ic": 0.22603435773046024,
+  "metadata": {
+    "alpha_name": "ml_cross_sectional_lgbm_2026_q1",
+    "artifact_scaffold": {
+      "alpha_metrics": "alpha_metrics.json",
+      "coefficients": "coefficients.json",
+      "cross_section_diagnostics": "cross_section_diagnostics.json",
+      "ic_timeseries": "ic_timeseries.csv",
+      "predictions": "predictions.parquet",
+      "qa_summary": "qa_summary.json",
+      "signal_mapping": "signal_mapping.json",
+      "signals": "signals.parquet",
+      "training_summary": "training_summary.json"
+    },
+    "ic_timeseries_columns": [
+      "ts_utc",
+      "ic",
+      "rank_ic",
+      "sample_size"
+    ],
+    "input_columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "prediction_score",
+      "close",
+      "forward_return"
+    ],
+    "run_id": "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+    "timeframe": "1D",
+    "ts_utc_end": "2026-03-26T04:00:00Z",
+    "ts_utc_start": "2026-03-02T05:00:00Z"
+  },
+  "min_cross_section_size": 25,
+  "n_periods": 19,
+  "prediction_column": "prediction_score",
+  "rank_ic_ir": 1.8849086091202858,
+  "row_count": 950,
+  "std_ic": 0.15633568923118385,
+  "std_rank_ic": 0.11991794012546515,
+  "symbol_count": 50,
+  "timestamp_count": 19,
+  "valid_timestamps": 19.0
+}

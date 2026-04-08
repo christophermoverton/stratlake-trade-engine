@@ -76,6 +76,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     add_dual_flag_argument(
         parser,
+        "--alpha-artifacts-root",
+        "--alpha_artifacts_root",
+        dest="alpha_artifacts_root",
+        help="Optional alpha artifacts root override.",
+    )
+    add_dual_flag_argument(
+        parser,
+        "--strategy-artifacts-root",
+        "--strategy_artifacts_root",
+        dest="strategy_artifacts_root",
+        help="Optional strategy artifacts root override.",
+    )
+    add_dual_flag_argument(
+        parser,
+        "--portfolio-artifacts-root",
+        "--portfolio_artifacts_root",
+        dest="portfolio_artifacts_root",
+        help="Optional portfolio artifacts root override.",
+    )
+    add_dual_flag_argument(
+        parser,
         "--review-config",
         "--review_config",
         dest="review_config",
@@ -121,6 +142,9 @@ def run_cli(argv: Sequence[str] | None = None) -> ResearchReviewResult:
         strategy_name=args.strategy_name,
         portfolio_name=args.portfolio_name,
         top_k_per_type=args.top_k,
+        alpha_artifacts_root=args.alpha_artifacts_root,
+        strategy_artifacts_root=args.strategy_artifacts_root,
+        portfolio_artifacts_root=args.portfolio_artifacts_root,
         output_path=optional_output_path(args.output_path),
         review_config=file_review_config,
         alpha_metric=args.alpha_metric,

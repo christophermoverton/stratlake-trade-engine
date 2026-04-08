@@ -62,6 +62,9 @@ def build_candidate_selection_registry_entry(
         "run_id": str(run_id),
         "run_type": _CANDIDATE_SELECTION_RUN_TYPE,
         "timestamp": stable_timestamp_from_run_id(str(run_id)),
+        "alpha_name": config_snapshot.get("filters", {}).get("alpha_name")
+        if isinstance(config_snapshot.get("filters"), Mapping)
+        else None,
         "dataset": provenance.get("dataset"),
         "timeframe": provenance.get("timeframe"),
         "evaluation_horizon": provenance.get("evaluation_horizon"),
@@ -73,6 +76,11 @@ def build_candidate_selection_registry_entry(
         "artifact_path": resolved_artifact_dir.as_posix(),
         "manifest_path": resolved_artifact_dir.joinpath("manifest.json").as_posix(),
         "summary_path": resolved_artifact_dir.joinpath("selection_summary.json").as_posix(),
+        "upstream_alpha_run_ids": (
+            provenance.get("upstream", {}).get("alpha_run_ids")
+            if isinstance(provenance.get("upstream"), Mapping)
+            else None
+        ),
         "metadata": canonicalize_value(
             {
                 "mapping_names": provenance.get("mapping_names"),

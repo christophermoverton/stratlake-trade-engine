@@ -8,9 +8,11 @@ from typing import Any
 import yaml
 
 from src.research.alpha.builtins import (
+    CrossSectionalElasticNetAlphaModel,
     CrossSectionalLinearAlphaModel,
     CrossSectionalLightGBMAlphaModel,
     CrossSectionalXGBoostAlphaModel,
+    ElasticNetModelSpec,
     LightGBMModelSpec,
     LinearModelSpec,
     RankCompositeAlphaModel,
@@ -191,6 +193,17 @@ def _build_alpha_factory(alpha_name: str, config: Mapping[str, Any]):
             boosting_type=str(params.get("boosting_type", "gbdt")),
         )
         return partial(CrossSectionalLightGBMAlphaModel, spec=spec)
+    if model_type in {"cross_sectional_elastic_net", "elastic_net", "elasticnet"}:
+        spec = ElasticNetModelSpec(
+            alpha=float(params.get("alpha", 0.1)),
+            l1_ratio=float(params.get("l1_ratio", 0.5)),
+            fit_intercept=bool(params.get("fit_intercept", True)),
+            max_iter=int(params.get("max_iter", 2000)),
+            tol=float(params.get("tol", 1e-4)),
+            selection=str(params.get("selection", "cyclic")),
+            min_cross_section_size=int(params.get("min_cross_section_size", config.get("min_cross_section_size", 2))),
+        )
+        return partial(CrossSectionalElasticNetAlphaModel, spec=spec)
     if model_type in {"rank_composite_momentum", "rank_composite"}:
         return partial(
             RankCompositeAlphaModel,

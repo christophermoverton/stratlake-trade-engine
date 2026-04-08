@@ -1,0 +1,283 @@
+{
+  "alpha_name": "rank_composite_momentum_2026_q1",
+  "artifact_files": [
+    "alpha_metrics.json",
+    "coefficients.json",
+    "cross_section_diagnostics.json",
+    "ic_timeseries.csv",
+    "manifest.json",
+    "predictions.parquet",
+    "qa_summary.json",
+    "signal_mapping.json",
+    "signals.parquet",
+    "sleeve_equity_curve.csv",
+    "sleeve_metrics.json",
+    "sleeve_returns.csv",
+    "training_summary.json"
+  ],
+  "artifact_groups": {
+    "alpha_evaluation": [
+      "alpha_metrics.json",
+      "coefficients.json",
+      "cross_section_diagnostics.json",
+      "ic_timeseries.csv",
+      "manifest.json",
+      "predictions.parquet",
+      "qa_summary.json",
+      "signal_mapping.json",
+      "signals.parquet",
+      "sleeve_equity_curve.csv",
+      "sleeve_metrics.json",
+      "sleeve_returns.csv",
+      "training_summary.json"
+    ],
+    "sleeve": [
+      "sleeve_equity_curve.csv",
+      "sleeve_metrics.json",
+      "sleeve_returns.csv"
+    ]
+  },
+  "artifact_paths": {
+    "coefficients": "coefficients.json",
+    "cross_section_diagnostics": "cross_section_diagnostics.json",
+    "manifest": "manifest.json",
+    "metrics": "alpha_metrics.json",
+    "predictions": "predictions.parquet",
+    "qa_summary": "qa_summary.json",
+    "signal_mapping": "signal_mapping.json",
+    "signals": "signals.parquet",
+    "sleeve_equity_curve": "sleeve_equity_curve.csv",
+    "sleeve_metrics": "sleeve_metrics.json",
+    "sleeve_returns": "sleeve_returns.csv",
+    "timeseries": "ic_timeseries.csv",
+    "training_summary": "training_summary.json"
+  },
+  "coefficient_representation": "feature_weight_by_name",
+  "cross_section_diagnostics_path": "cross_section_diagnostics.json",
+  "evaluation_mode": "alpha",
+  "files_written": 13,
+  "manifest_path": "manifest.json",
+  "metric_summary": {
+    "ic_ir": -0.04543185604194747,
+    "ic_positive_rate": 0.5789473684210527,
+    "mean_ic": -0.007925863633708358,
+    "mean_rank_ic": -0.0019231397412175382,
+    "n_periods": 19,
+    "rank_ic_ir": -0.011713612309876541,
+    "std_ic": 0.17445608267446452,
+    "std_rank_ic": 0.16417990371731944,
+    "valid_timestamps": 19.0
+  },
+  "metrics_path": "alpha_metrics.json",
+  "model": {
+    "feature_columns": [
+      "feature_ret_5d",
+      "feature_ret_20d",
+      "feature_close_to_sma20"
+    ],
+    "hyperparameters": {},
+    "model_class": "RankCompositeAlphaModel",
+    "model_name": "rank_composite_momentum_2026_q1",
+    "model_type": "rank_composite"
+  },
+  "prediction_row_count": 1200,
+  "predictions_path": "predictions.parquet",
+  "promotion_gate_summary": null,
+  "qa_summary": {
+    "alpha_name": "rank_composite_momentum_2026_q1",
+    "checks": {
+      "concentration": {
+        "actual_value": 0.05,
+        "description": "Largest single-name share of gross signal exposure at any timestamp.",
+        "direction": "lte",
+        "fail_threshold": 0.75,
+        "status": "pass",
+        "warn_threshold": 0.5
+      },
+      "minimum_valid_timestamps": {
+        "actual_value": 19.0,
+        "description": "Minimum usable evaluation timestamps after alignment and null filtering.",
+        "direction": "gte",
+        "fail_threshold": 2.0,
+        "status": "pass",
+        "warn_threshold": 10.0
+      },
+      "net_exposure_sanity": {
+        "actual_value": 0.0,
+        "description": "Largest absolute net exposure share implied by mapped signals.",
+        "direction": "lte",
+        "fail_threshold": 0.6,
+        "status": "pass",
+        "warn_threshold": 0.35
+      },
+      "post_warmup_null_limit": {
+        "actual_value": 0.0,
+        "description": "Maximum post-warmup null rate across prediction and forward-return fields.",
+        "direction": "lte",
+        "fail_threshold": 0.1,
+        "status": "pass",
+        "warn_threshold": 0.02
+      },
+      "sleeve_turnover": {
+        "actual_value": 0.16333333333333333,
+        "description": "Average timestamp-to-timestamp sleeve turnover implied by mapped signals.",
+        "direction": "lte",
+        "fail_threshold": 1.25,
+        "status": "pass",
+        "warn_threshold": 0.75
+      },
+      "valid_timestamp_rate": {
+        "actual_value": 1.0,
+        "description": "Share of timestamps that retained enough valid names for IC evaluation.",
+        "direction": "gte",
+        "fail_threshold": 0.4,
+        "status": "pass",
+        "warn_threshold": 0.7
+      }
+    },
+    "cross_section": {
+      "configured_min_cross_section_size": 25,
+      "max_valid_cross_section_size": 50,
+      "mean_valid_cross_section_size": 50.0,
+      "min_valid_cross_section_size": 50,
+      "total_timestamps": 19,
+      "valid_timestamp_rate": 1.0,
+      "valid_timestamps": 19
+    },
+    "date_range": [
+      "2026-03-02T05:00:00Z",
+      "2026-03-26T04:00:00Z"
+    ],
+    "flags": {
+      "concentration": false,
+      "minimum_valid_timestamps": false,
+      "net_exposure_sanity": false,
+      "post_warmup_null_limit": false,
+      "sleeve_turnover": false,
+      "valid_timestamp_rate": false
+    },
+    "forecast": {
+      "ic_ir": -0.04543185604194747,
+      "ic_positive_rate": 0.5789473684210527,
+      "mean_ic": -0.007925863633708358,
+      "mean_rank_ic": -0.0019231397412175382,
+      "rank_ic_ir": -0.011713612309876541,
+      "valid_timestamps": 19
+    },
+    "nulls": {
+      "forward_return_null_count": 0,
+      "forward_return_null_rate": 0.0,
+      "post_warmup_row_count": 900,
+      "prediction_null_count": 0,
+      "prediction_null_rate": 0.0
+    },
+    "overall_status": "pass",
+    "row_count": 950,
+    "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+    "signals": {
+      "enabled": true,
+      "max_abs_net_exposure": 0.0,
+      "max_abs_net_exposure_share": 0.0,
+      "max_gross_exposure": 20.0,
+      "max_single_name_abs_share": 0.05,
+      "max_turnover": 0.24,
+      "mean_active_name_count": 20.0,
+      "mean_gross_exposure": 20.0,
+      "mean_net_exposure": 0.0,
+      "mean_turnover": 0.16333333333333333,
+      "min_active_name_count": 20.0,
+      "policy": "top_bottom_quantile",
+      "row_count": 1200,
+      "symbol_count": 50,
+      "timestamp_count": 24
+    },
+    "symbol_count": 50,
+    "timeframe": "1D",
+    "timestamp_count": 19
+  },
+  "qa_summary_path": "qa_summary.json",
+  "row_count": 950,
+  "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+  "signal_mapping_path": "signal_mapping.json",
+  "signals_path": "signals.parquet",
+  "sleeve": {
+    "artifact_paths": {
+      "sleeve_equity_curve": "sleeve_equity_curve.csv",
+      "sleeve_metrics": "sleeve_metrics.json",
+      "sleeve_returns": "sleeve_returns.csv"
+    },
+    "enabled": true,
+    "metric_summary": {
+      "active_symbol_count_mean": 50.0,
+      "alpha_name": "rank_composite_momentum_2026_q1",
+      "annualized_return": -0.11178227958316722,
+      "annualized_volatility": 0.0416072108295404,
+      "average_execution_friction_per_trade": 0.0,
+      "average_trade_size": 1.0,
+      "average_turnover": 0.17333333333333334,
+      "cumulative_return": -0.011225884228951988,
+      "exposure_pct": 38.333333333333336,
+      "hit_rate": 0.34210526315789475,
+      "max_drawdown": 0.01356917793168022,
+      "percent_periods_traded": 17.333333333333336,
+      "profit_factor": 0.7242144919996689,
+      "rebalance_count": 208.0,
+      "return_source": "price_column:close",
+      "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+      "sharpe_ratio": -2.8283515697147212,
+      "sleeve_row_count": 24,
+      "symbol_count": 50,
+      "timestamp_count": 24,
+      "total_execution_friction": 0.0,
+      "total_return": -0.011225884228951988,
+      "total_slippage_cost": 0.0,
+      "total_transaction_cost": 0.0,
+      "total_turnover": 208.0,
+      "trade_count": 208.0,
+      "turnover": 0.17333333333333334,
+      "volatility": 0.002621007919095175,
+      "win_rate": 0.4583333333333333
+    },
+    "row_count": 24,
+    "timestamp_count": 24
+  },
+  "sleeve_equity_curve_path": "sleeve_equity_curve.csv",
+  "sleeve_metrics_path": "sleeve_metrics.json",
+  "sleeve_returns_path": "sleeve_returns.csv",
+  "timeframe": "1D",
+  "timeseries_columns": [
+    "ts_utc",
+    "ic",
+    "rank_ic",
+    "n_obs",
+    "sample_size"
+  ],
+  "timeseries_path": "ic_timeseries.csv",
+  "training_summary_path": "training_summary.json",
+  "training_window": {
+    "fit_columns": [
+      "symbol",
+      "ts_utc",
+      "target_ret_5d",
+      "feature_ret_5d",
+      "feature_ret_20d",
+      "feature_close_to_sma20"
+    ],
+    "model_training_metadata": {
+      "min_cross_section_size": 25,
+      "n_cross_sections": 39,
+      "n_rows": 1950,
+      "normalize": 1,
+      "use_ic_weights": 1
+    },
+    "train_end": "2026-03-02T00:00:00Z",
+    "train_row_count": 1950,
+    "train_start": "2026-01-01T00:00:00Z",
+    "train_symbol_count": 50,
+    "window_semantics": "[train_start, train_end)"
+  },
+  "valid_periods": {
+    "ic": 19,
+    "rank_ic": 19
+  }
+}

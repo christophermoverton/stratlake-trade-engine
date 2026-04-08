@@ -1,0 +1,12 @@
+{
+  "alpha_name": "rank_composite_momentum_2026_q1",
+  "intercept": null,
+  "model_name": "rank_composite_momentum_2026_q1",
+  "representation": "feature_weight_by_name",
+  "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+  "values": {
+    "feature_close_to_sma20": 0.5036602305006693,
+    "feature_ret_20d": 0.48156119780261064,
+    "feature_ret_5d": 0.014778571696720026
+  }
+}

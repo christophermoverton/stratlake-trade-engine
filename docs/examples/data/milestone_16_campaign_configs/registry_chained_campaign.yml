@@ -1,0 +1,59 @@
+research_campaign:
+  dataset_selection:
+    dataset: features_daily
+    timeframe: 1D
+    evaluation_horizon: 5
+    mapping_name: top_bottom_quantile_q20
+
+  time_windows:
+    start: "2025-01-01"
+    end: "2025-03-01"
+    train_start: "2025-01-01"
+    train_end: "2025-02-01"
+    predict_start: "2025-02-01"
+    predict_end: "2025-03-01"
+
+  targets:
+    alpha_names:
+      - ml_cross_sectional_xgb_2026_q1
+    portfolio_names:
+      - real_world_m15_candidate_driven
+    alpha_catalog_path: configs/alphas_2026_q1.yml
+    portfolio_config_path: configs/portfolios_alpha_2026_q1.yml
+
+  comparison:
+    enabled: false
+
+  candidate_selection:
+    enabled: false
+    alpha_name: ml_cross_sectional_xgb_2026_q1
+    dataset: features_daily
+    timeframe: 1D
+    evaluation_horizon: 5
+    mapping_name: top_bottom_quantile_q20
+    output:
+      path: artifacts/candidate_selection
+      registry_path: artifacts/candidate_selection/registry.jsonl
+
+  portfolio:
+    enabled: true
+    from_candidate_selection: true
+    optimizer_method: equal_weight
+
+  review:
+    filters:
+      run_types:
+        - alpha_evaluation
+        - portfolio
+      top_k_per_type: 2
+    output:
+      path: artifacts/reviews
+      emit_plots: false
+
+  outputs:
+    alpha_artifacts_root: artifacts/alpha
+    candidate_selection_output_path: artifacts/candidate_selection
+    candidate_selection_registry_path: artifacts/candidate_selection/registry.jsonl
+    campaign_artifacts_root: artifacts/research_campaigns
+    portfolio_artifacts_root: artifacts/portfolios
+    review_output_path: artifacts/reviews

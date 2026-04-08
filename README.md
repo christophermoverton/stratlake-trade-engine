@@ -38,9 +38,9 @@ construction, and candidate-level review outputs. The repository now supports:
   `artifacts/reviews/candidate_selection_<run_id>/`
 * built-in alpha catalog/config support through `configs/alphas.yml` plus
   `python -m src.cli.run_alpha`
-* a real-data Q1 2026 XGBoost cross-sectional alpha case study on
-  `features_daily`, including registry-backed comparison and sleeve portfolio
-  loading
+* real-data Q1 2026 ML alpha case studies on `features_daily`, including
+  XGBoost, LightGBM, and Elastic Net baselines plus campaign-backed comparison,
+  candidate selection, portfolio construction, and review
 * default full alpha runs that persist evaluation artifacts, mapped signals,
   sleeve return streams, sleeve metrics, and `alpha_run_scaffold.json`
 * continuous-signal backtesting where finite numeric exposures are interpreted
@@ -71,6 +71,7 @@ Start with:
 * [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md)
 * [docs/examples/candidate_selection_portfolio_case_study.py](docs/examples/candidate_selection_portfolio_case_study.py)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
+* [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
@@ -252,11 +253,11 @@ python -m src.cli.compare_alpha --from-registry
 Notes:
 
 * `python -m src.cli.run_alpha` is the first-class entrypoint for named built-in alpha configs from `configs/alphas.yml`
-* the Q1 2026 ML case study lives in `configs/alphas_2026_q1.yml` as `ml_cross_sectional_xgb_2026_q1`
+* the Q1 2026 ML catalog lives in `configs/alphas_2026_q1.yml` and includes `ml_cross_sectional_xgb_2026_q1`, `ml_cross_sectional_lgbm_2026_q1`, and `ml_cross_sectional_elastic_net_2026_q1`
 * `--mode evaluate` runs only the evaluation stage; the default `full` mode also writes `signals.parquet`, sleeve artifacts, and `alpha_run_scaffold.json`
 * pass exactly one of `--price-column` or `--realized-return-column`
 * `--model-class` accepts either `module:Class` or `path.py:Class`
-* built-in XGBoost alpha configs require the `xgboost` package in the active environment
+* built-in XGBoost, LightGBM, and Elastic Net configs require their underlying packages in the active environment
 * the end-to-end example writes reproducible outputs under
   `docs/examples/output/alpha_evaluation_end_to_end/`
 
@@ -324,12 +325,14 @@ Start here:
 * [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
 * [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
 * [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
+* [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
 
 Quick start:
 
 ```powershell
 python -m src.cli.run_research_campaign
 python -m src.cli.run_research_campaign --config docs/examples/data/milestone_16_campaign_configs/full_campaign.yml
+python docs/examples/real_world_campaign_case_study.py
 ```
 
 ## Cross-Sectional Utilities
@@ -489,21 +492,23 @@ decision.
 The primary workflow guide lives in
 [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md).
 
-### 4d. Run the Q1 2026 ML alpha case study
+### 4d. Run the Q1 2026 ML alpha case studies
 
 ```powershell
 python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name ml_cross_sectional_xgb_2026_q1
+python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name ml_cross_sectional_lgbm_2026_q1
+python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name ml_cross_sectional_elastic_net_2026_q1
 python -m src.cli.run_alpha --config configs/alphas_2026_q1.yml --alpha-name rank_composite_momentum_2026_q1
 python -m src.cli.compare_alpha --from-registry --dataset features_daily --timeframe 1D --evaluation-horizon 5 --mapping-name top_bottom_quantile_q20 --view combined
 python -m src.cli.run_portfolio --portfolio-config configs/portfolios_alpha_2026_q1.yml --portfolio-name ml_cross_sectional_xgb_2026_q1_equal --timeframe 1D
 python -m src.cli.compare_research --from-registry --run-types alpha_evaluation portfolio --dataset features_daily --timeframe 1D --alpha-name ml_cross_sectional_xgb_2026_q1 --portfolio-name ml_cross_sectional_xgb_2026_q1_equal --disable-plots
 ```
 
-This case study demonstrates a built-in XGBoost alpha trained on
+These case studies demonstrate built-in Q1 2026 ML alphas trained on
 `2026-01-01 <= ts_utc < 2026-03-02`, predicted on
 `2026-03-02 <= ts_utc < 2026-04-03`, mapped with
-`top_bottom_quantile[q=0.2]`, and consumed downstream as an
-`artifact_type: alpha_sleeve` portfolio component. See
+`top_bottom_quantile[q=0.2]`, and consumed downstream as
+`artifact_type: alpha_sleeve` portfolio components. See
 [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md).
 
 ### 4e. Run the Milestone 15 candidate-selection and governed-allocation workflows
@@ -526,6 +531,17 @@ Production CLI path:
 python -m src.cli.run_candidate_selection --config configs/candidate_selection.yml
 python -m src.cli.run_portfolio --from-candidate-selection artifacts/candidate_selection/<candidate_selection_run_id> --portfolio-name your_candidate_driven_portfolio --timeframe 1D
 ```
+
+### 4f. Run the Milestone 16 real-world campaign case study
+
+```powershell
+python docs/examples/real_world_campaign_case_study.py
+```
+
+This case study runs the campaign orchestration flow end to end on repository
+`features_daily` data using the Q1 2026 XGBoost, LightGBM, Elastic Net, and
+rank-composite alphas, then writes stitched campaign, candidate-selection,
+candidate-review, portfolio, and research-review summaries.
 
 ### 5. Run a portfolio
 
@@ -645,8 +661,10 @@ It demonstrates:
 See the companion guide
 [docs/examples/real_alpha_workflow.md](docs/examples/real_alpha_workflow.md).
 
-For the latest real-data ML alpha case study using XGBoost on the Q1 2026
-`features_daily` surface, see
+For the latest real-data Milestone 16 campaign-backed case study on the Q1
+2026 `features_daily` surface, see
+[docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md).
+For the standalone XGBoost alpha workflow, see
 [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md).
 
 The lower-level custom-model walkthrough remains available at
@@ -855,6 +873,7 @@ Examples:
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 * [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
+* [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
 * [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)

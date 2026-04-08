@@ -7,6 +7,7 @@ from types import SimpleNamespace
 import pytest
 
 from src.cli.run_research_campaign import (
+    _resolve_candidate_selection_reference,
     parse_args,
     run_cli,
     run_research_campaign,
@@ -68,6 +69,48 @@ def _write_candidate_selection_registry_entry(
             "mapping_names": mapping_names,
             "primary_metric": "ic_ir",
         },
+    }
+    existing_lines = []
+    if registry_path.exists():
+        existing_lines = [
+            line
+            for line in registry_path.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+    existing_lines.append(json.dumps(entry))
+    registry_path.write_text("\n".join(existing_lines) + "\n", encoding="utf-8")
+
+
+def _write_portfolio_registry_entry(
+    registry_path: Path,
+    *,
+    run_id: str,
+    artifact_dir: Path,
+    portfolio_name: str,
+    timeframe: str,
+    candidate_selection_run_id: str | None = None,
+) -> None:
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    manifest = {
+        "run_id": run_id,
+        "run_type": "portfolio",
+        "portfolio_name": portfolio_name,
+    }
+    (artifact_dir / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    config = {
+        "candidate_selection_provenance": {
+            "run_id": candidate_selection_run_id,
+        }
+    }
+    entry = {
+        "run_id": run_id,
+        "run_type": "portfolio",
+        "timestamp": "2026-04-01T00:05:00Z",
+        "portfolio_name": portfolio_name,
+        "timeframe": timeframe,
+        "artifact_path": artifact_dir.as_posix(),
+        "config": config,
+        "component_run_ids": ["strategy_run_a", "strategy_run_b"],
     }
     existing_lines = []
     if registry_path.exists():
@@ -159,6 +202,7 @@ portfolios:
             },
             "candidate_selection": {
                 "enabled": True,
+                "alpha_name": "alpha_a",
                 "execution": {
                     "enable_review": True,
                     "register_run": True,
@@ -767,3 +811,519 @@ portfolios:
 
     with pytest.raises(ValueError, match="Ambiguous candidate_selection registry state"):
         run_research_campaign(config)
+
+
+def test_resolve_candidate_selection_reference_reports_incomplete_registry_state(
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    candidate_root = tmp_path / "candidate_selection"
+    candidate_registry = candidate_root / "registry.jsonl"
+    candidate_artifact_dir = candidate_root / "candidate_run_registry"
+    candidate_artifact_dir.mkdir(parents=True, exist_ok=True)
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    candidate_registry.write_text(
+        json.dumps(
+            {
+                "run_id": "candidate_run_registry",
+                "run_type": "candidate_selection",
+                "timestamp": "2026-04-01T00:00:00Z",
+                "alpha_name": "alpha_one",
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "artifact_path": candidate_artifact_dir.as_posix(),
+                "manifest_path": (candidate_artifact_dir / "missing_manifest.json").as_posix(),
+                "metadata": {
+                    "mapping_names": ["top_bottom_quantile_q20"],
+                    "primary_metric": "ic_ir",
+                },
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+            },
+            "candidate_selection": {
+                "enabled": False,
+                "alpha_name": "alpha_one",
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+                "output": {
+                    "path": candidate_root.as_posix(),
+                    "registry_path": candidate_registry.as_posix(),
+                },
+            },
+        }
+    )
+
+    with pytest.raises(ValueError, match="Candidate-selection registry state is incomplete") as exc_info:
+        _resolve_candidate_selection_reference(config)
+
+    assert "manifest missing" in str(exc_info.value)
+    assert "candidate_run_registry" in str(exc_info.value)
+
+
+def test_run_research_campaign_chains_portfolio_registry_into_candidate_review(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    features_root = tmp_path / "features_root"
+    portfolio_artifacts_root = tmp_path / "portfolio_artifacts"
+    portfolio_registry = portfolio_artifacts_root / "registry.jsonl"
+    portfolio_artifact_dir = portfolio_artifacts_root / "portfolio_run_registry"
+    candidate_artifact_dir = tmp_path / "candidate_selection" / "candidate_run"
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    _write_feature_fixture(features_root)
+    _write_portfolio_registry_entry(
+        portfolio_registry,
+        run_id="portfolio_run_registry",
+        artifact_dir=portfolio_artifact_dir,
+        portfolio_name="candidate_portfolio",
+        timeframe="1D",
+    )
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+            },
+            "candidate_selection": {
+                "enabled": True,
+                "execution": {
+                    "enable_review": True,
+                },
+                "output": {
+                    "path": (tmp_path / "candidate_selection").as_posix(),
+                    "review_output_path": (tmp_path / "candidate_review").as_posix(),
+                },
+            },
+            "portfolio": {
+                "enabled": False,
+                "portfolio_name": "candidate_portfolio",
+                "timeframe": "1D",
+            },
+            "review": {
+                "output": {
+                    "path": (tmp_path / "reviews").as_posix(),
+                    "emit_plots": False,
+                }
+            },
+            "outputs": {
+                "alpha_artifacts_root": (tmp_path / "alpha_artifacts").as_posix(),
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+                "portfolio_artifacts_root": portfolio_artifacts_root.as_posix(),
+            },
+        }
+    )
+
+    candidate_review_calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(run_id="candidate_run", artifact_dir=candidate_artifact_dir),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+        lambda argv: candidate_review_calls.append(list(argv))
+        or SimpleNamespace(
+            review_dir=tmp_path / "candidate_review",
+            candidate_selection_run_id="candidate_run",
+            portfolio_run_id="portfolio_run_registry",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    result = run_research_campaign(config)
+
+    assert len(candidate_review_calls) == 1
+    assert "--candidate-selection-path" in candidate_review_calls[0]
+    assert candidate_artifact_dir.as_posix() in candidate_review_calls[0]
+    assert "--portfolio-path" in candidate_review_calls[0]
+    assert portfolio_artifact_dir.as_posix() in candidate_review_calls[0]
+    assert result.candidate_review_result.portfolio_run_id == "portfolio_run_registry"
+    registry_check = next(
+        check
+        for check in result.preflight_summary["checks"]
+        if check["check_id"] == "registry.portfolio.candidate_review"
+    )
+    assert registry_check["status"] == "passed"
+
+
+def test_run_research_campaign_writes_stable_stitched_artifacts_across_identical_reruns(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    alpha_catalog.write_text(
+        """
+alpha_a:
+  alpha_name: alpha_a
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+alpha_b:
+  alpha_name: alpha_b
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text(
+        """
+strategy_a:
+  dataset: features_daily
+  parameters: {}
+strategy_b:
+  dataset: features_daily
+  parameters: {}
+""".strip(),
+        encoding="utf-8",
+    )
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: strategy_a
+      - strategy_name: strategy_b
+""".strip(),
+        encoding="utf-8",
+    )
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_b", "alpha_a"],
+                "strategy_names": ["strategy_b", "strategy_a"],
+                "portfolio_names": ["candidate_portfolio"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+                "portfolio_config_path": portfolio_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+            },
+            "time_windows": {
+                "start": "2025-01-01",
+                "end": "2025-03-01",
+            },
+            "comparison": {
+                "enabled": True,
+                "top_k": 5,
+            },
+            "candidate_selection": {
+                "enabled": True,
+                "alpha_name": "alpha_a",
+                "execution": {
+                    "enable_review": True,
+                    "register_run": True,
+                },
+                "output": {
+                    "path": (tmp_path / "candidate_selection").as_posix(),
+                    "review_output_path": (tmp_path / "candidate_review").as_posix(),
+                },
+            },
+            "portfolio": {
+                "enabled": True,
+                "from_candidate_selection": True,
+            },
+            "review": {
+                "output": {
+                    "path": (tmp_path / "reviews").as_posix(),
+                    "emit_plots": False,
+                }
+            },
+            "outputs": {
+                "alpha_artifacts_root": (tmp_path / "alpha_artifacts").as_posix(),
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+                "comparison_output_path": (tmp_path / "comparisons").as_posix(),
+                "portfolio_artifacts_root": (tmp_path / "portfolio_artifacts").as_posix(),
+            },
+        }
+    )
+
+    alpha_run_ids = {"alpha_a": "alpha_run_a", "alpha_b": "alpha_run_b"}
+    strategy_run_ids = {"strategy_a": "strategy_run_a", "strategy_b": "strategy_run_b"}
+    alpha_metrics = {
+        "alpha_a": {"mean_ic": 0.11, "ic_ir": 1.25, "n_periods": 24, "sharpe_ratio": 0.8, "total_return": 0.14},
+        "alpha_b": {"mean_ic": 0.09, "ic_ir": 1.05, "n_periods": 24, "sharpe_ratio": 0.7, "total_return": 0.12},
+    }
+    strategy_metrics = {
+        "strategy_a": {"cumulative_return": 0.21, "sharpe_ratio": 1.4, "max_drawdown": -0.08},
+        "strategy_b": {"cumulative_return": 0.18, "sharpe_ratio": 1.2, "max_drawdown": -0.09},
+    }
+
+    def write_text(path: Path, contents: str) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(contents, encoding="utf-8")
+        return path
+
+    def fake_alpha_cli(argv: list[str]) -> SimpleNamespace:
+        alpha_name = argv[argv.index("--alpha-name") + 1]
+        artifact_dir = tmp_path / "alpha_artifacts" / alpha_run_ids[alpha_name]
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            alpha_name=alpha_name,
+            run_id=alpha_run_ids[alpha_name],
+            artifact_dir=artifact_dir,
+            evaluation=SimpleNamespace(
+                evaluation_result=SimpleNamespace(summary=alpha_metrics[alpha_name]),
+                manifest={
+                    "sleeve": {
+                        "metric_summary": {
+                            "sharpe_ratio": alpha_metrics[alpha_name]["sharpe_ratio"],
+                            "total_return": alpha_metrics[alpha_name]["total_return"],
+                        }
+                    }
+                },
+            ),
+        )
+
+    def fake_strategy_cli(argv: list[str]) -> SimpleNamespace:
+        strategy_name = argv[argv.index("--strategy") + 1]
+        experiment_dir = tmp_path / "strategy_artifacts" / strategy_run_ids[strategy_name]
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            strategy_name=strategy_name,
+            run_id=strategy_run_ids[strategy_name],
+            experiment_dir=experiment_dir,
+            metrics=strategy_metrics[strategy_name],
+        )
+
+    def fake_alpha_compare(argv: list[str]) -> SimpleNamespace:
+        output_root = Path(argv[argv.index("--output-path") + 1])
+        return SimpleNamespace(
+            comparison_id="alpha_cmp",
+            csv_path=write_text(output_root / "leaderboard.csv", "alpha_name,score\nalpha_a,1.0\n"),
+            json_path=write_text(output_root / "summary.json", '{"comparison":"alpha"}\n'),
+        )
+
+    def fake_strategy_compare(argv: list[str]) -> SimpleNamespace:
+        output_root = Path(argv[argv.index("--output-path") + 1])
+        return SimpleNamespace(
+            comparison_id="strategy_cmp",
+            csv_path=write_text(output_root / "leaderboard.csv", "strategy_name,score\nstrategy_a,1.0\n"),
+            json_path=write_text(output_root / "summary.json", '{"comparison":"strategy"}\n'),
+        )
+
+    def fake_candidate_selection(argv: list[str]) -> SimpleNamespace:
+        artifact_dir = tmp_path / "candidate_selection" / "candidate_run"
+        summary_json = write_text(artifact_dir / "selection_summary.json", '{"selected_candidates":2}\n')
+        manifest_json = write_text(artifact_dir / "manifest.json", '{"run_id":"candidate_run"}\n')
+        return SimpleNamespace(
+            run_id="candidate_run",
+            artifact_dir=artifact_dir,
+            summary_json=summary_json,
+            manifest_json=manifest_json,
+            primary_metric="ic_ir",
+            universe_count=8,
+            eligible_count=4,
+            selected_count=2,
+            rejected_count=2,
+            pruned_by_redundancy=1,
+        )
+
+    def fake_portfolio(argv: list[str]) -> SimpleNamespace:
+        experiment_dir = tmp_path / "portfolio_artifacts" / "portfolio_run"
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=experiment_dir,
+            portfolio_name="candidate_portfolio",
+            component_count=2,
+            metrics={"total_return": 0.16, "sharpe_ratio": 1.3, "max_drawdown": -0.07},
+        )
+
+    def fake_candidate_review(argv: list[str]) -> SimpleNamespace:
+        review_dir = tmp_path / "candidate_review" / "candidate_run"
+        review_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            review_dir=review_dir,
+            manifest_json=write_text(review_dir / "manifest.json", '{"run_id":"candidate_review"}\n'),
+            candidate_review_summary_json=write_text(
+                review_dir / "candidate_review_summary.json",
+                '{"selected_candidates":2,"rejected_candidates":2}\n',
+            ),
+            candidate_selection_run_id="candidate_run",
+            portfolio_run_id="portfolio_run",
+            total_candidates=4,
+            selected_candidates=2,
+            rejected_candidates=2,
+        )
+
+    def fake_review(argv: list[str]) -> SimpleNamespace:
+        review_dir = tmp_path / "reviews" / "campaign_review"
+        review_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            review_id="review_run",
+            csv_path=write_text(review_dir / "leaderboard.csv", "run_type,run_id\nalpha_evaluation,alpha_run_a\n"),
+            json_path=write_text(review_dir / "summary.json", '{"entry_count":5}\n'),
+            manifest_path=write_text(review_dir / "manifest.json", '{"review_id":"review_run"}\n'),
+            promotion_gate_path=write_text(
+                review_dir / "promotion_gates.json",
+                json.dumps(
+                    {
+                        "evaluation_status": "passed",
+                        "promotion_status": "approved",
+                        "gate_count": 3,
+                        "passed_gate_count": 3,
+                        "failed_gate_count": 0,
+                        "missing_gate_count": 0,
+                    },
+                    sort_keys=True,
+                )
+                + "\n",
+            ),
+            entries=[
+                SimpleNamespace(run_type="alpha_evaluation"),
+                SimpleNamespace(run_type="alpha_evaluation"),
+                SimpleNamespace(run_type="strategy"),
+                SimpleNamespace(run_type="portfolio"),
+                SimpleNamespace(run_type="portfolio"),
+            ],
+        )
+
+    monkeypatch.setattr("src.cli.run_research_campaign.run_alpha_cli.run_cli", fake_alpha_cli)
+    monkeypatch.setattr("src.cli.run_research_campaign.run_strategy_cli.run_cli", fake_strategy_cli)
+    monkeypatch.setattr("src.cli.run_research_campaign.compare_alpha_cli.run_cli", fake_alpha_compare)
+    monkeypatch.setattr("src.cli.run_research_campaign.compare_strategies_cli.run_cli", fake_strategy_compare)
+    monkeypatch.setattr("src.cli.run_research_campaign.run_candidate_selection_cli.run_cli", fake_candidate_selection)
+    monkeypatch.setattr("src.cli.run_research_campaign.run_portfolio_cli.run_cli", fake_portfolio)
+    monkeypatch.setattr("src.cli.run_research_campaign.review_candidate_selection_cli.run_cli", fake_candidate_review)
+    monkeypatch.setattr("src.cli.run_research_campaign.compare_research_cli.run_cli", fake_review)
+
+    first_result = run_research_campaign(config)
+    first_manifest_bytes = first_result.campaign_manifest_path.read_bytes()
+    first_summary_bytes = first_result.campaign_summary_path.read_bytes()
+    first_preflight_bytes = first_result.preflight_summary_path.read_bytes()
+    first_config_bytes = (first_result.campaign_artifact_dir / "campaign_config.json").read_bytes()
+
+    second_result = run_research_campaign(config)
+
+    assert second_result.campaign_manifest_path.read_bytes() == first_manifest_bytes
+    assert second_result.campaign_summary_path.read_bytes() == first_summary_bytes
+    assert second_result.preflight_summary_path.read_bytes() == first_preflight_bytes
+    assert (second_result.campaign_artifact_dir / "campaign_config.json").read_bytes() == first_config_bytes
+
+    summary = json.loads(second_result.campaign_summary_path.read_text(encoding="utf-8"))
+    manifest = json.loads(second_result.campaign_manifest_path.read_text(encoding="utf-8"))
+
+    assert [record.stage_name for record in second_result.stage_records] == [
+        "preflight",
+        "research",
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review",
+    ]
+    assert summary["selected_run_ids"]["alpha_run_ids"] == ["alpha_run_a", "alpha_run_b"]
+    assert summary["selected_run_ids"]["strategy_run_ids"] == ["strategy_run_a", "strategy_run_b"]
+    assert [entry["run_id"] for entry in summary["key_metrics"]["alpha_runs"]] == ["alpha_run_a", "alpha_run_b"]
+    assert [entry["run_id"] for entry in summary["key_metrics"]["strategy_runs"]] == ["strategy_run_a", "strategy_run_b"]
+    assert summary["output_paths"]["alpha_comparison_csv"].endswith("comparisons/alpha/leaderboard.csv")
+    assert summary["output_paths"]["strategy_comparison_summary"].endswith("comparisons/strategy/summary.json")
+    assert summary["output_paths"]["candidate_selection_manifest"].endswith("candidate_selection/candidate_run/manifest.json")
+    assert summary["output_paths"]["candidate_review_summary"].endswith(
+        "candidate_review/candidate_run/candidate_review_summary.json"
+    )
+    assert summary["output_paths"]["review_manifest"].endswith("reviews/campaign_review/manifest.json")
+    assert summary["output_paths"]["review_promotion_gates"].endswith("reviews/campaign_review/promotion_gates.json")
+    assert summary["final_outcomes"]["review_promotion_gate_summary"] == {
+        "evaluation_status": "passed",
+        "failed_gate_count": 0,
+        "gate_count": 3,
+        "missing_gate_count": 0,
+        "passed_gate_count": 3,
+        "promotion_status": "approved",
+    }
+    assert summary["final_outcomes"]["review_counts_by_run_type"] == {
+        "alpha_evaluation": 2,
+        "portfolio": 2,
+        "strategy": 1,
+    }
+    assert manifest["artifact_files"] == [
+        "campaign_config.json",
+        "manifest.json",
+        "preflight_summary.json",
+        "summary.json",
+    ]

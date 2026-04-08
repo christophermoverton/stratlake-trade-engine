@@ -152,3 +152,74 @@ def test_resolve_research_campaign_config_validates_fields_explicitly() -> None:
 
     with pytest.raises(ResearchCampaignConfigError, match="targets.alpha_names"):
         resolve_research_campaign_config({"targets": {"alpha_names": ["ok", ""]}})
+
+
+def test_resolve_research_campaign_config_produces_stable_equivalent_payloads(
+    tmp_path: Path,
+) -> None:
+    nested_config_path = tmp_path / "research_campaign.yml"
+    nested_config_path.write_text(
+        """
+research_campaign:
+  dataset_selection:
+    dataset: features_daily
+    timeframe: 1D
+    evaluation_horizon: 5
+    mapping_name: top_bottom_quantile_q20
+  targets:
+    alpha_names: [" alpha_one ", "alpha_one"]
+    strategy_names: [" momentum_v1 "]
+    portfolio_names: [candidate_portfolio]
+  comparison:
+    enabled: true
+    alpha_view: COMBINED
+  candidate_selection:
+    enabled: true
+  portfolio:
+    enabled: true
+  outputs:
+    candidate_selection_output_path: artifacts/candidate_selection/custom
+    campaign_artifacts_root: artifacts/research_campaigns/custom
+    review_output_path: artifacts/reviews/custom
+""".strip(),
+        encoding="utf-8",
+    )
+
+    direct = resolve_research_campaign_config(
+        {
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+            },
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "strategy_names": ["momentum_v1"],
+                "portfolio_names": ["candidate_portfolio"],
+            },
+            "comparison": {
+                "enabled": True,
+                "alpha_view": "combined",
+            },
+            "candidate_selection": {
+                "enabled": True,
+            },
+            "portfolio": {
+                "enabled": True,
+            },
+            "outputs": {
+                "candidate_selection_output_path": "artifacts/candidate_selection/custom",
+                "campaign_artifacts_root": "artifacts/research_campaigns/custom",
+                "review_output_path": "artifacts/reviews/custom",
+            },
+        }
+    )
+    nested = resolve_research_campaign_config(load_research_campaign_config(nested_config_path).to_dict())
+
+    assert direct.to_dict() == nested.to_dict()
+    assert nested.targets.alpha_names == ("alpha_one",)
+    assert nested.targets.strategy_names == ("momentum_v1",)
+    assert nested.comparison.alpha_view == "combined"
+    assert nested.candidate_selection.output.path == "artifacts/candidate_selection/custom"
+    assert nested.review.output.path == "artifacts/reviews/custom"

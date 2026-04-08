@@ -8,10 +8,11 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 15 Summary
+## Milestone 16 Summary
 
-Milestone 15 adds a governed candidate-selection and allocation layer between
-alpha evaluation and portfolio construction. StratLake now supports a
+Milestone 16 adds a campaign-orchestration layer above the governed
+candidate-selection and allocation workflow introduced in Milestone 15.
+StratLake now supports a
 deterministic path from evaluated alpha sleeves to candidate decisions,
 redundancy control, governed allocation, candidate-driven portfolio
 construction, and candidate-level review outputs. The repository now supports:
@@ -107,8 +108,12 @@ The repository currently supports:
 * unified runtime configuration with auditable persisted settings
 * unified research campaign configuration for shared dataset, target, comparison,
   candidate-selection, portfolio, review, and output-path settings
+* campaign-level orchestration through
+  `python -m src.cli.run_research_campaign --config ...`
 * campaign preflight validation with persisted `preflight_summary.json` reports
   before expensive research execution starts
+* stitched campaign `manifest.json` and `summary.json` artifacts for
+  automation and multi-stage auditability
 * deterministic artifacts, manifests, and registry-backed reuse
 
 Feature naming note:
@@ -294,6 +299,39 @@ python docs/examples/candidate_selection_portfolio_case_study.py
 python docs/examples/real_world_candidate_selection_portfolio_case_study.py
 ```
 
+## Research Campaign Orchestration (Milestone 16)
+
+Milestone 16 adds one campaign-level entrypoint above the existing CLIs:
+
+```text
+Preflight -> Research -> Comparison -> Candidate Selection -> Portfolio -> Review
+```
+
+What it provides:
+
+* one normalized campaign config for shared dataset, targets, time windows, and
+  output roots
+* fail-fast campaign preflight before multi-stage execution begins
+* deterministic stage ordering across alpha, strategy, comparison,
+  candidate-selection, portfolio, candidate review, and unified review
+* one stitched campaign artifact directory under
+  `artifacts/research_campaigns/<campaign_run_id>/`
+* campaign-level `summary.json` and `manifest.json` files for automation and
+  auditability
+
+Start here:
+
+* [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
+* [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
+* [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
+
+Quick start:
+
+```powershell
+python -m src.cli.run_research_campaign
+python -m src.cli.run_research_campaign --config docs/examples/data/milestone_16_campaign_configs/full_campaign.yml
+```
+
 ## Cross-Sectional Utilities
 
 Alpha workflows often need to inspect one same-timestamp asset slice before
@@ -367,6 +405,7 @@ See:
 * [docs/execution_model.md](docs/execution_model.md)
 * [docs/runtime_configuration.md](docs/runtime_configuration.md)
 * [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
+* [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
 * [docs/strict_mode.md](docs/strict_mode.md)
 * [docs/research_integrity_and_qa.md](docs/research_integrity_and_qa.md)
 
@@ -738,6 +777,8 @@ Core files:
 
 * `campaign_config.json`
 * `preflight_summary.json`
+* `manifest.json`
+* `summary.json`
 
 ### Alpha-evaluation artifacts
 
@@ -787,6 +828,7 @@ Start here:
 * [docs/milestone_11_portfolio_workflow.md](docs/milestone_11_portfolio_workflow.md)
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/milestone_15_candidate_selection_issue_1.md](docs/milestone_15_candidate_selection_issue_1.md)
+* [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
@@ -812,6 +854,7 @@ Examples:
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/alpha_evaluation_end_to_end.py](docs/examples/alpha_evaluation_end_to_end.py)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
+* [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
 * [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)

@@ -1,5 +1,8 @@
 # Research Campaign Configuration
 
+For the practical end-to-end workflow guide, see
+[milestone_16_campaign_workflow.md](milestone_16_campaign_workflow.md).
+
 `src.config.research_campaign` defines one normalized contract for campaign-level
 research settings that span alpha comparison, strategy comparison, candidate
 selection, portfolio construction, and unified review.

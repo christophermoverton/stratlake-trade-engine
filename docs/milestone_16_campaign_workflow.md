@@ -394,4 +394,5 @@ detail that still matters.
 * [milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md)
 * [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)
 * [milestone_15_candidate_selection_issue_1.md](milestone_15_candidate_selection_issue_1.md)
+* [milestone_16_merge_readiness.md](milestone_16_merge_readiness.md)
 * [examples/milestone_16_campaign_workflow.md](examples/milestone_16_campaign_workflow.md)

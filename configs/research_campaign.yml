@@ -42,22 +42,22 @@ research_campaign:
     metric: ic_ir
     max_candidates:
     eligibility:
-      min_ic:
-      min_rank_ic:
+      min_mean_ic:
+      min_mean_rank_ic:
       min_ic_ir:
       min_rank_ic_ir:
       min_history_length:
       min_coverage:
     redundancy:
-      max_correlation:
+      max_pairwise_correlation:
       min_overlap_observations:
     allocation:
-      method: equal_weight
-      max_weight:
-      min_candidates:
-      min_weight:
-      weight_sum_tolerance: 1.0e-12
-      rounding_decimals: 12
+      allocation_method: equal_weight
+      max_weight_per_candidate:
+      min_allocation_candidate_count:
+      min_allocation_weight:
+      allocation_weight_sum_tolerance: 1.0e-12
+      allocation_rounding_decimals: 12
     execution:
       strict_mode: false
       skip_eligibility: false

@@ -1,4 +1,4 @@
-# Real-World Campaign Case Study (Milestone 16 Issue 8)
+# Real-World Campaign Case Study (Milestone 16)
 
 ## Objective
 

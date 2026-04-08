@@ -324,6 +324,7 @@ Start here:
 
 * [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
 * [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
+* [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
 * [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
 
@@ -847,6 +848,7 @@ Start here:
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/milestone_15_candidate_selection_issue_1.md](docs/milestone_15_candidate_selection_issue_1.md)
 * [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
+* [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
@@ -884,6 +886,7 @@ Merge-readiness notes:
 * [docs/milestone_10_merge_readiness.md](docs/milestone_10_merge_readiness.md)
 * [docs/milestone_11_merge_readiness.md](docs/milestone_11_merge_readiness.md)
 * [docs/milestone_13_merge_readiness.md](docs/milestone_13_merge_readiness.md)
+* [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 
 ## Repository Layout
 

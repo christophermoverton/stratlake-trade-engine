@@ -27,6 +27,11 @@ The campaign schema supports these sections:
 
 The repository example lives at `configs/research_campaign.yml`.
 
+The default config now uses the canonical Milestone 16 field names such as
+`min_mean_ic`, `max_pairwise_correlation`, `allocation_method`, and
+`max_weight_per_candidate`. Backward-compatible aliases still resolve in code,
+but docs and new configs should prefer the canonical names.
+
 ## Precedence
 
 Use `resolve_research_campaign_config(...)` to merge layers deterministically:

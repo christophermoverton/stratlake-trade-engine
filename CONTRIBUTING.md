@@ -75,7 +75,7 @@ cp .env.example .env
 * Keep changes focused on the issue you are addressing.
 * Follow existing code style (the project uses `ruff` for linting).
 * Add or update tests in the `tests/` directory to cover your changes.
-* Update documentation in `docs/` if your changes affect documented behaviour.
+* Update documentation in `docs/` if your changes affect documented behavior.
 
 ### 7. Lint and test locally before pushing
 

@@ -1,0 +1,18 @@
+# Global owners — default reviewers for all files not matched below
+* @christophermoverton
+
+# Source code
+src/ @christophermoverton
+
+# Tests
+tests/ @christophermoverton
+
+# CI and repository configuration
+.github/ @christophermoverton
+
+# Documentation
+docs/ @christophermoverton
+
+# Project configuration
+pyproject.toml @christophermoverton
+configs/ @christophermoverton

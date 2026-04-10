@@ -161,7 +161,9 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             alpha_comparison_result=None,
             strategy_comparison_result=None,
             candidate_selection_result=None,
+            candidate_selection_reference=None,
             portfolio_result=None,
+            portfolio_reference=None,
             candidate_review_result=None,
             review_result=None,
             status="failed",
@@ -340,7 +342,9 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         alpha_comparison_result=alpha_comparison_result,
         strategy_comparison_result=strategy_comparison_result,
         candidate_selection_result=candidate_selection_result,
+        candidate_selection_reference=candidate_selection_reference,
         portfolio_result=portfolio_result,
+        portfolio_reference=portfolio_reference,
         candidate_review_result=candidate_review_result,
         review_result=review_result,
         status="completed",
@@ -1621,6 +1625,126 @@ def _persist_campaign_config(campaign_artifact_dir: Path, config: ResearchCampai
     return path
 
 
+def _fingerprint_mapping(payload: Mapping[str, Any]) -> str:
+    serialized = json.dumps(canonicalize_value(dict(payload)), sort_keys=True, separators=(",", ":"))
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _campaign_stage_fingerprint_inputs(
+    *,
+    stage_name: str,
+    config: ResearchCampaignConfig,
+    alpha_results: Sequence[Any],
+    strategy_results: Sequence[Any],
+    candidate_selection_result: Any | None,
+    candidate_selection_reference: CampaignArtifactReference | None,
+    portfolio_result: Any | None,
+    portfolio_reference: CampaignArtifactReference | None,
+    stage_input_fingerprints: Mapping[str, str | None],
+) -> dict[str, Any]:
+    if stage_name == "preflight":
+        payload = {"config": config.to_dict()}
+    elif stage_name == "research":
+        payload = {
+            "dataset_selection": config.dataset_selection.to_dict(),
+            "time_windows": config.time_windows.to_dict(),
+            "targets": {
+                "alpha_names": list(config.targets.alpha_names),
+                "strategy_names": list(config.targets.strategy_names),
+                "alpha_catalog_path": config.targets.alpha_catalog_path,
+                "strategy_config_path": config.targets.strategy_config_path,
+            },
+            "outputs": {
+                "alpha_artifacts_root": config.outputs.alpha_artifacts_root,
+            },
+        }
+    elif stage_name == "comparison":
+        payload = {
+            "comparison": config.comparison.to_dict(),
+            "targets": {
+                "alpha_names": list(config.targets.alpha_names),
+                "strategy_names": list(config.targets.strategy_names),
+            },
+            "research_input_fingerprint": stage_input_fingerprints.get("research"),
+        }
+    elif stage_name == "candidate_selection":
+        payload = {
+            "candidate_selection": _candidate_selection_fingerprint_config(config),
+            "research_input_fingerprint": stage_input_fingerprints.get("research"),
+            "resolved_input_reference": _reference_fingerprint_payload(candidate_selection_reference),
+            "same_campaign_alpha_run_ids": sorted(str(result.run_id) for result in alpha_results),
+        }
+    elif stage_name == "portfolio":
+        payload = {
+            "portfolio": config.portfolio.to_dict(),
+            "candidate_selection_input_fingerprint": stage_input_fingerprints.get("candidate_selection"),
+            "resolved_candidate_selection_reference": _reference_fingerprint_payload(candidate_selection_reference),
+            "same_campaign_candidate_selection_run_id": _string_or_none(candidate_selection_result, "run_id"),
+        }
+    elif stage_name == "candidate_review":
+        payload = {
+            "candidate_review": {
+                "enabled": bool(
+                    config.candidate_selection.enabled and config.candidate_selection.execution.enable_review
+                ),
+                "no_markdown_review": config.candidate_selection.execution.no_markdown_review,
+            },
+            "candidate_selection_input_fingerprint": stage_input_fingerprints.get("candidate_selection"),
+            "portfolio_input_fingerprint": stage_input_fingerprints.get("portfolio"),
+            "resolved_candidate_selection_reference": _reference_fingerprint_payload(candidate_selection_reference),
+            "resolved_portfolio_reference": _reference_fingerprint_payload(portfolio_reference),
+            "same_campaign_candidate_selection_run_id": _string_or_none(candidate_selection_result, "run_id"),
+            "same_campaign_portfolio_run_id": _string_or_none(portfolio_result, "run_id"),
+        }
+    elif stage_name == "review":
+        payload = {
+            "review": _review_fingerprint_config(config),
+            "artifact_roots": {
+                "alpha_artifacts_root": config.outputs.alpha_artifacts_root,
+                "strategy_artifacts_root": str(STRATEGY_ARTIFACTS_ROOT),
+                "portfolio_artifacts_root": config.outputs.portfolio_artifacts_root,
+            },
+            "comparison_input_fingerprint": stage_input_fingerprints.get("comparison"),
+            "candidate_review_input_fingerprint": stage_input_fingerprints.get("candidate_review"),
+        }
+    else:
+        payload = {"stage_name": stage_name}
+    return canonicalize_value(payload)
+
+
+def _candidate_selection_fingerprint_config(config: ResearchCampaignConfig) -> dict[str, Any]:
+    payload = config.candidate_selection.to_dict()
+    payload.pop("output", None)
+    execution = dict(payload.get("execution", {}))
+    for field_name in ("enable_review", "from_registry", "no_markdown_review", "register_run"):
+        execution.pop(field_name, None)
+    payload["execution"] = execution
+    return canonicalize_value(payload)
+
+
+def _review_fingerprint_config(config: ResearchCampaignConfig) -> dict[str, Any]:
+    payload = config.review.to_dict()
+    payload.pop("output", None)
+    return canonicalize_value(payload)
+
+
+def _reference_fingerprint_payload(reference: CampaignArtifactReference | None) -> dict[str, Any] | None:
+    if reference is None:
+        return None
+    metadata = reference.metadata if isinstance(reference.metadata, Mapping) else {}
+    return canonicalize_value(
+        {
+            "stage_name": reference.stage_name,
+            "source": reference.source,
+            "run_id": reference.run_id,
+            "match_criteria": reference.match_criteria,
+            "input_fingerprint": metadata.get("input_fingerprint"),
+            "upstream_alpha_run_ids": metadata.get("upstream_alpha_run_ids"),
+            "candidate_selection_run_id": metadata.get("candidate_selection_run_id"),
+        }
+    )
+
+
 def _collect_required_datasets(
     config: ResearchCampaignConfig,
     *,
@@ -1743,12 +1867,15 @@ def _write_campaign_artifacts(
     alpha_comparison_result: Any | None,
     strategy_comparison_result: Any | None,
     candidate_selection_result: Any | None,
+    candidate_selection_reference: CampaignArtifactReference | None,
     portfolio_result: Any | None,
+    portfolio_reference: CampaignArtifactReference | None,
     candidate_review_result: Any | None,
     review_result: Any | None,
     status: str,
 ) -> tuple[Path, Path, Path, dict[str, Any], dict[str, Any], dict[str, Any]]:
     checkpoint_payload = _build_campaign_checkpoint(
+        config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
         preflight_result=preflight_result,
@@ -1758,7 +1885,9 @@ def _write_campaign_artifacts(
         alpha_comparison_result=alpha_comparison_result,
         strategy_comparison_result=strategy_comparison_result,
         candidate_selection_result=candidate_selection_result,
+        candidate_selection_reference=candidate_selection_reference,
         portfolio_result=portfolio_result,
+        portfolio_reference=portfolio_reference,
         candidate_review_result=candidate_review_result,
         review_result=review_result,
         status=status,
@@ -1798,6 +1927,7 @@ def _write_campaign_artifacts(
 
 def _build_campaign_checkpoint(
     *,
+    config: ResearchCampaignConfig,
     campaign_run_id: str,
     campaign_artifact_dir: Path,
     preflight_result: CampaignPreflightResult,
@@ -1807,28 +1937,36 @@ def _build_campaign_checkpoint(
     alpha_comparison_result: Any | None,
     strategy_comparison_result: Any | None,
     candidate_selection_result: Any | None,
+    candidate_selection_reference: CampaignArtifactReference | None,
     portfolio_result: Any | None,
+    portfolio_reference: CampaignArtifactReference | None,
     candidate_review_result: Any | None,
     review_result: Any | None,
     status: str,
 ) -> dict[str, Any]:
     record_by_stage = {record.stage_name: record for record in stage_records}
-    stages = [
-        _campaign_stage_checkpoint(
+    stage_input_fingerprints: dict[str, str | None] = {}
+    stages: list[dict[str, Any]] = []
+    for stage_name in CAMPAIGN_STAGE_ORDER:
+        stage_payload = _campaign_stage_checkpoint(
             stage_name=stage_name,
             record=record_by_stage.get(stage_name),
+            config=config,
             preflight_result=preflight_result,
             alpha_results=alpha_results,
             strategy_results=strategy_results,
             alpha_comparison_result=alpha_comparison_result,
             strategy_comparison_result=strategy_comparison_result,
             candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
             portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
             candidate_review_result=candidate_review_result,
             review_result=review_result,
+            stage_input_fingerprints=stage_input_fingerprints,
         )
-        for stage_name in CAMPAIGN_STAGE_ORDER
-    ]
+        stages.append(stage_payload)
+        stage_input_fingerprints[stage_name] = stage_payload.get("input_fingerprint")
     return build_campaign_checkpoint_payload(
         campaign_run_id=campaign_run_id,
         status=status,
@@ -2039,16 +2177,32 @@ def _campaign_stage_checkpoint(
     *,
     stage_name: str,
     record: CampaignStageRecord | None,
+    config: ResearchCampaignConfig,
     preflight_result: CampaignPreflightResult,
     alpha_results: Sequence[Any],
     strategy_results: Sequence[Any],
     alpha_comparison_result: Any | None,
     strategy_comparison_result: Any | None,
     candidate_selection_result: Any | None,
+    candidate_selection_reference: CampaignArtifactReference | None,
     portfolio_result: Any | None,
+    portfolio_reference: CampaignArtifactReference | None,
     candidate_review_result: Any | None,
     review_result: Any | None,
+    stage_input_fingerprints: Mapping[str, str | None],
 ) -> dict[str, Any]:
+    fingerprint_inputs = _campaign_stage_fingerprint_inputs(
+        stage_name=stage_name,
+        config=config,
+        alpha_results=alpha_results,
+        strategy_results=strategy_results,
+        candidate_selection_result=candidate_selection_result,
+        candidate_selection_reference=candidate_selection_reference,
+        portfolio_result=portfolio_result,
+        portfolio_reference=portfolio_reference,
+        stage_input_fingerprints=stage_input_fingerprints,
+    )
+    input_fingerprint = _fingerprint_mapping(fingerprint_inputs)
     if record is None:
         return build_campaign_stage_checkpoint(
             stage_name=stage_name,
@@ -2059,6 +2213,8 @@ def _campaign_stage_checkpoint(
                 else "Blocked because campaign preflight failed."
             ),
             source="planner",
+            input_fingerprint=input_fingerprint,
+            fingerprint_inputs=fingerprint_inputs,
         )
 
     state = record.status
@@ -2099,6 +2255,8 @@ def _campaign_stage_checkpoint(
         state=state,
         state_reason=state_reason,
         source=source,
+        input_fingerprint=input_fingerprint,
+        fingerprint_inputs=fingerprint_inputs,
         selected_run_ids=summary_payload["selected_run_ids"],
         key_metrics=summary_payload["key_metrics"],
         output_paths=summary_payload["output_paths"],

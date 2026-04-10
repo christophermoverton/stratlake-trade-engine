@@ -346,6 +346,16 @@ portfolios:
     assert campaign_checkpoint["run_type"] == "research_campaign_checkpoint"
     assert campaign_checkpoint["campaign_run_id"] == result.campaign_run_id
     assert campaign_checkpoint["status"] == "completed"
+    assert set(campaign_checkpoint["stage_input_fingerprints"]) == {
+        "preflight",
+        "research",
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review",
+    }
+    assert campaign_checkpoint["stage_input_fingerprints"]["candidate_selection"] == campaign_checkpoint["stages"][3]["input_fingerprint"]
     assert campaign_checkpoint["stage_states"]["candidate_review"] == "completed"
     assert campaign_checkpoint["stage_states"]["portfolio"] == "completed"
 
@@ -1543,6 +1553,9 @@ portfolios:
         "research": "completed",
         "review": "completed",
     }
+    assert checkpoint["stage_input_fingerprints"] == json.loads(
+        first_result.campaign_checkpoint_path.read_text(encoding="utf-8")
+    )["stage_input_fingerprints"]
     assert summary["selected_run_ids"]["alpha_run_ids"] == ["alpha_run_a", "alpha_run_b"]
     assert summary["selected_run_ids"]["strategy_run_ids"] == ["strategy_run_a", "strategy_run_b"]
     assert [entry["run_id"] for entry in summary["key_metrics"]["alpha_runs"]] == ["alpha_run_a", "alpha_run_b"]
@@ -1575,3 +1588,174 @@ portfolios:
         "preflight_summary.json",
         "summary.json",
     ]
+
+
+def test_run_research_campaign_changes_dependent_stage_fingerprints_when_inputs_change(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("strategy_one:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: strategy_one
+""".strip(),
+        encoding="utf-8",
+    )
+
+    def build_config(*, max_candidates: int) -> object:
+        return resolve_research_campaign_config(
+            {
+                "targets": {
+                    "alpha_names": ["alpha_one"],
+                    "strategy_names": ["strategy_one"],
+                    "portfolio_names": ["candidate_portfolio"],
+                    "alpha_catalog_path": alpha_catalog.as_posix(),
+                    "strategy_config_path": strategy_config.as_posix(),
+                    "portfolio_config_path": portfolio_config.as_posix(),
+                },
+                "dataset_selection": {
+                    "dataset": "features_daily",
+                    "timeframe": "1D",
+                    "evaluation_horizon": 5,
+                    "mapping_name": "top_bottom_quantile_q20",
+                },
+                "time_windows": {
+                    "start": "2025-01-01",
+                    "end": "2025-03-01",
+                },
+                "comparison": {
+                    "enabled": True,
+                    "top_k": 3,
+                },
+                "candidate_selection": {
+                    "enabled": True,
+                    "alpha_name": "alpha_one",
+                    "max_candidates": max_candidates,
+                    "output": {
+                        "path": (tmp_path / f"candidate_selection_{max_candidates}").as_posix(),
+                        "review_output_path": (tmp_path / f"candidate_review_{max_candidates}").as_posix(),
+                    },
+                },
+                "portfolio": {
+                    "enabled": True,
+                    "from_candidate_selection": True,
+                },
+                "review": {
+                    "output": {
+                        "path": (tmp_path / f"reviews_{max_candidates}").as_posix(),
+                        "emit_plots": False,
+                    }
+                },
+                "outputs": {
+                    "alpha_artifacts_root": (tmp_path / "alpha_artifacts").as_posix(),
+                    "campaign_artifacts_root": (tmp_path / f"campaign_artifacts_{max_candidates}").as_posix(),
+                    "comparison_output_path": (tmp_path / "comparisons").as_posix(),
+                    "portfolio_artifacts_root": (tmp_path / "portfolio_artifacts").as_posix(),
+                },
+            }
+        )
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            strategy_name="strategy_one",
+            run_id="strategy_run",
+            experiment_dir=tmp_path / "strategy",
+            metrics={"cumulative_return": 0.1, "sharpe_ratio": 1.0, "max_drawdown": -0.05},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="alpha_cmp"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="strategy_cmp"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="candidate_run",
+            artifact_dir=tmp_path / "candidate_selection" / "candidate_run",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+            portfolio_name="candidate_portfolio",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            review_dir=tmp_path / "candidate_review" / "candidate_run",
+            candidate_selection_run_id="candidate_run",
+            portfolio_run_id="portfolio_run",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    first_checkpoint = json.loads(
+        run_research_campaign(build_config(max_candidates=2)).campaign_checkpoint_path.read_text(encoding="utf-8")
+    )
+    second_checkpoint = json.loads(
+        run_research_campaign(build_config(max_candidates=3)).campaign_checkpoint_path.read_text(encoding="utf-8")
+    )
+
+    assert (
+        first_checkpoint["stage_input_fingerprints"]["research"]
+        == second_checkpoint["stage_input_fingerprints"]["research"]
+    )
+    assert (
+        first_checkpoint["stage_input_fingerprints"]["comparison"]
+        == second_checkpoint["stage_input_fingerprints"]["comparison"]
+    )
+    assert (
+        first_checkpoint["stage_input_fingerprints"]["candidate_selection"]
+        != second_checkpoint["stage_input_fingerprints"]["candidate_selection"]
+    )
+    assert (
+        first_checkpoint["stage_input_fingerprints"]["portfolio"]
+        != second_checkpoint["stage_input_fingerprints"]["portfolio"]
+    )
+    assert (
+        first_checkpoint["stages"][3]["fingerprint_inputs"]["candidate_selection"]["max_candidates"]
+        == 2
+    )
+    assert (
+        second_checkpoint["stages"][3]["fingerprint_inputs"]["candidate_selection"]["max_candidates"]
+        == 3
+    )

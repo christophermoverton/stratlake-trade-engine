@@ -6,7 +6,7 @@ from typing import Any, Mapping, Sequence
 
 from src.research.registry import canonicalize_value
 
-CAMPAIGN_CHECKPOINT_SCHEMA_VERSION = 1
+CAMPAIGN_CHECKPOINT_SCHEMA_VERSION = 2
 CAMPAIGN_STAGE_ORDER = (
     "preflight",
     "research",
@@ -40,6 +40,8 @@ def build_campaign_stage_checkpoint(
     state: str,
     state_reason: str | None = None,
     source: str | None = None,
+    input_fingerprint: str | None = None,
+    fingerprint_inputs: Mapping[str, Any] | None = None,
     selected_run_ids: Mapping[str, Any] | None = None,
     key_metrics: Mapping[str, Any] | None = None,
     output_paths: Mapping[str, Any] | None = None,
@@ -51,12 +53,17 @@ def build_campaign_stage_checkpoint(
     if state_reason is not None and not str(state_reason).strip():
         state_reason = None
     source_text = None if source is None else str(source).strip() or None
+    fingerprint_text = None
+    if input_fingerprint is not None:
+        fingerprint_text = str(input_fingerprint).strip() or None
     defaults = _STAGE_STATE_DEFAULTS[normalized_state]
     payload = {
         "stage_name": normalized_stage_name,
         "state": normalized_state,
         "state_reason": state_reason,
         "source": source_text,
+        "input_fingerprint": fingerprint_text,
+        "fingerprint_inputs": canonicalize_value(dict(fingerprint_inputs or {})),
         "terminal": defaults["terminal"],
         "resumable": defaults["resumable"],
         "selected_run_ids": canonicalize_value(dict(selected_run_ids or {})),
@@ -88,6 +95,10 @@ def build_campaign_checkpoint_payload(
         "stage_order": list(CAMPAIGN_STAGE_ORDER),
         "stage_states": {
             str(stage.get("stage_name")): str(stage.get("state"))
+            for stage in stage_payloads
+        },
+        "stage_input_fingerprints": {
+            str(stage.get("stage_name")): stage.get("input_fingerprint")
             for stage in stage_payloads
         },
         "stages": stage_payloads,
@@ -152,6 +163,18 @@ def validate_campaign_checkpoint_payload(payload: Mapping[str, Any]) -> None:
     if canonicalize_value(stage_states) != canonicalize_value(expected_stage_states):
         raise CampaignCheckpointError("Campaign checkpoint stage_states must mirror stages[].state values.")
 
+    stage_input_fingerprints = payload.get("stage_input_fingerprints")
+    if not isinstance(stage_input_fingerprints, Mapping):
+        raise CampaignCheckpointError("Campaign checkpoint stage_input_fingerprints must be a mapping.")
+    expected_stage_input_fingerprints = {
+        str(stage["stage_name"]): stage.get("input_fingerprint")
+        for stage in stages
+    }
+    if canonicalize_value(stage_input_fingerprints) != canonicalize_value(expected_stage_input_fingerprints):
+        raise CampaignCheckpointError(
+            "Campaign checkpoint stage_input_fingerprints must mirror stages[].input_fingerprint values."
+        )
+
 
 def validate_campaign_stage_payload(payload: Mapping[str, Any], *, index: int | None = None) -> None:
     if not isinstance(payload, Mapping):
@@ -172,7 +195,7 @@ def validate_campaign_stage_payload(payload: Mapping[str, Any], *, index: int | 
             f"{prefix}.resumable must be {defaults['resumable']} for state {state!r}."
         )
 
-    for field_name in ("selected_run_ids", "key_metrics", "output_paths", "outcomes", "details"):
+    for field_name in ("fingerprint_inputs", "selected_run_ids", "key_metrics", "output_paths", "outcomes", "details"):
         value = payload.get(field_name)
         if not isinstance(value, Mapping):
             raise CampaignCheckpointError(f"{prefix}.{field_name} must be a mapping.")
@@ -183,6 +206,11 @@ def validate_campaign_stage_payload(payload: Mapping[str, Any], *, index: int | 
     source = payload.get("source")
     if source is not None and not isinstance(source, str):
         raise CampaignCheckpointError(f"{prefix}.source must be a string when provided.")
+    input_fingerprint = payload.get("input_fingerprint")
+    if input_fingerprint is not None and not isinstance(input_fingerprint, str):
+        raise CampaignCheckpointError(f"{prefix}.input_fingerprint must be a string when provided.")
+    if isinstance(input_fingerprint, str) and not input_fingerprint.strip():
+        raise CampaignCheckpointError(f"{prefix}.input_fingerprint must not be empty when provided.")
 
     if stage_name == "preflight" and state == "pending":
         raise CampaignCheckpointError("Preflight stage cannot be pending in a persisted checkpoint.")
@@ -227,4 +255,3 @@ def _normalize_stage_state(value: Any) -> str:
             f"Campaign checkpoint state must be one of {sorted(VALID_CAMPAIGN_STAGE_STATES)}."
         )
     return normalized
-

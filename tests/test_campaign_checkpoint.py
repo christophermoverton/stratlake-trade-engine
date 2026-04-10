@@ -20,6 +20,8 @@ def _build_stage(stage_name: str, state: str, **overrides: object) -> dict[str, 
         state=state,
         state_reason=overrides.pop("state_reason", None),
         source=overrides.pop("source", "executed"),
+        input_fingerprint=overrides.pop("input_fingerprint", None),
+        fingerprint_inputs=overrides.pop("fingerprint_inputs", {}),
         selected_run_ids=overrides.pop("selected_run_ids", {}),
         key_metrics=overrides.pop("key_metrics", {}),
         output_paths=overrides.pop("output_paths", {}),
@@ -58,11 +60,42 @@ def test_checkpoint_payload_accepts_all_canonical_stage_states(tmp_path: Path) -
         stage_name: state
         for stage_name, state in zip(CAMPAIGN_STAGE_ORDER, states, strict=True)
     }
+    assert payload["stage_input_fingerprints"] == {
+        stage_name: None for stage_name in CAMPAIGN_STAGE_ORDER
+    }
     assert payload["resumable_stage_names"] == [
         "preflight",
         "candidate_selection",
         "candidate_review",
     ]
+
+
+def test_checkpoint_payload_persists_stage_input_fingerprints(tmp_path: Path) -> None:
+    stages = [
+        _build_stage(
+            stage_name,
+            "completed",
+            fingerprint_inputs={"stage": stage_name, "version": 1},
+            input_fingerprint=f"fingerprint-{stage_name}",
+        )
+        for stage_name in CAMPAIGN_STAGE_ORDER
+    ]
+
+    payload = build_campaign_checkpoint_payload(
+        campaign_run_id="research_campaign_demo",
+        status="completed",
+        checkpoint_path=tmp_path / "checkpoint.json",
+        stages=stages,
+    )
+
+    assert payload["stage_input_fingerprints"] == {
+        stage_name: f"fingerprint-{stage_name}"
+        for stage_name in CAMPAIGN_STAGE_ORDER
+    }
+    assert payload["stages"][0]["fingerprint_inputs"] == {
+        "stage": "preflight",
+        "version": 1,
+    }
 
 
 def test_checkpoint_write_is_canonical_and_round_trips(tmp_path: Path) -> None:

@@ -7,6 +7,8 @@ from types import SimpleNamespace
 import pytest
 
 from src.cli.run_research_campaign import (
+    CampaignPreflightCheck,
+    CampaignPreflightResult,
     _resolve_candidate_selection_reference,
     parse_args,
     run_cli,
@@ -298,11 +300,13 @@ portfolios:
     assert result.review_result.review_id == "review_run"
     assert result.preflight_summary_path.exists()
     assert result.campaign_artifact_dir.exists()
+    assert result.campaign_checkpoint_path.exists()
     assert result.campaign_manifest_path.exists()
     assert result.campaign_summary_path.exists()
     assert result.preflight_summary["status"] == "passed"
     assert result.preflight_summary["check_counts"]["failed"] == 0
 
+    campaign_checkpoint = json.loads(result.campaign_checkpoint_path.read_text(encoding="utf-8"))
     campaign_manifest = json.loads(result.campaign_manifest_path.read_text(encoding="utf-8"))
     campaign_summary = json.loads(result.campaign_summary_path.read_text(encoding="utf-8"))
 
@@ -339,9 +343,16 @@ portfolios:
     assert "review_id=review_run" in stdout
     assert "Campaign Artifacts: manifest=" in stdout
 
+    assert campaign_checkpoint["run_type"] == "research_campaign_checkpoint"
+    assert campaign_checkpoint["campaign_run_id"] == result.campaign_run_id
+    assert campaign_checkpoint["status"] == "completed"
+    assert campaign_checkpoint["stage_states"]["candidate_review"] == "completed"
+    assert campaign_checkpoint["stage_states"]["portfolio"] == "completed"
+
     assert campaign_manifest["run_type"] == "research_campaign"
     assert campaign_manifest["campaign_run_id"] == result.campaign_run_id
     assert campaign_manifest["status"] == "completed"
+    assert campaign_manifest["checkpoint_path"] == "checkpoint.json"
     assert campaign_manifest["summary_path"] == "summary.json"
     assert campaign_manifest["stage_statuses"]["candidate_review"] == "completed"
     assert campaign_manifest["selected_run_ids"]["portfolio_run_id"] == "portfolio_run"
@@ -349,13 +360,16 @@ portfolios:
     assert campaign_summary["run_type"] == "research_campaign"
     assert campaign_summary["campaign_run_id"] == result.campaign_run_id
     assert campaign_summary["status"] == "completed"
+    assert campaign_summary["checkpoint_path"].endswith("checkpoint.json")
     assert campaign_summary["selected_run_ids"]["alpha_run_ids"] == ["alpha_run"]
     assert campaign_summary["selected_run_ids"]["strategy_run_ids"] == ["strategy_run"]
     assert campaign_summary["selected_run_ids"]["candidate_selection_run_id"] == "candidate_run"
     assert campaign_summary["selected_run_ids"]["portfolio_run_id"] == "portfolio_run"
     assert campaign_summary["selected_run_ids"]["review_id"] == "review_run"
     assert campaign_summary["stage_statuses"]["candidate_review"] == "completed"
+    assert campaign_summary["checkpoint"]["stage_states"]["candidate_review"] == "completed"
     assert campaign_summary["output_paths"]["candidate_review_dir"] == review_dir.as_posix()
+    assert campaign_summary["output_paths"]["campaign_checkpoint"] == result.campaign_checkpoint_path.as_posix()
     assert "candidate_review_counts" in campaign_summary["final_outcomes"]
     assert [stage["stage_name"] for stage in campaign_summary["stages"]] == [
         "preflight",
@@ -507,6 +521,7 @@ alpha_one:
     assert result.preflight_summary["status"] == "passed"
     assert result.campaign_manifest_path.exists()
     assert result.campaign_summary_path.exists()
+    assert result.campaign_checkpoint_path.exists()
 
 
 def test_run_research_campaign_resolves_candidate_selection_registry_for_portfolio_chaining(
@@ -1017,6 +1032,7 @@ alpha_one:
     )
 
     result = run_research_campaign(config)
+    checkpoint = json.loads(result.campaign_checkpoint_path.read_text(encoding="utf-8"))
 
     assert len(candidate_review_calls) == 1
     assert "--candidate-selection-path" in candidate_review_calls[0]
@@ -1024,12 +1040,211 @@ alpha_one:
     assert "--portfolio-path" in candidate_review_calls[0]
     assert portfolio_artifact_dir.as_posix() in candidate_review_calls[0]
     assert result.candidate_review_result.portfolio_run_id == "portfolio_run_registry"
+    assert checkpoint["stage_states"]["portfolio"] == "reused"
     registry_check = next(
         check
         for check in result.preflight_summary["checks"]
         if check["check_id"] == "registry.portfolio.candidate_review"
     )
     assert registry_check["status"] == "passed"
+
+
+def test_run_research_campaign_marks_reused_candidate_selection_stage_in_checkpoint(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    features_root = tmp_path / "features_root"
+    portfolio_artifacts_root = tmp_path / "portfolio_artifacts"
+    portfolio_registry = portfolio_artifacts_root / "registry.jsonl"
+    portfolio_artifact_dir = portfolio_artifacts_root / "portfolio_run_registry"
+    candidate_root = tmp_path / "candidate_selection"
+    candidate_registry = candidate_root / "registry.jsonl"
+    candidate_artifact_dir = candidate_root / "candidate_run_registry"
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    _write_feature_fixture(features_root)
+    _write_candidate_selection_registry_entry(
+        candidate_registry,
+        run_id="candidate_run_registry",
+        artifact_dir=candidate_artifact_dir,
+        alpha_name="alpha_one",
+        dataset="features_daily",
+        timeframe="1D",
+        evaluation_horizon=5,
+        mapping_names=["top_bottom_quantile_q20"],
+    )
+    _write_portfolio_registry_entry(
+        portfolio_registry,
+        run_id="portfolio_run_registry",
+        artifact_dir=portfolio_artifact_dir,
+        portfolio_name="candidate_portfolio",
+        timeframe="1D",
+        candidate_selection_run_id="candidate_run_registry",
+    )
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+            },
+            "candidate_selection": {
+                "enabled": False,
+                "alpha_name": "alpha_one",
+                "output": {
+                    "path": candidate_root.as_posix(),
+                    "registry_path": candidate_registry.as_posix(),
+                },
+            },
+            "portfolio": {
+                "enabled": True,
+                "from_candidate_selection": True,
+                "portfolio_name": "candidate_portfolio",
+                "timeframe": "1D",
+            },
+            "review": {
+                "output": {
+                    "path": (tmp_path / "reviews").as_posix(),
+                    "emit_plots": False,
+                }
+            },
+            "outputs": {
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+                "portfolio_artifacts_root": portfolio_artifacts_root.as_posix(),
+            },
+        }
+    )
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+            portfolio_name="candidate_portfolio",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    result = run_research_campaign(config)
+    checkpoint = json.loads(result.campaign_checkpoint_path.read_text(encoding="utf-8"))
+
+    assert checkpoint["stage_states"]["candidate_selection"] == "reused"
+    assert checkpoint["stage_states"]["portfolio"] == "completed"
+    assert checkpoint["stages"][3]["source"] == "registry"
+
+
+
+def test_run_research_campaign_writes_pending_checkpoint_states_after_preflight_failure(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+            },
+            "outputs": {
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+            },
+        }
+    )
+
+    def fake_preflight(*_args: object, **_kwargs: object) -> CampaignPreflightResult:
+        summary_path = tmp_path / "campaign_artifacts" / "research_campaign_demo" / "preflight_summary.json"
+        summary_path.parent.mkdir(parents=True, exist_ok=True)
+        summary = {
+            "status": "failed",
+            "check_counts": {"failed": 1, "passed": 0, "warning": 0},
+            "checks": [
+                {
+                    "check_id": "dataset.features_daily",
+                    "status": "failed",
+                    "message": "Dataset root unavailable.",
+                    "details": {},
+                }
+            ],
+            "failed_checks": ["Dataset root unavailable."],
+        }
+        summary_path.write_text(json.dumps(summary), encoding="utf-8")
+        return CampaignPreflightResult(
+            status="failed",
+            summary_path=summary_path,
+            summary=summary,
+            checks=(
+                CampaignPreflightCheck(
+                    check_id="dataset.features_daily",
+                    status="failed",
+                    message="Dataset root unavailable.",
+                ),
+            ),
+        )
+
+    monkeypatch.setattr("src.cli.run_research_campaign._run_preflight", fake_preflight)
+
+    with pytest.raises(ValueError, match="Campaign preflight failed"):
+        run_research_campaign(config)
+
+    campaign_dir = next((tmp_path / "campaign_artifacts").iterdir())
+    checkpoint = json.loads((campaign_dir / "checkpoint.json").read_text(encoding="utf-8"))
+
+    assert checkpoint["status"] == "failed"
+    assert checkpoint["stage_states"]["preflight"] == "failed"
+    assert checkpoint["stage_states"]["research"] == "pending"
+    assert checkpoint["stage_states"]["review"] == "pending"
 
 
 def test_run_research_campaign_writes_stable_stitched_artifacts_across_identical_reruns(
@@ -1302,9 +1517,11 @@ portfolios:
 
     assert second_result.campaign_manifest_path.read_bytes() == first_manifest_bytes
     assert second_result.campaign_summary_path.read_bytes() == first_summary_bytes
+    assert second_result.campaign_checkpoint_path.read_bytes() == first_result.campaign_checkpoint_path.read_bytes()
     assert second_result.preflight_summary_path.read_bytes() == first_preflight_bytes
     assert (second_result.campaign_artifact_dir / "campaign_config.json").read_bytes() == first_config_bytes
 
+    checkpoint = json.loads(second_result.campaign_checkpoint_path.read_text(encoding="utf-8"))
     summary = json.loads(second_result.campaign_summary_path.read_text(encoding="utf-8"))
     manifest = json.loads(second_result.campaign_manifest_path.read_text(encoding="utf-8"))
 
@@ -1317,6 +1534,15 @@ portfolios:
         "candidate_review",
         "review",
     ]
+    assert checkpoint["stage_states"] == {
+        "candidate_review": "completed",
+        "candidate_selection": "completed",
+        "comparison": "completed",
+        "portfolio": "completed",
+        "preflight": "completed",
+        "research": "completed",
+        "review": "completed",
+    }
     assert summary["selected_run_ids"]["alpha_run_ids"] == ["alpha_run_a", "alpha_run_b"]
     assert summary["selected_run_ids"]["strategy_run_ids"] == ["strategy_run_a", "strategy_run_b"]
     assert [entry["run_id"] for entry in summary["key_metrics"]["alpha_runs"]] == ["alpha_run_a", "alpha_run_b"]
@@ -1344,6 +1570,7 @@ portfolios:
     }
     assert manifest["artifact_files"] == [
         "campaign_config.json",
+        "checkpoint.json",
         "manifest.json",
         "preflight_summary.json",
         "summary.json",

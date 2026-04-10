@@ -26,12 +26,19 @@ from src.config.research_campaign import (
 from src.data.load_features import FeaturePaths, SUPPORTED_FEATURE_DATASETS
 from src.research.alpha.catalog import load_alphas_config
 from src.research.alpha_eval.registry import alpha_evaluation_registry_path
+from src.research.campaign_checkpoint import (
+    CAMPAIGN_STAGE_ORDER,
+    build_campaign_checkpoint_payload,
+    build_campaign_stage_checkpoint,
+    write_campaign_checkpoint,
+)
 from src.research.candidate_selection.registry import candidate_selection_registry_path
 from src.research.experiment_tracker import ARTIFACTS_ROOT as STRATEGY_ARTIFACTS_ROOT
 from src.research.registry import canonicalize_value, default_registry_path, load_registry
 
 PREFLIGHT_SUMMARY_FILENAME = "preflight_summary.json"
 CAMPAIGN_CONFIG_FILENAME = "campaign_config.json"
+CAMPAIGN_CHECKPOINT_FILENAME = "checkpoint.json"
 CAMPAIGN_MANIFEST_FILENAME = "manifest.json"
 CAMPAIGN_SUMMARY_FILENAME = "summary.json"
 
@@ -75,9 +82,11 @@ class ResearchCampaignRunResult:
     config: ResearchCampaignConfig
     campaign_run_id: str
     campaign_artifact_dir: Path
+    campaign_checkpoint_path: Path
     campaign_manifest_path: Path
     campaign_summary_path: Path
     preflight_summary_path: Path
+    campaign_checkpoint: dict[str, Any]
     campaign_manifest: dict[str, Any]
     campaign_summary: dict[str, Any]
     preflight_summary: dict[str, Any]
@@ -228,6 +237,14 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             candidate_selection_result=candidate_selection_result,
             candidate_selection_reference=candidate_selection_reference,
         )
+    if candidate_selection_result is None and candidate_selection_reference is not None:
+        records = _replace_stage_record_details(
+            records,
+            stage_name="candidate_selection",
+            details_update={
+                "input_reference": _artifact_reference_payload(candidate_selection_reference),
+            },
+        )
     records.append(
         CampaignStageRecord(
             stage_name="portfolio",
@@ -250,12 +267,25 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
 
     candidate_review_result = None
     if config.candidate_selection.enabled and config.candidate_selection.execution.enable_review:
+        if portfolio_result is None and portfolio_reference is None:
+            portfolio_reference = _resolve_portfolio_reference(
+                config,
+                candidate_selection_reference=candidate_selection_reference,
+            )
         candidate_review_result = _run_candidate_review(
             config,
             candidate_selection_result=candidate_selection_result,
             candidate_selection_reference=candidate_selection_reference,
             portfolio_result=portfolio_result,
             portfolio_reference=portfolio_reference,
+        )
+    if portfolio_result is None and portfolio_reference is not None:
+        records = _replace_stage_record_details(
+            records,
+            stage_name="portfolio",
+            details_update={
+                "input_reference": _artifact_reference_payload(portfolio_reference),
+            },
         )
     records.append(
         CampaignStageRecord(
@@ -299,7 +329,7 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         )
     )
 
-    manifest_path, summary_path, manifest_payload, summary_payload = _write_campaign_artifacts(
+    checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload = _write_campaign_artifacts(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
@@ -320,9 +350,11 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        campaign_checkpoint_path=checkpoint_path,
         campaign_manifest_path=manifest_path,
         campaign_summary_path=summary_path,
         preflight_summary_path=preflight_result.summary_path,
+        campaign_checkpoint=checkpoint_payload,
         campaign_manifest=manifest_payload,
         campaign_summary=summary_payload,
         preflight_summary=preflight_result.summary,
@@ -349,7 +381,7 @@ def print_summary(result: ResearchCampaignRunResult) -> None:
     print(
         "Preflight: "
         f"{result.preflight_summary.get('status', 'unknown')} "
-        f"({len(result.stage_records)} stages tracked) | "
+        f"({len(result.campaign_summary.get('stages', []))} stages tracked) | "
         f"summary={result.preflight_summary_path.as_posix()}"
     )
     print(
@@ -400,6 +432,7 @@ def print_summary(result: ResearchCampaignRunResult) -> None:
     print(
         "Campaign Artifacts: "
         f"manifest={result.campaign_manifest_path.as_posix()} | "
+        f"checkpoint={result.campaign_checkpoint_path.as_posix()} | "
         f"summary={result.campaign_summary_path.as_posix()}"
     )
 
@@ -1679,6 +1712,25 @@ def _normalize_jsonable(value: Any) -> Any:
     return value
 
 
+def _replace_stage_record_details(
+    records: list[CampaignStageRecord],
+    *,
+    stage_name: str,
+    details_update: Mapping[str, Any],
+) -> list[CampaignStageRecord]:
+    updated = list(records)
+    for index, record in enumerate(updated):
+        if record.stage_name != stage_name:
+            continue
+        updated[index] = CampaignStageRecord(
+            stage_name=record.stage_name,
+            status=record.status,
+            details=canonicalize_value({**record.details, **dict(details_update)}),
+        )
+        break
+    return updated
+
+
 def _write_campaign_artifacts(
     *,
     config: ResearchCampaignConfig,
@@ -1695,11 +1747,27 @@ def _write_campaign_artifacts(
     candidate_review_result: Any | None,
     review_result: Any | None,
     status: str,
-) -> tuple[Path, Path, dict[str, Any], dict[str, Any]]:
+) -> tuple[Path, Path, Path, dict[str, Any], dict[str, Any], dict[str, Any]]:
+    checkpoint_payload = _build_campaign_checkpoint(
+        campaign_run_id=campaign_run_id,
+        campaign_artifact_dir=campaign_artifact_dir,
+        preflight_result=preflight_result,
+        stage_records=stage_records,
+        alpha_results=alpha_results,
+        strategy_results=strategy_results,
+        alpha_comparison_result=alpha_comparison_result,
+        strategy_comparison_result=strategy_comparison_result,
+        candidate_selection_result=candidate_selection_result,
+        portfolio_result=portfolio_result,
+        candidate_review_result=candidate_review_result,
+        review_result=review_result,
+        status=status,
+    )
     summary_payload = _build_campaign_summary(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        checkpoint_payload=checkpoint_payload,
         preflight_result=preflight_result,
         stage_records=stage_records,
         alpha_results=alpha_results,
@@ -1716,13 +1784,57 @@ def _write_campaign_artifacts(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        checkpoint_payload=checkpoint_payload,
         summary_payload=summary_payload,
     )
+    checkpoint_path = campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME
     summary_path = campaign_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
     manifest_path = campaign_artifact_dir / CAMPAIGN_MANIFEST_FILENAME
+    write_campaign_checkpoint(checkpoint_path, checkpoint_payload)
     summary_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
     manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
-    return manifest_path, summary_path, manifest_payload, summary_payload
+    return checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload
+
+
+def _build_campaign_checkpoint(
+    *,
+    campaign_run_id: str,
+    campaign_artifact_dir: Path,
+    preflight_result: CampaignPreflightResult,
+    stage_records: Sequence[CampaignStageRecord],
+    alpha_results: Sequence[Any],
+    strategy_results: Sequence[Any],
+    alpha_comparison_result: Any | None,
+    strategy_comparison_result: Any | None,
+    candidate_selection_result: Any | None,
+    portfolio_result: Any | None,
+    candidate_review_result: Any | None,
+    review_result: Any | None,
+    status: str,
+) -> dict[str, Any]:
+    record_by_stage = {record.stage_name: record for record in stage_records}
+    stages = [
+        _campaign_stage_checkpoint(
+            stage_name=stage_name,
+            record=record_by_stage.get(stage_name),
+            preflight_result=preflight_result,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            alpha_comparison_result=alpha_comparison_result,
+            strategy_comparison_result=strategy_comparison_result,
+            candidate_selection_result=candidate_selection_result,
+            portfolio_result=portfolio_result,
+            candidate_review_result=candidate_review_result,
+            review_result=review_result,
+        )
+        for stage_name in CAMPAIGN_STAGE_ORDER
+    ]
+    return build_campaign_checkpoint_payload(
+        campaign_run_id=campaign_run_id,
+        status=status,
+        checkpoint_path=campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME,
+        stages=stages,
+    )
 
 
 def _build_campaign_summary(
@@ -1730,6 +1842,7 @@ def _build_campaign_summary(
     config: ResearchCampaignConfig,
     campaign_run_id: str,
     campaign_artifact_dir: Path,
+    checkpoint_payload: dict[str, Any],
     preflight_result: CampaignPreflightResult,
     stage_records: Sequence[CampaignStageRecord],
     alpha_results: Sequence[Any],
@@ -1752,6 +1865,7 @@ def _build_campaign_summary(
     output_paths = {
         "campaign_artifact_dir": campaign_artifact_dir.as_posix(),
         "campaign_config": (campaign_artifact_dir / CAMPAIGN_CONFIG_FILENAME).as_posix(),
+        "campaign_checkpoint": (campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME).as_posix(),
         "preflight_summary": preflight_result.summary_path.as_posix(),
         "campaign_manifest": (campaign_artifact_dir / CAMPAIGN_MANIFEST_FILENAME).as_posix(),
         "campaign_summary": (campaign_artifact_dir / CAMPAIGN_SUMMARY_FILENAME).as_posix(),
@@ -1776,8 +1890,8 @@ def _build_campaign_summary(
     output_paths["alpha_artifact_dirs"] = [path for path in output_paths["alpha_artifact_dirs"] if path is not None]
     output_paths["strategy_artifact_dirs"] = [path for path in output_paths["strategy_artifact_dirs"] if path is not None]
 
-    stages = [
-        _campaign_stage_summary(
+    stage_summaries = {
+        record.stage_name: _campaign_stage_summary(
             record=record,
             alpha_results=alpha_results,
             strategy_results=strategy_results,
@@ -1789,7 +1903,25 @@ def _build_campaign_summary(
             review_result=review_result,
         )
         for record in stage_records
-    ]
+    }
+    stages = []
+    for checkpoint_stage in checkpoint_payload["stages"]:
+        stage_name = str(checkpoint_stage["stage_name"])
+        summary_stage = stage_summaries.get(stage_name)
+        if summary_stage is None:
+            summary_stage = _campaign_pending_stage_summary(stage_name=stage_name)
+        stages.append(
+            canonicalize_value(
+                {
+                    **summary_stage,
+                    "state": checkpoint_stage["state"],
+                    "state_reason": checkpoint_stage.get("state_reason"),
+                    "source": checkpoint_stage.get("source"),
+                    "terminal": checkpoint_stage["terminal"],
+                    "resumable": checkpoint_stage["resumable"],
+                }
+            )
+        )
 
     final_outcomes = {
         "preflight_status": preflight_result.status,
@@ -1821,6 +1953,8 @@ def _build_campaign_summary(
         "campaign_run_id": campaign_run_id,
         "status": status,
         "preflight_status": preflight_result.status,
+        "checkpoint_schema_version": checkpoint_payload["schema_version"],
+        "checkpoint_path": checkpoint_payload["checkpoint_path"],
         "targets": canonicalize_value(
             {
                 "alpha_names": list(config.targets.alpha_names),
@@ -1830,7 +1964,8 @@ def _build_campaign_summary(
                 "portfolio_name": config.portfolio.portfolio_name,
             }
         ),
-        "stage_statuses": {record.stage_name: record.status for record in stage_records},
+        "stage_statuses": dict(checkpoint_payload["stage_states"]),
+        "checkpoint": checkpoint_payload,
         "stages": stages,
         "selected_run_ids": selected_run_ids,
         "key_metrics": key_metrics,
@@ -1845,11 +1980,13 @@ def _build_campaign_manifest(
     config: ResearchCampaignConfig,
     campaign_run_id: str,
     campaign_artifact_dir: Path,
+    checkpoint_payload: dict[str, Any],
     summary_payload: dict[str, Any],
 ) -> dict[str, Any]:
     artifact_files = sorted(
         [
             CAMPAIGN_CONFIG_FILENAME,
+            CAMPAIGN_CHECKPOINT_FILENAME,
             PREFLIGHT_SUMMARY_FILENAME,
             CAMPAIGN_MANIFEST_FILENAME,
             CAMPAIGN_SUMMARY_FILENAME,
@@ -1858,6 +1995,7 @@ def _build_campaign_manifest(
     artifact_groups = {
         "campaign": artifact_files,
         "core": artifact_files,
+        "checkpoint": [CAMPAIGN_CHECKPOINT_FILENAME],
         "preflight": [PREFLIGHT_SUMMARY_FILENAME],
         "summary": [CAMPAIGN_SUMMARY_FILENAME],
     }
@@ -1869,6 +2007,11 @@ def _build_campaign_manifest(
         "artifact_groups": artifact_groups,
         "artifacts": {
             CAMPAIGN_CONFIG_FILENAME: {"path": CAMPAIGN_CONFIG_FILENAME},
+            CAMPAIGN_CHECKPOINT_FILENAME: {
+                "path": CAMPAIGN_CHECKPOINT_FILENAME,
+                "schema_version": checkpoint_payload["schema_version"],
+                "stage_count": len(checkpoint_payload["stages"]),
+            },
             PREFLIGHT_SUMMARY_FILENAME: {"path": PREFLIGHT_SUMMARY_FILENAME},
             CAMPAIGN_MANIFEST_FILENAME: {"path": CAMPAIGN_MANIFEST_FILENAME},
             CAMPAIGN_SUMMARY_FILENAME: {
@@ -1877,7 +2020,8 @@ def _build_campaign_manifest(
             },
         },
         "campaign_artifact_dir": campaign_artifact_dir.as_posix(),
-        "stage_statuses": dict(summary_payload["stage_statuses"]),
+        "checkpoint_path": CAMPAIGN_CHECKPOINT_FILENAME,
+        "stage_statuses": dict(checkpoint_payload["stage_states"]),
         "selected_run_ids": dict(summary_payload["selected_run_ids"]),
         "targets": canonicalize_value(
             {
@@ -1889,6 +2033,92 @@ def _build_campaign_manifest(
         "summary_path": CAMPAIGN_SUMMARY_FILENAME,
     }
     return canonicalize_value(payload)
+
+
+def _campaign_stage_checkpoint(
+    *,
+    stage_name: str,
+    record: CampaignStageRecord | None,
+    preflight_result: CampaignPreflightResult,
+    alpha_results: Sequence[Any],
+    strategy_results: Sequence[Any],
+    alpha_comparison_result: Any | None,
+    strategy_comparison_result: Any | None,
+    candidate_selection_result: Any | None,
+    portfolio_result: Any | None,
+    candidate_review_result: Any | None,
+    review_result: Any | None,
+) -> dict[str, Any]:
+    if record is None:
+        return build_campaign_stage_checkpoint(
+            stage_name=stage_name,
+            state="pending",
+            state_reason=(
+                "Waiting for an upstream stage to complete."
+                if preflight_result.status == "passed"
+                else "Blocked because campaign preflight failed."
+            ),
+            source="planner",
+        )
+
+    state = record.status
+    source = "executed"
+    state_reason = None
+    if record.status == "skipped":
+        source = "config"
+        state_reason = "Stage disabled or not applicable for this campaign."
+    elif record.status == "failed":
+        state_reason = "Stage execution failed."
+
+    if stage_name == "candidate_selection":
+        input_reference = record.details.get("input_reference")
+        if candidate_selection_result is None and isinstance(input_reference, Mapping):
+            state = "reused"
+            source = str(input_reference.get("source") or "registry")
+            state_reason = "Resolved existing candidate-selection artifacts for downstream chaining."
+    elif stage_name == "portfolio":
+        input_reference = record.details.get("input_reference")
+        if portfolio_result is None and isinstance(input_reference, Mapping):
+            state = "reused"
+            source = str(input_reference.get("source") or "registry")
+            state_reason = "Resolved existing portfolio artifacts for downstream chaining."
+
+    summary_payload = _campaign_stage_summary(
+        record=record,
+        alpha_results=alpha_results,
+        strategy_results=strategy_results,
+        alpha_comparison_result=alpha_comparison_result,
+        strategy_comparison_result=strategy_comparison_result,
+        candidate_selection_result=candidate_selection_result,
+        portfolio_result=portfolio_result,
+        candidate_review_result=candidate_review_result,
+        review_result=review_result,
+    )
+    return build_campaign_stage_checkpoint(
+        stage_name=stage_name,
+        state=state,
+        state_reason=state_reason,
+        source=source,
+        selected_run_ids=summary_payload["selected_run_ids"],
+        key_metrics=summary_payload["key_metrics"],
+        output_paths=summary_payload["output_paths"],
+        outcomes=summary_payload["outcomes"],
+        details=summary_payload["details"],
+    )
+
+
+def _campaign_pending_stage_summary(*, stage_name: str) -> dict[str, Any]:
+    return canonicalize_value(
+        {
+            "stage_name": stage_name,
+            "status": "pending",
+            "selected_run_ids": {},
+            "key_metrics": {},
+            "output_paths": {},
+            "outcomes": {},
+            "details": {},
+        }
+    )
 
 
 def _campaign_stage_summary(

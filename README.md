@@ -317,6 +317,8 @@ What it provides:
   candidate-selection, portfolio, candidate review, and unified review
 * one stitched campaign artifact directory under
   `artifacts/research_campaigns/<campaign_run_id>/`
+* canonical campaign `checkpoint.json` state for resumable orchestration and
+  stage-level reuse tracking
 * campaign-level `summary.json` and `manifest.json` files for automation and
   auditability
 
@@ -795,6 +797,7 @@ Successful or failed campaign preflight runs write under
 Core files:
 
 * `campaign_config.json`
+* `checkpoint.json`
 * `preflight_summary.json`
 * `manifest.json`
 * `summary.json`

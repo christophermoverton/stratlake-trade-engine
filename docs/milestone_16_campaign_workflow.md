@@ -209,9 +209,31 @@ artifacts/research_campaigns/<campaign_run_id>/
 Core files:
 
 * `campaign_config.json`
+* `checkpoint.json`
 * `preflight_summary.json`
 * `manifest.json`
 * `summary.json`
+
+### `checkpoint.json`
+
+This is the canonical persisted stage-state contract for resumable campaign
+execution.
+
+It records all seven campaign stages in canonical order and persists one
+normalized state per stage:
+
+* `completed`: stage finished in this campaign run
+* `failed`: stage ran and failed; resume can restart from this boundary
+* `skipped`: stage was intentionally disabled or not applicable
+* `reused`: stage inputs were resolved from an existing artifact or registry
+  entry instead of being recomputed
+* `partial`: stage emitted incomplete resumable state and has not finished yet
+* `pending`: stage has not run yet or is blocked by an upstream failure
+
+Each stage entry also carries deterministic `selected_run_ids`,
+`key_metrics`, `output_paths`, `outcomes`, `details`, plus `terminal` and
+`resumable` flags so orchestration tooling can decide whether to continue,
+retry, or inspect reused artifacts.
 
 ### `campaign_config.json`
 
@@ -247,6 +269,7 @@ This is the main machine-readable stitched output for the campaign.
 It includes:
 
 * `stage_statuses`
+* `checkpoint`
 * ordered `stages`
 * `selected_run_ids`
 * `key_metrics`
@@ -268,6 +291,7 @@ This is the campaign inventory file.
 It records:
 
 * the core campaign artifact set
+* the relative checkpoint path
 * stage statuses
 * selected run ids
 * campaign targets

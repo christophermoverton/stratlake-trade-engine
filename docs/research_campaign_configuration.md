@@ -80,6 +80,7 @@ Preflight validates:
 Each campaign persists:
 
 * `campaign_config.json`
+* `checkpoint.json`
 * `preflight_summary.json`
 * `manifest.json`
 * `summary.json`
@@ -96,19 +97,31 @@ inspect the failed stage state without parsing exception text.
 The campaign directory now acts as the top-level stitched artifact surface for
 the full workflow:
 
+* `checkpoint.json`: canonical resumable campaign state with one persisted
+  stage-state record for each of `preflight`, `research`, `comparison`,
+  `candidate_selection`, `portfolio`, `candidate_review`, and `review`
 * `manifest.json`: deterministic file inventory and stage/run index for the
   campaign artifact directory itself
 * `summary.json`: machine-readable stitched campaign output with:
-  * stage status for preflight, research, comparison, candidate selection,
+  * stage state for preflight, research, comparison, candidate selection,
     portfolio, candidate review, and unified review
   * selected run IDs and comparison/review IDs
   * key alpha, strategy, candidate-selection, portfolio, and review metrics
   * output file paths for downstream stage artifacts
   * final review and promotion outcomes when review promotion gates are present
 
+The canonical checkpoint stage states are:
+
+* `completed`
+* `failed`
+* `skipped`
+* `reused`
+* `partial`
+* `pending`
+
 `summary.json` is intended for automation, orchestration, and audit tooling,
 while `manifest.json` is the stable inventory entry point for the campaign
-directory.
+directory and `checkpoint.json` is the resumable execution contract.
 
 ## Loading
 

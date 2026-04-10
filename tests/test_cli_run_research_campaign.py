@@ -11,6 +11,7 @@ from src.cli.run_research_campaign import (
     CampaignPreflightResult,
     _resolve_candidate_selection_reference,
     parse_args,
+    print_summary,
     run_cli,
     run_research_campaign,
 )
@@ -1629,6 +1630,313 @@ alpha_one:
     assert checkpoint["stage_states"]["preflight"] == "failed"
     assert checkpoint["stage_states"]["research"] == "pending"
     assert checkpoint["stage_states"]["review"] == "pending"
+
+
+def test_run_research_campaign_persists_failed_stage_metadata_and_retries_on_resume(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    config = _build_full_campaign_config(
+        tmp_path=tmp_path,
+        alpha_catalog=alpha_catalog,
+        strategy_config=strategy_config,
+        portfolio_config=portfolio_config,
+    )
+
+    def _write_json(path: Path, payload: dict[str, object]) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+        return path
+
+    attempts = {"candidate_selection": 0}
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            strategy_name="momentum_v1",
+            run_id="strategy_run",
+            experiment_dir=tmp_path / "strategy",
+            metrics={"cumulative_return": 0.2, "sharpe_ratio": 1.1, "max_drawdown": -0.05},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="alpha_cmp"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="strategy_cmp"),
+    )
+
+    def _candidate_selection_cli(argv: list[str]) -> SimpleNamespace:
+        attempts["candidate_selection"] += 1
+        if attempts["candidate_selection"] == 1:
+            raise RuntimeError("candidate selection exploded")
+        artifact_dir = tmp_path / "candidate_selection" / "candidate_run"
+        return SimpleNamespace(
+            run_id="candidate_run",
+            artifact_dir=artifact_dir,
+            summary_json=_write_json(artifact_dir / "selection_summary.json", {"selected_candidates": 2}),
+            manifest_json=_write_json(artifact_dir / "manifest.json", {"run_id": "candidate_run"}),
+            primary_metric="ic_ir",
+            universe_count=8,
+            eligible_count=4,
+            selected_count=2,
+            rejected_count=2,
+            pruned_by_redundancy=1,
+        )
+
+    monkeypatch.setattr("src.cli.run_research_campaign.run_candidate_selection_cli.run_cli", _candidate_selection_cli)
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+            portfolio_name="candidate_portfolio",
+            component_count=2,
+            metrics={"total_return": 0.16, "sharpe_ratio": 1.2, "max_drawdown": -0.04},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            review_dir=tmp_path / "candidate_review" / "candidate_run",
+            candidate_review_summary_json=_write_json(
+                tmp_path / "candidate_review" / "candidate_run" / "candidate_review_summary.json",
+                {"selected_candidates": 2, "rejected_candidates": 2},
+            ),
+            manifest_json=_write_json(
+                tmp_path / "candidate_review" / "candidate_run" / "manifest.json",
+                {"run_id": "candidate_review"},
+            ),
+            candidate_selection_run_id="candidate_run",
+            portfolio_run_id="portfolio_run",
+            total_candidates=4,
+            selected_candidates=2,
+            rejected_candidates=2,
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run", entries=[]),
+    )
+
+    with pytest.raises(RuntimeError, match="candidate selection exploded"):
+        run_research_campaign(config)
+
+    failed_checkpoint_path = next((tmp_path / "campaign_artifacts").rglob("checkpoint.json"))
+    failed_summary_path = next((tmp_path / "campaign_artifacts").rglob("summary.json"))
+    failed_checkpoint = json.loads(failed_checkpoint_path.read_text(encoding="utf-8"))
+    failed_summary = json.loads(failed_summary_path.read_text(encoding="utf-8"))
+    failed_stage = next(stage for stage in failed_summary["stages"] if stage["stage_name"] == "candidate_selection")
+
+    assert failed_checkpoint["status"] == "failed"
+    assert failed_checkpoint["stage_states"]["candidate_selection"] == "failed"
+    assert failed_checkpoint["failed_stage_count"] == 1
+    assert failed_stage["details"]["failure"] == {
+        "exception_type": "RuntimeError",
+        "kind": "exception",
+        "message": "candidate selection exploded",
+        "retryable": True,
+        "stage_name": "candidate_selection",
+    }
+    assert failed_summary["final_outcomes"]["failed_stage_names"] == ["candidate_selection"]
+    assert failed_summary["final_outcomes"]["retry_stage_names"] == []
+
+    resumed_result = run_research_campaign(config)
+    resumed_summary = json.loads(resumed_result.campaign_summary_path.read_text(encoding="utf-8"))
+    resumed_checkpoint = json.loads(resumed_result.campaign_checkpoint_path.read_text(encoding="utf-8"))
+    resumed_stage = next(stage for stage in resumed_summary["stages"] if stage["stage_name"] == "candidate_selection")
+
+    assert resumed_checkpoint["stage_states"]["preflight"] == "reused"
+    assert resumed_checkpoint["stage_states"]["research"] == "reused"
+    assert resumed_checkpoint["stage_states"]["comparison"] == "reused"
+    assert resumed_checkpoint["stage_states"]["candidate_selection"] == "completed"
+    assert resumed_stage["details"]["retry"]["attempted"] is True
+    assert resumed_stage["details"]["retry"]["previous_state"] == "failed"
+    assert resumed_stage["details"]["retry"]["previous_failure"]["message"] == "candidate selection exploded"
+    assert resumed_summary["final_outcomes"]["retry_stage_names"] == ["candidate_selection"]
+    assert resumed_summary["stage_state_counts"]["reused"] == 3
+
+
+def test_run_research_campaign_persists_partial_stage_metadata_for_interrupts(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    config = _build_full_campaign_config(
+        tmp_path=tmp_path,
+        alpha_catalog=alpha_catalog,
+        strategy_config=strategy_config,
+        portfolio_config=portfolio_config,
+    )
+
+    attempts = {"comparison": 0}
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            strategy_name="momentum_v1",
+            run_id="strategy_run",
+            experiment_dir=tmp_path / "strategy",
+            metrics={"cumulative_return": 0.2, "sharpe_ratio": 1.1, "max_drawdown": -0.05},
+        ),
+    )
+
+    def _alpha_compare(argv: list[str]) -> SimpleNamespace:
+        attempts["comparison"] += 1
+        if attempts["comparison"] == 1:
+            raise KeyboardInterrupt("manual stop")
+        return SimpleNamespace(comparison_id="alpha_cmp")
+
+    monkeypatch.setattr("src.cli.run_research_campaign.compare_alpha_cli.run_cli", _alpha_compare)
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="strategy_cmp"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="candidate_run",
+            artifact_dir=tmp_path / "candidate_selection" / "candidate_run",
+            summary_json=tmp_path / "candidate_selection" / "candidate_run" / "selection_summary.json",
+            manifest_json=tmp_path / "candidate_selection" / "candidate_run" / "manifest.json",
+            primary_metric="ic_ir",
+            universe_count=8,
+            eligible_count=4,
+            selected_count=2,
+            rejected_count=2,
+            pruned_by_redundancy=1,
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+            portfolio_name="candidate_portfolio",
+            component_count=2,
+            metrics={"total_return": 0.16, "sharpe_ratio": 1.2, "max_drawdown": -0.04},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            review_dir=tmp_path / "candidate_review" / "candidate_run",
+            candidate_review_summary_json=tmp_path / "candidate_review" / "candidate_run" / "candidate_review_summary.json",
+            manifest_json=tmp_path / "candidate_review" / "candidate_run" / "manifest.json",
+            candidate_selection_run_id="candidate_run",
+            portfolio_run_id="portfolio_run",
+            total_candidates=4,
+            selected_candidates=2,
+            rejected_candidates=2,
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run", entries=[]),
+    )
+
+    with pytest.raises(KeyboardInterrupt, match="manual stop"):
+        run_research_campaign(config)
+
+    partial_checkpoint_path = next((tmp_path / "campaign_artifacts").rglob("checkpoint.json"))
+    partial_summary_path = next((tmp_path / "campaign_artifacts").rglob("summary.json"))
+    partial_checkpoint = json.loads(partial_checkpoint_path.read_text(encoding="utf-8"))
+    partial_summary = json.loads(partial_summary_path.read_text(encoding="utf-8"))
+    partial_stage = next(stage for stage in partial_summary["stages"] if stage["stage_name"] == "comparison")
+
+    assert partial_checkpoint["status"] == "partial"
+    assert partial_checkpoint["stage_states"]["comparison"] == "partial"
+    assert partial_checkpoint["partial_stage_count"] == 1
+    assert partial_checkpoint["stage_states"]["candidate_selection"] == "pending"
+    assert partial_stage["details"]["failure"]["kind"] == "interrupted"
+    assert partial_stage["details"]["failure"]["message"] == "manual stop"
+    assert partial_summary["final_outcomes"]["partial_stage_names"] == ["comparison"]
+
+    resumed_result = run_research_campaign(config)
+    print_summary(resumed_result)
+    stdout = capsys.readouterr().out
+    resumed_summary = json.loads(resumed_result.campaign_summary_path.read_text(encoding="utf-8"))
+    resumed_stage = next(stage for stage in resumed_summary["stages"] if stage["stage_name"] == "comparison")
+
+    assert resumed_stage["state"] == "completed"
+    assert resumed_stage["details"]["retry"]["attempted"] is True
+    assert resumed_stage["details"]["retry"]["previous_state"] == "partial"
+    assert resumed_summary["final_outcomes"]["retry_stage_names"] == ["comparison"]
+    assert "Stage States: completed=" in stdout
+    assert "reused=" in stdout
+    assert "Stage Details: preflight=reused | research=reused | comparison=completed" in stdout
 
 
 def test_run_research_campaign_writes_stable_stitched_artifacts_across_identical_reruns(

@@ -60,6 +60,14 @@ def test_checkpoint_payload_accepts_all_canonical_stage_states(tmp_path: Path) -
         stage_name: state
         for stage_name, state in zip(CAMPAIGN_STAGE_ORDER, states, strict=True)
     }
+    assert payload["stage_state_counts"] == {
+        "completed": 2,
+        "failed": 1,
+        "partial": 1,
+        "pending": 1,
+        "reused": 1,
+        "skipped": 1,
+    }
     assert payload["stage_input_fingerprints"] == {
         stage_name: None for stage_name in CAMPAIGN_STAGE_ORDER
     }

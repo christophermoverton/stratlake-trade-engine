@@ -102,7 +102,14 @@ def build_campaign_checkpoint_payload(
             for stage in stage_payloads
         },
         "stages": stage_payloads,
+        "stage_state_counts": {
+            state: sum(1 for stage in stage_payloads if stage.get("state") == state)
+            for state in sorted(VALID_CAMPAIGN_STAGE_STATES)
+        },
         "completed_stage_count": sum(1 for stage in stage_payloads if stage.get("state") == "completed"),
+        "reused_stage_count": sum(1 for stage in stage_payloads if stage.get("state") == "reused"),
+        "failed_stage_count": sum(1 for stage in stage_payloads if stage.get("state") == "failed"),
+        "partial_stage_count": sum(1 for stage in stage_payloads if stage.get("state") == "partial"),
         "terminal_stage_count": sum(1 for stage in stage_payloads if bool(stage.get("terminal"))),
         "pending_stage_count": sum(1 for stage in stage_payloads if stage.get("state") == "pending"),
         "resumable_stage_names": [

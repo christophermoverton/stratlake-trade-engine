@@ -69,6 +69,65 @@ class CampaignStageRecord:
     details: dict[str, Any] = field(default_factory=dict)
 
 
+def _stage_retry_payload(existing_stage: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if existing_stage is None:
+        return None
+    previous_state = str(existing_stage.get("state") or "").strip()
+    if previous_state not in {"failed", "partial"}:
+        return None
+    payload = {
+        "attempted": True,
+        "previous_state": previous_state,
+        "previous_state_reason": existing_stage.get("state_reason"),
+    }
+    details = existing_stage.get("details") or {}
+    if isinstance(details, Mapping) and isinstance(details.get("failure"), Mapping):
+        payload["previous_failure"] = canonicalize_value(dict(details["failure"]))
+    return canonicalize_value(payload)
+
+
+def _stage_details_with_retry_metadata(
+    details: Mapping[str, Any] | None,
+    *,
+    existing_stage: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    payload = canonicalize_value(dict(details or {}))
+    retry = _stage_retry_payload(existing_stage)
+    if retry is not None:
+        payload["retry"] = retry
+    return canonicalize_value(payload)
+
+
+def _build_stage_failure_details(
+    stage_name: str,
+    exc: BaseException,
+    *,
+    details: Mapping[str, Any] | None,
+    existing_stage: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    payload = _stage_details_with_retry_metadata(details, existing_stage=existing_stage)
+    message = str(exc).strip()
+    payload["failure"] = canonicalize_value(
+        {
+            "stage_name": stage_name,
+            "exception_type": exc.__class__.__name__,
+            "message": message or exc.__class__.__name__,
+            "kind": "interrupted" if isinstance(exc, KeyboardInterrupt) else "exception",
+            "retryable": True,
+        }
+    )
+    return canonicalize_value(payload)
+
+
+def _upsert_stage_record(
+    records: Sequence[CampaignStageRecord],
+    record: CampaignStageRecord,
+) -> list[CampaignStageRecord]:
+    updated = [existing for existing in records if existing.stage_name != record.stage_name]
+    updated.append(record)
+    return updated
+
+
 @dataclass(frozen=True)
 class CampaignArtifactReference:
     stage_name: str
@@ -156,345 +215,505 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
     portfolio_result: Any | None = None
     candidate_review_result: Any | None = None
     review_result: Any | None = None
-
-    preflight_fingerprint, _ = _compute_stage_input_fingerprint(
-        stage_name="preflight",
-        config=config,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        stage_input_fingerprints=stage_input_fingerprints,
+    preflight_result = CampaignPreflightResult(
+        status="unknown",
+        summary_path=campaign_artifact_dir / PREFLIGHT_SUMMARY_FILENAME,
+        summary={"status": "unknown", "checks": [], "check_counts": {}},
+        checks=(),
     )
-    existing_preflight_stage = _checkpoint_stage(existing_checkpoint, "preflight")
-    if _can_reuse_checkpoint_stage(existing_preflight_stage, input_fingerprint=preflight_fingerprint):
-        preflight_result = _restore_preflight_result(
-            campaign_artifact_dir=campaign_artifact_dir,
-            checkpoint_stage=existing_preflight_stage,
-        )
-        records.append(_restore_stage_record(existing_preflight_stage))
-    else:
-        preflight_result = _run_preflight(
-            config,
-            campaign_run_id=campaign_run_id,
-            campaign_artifact_dir=campaign_artifact_dir,
-        )
-        records.append(
-            CampaignStageRecord(
-                stage_name="preflight",
-                status="completed" if preflight_result.status == "passed" else "failed",
-                details=preflight_result.summary,
-            )
-        )
-    stage_input_fingerprints["preflight"] = preflight_fingerprint
-    if preflight_result.status != "passed":
-        _write_campaign_artifacts(
+    current_stage_name: str | None = None
+    current_stage_details: dict[str, Any] | None = None
+    current_existing_stage: Mapping[str, Any] | None = None
+    error_already_persisted = False
+
+    try:
+        preflight_fingerprint, _ = _compute_stage_input_fingerprint(
+            stage_name="preflight",
             config=config,
-            campaign_run_id=campaign_run_id,
-            campaign_artifact_dir=campaign_artifact_dir,
-            preflight_result=preflight_result,
-            stage_records=records,
             alpha_results=alpha_results,
             strategy_results=strategy_results,
-            alpha_comparison_result=alpha_comparison_result,
-            strategy_comparison_result=strategy_comparison_result,
             candidate_selection_result=candidate_selection_result,
             candidate_selection_reference=candidate_selection_reference,
             portfolio_result=portfolio_result,
             portfolio_reference=portfolio_reference,
-            candidate_review_result=candidate_review_result,
-            review_result=review_result,
-            status="failed",
+            stage_input_fingerprints=stage_input_fingerprints,
         )
-        failures = [
-            check.message
-            for check in preflight_result.checks
-            if check.status == "failed"
-        ]
-        raise ValueError(
-            "Campaign preflight failed. "
-            f"See {preflight_result.summary_path.as_posix()}. "
-            + (" | ".join(failures) if failures else "One or more checks failed.")
-        )
-
-    research_fingerprint, _ = _compute_stage_input_fingerprint(
-        stage_name="research",
-        config=config,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        stage_input_fingerprints=stage_input_fingerprints,
-    )
-    existing_research_stage = _checkpoint_stage(existing_checkpoint, "research")
-    if _can_reuse_checkpoint_stage(existing_research_stage, input_fingerprint=research_fingerprint):
-        alpha_results, strategy_results = _restore_research_results(existing_research_stage)
-        records.append(_restore_stage_record(existing_research_stage))
-    else:
-        alpha_results = _run_alpha_research(config)
-        strategy_results = _run_strategy_research(config)
-        records.append(
-            CampaignStageRecord(
-                stage_name="research",
-                status="completed",
-                details={
-                    "alpha_runs": len(alpha_results),
-                    "strategy_runs": len(strategy_results),
-                },
+        existing_preflight_stage = _checkpoint_stage(existing_checkpoint, "preflight")
+        if _can_reuse_checkpoint_stage(existing_preflight_stage, input_fingerprint=preflight_fingerprint):
+            preflight_result = _restore_preflight_result(
+                campaign_artifact_dir=campaign_artifact_dir,
+                checkpoint_stage=existing_preflight_stage,
             )
-        )
-    stage_input_fingerprints["research"] = research_fingerprint
-
-    comparison_fingerprint, _ = _compute_stage_input_fingerprint(
-        stage_name="comparison",
-        config=config,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        stage_input_fingerprints=stage_input_fingerprints,
-    )
-    existing_comparison_stage = _checkpoint_stage(existing_checkpoint, "comparison")
-    if config.comparison.enabled and _can_reuse_checkpoint_stage(
-        existing_comparison_stage,
-        input_fingerprint=comparison_fingerprint,
-    ):
-        alpha_comparison_result, strategy_comparison_result = _restore_comparison_results(existing_comparison_stage)
-        records.append(_restore_stage_record(existing_comparison_stage))
-    else:
-        if config.comparison.enabled:
-            alpha_comparison_result = _run_alpha_comparison(config)
-            strategy_comparison_result = _run_strategy_comparison(config)
-        records.append(
-            CampaignStageRecord(
-                stage_name="comparison",
-                status="completed" if config.comparison.enabled else "skipped",
-                details={
-                    "alpha_comparison_id": None
-                    if alpha_comparison_result is None
-                    else str(alpha_comparison_result.comparison_id),
-                    "strategy_comparison_id": None
-                    if strategy_comparison_result is None
-                    else str(strategy_comparison_result.comparison_id),
-                },
-            )
-        )
-    stage_input_fingerprints["comparison"] = comparison_fingerprint
-
-    candidate_selection_fingerprint, _ = _compute_stage_input_fingerprint(
-        stage_name="candidate_selection",
-        config=config,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        stage_input_fingerprints=stage_input_fingerprints,
-    )
-    existing_candidate_selection_stage = _checkpoint_stage(existing_checkpoint, "candidate_selection")
-    if config.candidate_selection.enabled and _can_reuse_checkpoint_stage(
-        existing_candidate_selection_stage,
-        input_fingerprint=candidate_selection_fingerprint,
-    ):
-        candidate_selection_result, candidate_selection_reference = _restore_candidate_selection_stage(
-            existing_candidate_selection_stage
-        )
-        records.append(_restore_stage_record(existing_candidate_selection_stage))
-    else:
-        if config.candidate_selection.enabled:
-            candidate_selection_result, candidate_selection_reference = _run_candidate_selection(config)
-        records.append(
-            CampaignStageRecord(
-                stage_name="candidate_selection",
-                status="completed" if candidate_selection_result is not None else "skipped",
-                details={
-                    "run_id": None
-                    if candidate_selection_result is None
-                    else str(candidate_selection_result.run_id),
-                    "input_reference": (
-                        None
-                        if candidate_selection_reference is None
-                        else _artifact_reference_payload(candidate_selection_reference)
-                    ),
-                },
-            )
-        )
-    stage_input_fingerprints["candidate_selection"] = candidate_selection_fingerprint
-
-    portfolio_fingerprint, _ = _compute_stage_input_fingerprint(
-        stage_name="portfolio",
-        config=config,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        stage_input_fingerprints=stage_input_fingerprints,
-    )
-    existing_portfolio_stage = _checkpoint_stage(existing_checkpoint, "portfolio")
-    if config.portfolio.enabled and _can_reuse_checkpoint_stage(
-        existing_portfolio_stage,
-        input_fingerprint=portfolio_fingerprint,
-    ):
-        portfolio_result, portfolio_reference = _restore_portfolio_stage(existing_portfolio_stage)
-        if portfolio_result is not None:
-            if candidate_selection_result is not None:
-                portfolio_reference = CampaignArtifactReference(
-                    stage_name="candidate_selection",
-                    source="same_campaign",
-                    run_id=str(candidate_selection_result.run_id),
-                    artifact_dir=Path(candidate_selection_result.artifact_dir),
-                    metadata={"consumer": "portfolio"},
-                )
-            elif candidate_selection_reference is not None:
-                portfolio_reference = candidate_selection_reference
-        records.append(_restore_stage_record(existing_portfolio_stage))
-    else:
-        if config.portfolio.enabled:
-            portfolio_result, portfolio_reference, candidate_selection_reference = _run_portfolio(
+            records.append(_restore_stage_record(existing_preflight_stage))
+        else:
+            current_stage_name = "preflight"
+            current_stage_details = {}
+            current_existing_stage = existing_preflight_stage
+            preflight_result = _run_preflight(
                 config,
-                candidate_selection_result=candidate_selection_result,
-                candidate_selection_reference=candidate_selection_reference,
+                campaign_run_id=campaign_run_id,
+                campaign_artifact_dir=campaign_artifact_dir,
             )
-        if candidate_selection_result is None and candidate_selection_reference is not None:
-            records = _replace_stage_record_details(
-                records,
-                stage_name="candidate_selection",
-                details_update={
-                    "input_reference": _artifact_reference_payload(candidate_selection_reference),
-                },
-            )
-        records.append(
-            CampaignStageRecord(
-                stage_name="portfolio",
-                status="completed" if portfolio_result is not None else "skipped",
-                details={
-                    "run_id": None if portfolio_result is None else str(portfolio_result.run_id),
-                    "input_candidate_selection": (
-                        None
-                        if candidate_selection_reference is None
-                        else _artifact_reference_payload(candidate_selection_reference)
+            records.append(
+                CampaignStageRecord(
+                    stage_name="preflight",
+                    status="completed" if preflight_result.status == "passed" else "failed",
+                    details=_stage_details_with_retry_metadata(
+                        preflight_result.summary,
+                        existing_stage=existing_preflight_stage,
                     ),
-                    "input_reference": (
-                        None
-                        if portfolio_reference is None
-                        else _artifact_reference_payload(portfolio_reference)
-                    ),
-                },
-            )
-        )
-    stage_input_fingerprints["portfolio"] = portfolio_fingerprint
-
-    candidate_review_fingerprint, _ = _compute_stage_input_fingerprint(
-        stage_name="candidate_review",
-        config=config,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        stage_input_fingerprints=stage_input_fingerprints,
-    )
-    existing_candidate_review_stage = _checkpoint_stage(existing_checkpoint, "candidate_review")
-    candidate_review_enabled = bool(
-        config.candidate_selection.enabled and config.candidate_selection.execution.enable_review
-    )
-    if candidate_review_enabled and _can_reuse_checkpoint_stage(
-        existing_candidate_review_stage,
-        input_fingerprint=candidate_review_fingerprint,
-    ):
-        candidate_review_result = _restore_candidate_review_result(existing_candidate_review_stage)
-        records.append(_restore_stage_record(existing_candidate_review_stage))
-    else:
-        if candidate_review_enabled:
-            if portfolio_result is None and portfolio_reference is None:
-                portfolio_reference = _resolve_portfolio_reference(
-                    config,
-                    candidate_selection_reference=candidate_selection_reference,
                 )
-            candidate_review_result = _run_candidate_review(
-                config,
+            )
+            current_stage_name = None
+            current_stage_details = None
+            current_existing_stage = None
+        stage_input_fingerprints["preflight"] = preflight_fingerprint
+        if preflight_result.status != "passed":
+            _write_campaign_artifacts(
+                config=config,
+                campaign_run_id=campaign_run_id,
+                campaign_artifact_dir=campaign_artifact_dir,
+                preflight_result=preflight_result,
+                stage_records=records,
+                alpha_results=alpha_results,
+                strategy_results=strategy_results,
+                alpha_comparison_result=alpha_comparison_result,
+                strategy_comparison_result=strategy_comparison_result,
                 candidate_selection_result=candidate_selection_result,
                 candidate_selection_reference=candidate_selection_reference,
                 portfolio_result=portfolio_result,
                 portfolio_reference=portfolio_reference,
+                candidate_review_result=candidate_review_result,
+                review_result=review_result,
+                status="failed",
             )
-        if portfolio_result is None and portfolio_reference is not None:
-            records = _replace_stage_record_details(
-                records,
-                stage_name="portfolio",
-                details_update={
-                    "input_reference": _artifact_reference_payload(portfolio_reference),
-                },
+            error_already_persisted = True
+            failures = [
+                check.message
+                for check in preflight_result.checks
+                if check.status == "failed"
+            ]
+            raise ValueError(
+                "Campaign preflight failed. "
+                f"See {preflight_result.summary_path.as_posix()}. "
+                + (" | ".join(failures) if failures else "One or more checks failed.")
             )
-        records.append(
-            CampaignStageRecord(
-                stage_name="candidate_review",
-                status="completed" if candidate_review_result is not None else "skipped",
-                details={
-                    "review_dir": None
-                    if candidate_review_result is None
-                    else str(candidate_review_result.review_dir),
-                    "candidate_selection_run_id": None
-                    if candidate_review_result is None
-                    else _string_or_none(candidate_review_result, "candidate_selection_run_id"),
-                    "portfolio_run_id": None
-                    if candidate_review_result is None
-                    else _string_or_none(candidate_review_result, "portfolio_run_id"),
-                    "input_candidate_selection": (
-                        None
-                        if candidate_selection_reference is None
-                        else _artifact_reference_payload(candidate_selection_reference)
-                    ),
-                    "input_portfolio": (
-                        None
-                        if portfolio_reference is None
-                        else _artifact_reference_payload(portfolio_reference)
-                    ),
-                },
-            )
-        )
-    stage_input_fingerprints["candidate_review"] = candidate_review_fingerprint
 
-    review_fingerprint, _ = _compute_stage_input_fingerprint(
-        stage_name="review",
-        config=config,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        stage_input_fingerprints=stage_input_fingerprints,
-    )
-    existing_review_stage = _checkpoint_stage(existing_checkpoint, "review")
-    if _can_reuse_checkpoint_stage(existing_review_stage, input_fingerprint=review_fingerprint):
-        review_result = _restore_review_result(existing_review_stage)
-        records.append(_restore_stage_record(existing_review_stage))
-    else:
-        review_result = _run_research_review(config)
-        records.append(
-            CampaignStageRecord(
-                stage_name="review",
-                status="completed",
-                details={
-                    "candidate_review_dir": None
-                    if candidate_review_result is None
-                    else str(candidate_review_result.review_dir),
-                    "review_id": str(review_result.review_id),
-                },
-            )
+        research_fingerprint, _ = _compute_stage_input_fingerprint(
+            stage_name="research",
+            config=config,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+            portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
+            stage_input_fingerprints=stage_input_fingerprints,
         )
-    stage_input_fingerprints["review"] = review_fingerprint
+        existing_research_stage = _checkpoint_stage(existing_checkpoint, "research")
+        if _can_reuse_checkpoint_stage(existing_research_stage, input_fingerprint=research_fingerprint):
+            alpha_results, strategy_results = _restore_research_results(existing_research_stage)
+            records.append(_restore_stage_record(existing_research_stage))
+        else:
+            current_stage_name = "research"
+            current_stage_details = {}
+            current_existing_stage = existing_research_stage
+            alpha_results = _run_alpha_research(config)
+            strategy_results = _run_strategy_research(config)
+            records.append(
+                CampaignStageRecord(
+                    stage_name="research",
+                    status="completed",
+                    details=_stage_details_with_retry_metadata(
+                        {
+                            "alpha_runs": len(alpha_results),
+                            "strategy_runs": len(strategy_results),
+                        },
+                        existing_stage=existing_research_stage,
+                    ),
+                )
+            )
+            current_stage_name = None
+            current_stage_details = None
+            current_existing_stage = None
+        stage_input_fingerprints["research"] = research_fingerprint
+
+        comparison_fingerprint, _ = _compute_stage_input_fingerprint(
+            stage_name="comparison",
+            config=config,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+            portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
+            stage_input_fingerprints=stage_input_fingerprints,
+        )
+        existing_comparison_stage = _checkpoint_stage(existing_checkpoint, "comparison")
+        if config.comparison.enabled and _can_reuse_checkpoint_stage(
+            existing_comparison_stage,
+            input_fingerprint=comparison_fingerprint,
+        ):
+            alpha_comparison_result, strategy_comparison_result = _restore_comparison_results(existing_comparison_stage)
+            records.append(_restore_stage_record(existing_comparison_stage))
+        else:
+            current_stage_name = "comparison"
+            current_stage_details = {}
+            current_existing_stage = existing_comparison_stage
+            if config.comparison.enabled:
+                alpha_comparison_result = _run_alpha_comparison(config)
+                strategy_comparison_result = _run_strategy_comparison(config)
+            records.append(
+                CampaignStageRecord(
+                    stage_name="comparison",
+                    status="completed" if config.comparison.enabled else "skipped",
+                    details=_stage_details_with_retry_metadata(
+                        {
+                            "alpha_comparison_id": None
+                            if alpha_comparison_result is None
+                            else str(alpha_comparison_result.comparison_id),
+                            "strategy_comparison_id": None
+                            if strategy_comparison_result is None
+                            else str(strategy_comparison_result.comparison_id),
+                        },
+                        existing_stage=existing_comparison_stage,
+                    ),
+                )
+            )
+            current_stage_name = None
+            current_stage_details = None
+            current_existing_stage = None
+        stage_input_fingerprints["comparison"] = comparison_fingerprint
+
+        candidate_selection_fingerprint, _ = _compute_stage_input_fingerprint(
+            stage_name="candidate_selection",
+            config=config,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+            portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
+            stage_input_fingerprints=stage_input_fingerprints,
+        )
+        existing_candidate_selection_stage = _checkpoint_stage(existing_checkpoint, "candidate_selection")
+        if config.candidate_selection.enabled and _can_reuse_checkpoint_stage(
+            existing_candidate_selection_stage,
+            input_fingerprint=candidate_selection_fingerprint,
+        ):
+            candidate_selection_result, candidate_selection_reference = _restore_candidate_selection_stage(
+                existing_candidate_selection_stage
+            )
+            records.append(_restore_stage_record(existing_candidate_selection_stage))
+        else:
+            current_stage_name = "candidate_selection"
+            current_stage_details = {}
+            current_existing_stage = existing_candidate_selection_stage
+            if config.candidate_selection.enabled:
+                candidate_selection_result, candidate_selection_reference = _run_candidate_selection(config)
+            records.append(
+                CampaignStageRecord(
+                    stage_name="candidate_selection",
+                    status="completed" if candidate_selection_result is not None else "skipped",
+                    details=_stage_details_with_retry_metadata(
+                        {
+                            "run_id": None
+                            if candidate_selection_result is None
+                            else str(candidate_selection_result.run_id),
+                            "input_reference": (
+                                None
+                                if candidate_selection_reference is None
+                                else _artifact_reference_payload(candidate_selection_reference)
+                            ),
+                        },
+                        existing_stage=existing_candidate_selection_stage,
+                    ),
+                )
+            )
+            current_stage_name = None
+            current_stage_details = None
+            current_existing_stage = None
+        stage_input_fingerprints["candidate_selection"] = candidate_selection_fingerprint
+
+        portfolio_fingerprint, _ = _compute_stage_input_fingerprint(
+            stage_name="portfolio",
+            config=config,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+            portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
+            stage_input_fingerprints=stage_input_fingerprints,
+        )
+        existing_portfolio_stage = _checkpoint_stage(existing_checkpoint, "portfolio")
+        if config.portfolio.enabled and _can_reuse_checkpoint_stage(
+            existing_portfolio_stage,
+            input_fingerprint=portfolio_fingerprint,
+        ):
+            portfolio_result, portfolio_reference = _restore_portfolio_stage(existing_portfolio_stage)
+            if portfolio_result is not None:
+                if candidate_selection_result is not None:
+                    portfolio_reference = CampaignArtifactReference(
+                        stage_name="candidate_selection",
+                        source="same_campaign",
+                        run_id=str(candidate_selection_result.run_id),
+                        artifact_dir=Path(candidate_selection_result.artifact_dir),
+                        metadata={"consumer": "portfolio"},
+                    )
+                elif candidate_selection_reference is not None:
+                    portfolio_reference = candidate_selection_reference
+            records.append(_restore_stage_record(existing_portfolio_stage))
+        else:
+            current_stage_name = "portfolio"
+            current_stage_details = {
+                "input_candidate_selection": (
+                    None
+                    if candidate_selection_reference is None
+                    else _artifact_reference_payload(candidate_selection_reference)
+                ),
+            }
+            current_existing_stage = existing_portfolio_stage
+            if config.portfolio.enabled:
+                portfolio_result, portfolio_reference, candidate_selection_reference = _run_portfolio(
+                    config,
+                    candidate_selection_result=candidate_selection_result,
+                    candidate_selection_reference=candidate_selection_reference,
+                )
+            if candidate_selection_result is None and candidate_selection_reference is not None:
+                records = _replace_stage_record_details(
+                    records,
+                    stage_name="candidate_selection",
+                    details_update={
+                        "input_reference": _artifact_reference_payload(candidate_selection_reference),
+                    },
+                )
+            records.append(
+                CampaignStageRecord(
+                    stage_name="portfolio",
+                    status="completed" if portfolio_result is not None else "skipped",
+                    details=_stage_details_with_retry_metadata(
+                        {
+                            "run_id": None if portfolio_result is None else str(portfolio_result.run_id),
+                            "input_candidate_selection": (
+                                None
+                                if candidate_selection_reference is None
+                                else _artifact_reference_payload(candidate_selection_reference)
+                            ),
+                            "input_reference": (
+                                None
+                                if portfolio_reference is None
+                                else _artifact_reference_payload(portfolio_reference)
+                            ),
+                        },
+                        existing_stage=existing_portfolio_stage,
+                    ),
+                )
+            )
+            current_stage_name = None
+            current_stage_details = None
+            current_existing_stage = None
+        stage_input_fingerprints["portfolio"] = portfolio_fingerprint
+
+        candidate_review_fingerprint, _ = _compute_stage_input_fingerprint(
+            stage_name="candidate_review",
+            config=config,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+            portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
+            stage_input_fingerprints=stage_input_fingerprints,
+        )
+        existing_candidate_review_stage = _checkpoint_stage(existing_checkpoint, "candidate_review")
+        candidate_review_enabled = bool(
+            config.candidate_selection.enabled and config.candidate_selection.execution.enable_review
+        )
+        if candidate_review_enabled and _can_reuse_checkpoint_stage(
+            existing_candidate_review_stage,
+            input_fingerprint=candidate_review_fingerprint,
+        ):
+            candidate_review_result = _restore_candidate_review_result(existing_candidate_review_stage)
+            records.append(_restore_stage_record(existing_candidate_review_stage))
+        else:
+            current_stage_name = "candidate_review"
+            current_stage_details = {
+                "input_candidate_selection": (
+                    None
+                    if candidate_selection_reference is None
+                    else _artifact_reference_payload(candidate_selection_reference)
+                ),
+                "input_portfolio": (
+                    None
+                    if portfolio_reference is None
+                    else _artifact_reference_payload(portfolio_reference)
+                ),
+            }
+            current_existing_stage = existing_candidate_review_stage
+            if candidate_review_enabled:
+                if portfolio_result is None and portfolio_reference is None:
+                    portfolio_reference = _resolve_portfolio_reference(
+                        config,
+                        candidate_selection_reference=candidate_selection_reference,
+                    )
+                candidate_review_result = _run_candidate_review(
+                    config,
+                    candidate_selection_result=candidate_selection_result,
+                    candidate_selection_reference=candidate_selection_reference,
+                    portfolio_result=portfolio_result,
+                    portfolio_reference=portfolio_reference,
+                )
+            if portfolio_result is None and portfolio_reference is not None:
+                records = _replace_stage_record_details(
+                    records,
+                    stage_name="portfolio",
+                    details_update={
+                        "input_reference": _artifact_reference_payload(portfolio_reference),
+                    },
+                )
+            records.append(
+                CampaignStageRecord(
+                    stage_name="candidate_review",
+                    status="completed" if candidate_review_result is not None else "skipped",
+                    details=_stage_details_with_retry_metadata(
+                        {
+                            "review_dir": None
+                            if candidate_review_result is None
+                            else str(candidate_review_result.review_dir),
+                            "candidate_selection_run_id": None
+                            if candidate_review_result is None
+                            else _string_or_none(candidate_review_result, "candidate_selection_run_id"),
+                            "portfolio_run_id": None
+                            if candidate_review_result is None
+                            else _string_or_none(candidate_review_result, "portfolio_run_id"),
+                            "input_candidate_selection": (
+                                None
+                                if candidate_selection_reference is None
+                                else _artifact_reference_payload(candidate_selection_reference)
+                            ),
+                            "input_portfolio": (
+                                None
+                                if portfolio_reference is None
+                                else _artifact_reference_payload(portfolio_reference)
+                            ),
+                        },
+                        existing_stage=existing_candidate_review_stage,
+                    ),
+                )
+            )
+            current_stage_name = None
+            current_stage_details = None
+            current_existing_stage = None
+        stage_input_fingerprints["candidate_review"] = candidate_review_fingerprint
+
+        review_fingerprint, _ = _compute_stage_input_fingerprint(
+            stage_name="review",
+            config=config,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+            portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
+            stage_input_fingerprints=stage_input_fingerprints,
+        )
+        existing_review_stage = _checkpoint_stage(existing_checkpoint, "review")
+        if _can_reuse_checkpoint_stage(existing_review_stage, input_fingerprint=review_fingerprint):
+            review_result = _restore_review_result(existing_review_stage)
+            records.append(_restore_stage_record(existing_review_stage))
+        else:
+            current_stage_name = "review"
+            current_stage_details = {}
+            current_existing_stage = existing_review_stage
+            review_result = _run_research_review(config)
+            records.append(
+                CampaignStageRecord(
+                    stage_name="review",
+                    status="completed",
+                    details=_stage_details_with_retry_metadata(
+                        {
+                            "candidate_review_dir": None
+                            if candidate_review_result is None
+                            else str(candidate_review_result.review_dir),
+                            "review_id": str(review_result.review_id),
+                        },
+                        existing_stage=existing_review_stage,
+                    ),
+                )
+            )
+            current_stage_name = None
+            current_stage_details = None
+            current_existing_stage = None
+        stage_input_fingerprints["review"] = review_fingerprint
+    except KeyboardInterrupt as exc:
+        if not error_already_persisted and current_stage_name is not None:
+            records = _upsert_stage_record(
+                records,
+                CampaignStageRecord(
+                    stage_name=current_stage_name,
+                    status="partial",
+                    details=_build_stage_failure_details(
+                        current_stage_name,
+                        exc,
+                        details=current_stage_details,
+                        existing_stage=current_existing_stage,
+                    ),
+                ),
+            )
+            _write_campaign_artifacts(
+                config=config,
+                campaign_run_id=campaign_run_id,
+                campaign_artifact_dir=campaign_artifact_dir,
+                preflight_result=preflight_result,
+                stage_records=records,
+                alpha_results=alpha_results,
+                strategy_results=strategy_results,
+                alpha_comparison_result=alpha_comparison_result,
+                strategy_comparison_result=strategy_comparison_result,
+                candidate_selection_result=candidate_selection_result,
+                candidate_selection_reference=candidate_selection_reference,
+                portfolio_result=portfolio_result,
+                portfolio_reference=portfolio_reference,
+                candidate_review_result=candidate_review_result,
+                review_result=review_result,
+                status="partial",
+            )
+        raise
+    except Exception as exc:
+        if not error_already_persisted and current_stage_name is not None:
+            records = _upsert_stage_record(
+                records,
+                CampaignStageRecord(
+                    stage_name=current_stage_name,
+                    status="failed",
+                    details=_build_stage_failure_details(
+                        current_stage_name,
+                        exc,
+                        details=current_stage_details,
+                        existing_stage=current_existing_stage,
+                    ),
+                ),
+            )
+            _write_campaign_artifacts(
+                config=config,
+                campaign_run_id=campaign_run_id,
+                campaign_artifact_dir=campaign_artifact_dir,
+                preflight_result=preflight_result,
+                stage_records=records,
+                alpha_results=alpha_results,
+                strategy_results=strategy_results,
+                alpha_comparison_result=alpha_comparison_result,
+                strategy_comparison_result=strategy_comparison_result,
+                candidate_selection_result=candidate_selection_result,
+                candidate_selection_reference=candidate_selection_reference,
+                portfolio_result=portfolio_result,
+                portfolio_reference=portfolio_reference,
+                candidate_review_result=candidate_review_result,
+                review_result=review_result,
+                status="failed",
+            )
+        raise
 
     checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload = _write_campaign_artifacts(
         config=config,
@@ -540,6 +759,8 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
 
 
 def print_summary(result: ResearchCampaignRunResult) -> None:
+    stage_statuses = dict(result.campaign_summary.get("stage_statuses", {}))
+    stage_counts = _stage_state_counts(stage_statuses)
     print("Research Campaign Summary")
     print("-------------------------")
     print(
@@ -552,6 +773,21 @@ def print_summary(result: ResearchCampaignRunResult) -> None:
         f"{result.preflight_summary.get('status', 'unknown')} "
         f"({len(result.campaign_summary.get('stages', []))} stages tracked) | "
         f"summary={result.preflight_summary_path.as_posix()}"
+    )
+    print(
+        "Stage States: "
+        + " | ".join(
+            f"{state}={count}"
+            for state, count in stage_counts.items()
+            if count
+        )
+    )
+    print(
+        "Stage Details: "
+        + " | ".join(
+            f"{stage_name}={stage_statuses.get(stage_name, 'unknown')}"
+            for stage_name in CAMPAIGN_STAGE_ORDER
+        )
     )
     print(
         f"Research: alpha_runs={len(result.alpha_results)} | "
@@ -619,6 +855,17 @@ def _format_run_failure(exc: Exception) -> str:
     if message.startswith("Run failed:"):
         return message
     return f"Run failed: {message}"
+
+
+def _stage_state_counts(stage_statuses: Mapping[str, Any]) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for state in stage_statuses.values():
+        normalized = str(state or "unknown")
+        counts[normalized] = counts.get(normalized, 0) + 1
+    return {
+        state: counts.get(state, 0)
+        for state in ("completed", "reused", "failed", "partial", "skipped", "pending")
+    }
 
 
 def _artifact_reference_payload(reference: CampaignArtifactReference) -> dict[str, Any]:
@@ -2520,6 +2767,42 @@ def _build_campaign_summary(
                 }
             )
         )
+    stage_state_counts = _stage_state_counts(checkpoint_payload["stage_states"])
+    retry_stage_names = [
+        stage["stage_name"]
+        for stage in stages
+        if isinstance(stage.get("details"), Mapping)
+        and isinstance(stage["details"].get("retry"), Mapping)
+        and bool(stage["details"]["retry"].get("attempted"))
+    ]
+    failed_stage_names = [
+        stage["stage_name"]
+        for stage in stages
+        if str(stage.get("state")) == "failed"
+    ]
+    partial_stage_names = [
+        stage["stage_name"]
+        for stage in stages
+        if str(stage.get("state")) == "partial"
+    ]
+    reused_stage_names = [
+        stage["stage_name"]
+        for stage in stages
+        if str(stage.get("state")) == "reused"
+    ]
+    failure_summaries = [
+        canonicalize_value(
+            {
+                "stage_name": stage["stage_name"],
+                "state": stage["state"],
+                "state_reason": stage.get("state_reason"),
+                "failure": stage["details"].get("failure"),
+            }
+        )
+        for stage in stages
+        if isinstance(stage.get("details"), Mapping)
+        and isinstance(stage["details"].get("failure"), Mapping)
+    ]
 
     final_outcomes = {
         "preflight_status": preflight_result.status,
@@ -2527,6 +2810,12 @@ def _build_campaign_summary(
         "review_promotion_gate_status": _mapping_value(_campaign_review_promotion_summary(review_result), "evaluation_status"),
         "review_promotion_gate_summary": _campaign_review_promotion_summary(review_result),
         "review_counts_by_run_type": _counts_by_run_type(list(getattr(review_result, "entries", []))),
+        "stage_state_counts": stage_state_counts,
+        "retry_stage_names": retry_stage_names,
+        "failed_stage_names": failed_stage_names,
+        "partial_stage_names": partial_stage_names,
+        "reused_stage_names": reused_stage_names,
+        "failures": failure_summaries,
         "candidate_review_counts": (
             None
             if candidate_review_result is None
@@ -2563,6 +2852,7 @@ def _build_campaign_summary(
             }
         ),
         "stage_statuses": dict(checkpoint_payload["stage_states"]),
+        "stage_state_counts": stage_state_counts,
         "checkpoint": checkpoint_payload,
         "stages": stages,
         "selected_run_ids": selected_run_ids,
@@ -2620,6 +2910,11 @@ def _build_campaign_manifest(
         "campaign_artifact_dir": campaign_artifact_dir.as_posix(),
         "checkpoint_path": CAMPAIGN_CHECKPOINT_FILENAME,
         "stage_statuses": dict(checkpoint_payload["stage_states"]),
+        "stage_state_counts": _stage_state_counts(checkpoint_payload["stage_states"]),
+        "retry_stage_names": list(summary_payload.get("final_outcomes", {}).get("retry_stage_names", [])),
+        "failed_stage_names": list(summary_payload.get("final_outcomes", {}).get("failed_stage_names", [])),
+        "partial_stage_names": list(summary_payload.get("final_outcomes", {}).get("partial_stage_names", [])),
+        "reused_stage_names": list(summary_payload.get("final_outcomes", {}).get("reused_stage_names", [])),
         "selected_run_ids": dict(summary_payload["selected_run_ids"]),
         "targets": canonicalize_value(
             {
@@ -2680,6 +2975,7 @@ def _campaign_stage_checkpoint(
     state = record.status
     source = "executed"
     state_reason = None
+    failure_details = record.details.get("failure") if isinstance(record.details.get("failure"), Mapping) else None
     if record.status == "reused":
         source = "checkpoint"
         state_reason = "Reused persisted stage outputs from a matching checkpoint."
@@ -2687,7 +2983,19 @@ def _campaign_stage_checkpoint(
         source = "config"
         state_reason = "Stage disabled or not applicable for this campaign."
     elif record.status == "failed":
-        state_reason = "Stage execution failed."
+        failure_message = None if failure_details is None else str(failure_details.get("message") or "").strip()
+        state_reason = (
+            f"Stage execution failed: {failure_message}"
+            if failure_message
+            else "Stage execution failed."
+        )
+    elif record.status == "partial":
+        failure_message = None if failure_details is None else str(failure_details.get("message") or "").strip()
+        state_reason = (
+            f"Stage execution interrupted: {failure_message}"
+            if failure_message
+            else "Stage execution interrupted before completion."
+        )
 
     if stage_name == "candidate_selection":
         input_reference = record.details.get("input_reference")

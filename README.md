@@ -113,6 +113,8 @@ The repository currently supports:
   `python -m src.cli.run_research_campaign --config ...`
 * campaign preflight validation with persisted `preflight_summary.json` reports
   before expensive research execution starts
+* operator-facing `reuse_policy` controls for explicit checkpoint reuse,
+  forced reruns, reuse disablement, and downstream invalidation
 * stitched campaign `manifest.json` and `summary.json` artifacts for
   automation and multi-stage auditability
 * deterministic artifacts, manifests, and registry-backed reuse

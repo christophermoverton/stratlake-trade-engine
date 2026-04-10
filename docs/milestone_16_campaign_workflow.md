@@ -275,6 +275,23 @@ That means orchestration can safely reuse a prior stage only when the stored
 `input_fingerprint` exactly matches the fingerprint for the current effective
 inputs for that stage.
 
+### Reuse Policy Controls
+
+Campaign configs can now override the default "reuse on exact fingerprint
+match" behavior through `reuse_policy`:
+
+* `enable_checkpoint_reuse: false` disables checkpoint reuse entirely
+* `reuse_prior_stages` whitelists the stages that may restore matching
+  checkpoints
+* `force_rerun_stages` forces selected stages to execute again even when their
+  fingerprints match
+* `invalidate_downstream_after_stages` cascades a rerun into every later stage
+  in the same campaign pass
+
+Every stage persists the applied decision under `details.reuse_policy` so
+operators can see whether a stage reused prior work, reran because of policy,
+or reran because an upstream stage invalidated downstream reuse.
+
 ### `campaign_config.json`
 
 This is the normalized effective config after default loading, inheritance, and

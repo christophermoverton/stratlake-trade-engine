@@ -19,6 +19,7 @@ from src.cli import run_candidate_selection as run_candidate_selection_cli
 from src.cli import run_portfolio as run_portfolio_cli
 from src.cli import run_strategy as run_strategy_cli
 from src.config.research_campaign import (
+    CampaignReusePolicyConfig,
     ResearchCampaignConfig,
     ResearchCampaignConfigError,
     load_research_campaign_config,
@@ -69,6 +70,32 @@ class CampaignStageRecord:
     details: dict[str, Any] = field(default_factory=dict)
 
 
+@dataclass(frozen=True)
+class CampaignStageReuseDecision:
+    stage_name: str
+    action: str
+    reason: str
+    matched_checkpoint: bool
+    checkpoint_state: str | None
+    checkpoint_input_fingerprint: str | None
+    fingerprint_match: bool
+    invalidated_by_stage: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return canonicalize_value(
+            {
+                "stage_name": self.stage_name,
+                "action": self.action,
+                "reason": self.reason,
+                "matched_checkpoint": self.matched_checkpoint,
+                "checkpoint_state": self.checkpoint_state,
+                "checkpoint_input_fingerprint": self.checkpoint_input_fingerprint,
+                "fingerprint_match": self.fingerprint_match,
+                "invalidated_by_stage": self.invalidated_by_stage,
+            }
+        )
+
+
 def _stage_retry_payload(existing_stage: Mapping[str, Any] | None) -> dict[str, Any] | None:
     if existing_stage is None:
         return None
@@ -90,11 +117,14 @@ def _stage_details_with_retry_metadata(
     details: Mapping[str, Any] | None,
     *,
     existing_stage: Mapping[str, Any] | None,
+    reuse_decision: CampaignStageReuseDecision | None = None,
 ) -> dict[str, Any]:
     payload = canonicalize_value(dict(details or {}))
     retry = _stage_retry_payload(existing_stage)
     if retry is not None:
         payload["retry"] = retry
+    if reuse_decision is not None:
+        payload["reuse_policy"] = reuse_decision.to_dict()
     return canonicalize_value(payload)
 
 
@@ -225,6 +255,7 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
     current_stage_details: dict[str, Any] | None = None
     current_existing_stage: Mapping[str, Any] | None = None
     error_already_persisted = False
+    downstream_invalidated_by_stage: str | None = None
 
     try:
         preflight_fingerprint, _ = _compute_stage_input_fingerprint(
@@ -239,15 +270,27 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             stage_input_fingerprints=stage_input_fingerprints,
         )
         existing_preflight_stage = _checkpoint_stage(existing_checkpoint, "preflight")
-        if _can_reuse_checkpoint_stage(existing_preflight_stage, input_fingerprint=preflight_fingerprint):
+        preflight_reuse_decision = _stage_reuse_decision(
+            stage_name="preflight",
+            checkpoint_stage=existing_preflight_stage,
+            input_fingerprint=preflight_fingerprint,
+            reuse_policy=config.reuse_policy,
+            invalidated_by_stage=downstream_invalidated_by_stage,
+        )
+        if preflight_reuse_decision.action == "reuse":
             preflight_result = _restore_preflight_result(
                 campaign_artifact_dir=campaign_artifact_dir,
                 checkpoint_stage=existing_preflight_stage,
             )
-            records.append(_restore_stage_record(existing_preflight_stage))
+            records.append(
+                _restore_stage_record(
+                    existing_preflight_stage,
+                    reuse_decision=preflight_reuse_decision,
+                )
+            )
         else:
             current_stage_name = "preflight"
-            current_stage_details = {}
+            current_stage_details = {"reuse_policy": preflight_reuse_decision.to_dict()}
             current_existing_stage = existing_preflight_stage
             preflight_result = _run_preflight(
                 config,
@@ -261,12 +304,19 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                     details=_stage_details_with_retry_metadata(
                         preflight_result.summary,
                         existing_stage=existing_preflight_stage,
+                        reuse_decision=preflight_reuse_decision,
                     ),
                 )
             )
             current_stage_name = None
             current_stage_details = None
             current_existing_stage = None
+        downstream_invalidated_by_stage = _update_downstream_invalidation(
+            current_invalidated_by_stage=downstream_invalidated_by_stage,
+            stage_name="preflight",
+            stage_reuse_decision=preflight_reuse_decision,
+            reuse_policy=config.reuse_policy,
+        )
         stage_input_fingerprints["preflight"] = preflight_fingerprint
         if preflight_result.status != "passed":
             _write_campaign_artifacts(
@@ -311,12 +361,24 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             stage_input_fingerprints=stage_input_fingerprints,
         )
         existing_research_stage = _checkpoint_stage(existing_checkpoint, "research")
-        if _can_reuse_checkpoint_stage(existing_research_stage, input_fingerprint=research_fingerprint):
+        research_reuse_decision = _stage_reuse_decision(
+            stage_name="research",
+            checkpoint_stage=existing_research_stage,
+            input_fingerprint=research_fingerprint,
+            reuse_policy=config.reuse_policy,
+            invalidated_by_stage=downstream_invalidated_by_stage,
+        )
+        if research_reuse_decision.action == "reuse":
             alpha_results, strategy_results = _restore_research_results(existing_research_stage)
-            records.append(_restore_stage_record(existing_research_stage))
+            records.append(
+                _restore_stage_record(
+                    existing_research_stage,
+                    reuse_decision=research_reuse_decision,
+                )
+            )
         else:
             current_stage_name = "research"
-            current_stage_details = {}
+            current_stage_details = {"reuse_policy": research_reuse_decision.to_dict()}
             current_existing_stage = existing_research_stage
             alpha_results = _run_alpha_research(config)
             strategy_results = _run_strategy_research(config)
@@ -330,12 +392,19 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                             "strategy_runs": len(strategy_results),
                         },
                         existing_stage=existing_research_stage,
+                        reuse_decision=research_reuse_decision,
                     ),
                 )
             )
             current_stage_name = None
             current_stage_details = None
             current_existing_stage = None
+        downstream_invalidated_by_stage = _update_downstream_invalidation(
+            current_invalidated_by_stage=downstream_invalidated_by_stage,
+            stage_name="research",
+            stage_reuse_decision=research_reuse_decision,
+            reuse_policy=config.reuse_policy,
+        )
         stage_input_fingerprints["research"] = research_fingerprint
 
         comparison_fingerprint, _ = _compute_stage_input_fingerprint(
@@ -350,15 +419,24 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             stage_input_fingerprints=stage_input_fingerprints,
         )
         existing_comparison_stage = _checkpoint_stage(existing_checkpoint, "comparison")
-        if config.comparison.enabled and _can_reuse_checkpoint_stage(
-            existing_comparison_stage,
+        comparison_reuse_decision = _stage_reuse_decision(
+            stage_name="comparison",
+            checkpoint_stage=existing_comparison_stage,
             input_fingerprint=comparison_fingerprint,
-        ):
+            reuse_policy=config.reuse_policy,
+            invalidated_by_stage=downstream_invalidated_by_stage,
+        )
+        if config.comparison.enabled and comparison_reuse_decision.action == "reuse":
             alpha_comparison_result, strategy_comparison_result = _restore_comparison_results(existing_comparison_stage)
-            records.append(_restore_stage_record(existing_comparison_stage))
+            records.append(
+                _restore_stage_record(
+                    existing_comparison_stage,
+                    reuse_decision=comparison_reuse_decision,
+                )
+            )
         else:
             current_stage_name = "comparison"
-            current_stage_details = {}
+            current_stage_details = {"reuse_policy": comparison_reuse_decision.to_dict()}
             current_existing_stage = existing_comparison_stage
             if config.comparison.enabled:
                 alpha_comparison_result = _run_alpha_comparison(config)
@@ -377,12 +455,19 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                             else str(strategy_comparison_result.comparison_id),
                         },
                         existing_stage=existing_comparison_stage,
+                        reuse_decision=comparison_reuse_decision,
                     ),
                 )
             )
             current_stage_name = None
             current_stage_details = None
             current_existing_stage = None
+        downstream_invalidated_by_stage = _update_downstream_invalidation(
+            current_invalidated_by_stage=downstream_invalidated_by_stage,
+            stage_name="comparison",
+            stage_reuse_decision=comparison_reuse_decision,
+            reuse_policy=config.reuse_policy,
+        )
         stage_input_fingerprints["comparison"] = comparison_fingerprint
 
         candidate_selection_fingerprint, _ = _compute_stage_input_fingerprint(
@@ -397,17 +482,26 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             stage_input_fingerprints=stage_input_fingerprints,
         )
         existing_candidate_selection_stage = _checkpoint_stage(existing_checkpoint, "candidate_selection")
-        if config.candidate_selection.enabled and _can_reuse_checkpoint_stage(
-            existing_candidate_selection_stage,
+        candidate_selection_reuse_decision = _stage_reuse_decision(
+            stage_name="candidate_selection",
+            checkpoint_stage=existing_candidate_selection_stage,
             input_fingerprint=candidate_selection_fingerprint,
-        ):
+            reuse_policy=config.reuse_policy,
+            invalidated_by_stage=downstream_invalidated_by_stage,
+        )
+        if config.candidate_selection.enabled and candidate_selection_reuse_decision.action == "reuse":
             candidate_selection_result, candidate_selection_reference = _restore_candidate_selection_stage(
                 existing_candidate_selection_stage
             )
-            records.append(_restore_stage_record(existing_candidate_selection_stage))
+            records.append(
+                _restore_stage_record(
+                    existing_candidate_selection_stage,
+                    reuse_decision=candidate_selection_reuse_decision,
+                )
+            )
         else:
             current_stage_name = "candidate_selection"
-            current_stage_details = {}
+            current_stage_details = {"reuse_policy": candidate_selection_reuse_decision.to_dict()}
             current_existing_stage = existing_candidate_selection_stage
             if config.candidate_selection.enabled:
                 candidate_selection_result, candidate_selection_reference = _run_candidate_selection(config)
@@ -427,12 +521,19 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                             ),
                         },
                         existing_stage=existing_candidate_selection_stage,
+                        reuse_decision=candidate_selection_reuse_decision,
                     ),
                 )
             )
             current_stage_name = None
             current_stage_details = None
             current_existing_stage = None
+        downstream_invalidated_by_stage = _update_downstream_invalidation(
+            current_invalidated_by_stage=downstream_invalidated_by_stage,
+            stage_name="candidate_selection",
+            stage_reuse_decision=candidate_selection_reuse_decision,
+            reuse_policy=config.reuse_policy,
+        )
         stage_input_fingerprints["candidate_selection"] = candidate_selection_fingerprint
 
         portfolio_fingerprint, _ = _compute_stage_input_fingerprint(
@@ -447,10 +548,14 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             stage_input_fingerprints=stage_input_fingerprints,
         )
         existing_portfolio_stage = _checkpoint_stage(existing_checkpoint, "portfolio")
-        if config.portfolio.enabled and _can_reuse_checkpoint_stage(
-            existing_portfolio_stage,
+        portfolio_reuse_decision = _stage_reuse_decision(
+            stage_name="portfolio",
+            checkpoint_stage=existing_portfolio_stage,
             input_fingerprint=portfolio_fingerprint,
-        ):
+            reuse_policy=config.reuse_policy,
+            invalidated_by_stage=downstream_invalidated_by_stage,
+        )
+        if config.portfolio.enabled and portfolio_reuse_decision.action == "reuse":
             portfolio_result, portfolio_reference = _restore_portfolio_stage(existing_portfolio_stage)
             if portfolio_result is not None:
                 if candidate_selection_result is not None:
@@ -463,10 +568,16 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                     )
                 elif candidate_selection_reference is not None:
                     portfolio_reference = candidate_selection_reference
-            records.append(_restore_stage_record(existing_portfolio_stage))
+            records.append(
+                _restore_stage_record(
+                    existing_portfolio_stage,
+                    reuse_decision=portfolio_reuse_decision,
+                )
+            )
         else:
             current_stage_name = "portfolio"
             current_stage_details = {
+                "reuse_policy": portfolio_reuse_decision.to_dict(),
                 "input_candidate_selection": (
                     None
                     if candidate_selection_reference is None
@@ -507,12 +618,19 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                             ),
                         },
                         existing_stage=existing_portfolio_stage,
+                        reuse_decision=portfolio_reuse_decision,
                     ),
                 )
             )
             current_stage_name = None
             current_stage_details = None
             current_existing_stage = None
+        downstream_invalidated_by_stage = _update_downstream_invalidation(
+            current_invalidated_by_stage=downstream_invalidated_by_stage,
+            stage_name="portfolio",
+            stage_reuse_decision=portfolio_reuse_decision,
+            reuse_policy=config.reuse_policy,
+        )
         stage_input_fingerprints["portfolio"] = portfolio_fingerprint
 
         candidate_review_fingerprint, _ = _compute_stage_input_fingerprint(
@@ -530,15 +648,25 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         candidate_review_enabled = bool(
             config.candidate_selection.enabled and config.candidate_selection.execution.enable_review
         )
-        if candidate_review_enabled and _can_reuse_checkpoint_stage(
-            existing_candidate_review_stage,
+        candidate_review_reuse_decision = _stage_reuse_decision(
+            stage_name="candidate_review",
+            checkpoint_stage=existing_candidate_review_stage,
             input_fingerprint=candidate_review_fingerprint,
-        ):
+            reuse_policy=config.reuse_policy,
+            invalidated_by_stage=downstream_invalidated_by_stage,
+        )
+        if candidate_review_enabled and candidate_review_reuse_decision.action == "reuse":
             candidate_review_result = _restore_candidate_review_result(existing_candidate_review_stage)
-            records.append(_restore_stage_record(existing_candidate_review_stage))
+            records.append(
+                _restore_stage_record(
+                    existing_candidate_review_stage,
+                    reuse_decision=candidate_review_reuse_decision,
+                )
+            )
         else:
             current_stage_name = "candidate_review"
             current_stage_details = {
+                "reuse_policy": candidate_review_reuse_decision.to_dict(),
                 "input_candidate_selection": (
                     None
                     if candidate_selection_reference is None
@@ -599,12 +727,19 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                             ),
                         },
                         existing_stage=existing_candidate_review_stage,
+                        reuse_decision=candidate_review_reuse_decision,
                     ),
                 )
             )
             current_stage_name = None
             current_stage_details = None
             current_existing_stage = None
+        downstream_invalidated_by_stage = _update_downstream_invalidation(
+            current_invalidated_by_stage=downstream_invalidated_by_stage,
+            stage_name="candidate_review",
+            stage_reuse_decision=candidate_review_reuse_decision,
+            reuse_policy=config.reuse_policy,
+        )
         stage_input_fingerprints["candidate_review"] = candidate_review_fingerprint
 
         review_fingerprint, _ = _compute_stage_input_fingerprint(
@@ -619,12 +754,24 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
             stage_input_fingerprints=stage_input_fingerprints,
         )
         existing_review_stage = _checkpoint_stage(existing_checkpoint, "review")
-        if _can_reuse_checkpoint_stage(existing_review_stage, input_fingerprint=review_fingerprint):
+        review_reuse_decision = _stage_reuse_decision(
+            stage_name="review",
+            checkpoint_stage=existing_review_stage,
+            input_fingerprint=review_fingerprint,
+            reuse_policy=config.reuse_policy,
+            invalidated_by_stage=downstream_invalidated_by_stage,
+        )
+        if review_reuse_decision.action == "reuse":
             review_result = _restore_review_result(existing_review_stage)
-            records.append(_restore_stage_record(existing_review_stage))
+            records.append(
+                _restore_stage_record(
+                    existing_review_stage,
+                    reuse_decision=review_reuse_decision,
+                )
+            )
         else:
             current_stage_name = "review"
-            current_stage_details = {}
+            current_stage_details = {"reuse_policy": review_reuse_decision.to_dict()}
             current_existing_stage = existing_review_stage
             review_result = _run_research_review(config)
             records.append(
@@ -639,12 +786,19 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                             "review_id": str(review_result.review_id),
                         },
                         existing_stage=existing_review_stage,
+                        reuse_decision=review_reuse_decision,
                     ),
                 )
             )
             current_stage_name = None
             current_stage_details = None
             current_existing_stage = None
+        downstream_invalidated_by_stage = _update_downstream_invalidation(
+            current_invalidated_by_stage=downstream_invalidated_by_stage,
+            stage_name="review",
+            stage_reuse_decision=review_reuse_decision,
+            reuse_policy=config.reuse_policy,
+        )
         stage_input_fingerprints["review"] = review_fingerprint
     except KeyboardInterrupt as exc:
         if not error_already_persisted and current_stage_name is not None:
@@ -2083,12 +2237,133 @@ def _can_reuse_checkpoint_stage(
     return str(checkpoint_stage.get("input_fingerprint") or "") == input_fingerprint
 
 
-def _restore_stage_record(checkpoint_stage: Mapping[str, Any]) -> CampaignStageRecord:
+def _stage_reuse_decision(
+    *,
+    stage_name: str,
+    checkpoint_stage: Mapping[str, Any] | None,
+    input_fingerprint: str,
+    reuse_policy: CampaignReusePolicyConfig,
+    invalidated_by_stage: str | None,
+) -> CampaignStageReuseDecision:
+    matched_checkpoint = checkpoint_stage is not None
+    checkpoint_state = None if checkpoint_stage is None else str(checkpoint_stage.get("state") or "") or None
+    checkpoint_input_fingerprint = (
+        None if checkpoint_stage is None else str(checkpoint_stage.get("input_fingerprint") or "") or None
+    )
+    fingerprint_match = checkpoint_input_fingerprint == input_fingerprint
+
+    if invalidated_by_stage is not None:
+        return CampaignStageReuseDecision(
+            stage_name=stage_name,
+            action="rerun",
+            reason=f"Rerun required because upstream stage '{invalidated_by_stage}' invalidated downstream reuse.",
+            matched_checkpoint=matched_checkpoint,
+            checkpoint_state=checkpoint_state,
+            checkpoint_input_fingerprint=checkpoint_input_fingerprint,
+            fingerprint_match=fingerprint_match,
+            invalidated_by_stage=invalidated_by_stage,
+        )
+    if stage_name in reuse_policy.force_rerun_stages:
+        return CampaignStageReuseDecision(
+            stage_name=stage_name,
+            action="rerun",
+            reason="Rerun required by reuse_policy.force_rerun_stages.",
+            matched_checkpoint=matched_checkpoint,
+            checkpoint_state=checkpoint_state,
+            checkpoint_input_fingerprint=checkpoint_input_fingerprint,
+            fingerprint_match=fingerprint_match,
+        )
+    if not reuse_policy.enable_checkpoint_reuse:
+        return CampaignStageReuseDecision(
+            stage_name=stage_name,
+            action="rerun",
+            reason="Checkpoint reuse disabled by reuse_policy.enable_checkpoint_reuse=false.",
+            matched_checkpoint=matched_checkpoint,
+            checkpoint_state=checkpoint_state,
+            checkpoint_input_fingerprint=checkpoint_input_fingerprint,
+            fingerprint_match=fingerprint_match,
+        )
+    if stage_name not in reuse_policy.reuse_prior_stages:
+        return CampaignStageReuseDecision(
+            stage_name=stage_name,
+            action="rerun",
+            reason="Stage not listed in reuse_policy.reuse_prior_stages.",
+            matched_checkpoint=matched_checkpoint,
+            checkpoint_state=checkpoint_state,
+            checkpoint_input_fingerprint=checkpoint_input_fingerprint,
+            fingerprint_match=fingerprint_match,
+        )
+    if checkpoint_stage is None:
+        return CampaignStageReuseDecision(
+            stage_name=stage_name,
+            action="rerun",
+            reason="No persisted checkpoint stage is available to reuse.",
+            matched_checkpoint=False,
+            checkpoint_state=None,
+            checkpoint_input_fingerprint=None,
+            fingerprint_match=False,
+        )
+    if checkpoint_state not in {"completed", "reused"}:
+        return CampaignStageReuseDecision(
+            stage_name=stage_name,
+            action="rerun",
+            reason=f"Checkpoint stage state '{checkpoint_state}' is not reusable.",
+            matched_checkpoint=True,
+            checkpoint_state=checkpoint_state,
+            checkpoint_input_fingerprint=checkpoint_input_fingerprint,
+            fingerprint_match=fingerprint_match,
+        )
+    if not fingerprint_match:
+        return CampaignStageReuseDecision(
+            stage_name=stage_name,
+            action="rerun",
+            reason="Checkpoint input fingerprint does not match the current effective stage inputs.",
+            matched_checkpoint=True,
+            checkpoint_state=checkpoint_state,
+            checkpoint_input_fingerprint=checkpoint_input_fingerprint,
+            fingerprint_match=False,
+        )
+    return CampaignStageReuseDecision(
+        stage_name=stage_name,
+        action="reuse",
+        reason="Reused persisted stage outputs from a matching checkpoint.",
+        matched_checkpoint=True,
+        checkpoint_state=checkpoint_state,
+        checkpoint_input_fingerprint=checkpoint_input_fingerprint,
+        fingerprint_match=True,
+    )
+
+
+def _restore_stage_record(
+    checkpoint_stage: Mapping[str, Any],
+    *,
+    reuse_decision: CampaignStageReuseDecision,
+) -> CampaignStageRecord:
     return CampaignStageRecord(
         stage_name=str(checkpoint_stage["stage_name"]),
         status="reused",
-        details=canonicalize_value(dict(checkpoint_stage.get("details") or {})),
+        details=_stage_details_with_retry_metadata(
+            checkpoint_stage.get("details") or {},
+            existing_stage=None,
+            reuse_decision=reuse_decision,
+        ),
     )
+
+
+def _update_downstream_invalidation(
+    *,
+    current_invalidated_by_stage: str | None,
+    stage_name: str,
+    stage_reuse_decision: CampaignStageReuseDecision,
+    reuse_policy: CampaignReusePolicyConfig,
+) -> str | None:
+    if current_invalidated_by_stage is not None:
+        return current_invalidated_by_stage
+    if stage_reuse_decision.action != "rerun":
+        return None
+    if stage_name not in reuse_policy.invalidate_downstream_after_stages:
+        return None
+    return stage_name
 
 
 def _compute_stage_input_fingerprint(

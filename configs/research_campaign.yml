@@ -22,6 +22,19 @@ research_campaign:
     strategy_config_path: configs/strategies.yml
     portfolio_config_path: configs/portfolios.yml
 
+  reuse_policy:
+    enable_checkpoint_reuse: true
+    reuse_prior_stages:
+      - preflight
+      - research
+      - comparison
+      - candidate_selection
+      - portfolio
+      - candidate_review
+      - review
+    force_rerun_stages: []
+    invalidate_downstream_after_stages: []
+
   comparison:
     enabled: false
     from_registry: true

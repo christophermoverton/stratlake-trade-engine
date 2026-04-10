@@ -767,6 +767,402 @@ portfolios:
     ]
 
 
+def test_run_research_campaign_can_disable_checkpoint_reuse_via_policy(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+    config = resolve_research_campaign_config(
+        _build_full_campaign_config(
+            tmp_path=tmp_path,
+            alpha_catalog=alpha_catalog,
+            strategy_config=strategy_config,
+            portfolio_config=portfolio_config,
+        ).to_dict(),
+        {
+            "reuse_policy": {
+                "enable_checkpoint_reuse": False,
+            }
+        },
+    )
+
+    def install_stage_stubs(call_order: list[str]) -> None:
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+            lambda argv: call_order.append("alpha")
+            or SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+            lambda argv: call_order.append("strategy")
+            or SimpleNamespace(
+                strategy_name="momentum_v1",
+                run_id="strategy_run",
+                experiment_dir=tmp_path / "strategy",
+                metrics={"cumulative_return": 0.2, "sharpe_ratio": 1.1, "max_drawdown": -0.05},
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_alpha_cli.run_cli",
+            lambda argv: call_order.append("alpha_comparison")
+            or SimpleNamespace(comparison_id="alpha_cmp"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+            lambda argv: call_order.append("strategy_comparison")
+            or SimpleNamespace(comparison_id="strategy_cmp"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+            lambda argv: call_order.append("candidate_selection")
+            or SimpleNamespace(
+                run_id="candidate_run",
+                artifact_dir=tmp_path / "candidate_selection" / "candidate_run",
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+            lambda argv: call_order.append("portfolio")
+            or SimpleNamespace(
+                run_id="portfolio_run",
+                experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+                portfolio_name="candidate_portfolio",
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+            lambda argv: call_order.append("candidate_review")
+            or SimpleNamespace(
+                review_dir=tmp_path / "candidate_review" / "candidate_run",
+                candidate_selection_run_id="candidate_run",
+                portfolio_run_id="portfolio_run",
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_research_cli.run_cli",
+            lambda argv: call_order.append("review")
+            or SimpleNamespace(review_id="review_run", entries=[]),
+        )
+
+    first_call_order: list[str] = []
+    install_stage_stubs(first_call_order)
+    first_result = run_research_campaign(config)
+
+    second_call_order: list[str] = []
+    install_stage_stubs(second_call_order)
+    second_result = run_research_campaign(config)
+    second_summary = json.loads(second_result.campaign_summary_path.read_text(encoding="utf-8"))
+
+    assert first_call_order == [
+        "alpha",
+        "strategy",
+        "alpha_comparison",
+        "strategy_comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review",
+    ]
+    assert second_call_order == first_call_order
+    assert second_result.campaign_checkpoint["reused_stage_count"] == 0
+    assert all(record.status == "completed" for record in second_result.stage_records)
+    assert (
+        next(stage for stage in second_summary["stages"] if stage["stage_name"] == "research")["details"]["reuse_policy"]["reason"]
+        == "Checkpoint reuse disabled by reuse_policy.enable_checkpoint_reuse=false."
+    )
+    assert first_result.campaign_run_id == second_result.campaign_run_id
+
+
+def test_run_research_campaign_can_force_rerun_specific_stage_without_invalidating_downstream(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+    config = resolve_research_campaign_config(
+        _build_full_campaign_config(
+            tmp_path=tmp_path,
+            alpha_catalog=alpha_catalog,
+            strategy_config=strategy_config,
+            portfolio_config=portfolio_config,
+        ).to_dict(),
+        {"reuse_policy": {"force_rerun_stages": ["research"]}},
+    )
+
+    def install_stage_stubs(call_order: list[str]) -> None:
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+            lambda argv: call_order.append("alpha")
+            or SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+            lambda argv: call_order.append("strategy")
+            or SimpleNamespace(
+                strategy_name="momentum_v1",
+                run_id="strategy_run",
+                experiment_dir=tmp_path / "strategy",
+                metrics={"cumulative_return": 0.2, "sharpe_ratio": 1.1, "max_drawdown": -0.05},
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_alpha_cli.run_cli",
+            lambda argv: call_order.append("alpha_comparison")
+            or SimpleNamespace(comparison_id="alpha_cmp"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+            lambda argv: call_order.append("strategy_comparison")
+            or SimpleNamespace(comparison_id="strategy_cmp"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+            lambda argv: call_order.append("candidate_selection")
+            or SimpleNamespace(run_id="candidate_run", artifact_dir=tmp_path / "candidate_selection" / "candidate_run"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+            lambda argv: call_order.append("portfolio")
+            or SimpleNamespace(
+                run_id="portfolio_run",
+                experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+                portfolio_name="candidate_portfolio",
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+            lambda argv: call_order.append("candidate_review")
+            or SimpleNamespace(
+                review_dir=tmp_path / "candidate_review" / "candidate_run",
+                candidate_selection_run_id="candidate_run",
+                portfolio_run_id="portfolio_run",
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_research_cli.run_cli",
+            lambda argv: call_order.append("review")
+            or SimpleNamespace(review_id="review_run", entries=[]),
+        )
+
+    install_stage_stubs([])
+    run_research_campaign(config)
+
+    second_call_order: list[str] = []
+    install_stage_stubs(second_call_order)
+    second_result = run_research_campaign(config)
+    second_summary = json.loads(second_result.campaign_summary_path.read_text(encoding="utf-8"))
+
+    assert second_call_order == ["alpha", "strategy"]
+    assert [record.status for record in second_result.stage_records] == [
+        "reused",
+        "completed",
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+    ]
+    assert (
+        next(stage for stage in second_summary["stages"] if stage["stage_name"] == "research")["details"]["reuse_policy"]["reason"]
+        == "Rerun required by reuse_policy.force_rerun_stages."
+    )
+
+
+def test_run_research_campaign_can_invalidate_downstream_after_forced_rerun(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+    config = resolve_research_campaign_config(
+        _build_full_campaign_config(
+            tmp_path=tmp_path,
+            alpha_catalog=alpha_catalog,
+            strategy_config=strategy_config,
+            portfolio_config=portfolio_config,
+        ).to_dict(),
+        {
+            "reuse_policy": {
+                "force_rerun_stages": ["research"],
+                "invalidate_downstream_after_stages": ["research"],
+            }
+        },
+    )
+
+    def install_stage_stubs(call_order: list[str]) -> None:
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+            lambda argv: call_order.append("alpha")
+            or SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+            lambda argv: call_order.append("strategy")
+            or SimpleNamespace(
+                strategy_name="momentum_v1",
+                run_id="strategy_run",
+                experiment_dir=tmp_path / "strategy",
+                metrics={"cumulative_return": 0.2, "sharpe_ratio": 1.1, "max_drawdown": -0.05},
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_alpha_cli.run_cli",
+            lambda argv: call_order.append("alpha_comparison")
+            or SimpleNamespace(comparison_id="alpha_cmp"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+            lambda argv: call_order.append("strategy_comparison")
+            or SimpleNamespace(comparison_id="strategy_cmp"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+            lambda argv: call_order.append("candidate_selection")
+            or SimpleNamespace(run_id="candidate_run", artifact_dir=tmp_path / "candidate_selection" / "candidate_run"),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+            lambda argv: call_order.append("portfolio")
+            or SimpleNamespace(
+                run_id="portfolio_run",
+                experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+                portfolio_name="candidate_portfolio",
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+            lambda argv: call_order.append("candidate_review")
+            or SimpleNamespace(
+                review_dir=tmp_path / "candidate_review" / "candidate_run",
+                candidate_selection_run_id="candidate_run",
+                portfolio_run_id="portfolio_run",
+            ),
+        )
+        monkeypatch.setattr(
+            "src.cli.run_research_campaign.compare_research_cli.run_cli",
+            lambda argv: call_order.append("review")
+            or SimpleNamespace(review_id="review_run", entries=[]),
+        )
+
+    install_stage_stubs([])
+    run_research_campaign(config)
+
+    second_call_order: list[str] = []
+    install_stage_stubs(second_call_order)
+    second_result = run_research_campaign(config)
+    second_summary = json.loads(second_result.campaign_summary_path.read_text(encoding="utf-8"))
+
+    assert second_call_order == [
+        "alpha",
+        "strategy",
+        "alpha_comparison",
+        "strategy_comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review",
+    ]
+    assert [record.status for record in second_result.stage_records] == [
+        "reused",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+        "completed",
+    ]
+    comparison_stage = next(stage for stage in second_summary["stages"] if stage["stage_name"] == "comparison")
+    assert comparison_stage["details"]["reuse_policy"]["invalidated_by_stage"] == "research"
+    assert comparison_stage["details"]["reuse_policy"]["reason"] == (
+        "Rerun required because upstream stage 'research' invalidated downstream reuse."
+    )
+
+
 def test_run_research_campaign_allows_multi_alpha_candidate_selection_without_explicit_alpha_filter(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

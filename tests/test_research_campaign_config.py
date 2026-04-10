@@ -26,6 +26,16 @@ def test_resolve_research_campaign_config_loads_defaults() -> None:
     assert config.review.ranking.strategy_primary_metric == "sharpe_ratio"
     assert config.outputs.alpha_artifacts_root == "artifacts/alpha"
     assert config.outputs.campaign_artifacts_root == "artifacts/research_campaigns"
+    assert config.reuse_policy.enable_checkpoint_reuse is True
+    assert config.reuse_policy.reuse_prior_stages == (
+        "preflight",
+        "research",
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review",
+    )
 
 
 def test_load_research_campaign_config_supports_nested_payload_and_inheritance(
@@ -47,6 +57,8 @@ research_campaign:
   outputs:
     alpha_artifacts_root: artifacts/alpha/q1
     review_output_path: artifacts/reviews/q1
+  reuse_policy:
+    force_rerun_stages: [research]
   candidate_selection:
     enabled: true
   portfolio:
@@ -68,6 +80,7 @@ research_campaign:
     assert config.candidate_selection.artifacts_root == "artifacts/alpha/q1"
     assert config.portfolio.portfolio_name == "candidate_portfolio"
     assert config.portfolio.timeframe == "1D"
+    assert config.reuse_policy.force_rerun_stages == ("research",)
     assert config.review.filters.dataset == "features_daily"
     assert config.review.filters.portfolio_name == "candidate_portfolio"
     assert config.review.output.path == "artifacts/reviews/q1"
@@ -104,6 +117,10 @@ research_campaign:
     config = resolve_research_campaign_config(
         loaded,
         cli_overrides={
+            "reuse_policy": {
+                "reuse_prior_stages": ["preflight", "research"],
+                "invalidate_downstream_after_stages": ["research"],
+            },
             "comparison": {"top_k": 3},
             "candidate_selection": {
                 "allocation": {"rounding_decimals": 6},
@@ -125,6 +142,8 @@ research_campaign:
         config.candidate_selection.output.registry_path
         == "artifacts/candidate_selection/custom/registry.jsonl"
     )
+    assert config.reuse_policy.reuse_prior_stages == ("preflight", "research")
+    assert config.reuse_policy.invalidate_downstream_after_stages == ("research",)
     assert config.outputs.campaign_artifacts_root == "artifacts/research_campaigns/custom"
     assert config.portfolio.enabled is True
 
@@ -152,6 +171,9 @@ def test_resolve_research_campaign_config_validates_fields_explicitly() -> None:
 
     with pytest.raises(ResearchCampaignConfigError, match="targets.alpha_names"):
         resolve_research_campaign_config({"targets": {"alpha_names": ["ok", ""]}})
+
+    with pytest.raises(ResearchCampaignConfigError, match="reuse_policy.reuse_prior_stages"):
+        resolve_research_campaign_config({"reuse_policy": {"reuse_prior_stages": ["review", "unknown"]}})
 
 
 def test_resolve_research_campaign_config_produces_stable_equivalent_payloads(

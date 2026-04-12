@@ -15,11 +15,18 @@ This case study demonstrates:
 4. candidate-driven portfolio construction
 5. candidate review and unified research review
 6. one stitched case-study summary artifact plus native campaign artifacts
+7. optional second-pass checkpoint reuse across the same campaign artifact root
 
 ## Execute
 
 ```powershell
 python docs/examples/real_world_campaign_case_study.py
+```
+
+To demonstrate checkpoint creation and stage reuse on an immediate rerun:
+
+```powershell
+python docs/examples/real_world_campaign_case_study.py --checkpoint-demo
 ```
 
 ## Campaign Config

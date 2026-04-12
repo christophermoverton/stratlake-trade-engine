@@ -2383,6 +2383,312 @@ portfolios:
     assert "Stage Details: preflight=reused | research=reused | comparison=completed" in stdout
 
 
+def test_run_research_campaign_reuses_all_stages_after_failure_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    config = _build_full_campaign_config(
+        tmp_path=tmp_path,
+        alpha_catalog=alpha_catalog,
+        strategy_config=strategy_config,
+        portfolio_config=portfolio_config,
+    )
+
+    attempts = {"candidate_selection": 0}
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            strategy_name="momentum_v1",
+            run_id="strategy_run",
+            experiment_dir=tmp_path / "strategy",
+            metrics={"cumulative_return": 0.2, "sharpe_ratio": 1.1, "max_drawdown": -0.05},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="alpha_cmp"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="strategy_cmp"),
+    )
+
+    def _candidate_selection(argv: list[str]) -> SimpleNamespace:
+        attempts["candidate_selection"] += 1
+        if attempts["candidate_selection"] == 1:
+            raise RuntimeError("candidate selection exploded")
+        return SimpleNamespace(
+            run_id="candidate_run",
+            artifact_dir=tmp_path / "candidate_selection" / "candidate_run",
+            summary_json=tmp_path / "candidate_selection" / "candidate_run" / "selection_summary.json",
+            manifest_json=tmp_path / "candidate_selection" / "candidate_run" / "manifest.json",
+            primary_metric="ic_ir",
+            universe_count=8,
+            eligible_count=4,
+            selected_count=2,
+            rejected_count=2,
+            pruned_by_redundancy=1,
+        )
+
+    monkeypatch.setattr("src.cli.run_research_campaign.run_candidate_selection_cli.run_cli", _candidate_selection)
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+            portfolio_name="candidate_portfolio",
+            component_count=2,
+            metrics={"total_return": 0.16, "sharpe_ratio": 1.2, "max_drawdown": -0.04},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            review_dir=tmp_path / "candidate_review" / "candidate_run",
+            candidate_review_summary_json=tmp_path / "candidate_review" / "candidate_run" / "candidate_review_summary.json",
+            manifest_json=tmp_path / "candidate_review" / "candidate_run" / "manifest.json",
+            candidate_selection_run_id="candidate_run",
+            portfolio_run_id="portfolio_run",
+            total_candidates=4,
+            selected_candidates=2,
+            rejected_candidates=2,
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run", entries=[]),
+    )
+
+    with pytest.raises(RuntimeError, match="candidate selection exploded"):
+        run_research_campaign(config)
+
+    recovered_result = run_research_campaign(config)
+    recovered_summary = json.loads(recovered_result.campaign_summary_path.read_text(encoding="utf-8"))
+    recovered_stage = next(
+        stage for stage in recovered_summary["stages"] if stage["stage_name"] == "candidate_selection"
+    )
+
+    assert recovered_stage["details"]["retry"]["attempted"] is True
+    assert recovered_stage["details"]["retry"]["previous_state"] == "failed"
+
+    stable_result = run_research_campaign(config)
+    stable_checkpoint = json.loads(stable_result.campaign_checkpoint_path.read_text(encoding="utf-8"))
+    stable_summary = json.loads(stable_result.campaign_summary_path.read_text(encoding="utf-8"))
+    stable_stage = next(stage for stage in stable_summary["stages"] if stage["stage_name"] == "candidate_selection")
+
+    assert attempts["candidate_selection"] == 2
+    assert [record.status for record in stable_result.stage_records] == [
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+    ]
+    assert stable_checkpoint["stage_states"] == {
+        "preflight": "reused",
+        "research": "reused",
+        "comparison": "reused",
+        "candidate_selection": "reused",
+        "portfolio": "reused",
+        "candidate_review": "reused",
+        "review": "reused",
+    }
+    assert stable_summary["final_outcomes"]["retry_stage_names"] == ["candidate_selection"]
+    assert stable_stage["execution_metadata"]["reuse"]["reused"] is True
+    assert stable_stage["execution_metadata"]["retry"]["attempted"] is True
+    assert stable_stage["execution_metadata"]["retry"]["previous_state"] == "failed"
+
+
+def test_run_research_campaign_reuses_all_stages_after_interrupt_recovery(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("momentum_v1:\n  dataset: features_daily\n  parameters: {}\n", encoding="utf-8")
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    config = _build_full_campaign_config(
+        tmp_path=tmp_path,
+        alpha_catalog=alpha_catalog,
+        strategy_config=strategy_config,
+        portfolio_config=portfolio_config,
+    )
+
+    attempts = {"comparison": 0}
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            strategy_name="momentum_v1",
+            run_id="strategy_run",
+            experiment_dir=tmp_path / "strategy",
+            metrics={"cumulative_return": 0.2, "sharpe_ratio": 1.1, "max_drawdown": -0.05},
+        ),
+    )
+
+    def _alpha_compare(argv: list[str]) -> SimpleNamespace:
+        attempts["comparison"] += 1
+        if attempts["comparison"] == 1:
+            raise KeyboardInterrupt("manual stop")
+        return SimpleNamespace(comparison_id="alpha_cmp")
+
+    monkeypatch.setattr("src.cli.run_research_campaign.compare_alpha_cli.run_cli", _alpha_compare)
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="strategy_cmp"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="candidate_run",
+            artifact_dir=tmp_path / "candidate_selection" / "candidate_run",
+            summary_json=tmp_path / "candidate_selection" / "candidate_run" / "selection_summary.json",
+            manifest_json=tmp_path / "candidate_selection" / "candidate_run" / "manifest.json",
+            primary_metric="ic_ir",
+            universe_count=8,
+            eligible_count=4,
+            selected_count=2,
+            rejected_count=2,
+            pruned_by_redundancy=1,
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=tmp_path / "portfolio_artifacts" / "portfolio_run",
+            portfolio_name="candidate_portfolio",
+            component_count=2,
+            metrics={"total_return": 0.16, "sharpe_ratio": 1.2, "max_drawdown": -0.04},
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            review_dir=tmp_path / "candidate_review" / "candidate_run",
+            candidate_review_summary_json=tmp_path / "candidate_review" / "candidate_run" / "candidate_review_summary.json",
+            manifest_json=tmp_path / "candidate_review" / "candidate_run" / "manifest.json",
+            candidate_selection_run_id="candidate_run",
+            portfolio_run_id="portfolio_run",
+            total_candidates=4,
+            selected_candidates=2,
+            rejected_candidates=2,
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run", entries=[]),
+    )
+
+    with pytest.raises(KeyboardInterrupt, match="manual stop"):
+        run_research_campaign(config)
+
+    recovered_result = run_research_campaign(config)
+    recovered_summary = json.loads(recovered_result.campaign_summary_path.read_text(encoding="utf-8"))
+    recovered_stage = next(stage for stage in recovered_summary["stages"] if stage["stage_name"] == "comparison")
+
+    assert recovered_stage["details"]["retry"]["attempted"] is True
+    assert recovered_stage["details"]["retry"]["previous_state"] == "partial"
+
+    stable_result = run_research_campaign(config)
+    stable_checkpoint = json.loads(stable_result.campaign_checkpoint_path.read_text(encoding="utf-8"))
+    stable_summary = json.loads(stable_result.campaign_summary_path.read_text(encoding="utf-8"))
+    stable_stage = next(stage for stage in stable_summary["stages"] if stage["stage_name"] == "comparison")
+
+    assert attempts["comparison"] == 2
+    assert [record.status for record in stable_result.stage_records] == [
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+        "reused",
+    ]
+    assert stable_checkpoint["stage_states"] == {
+        "preflight": "reused",
+        "research": "reused",
+        "comparison": "reused",
+        "candidate_selection": "reused",
+        "portfolio": "reused",
+        "candidate_review": "reused",
+        "review": "reused",
+    }
+    assert stable_summary["final_outcomes"]["retry_stage_names"] == ["comparison"]
+    assert stable_stage["execution_metadata"]["reuse"]["reused"] is True
+    assert stable_stage["execution_metadata"]["retry"]["attempted"] is True
+    assert stable_stage["execution_metadata"]["retry"]["previous_state"] == "partial"
+
+
 def test_run_research_campaign_writes_stable_stitched_artifacts_across_identical_reruns(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

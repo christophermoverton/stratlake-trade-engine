@@ -1,0 +1,147 @@
+{
+  "candidate_selection": {
+    "allocation": {
+      "allocation_method": "equal_weight",
+      "allocation_rounding_decimals": 12,
+      "allocation_weight_sum_tolerance": 1e-12,
+      "max_weight_per_candidate": null,
+      "min_allocation_candidate_count": null,
+      "min_allocation_weight": null
+    },
+    "alpha_name": "resume_alpha_quality",
+    "artifacts_root": "docs/examples/output/real_world_resume_workflow_case_study/artifacts/alpha",
+    "dataset": "features_daily",
+    "eligibility": {
+      "min_coverage": null,
+      "min_history_length": null,
+      "min_ic_ir": null,
+      "min_mean_ic": null,
+      "min_mean_rank_ic": null,
+      "min_rank_ic_ir": null
+    },
+    "enabled": true,
+    "evaluation_horizon": 5,
+    "execution": {
+      "enable_review": true,
+      "from_registry": false,
+      "no_markdown_review": false,
+      "register_run": true,
+      "skip_allocation": false,
+      "skip_eligibility": false,
+      "skip_redundancy": false,
+      "strict_mode": false
+    },
+    "mapping_name": "top_bottom_quantile_q20",
+    "max_candidates": 2,
+    "metric": "ic_ir",
+    "output": {
+      "path": "artifacts/candidate_selection",
+      "registry_path": null,
+      "review_output_path": "artifacts/reviews/candidate_review"
+    },
+    "redundancy": {
+      "max_pairwise_correlation": null,
+      "min_overlap_observations": null
+    },
+    "timeframe": "1D"
+  },
+  "comparison": {
+    "alpha_metric": "ic_ir",
+    "alpha_sleeve_metric": "sharpe_ratio",
+    "alpha_view": "combined",
+    "enabled": true,
+    "from_registry": true,
+    "strategy_metric": "sharpe_ratio",
+    "top_k": 5
+  },
+  "dataset_selection": {
+    "dataset": "features_daily",
+    "evaluation_horizon": 5,
+    "mapping_name": "top_bottom_quantile_q20",
+    "tickers_path": null,
+    "timeframe": "1D"
+  },
+  "outputs": {
+    "alpha_artifacts_root": "artifacts/alpha",
+    "campaign_artifacts_root": "artifacts/research_campaigns",
+    "candidate_selection_output_path": "artifacts/candidate_selection",
+    "candidate_selection_registry_path": null,
+    "comparison_output_path": "artifacts/campaign_comparisons",
+    "portfolio_artifacts_root": "artifacts/portfolios",
+    "review_output_path": "artifacts/reviews/research_review"
+  },
+  "portfolio": {
+    "enabled": true,
+    "evaluation_path": null,
+    "from_candidate_selection": true,
+    "from_registry": false,
+    "optimizer_method": null,
+    "portfolio_name": "resume_candidate_portfolio",
+    "timeframe": "1D"
+  },
+  "reuse_policy": {
+    "enable_checkpoint_reuse": true,
+    "force_rerun_stages": [],
+    "invalidate_downstream_after_stages": [],
+    "reuse_prior_stages": [
+      "preflight",
+      "research",
+      "comparison",
+      "candidate_selection",
+      "portfolio",
+      "candidate_review",
+      "review"
+    ]
+  },
+  "review": {
+    "filters": {
+      "alpha_name": null,
+      "dataset": "features_daily",
+      "portfolio_name": "resume_candidate_portfolio",
+      "run_types": [
+        "alpha_evaluation",
+        "strategy",
+        "portfolio"
+      ],
+      "strategy_name": "resume_strategy_momentum",
+      "timeframe": "1D",
+      "top_k_per_type": null
+    },
+    "output": {
+      "emit_plots": false,
+      "path": "artifacts/reviews/research_review"
+    },
+    "promotion_gates": null,
+    "ranking": {
+      "alpha_evaluation_primary_metric": "ic_ir",
+      "alpha_evaluation_secondary_metric": "mean_ic",
+      "portfolio_primary_metric": "sharpe_ratio",
+      "portfolio_secondary_metric": "total_return",
+      "strategy_primary_metric": "sharpe_ratio",
+      "strategy_secondary_metric": "total_return"
+    }
+  },
+  "targets": {
+    "alpha_catalog_path": "docs/examples/data/milestone_17_campaign_configs/resume_reuse_alphas.yml",
+    "alpha_names": [
+      "resume_alpha_quality",
+      "resume_alpha_diversified"
+    ],
+    "portfolio_config_path": "docs/examples/data/milestone_17_campaign_configs/resume_reuse_portfolios.yml",
+    "portfolio_names": [
+      "resume_candidate_portfolio"
+    ],
+    "strategy_config_path": "docs/examples/data/milestone_17_campaign_configs/resume_reuse_strategies.yml",
+    "strategy_names": [
+      "resume_strategy_momentum"
+    ]
+  },
+  "time_windows": {
+    "end": "2025-03-01",
+    "predict_end": "2025-03-01",
+    "predict_start": "2025-02-01",
+    "start": "2025-01-01",
+    "train_end": "2025-02-01",
+    "train_start": "2025-01-01"
+  }
+}

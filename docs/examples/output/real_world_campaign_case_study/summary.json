@@ -46,7 +46,7 @@
     }
   ],
   "artifacts": {
-    "campaign_dir": "artifacts/research_campaigns/research_campaign_94ccbc7ce13d",
+    "campaign_dir": "artifacts/research_campaigns/research_campaign_c7361ba400ad",
     "candidate_selection_dir": "artifacts/candidate_selection/candidate_selection_e35992810577",
     "comparison_csv": "artifacts/campaign_comparisons/alpha/leaderboard.csv",
     "output_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study",
@@ -55,20 +55,21 @@
     "summary": "summary.json"
   },
   "campaign": {
-    "campaign_run_id": "research_campaign_94ccbc7ce13d",
-    "manifest_path": "artifacts/research_campaigns/research_campaign_94ccbc7ce13d/manifest.json",
+    "campaign_run_id": "research_campaign_c7361ba400ad",
+    "manifest_path": "artifacts/research_campaigns/research_campaign_c7361ba400ad/manifest.json",
     "preflight_status": "passed",
+    "reused_stage_count": 7,
     "stage_statuses": {
-      "candidate_review": "completed",
-      "candidate_selection": "completed",
-      "comparison": "completed",
-      "portfolio": "completed",
-      "preflight": "completed",
-      "research": "completed",
-      "review": "completed"
+      "candidate_review": "reused",
+      "candidate_selection": "reused",
+      "comparison": "reused",
+      "portfolio": "reused",
+      "preflight": "reused",
+      "research": "reused",
+      "review": "reused"
     },
     "status": "completed",
-    "summary_path": "artifacts/research_campaigns/research_campaign_94ccbc7ce13d/summary.json"
+    "summary_path": "artifacts/research_campaigns/research_campaign_c7361ba400ad/summary.json"
   },
   "candidate_selection": {
     "counts": {
@@ -206,6 +207,38 @@
       "eligibility": true,
       "redundancy": true,
       "universe": true
+    }
+  },
+  "checkpoint_demo": {
+    "fingerprints_stable": true,
+    "first_run": {
+      "campaign_run_id": "research_campaign_c7361ba400ad",
+      "reused_stage_count": 0,
+      "stage_statuses": {
+        "candidate_review": "completed",
+        "candidate_selection": "completed",
+        "comparison": "completed",
+        "portfolio": "completed",
+        "preflight": "completed",
+        "research": "completed",
+        "review": "completed"
+      },
+      "status": "completed"
+    },
+    "same_campaign_run_id": true,
+    "second_run": {
+      "campaign_run_id": "research_campaign_c7361ba400ad",
+      "reused_stage_count": 7,
+      "stage_statuses": {
+        "candidate_review": "reused",
+        "candidate_selection": "reused",
+        "comparison": "reused",
+        "portfolio": "reused",
+        "preflight": "reused",
+        "research": "reused",
+        "review": "reused"
+      },
+      "status": "completed"
     }
   },
   "comparison": {

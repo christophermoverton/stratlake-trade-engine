@@ -1,0 +1,3 @@
+rank,alpha_name,run_id,ic_ir,mean_ic,sharpe_ratio
+1,resume_alpha_quality,resume_alpha_quality_alpha_eval_resume_demo,1.48,0.21,1.61
+2,resume_alpha_diversified,resume_alpha_diversified_alpha_eval_resume_demo,0.94,0.13,0.88

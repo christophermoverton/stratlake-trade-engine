@@ -9,8 +9,8 @@
     "portfolio_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/portfolios",
     "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/research_review"
   },
-  "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_94ccbc7ce13d",
-  "campaign_run_id": "research_campaign_94ccbc7ce13d",
+  "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad",
+  "campaign_run_id": "research_campaign_c7361ba400ad",
   "check_counts": {
     "failed": 0,
     "passed": 23,
@@ -219,7 +219,7 @@
       "status": "passed"
     }
   ],
-  "config_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_94ccbc7ce13d/campaign_config.json",
+  "config_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/campaign_config.json",
   "datasets": [
     {
       "consumers": [

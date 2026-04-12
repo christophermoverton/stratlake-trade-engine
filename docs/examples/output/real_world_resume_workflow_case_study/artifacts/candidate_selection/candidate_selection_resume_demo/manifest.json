@@ -1,0 +1,9 @@
+{
+  "artifact_files": [
+    "manifest.json",
+    "rejected_candidates.csv",
+    "selected_candidates.csv",
+    "selection_summary.json"
+  ],
+  "run_id": "candidate_selection_resume_demo"
+}

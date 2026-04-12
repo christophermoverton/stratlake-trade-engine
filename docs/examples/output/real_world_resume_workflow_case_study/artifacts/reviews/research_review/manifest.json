@@ -1,0 +1,9 @@
+{
+  "artifact_files": [
+    "leaderboard.csv",
+    "manifest.json",
+    "summary.json",
+    "promotion_gates.json"
+  ],
+  "review_id": "resume_review_demo"
+}

@@ -1,0 +1,14 @@
+{
+  "alpha_name": "resume_alpha_quality",
+  "artifact_files": [
+    "manifest.json",
+    "sleeve_metrics.json"
+  ],
+  "run_id": "resume_alpha_quality_alpha_eval_resume_demo",
+  "sleeve": {
+    "metric_summary": {
+      "sharpe_ratio": 1.61,
+      "total_return": 0.031
+    }
+  }
+}

@@ -17,6 +17,7 @@ _ROOT_SECTION_KEYS = frozenset(
         "dataset_selection",
         "time_windows",
         "targets",
+        "reuse_policy",
         "comparison",
         "candidate_selection",
         "portfolio",
@@ -38,6 +39,14 @@ _TARGET_KEYS = frozenset(
         "alpha_catalog_path",
         "strategy_config_path",
         "portfolio_config_path",
+    }
+)
+_REUSE_POLICY_KEYS = frozenset(
+    {
+        "enable_checkpoint_reuse",
+        "reuse_prior_stages",
+        "force_rerun_stages",
+        "invalidate_downstream_after_stages",
     }
 )
 _COMPARISON_KEYS = frozenset(
@@ -137,6 +146,15 @@ _OUTPUT_KEYS = frozenset(
 )
 _SUPPORTED_ALPHA_VIEWS = frozenset({"forecast", "sleeve", "combined"})
 _DEFAULT_CANDIDATE_SELECTION_OUTPUT_PATH = "artifacts/candidate_selection"
+_CAMPAIGN_STAGE_NAMES = (
+    "preflight",
+    "research",
+    "comparison",
+    "candidate_selection",
+    "portfolio",
+    "candidate_review",
+    "review",
+)
 
 
 class ResearchCampaignConfigError(ValueError):
@@ -220,6 +238,22 @@ class CampaignComparisonConfig:
             "alpha_metric": self.alpha_metric,
             "alpha_sleeve_metric": self.alpha_sleeve_metric,
             "strategy_metric": self.strategy_metric,
+        }
+
+
+@dataclass(frozen=True)
+class CampaignReusePolicyConfig:
+    enable_checkpoint_reuse: bool
+    reuse_prior_stages: tuple[str, ...]
+    force_rerun_stages: tuple[str, ...]
+    invalidate_downstream_after_stages: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "enable_checkpoint_reuse": self.enable_checkpoint_reuse,
+            "reuse_prior_stages": list(self.reuse_prior_stages),
+            "force_rerun_stages": list(self.force_rerun_stages),
+            "invalidate_downstream_after_stages": list(self.invalidate_downstream_after_stages),
         }
 
 
@@ -398,6 +432,7 @@ class ResearchCampaignConfig:
     dataset_selection: DatasetSelectionConfig
     time_windows: TimeWindowsConfig
     targets: CampaignTargetsConfig
+    reuse_policy: CampaignReusePolicyConfig
     comparison: CampaignComparisonConfig
     candidate_selection: CampaignCandidateSelectionConfig
     portfolio: CampaignPortfolioConfig
@@ -438,6 +473,12 @@ class ResearchCampaignConfig:
                 alpha_catalog_path="configs/alphas.yml",
                 strategy_config_path="configs/strategies.yml",
                 portfolio_config_path="configs/portfolios.yml",
+            ),
+            reuse_policy=CampaignReusePolicyConfig(
+                enable_checkpoint_reuse=True,
+                reuse_prior_stages=_CAMPAIGN_STAGE_NAMES,
+                force_rerun_stages=(),
+                invalidate_downstream_after_stages=(),
             ),
             comparison=CampaignComparisonConfig(
                 enabled=False,
@@ -527,6 +568,7 @@ class ResearchCampaignConfig:
         )
         time_windows = _resolve_time_windows(container.get("time_windows"), base=seed.time_windows)
         targets = _resolve_targets(container.get("targets"), base=seed.targets)
+        reuse_policy = _resolve_reuse_policy(container.get("reuse_policy"), base=seed.reuse_policy)
         comparison = _resolve_comparison(container.get("comparison"), base=seed.comparison)
         candidate_selection = _resolve_candidate_selection(
             container.get("candidate_selection"),
@@ -552,6 +594,7 @@ class ResearchCampaignConfig:
             dataset_selection=dataset_selection,
             time_windows=time_windows,
             targets=targets,
+            reuse_policy=reuse_policy,
             comparison=comparison,
             candidate_selection=candidate_selection,
             portfolio=portfolio,
@@ -565,6 +608,7 @@ class ResearchCampaignConfig:
                 "dataset_selection": self.dataset_selection.to_dict(),
                 "time_windows": self.time_windows.to_dict(),
                 "targets": self.targets.to_dict(),
+                "reuse_policy": self.reuse_policy.to_dict(),
                 "comparison": self.comparison.to_dict(),
                 "candidate_selection": self.candidate_selection.to_dict(),
                 "portfolio": self.portfolio.to_dict(),
@@ -797,6 +841,44 @@ def _resolve_comparison(
         strategy_metric=_normalize_required_string(
             payload.get("strategy_metric", base.strategy_metric),
             field_name="comparison.strategy_metric",
+        ),
+    )
+
+
+def _resolve_reuse_policy(
+    payload: Any,
+    *,
+    base: CampaignReusePolicyConfig,
+) -> CampaignReusePolicyConfig:
+    if payload is None:
+        return base
+    if not isinstance(payload, Mapping):
+        raise ResearchCampaignConfigError("Research campaign field 'reuse_policy' must be a mapping.")
+    unknown_keys = sorted(set(payload) - _REUSE_POLICY_KEYS)
+    if unknown_keys:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field 'reuse_policy' contains unsupported keys: {unknown_keys}."
+        )
+    return CampaignReusePolicyConfig(
+        enable_checkpoint_reuse=_resolve_bool(
+            payload.get("enable_checkpoint_reuse"),
+            field_name="reuse_policy.enable_checkpoint_reuse",
+            default=base.enable_checkpoint_reuse,
+        ),
+        reuse_prior_stages=_normalize_stage_name_collection(
+            payload.get("reuse_prior_stages"),
+            field_name="reuse_policy.reuse_prior_stages",
+            default=base.reuse_prior_stages,
+        ),
+        force_rerun_stages=_normalize_stage_name_collection(
+            payload.get("force_rerun_stages"),
+            field_name="reuse_policy.force_rerun_stages",
+            default=base.force_rerun_stages,
+        ),
+        invalidate_downstream_after_stages=_normalize_stage_name_collection(
+            payload.get("invalidate_downstream_after_stages"),
+            field_name="reuse_policy.invalidate_downstream_after_stages",
+            default=base.invalidate_downstream_after_stages,
         ),
     )
 
@@ -1364,6 +1446,18 @@ def _normalize_string_collection(
         if text not in normalized:
             normalized.append(text)
     return tuple(normalized)
+
+
+def _normalize_stage_name_collection(
+    value: Any, *, field_name: str, default: tuple[str, ...]
+) -> tuple[str, ...]:
+    items = _normalize_string_collection(value, field_name=field_name, default=default)
+    invalid = [item for item in items if item not in _CAMPAIGN_STAGE_NAMES]
+    if invalid:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field '{field_name}' must contain only supported stage names: {list(_CAMPAIGN_STAGE_NAMES)}."
+        )
+    return items
 
 
 def _resolve_bool(value: Any, *, field_name: str, default: bool) -> bool:

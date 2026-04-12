@@ -1,0 +1,62 @@
+research_campaign:
+  targets:
+    alpha_names:
+      - resume_alpha_quality
+      - resume_alpha_diversified
+    strategy_names:
+      - resume_strategy_momentum
+    portfolio_names:
+      - resume_candidate_portfolio
+    alpha_catalog_path: docs/examples/data/milestone_17_campaign_configs/resume_reuse_alphas.yml
+    strategy_config_path: docs/examples/data/milestone_17_campaign_configs/resume_reuse_strategies.yml
+    portfolio_config_path: docs/examples/data/milestone_17_campaign_configs/resume_reuse_portfolios.yml
+
+  dataset_selection:
+    dataset: features_daily
+    timeframe: 1D
+    evaluation_horizon: 5
+    mapping_name: top_bottom_quantile_q20
+
+  time_windows:
+    start: 2025-01-01
+    end: 2025-03-01
+    train_start: 2025-01-01
+    train_end: 2025-02-01
+    predict_start: 2025-02-01
+    predict_end: 2025-03-01
+
+  comparison:
+    enabled: true
+    alpha_view: combined
+    alpha_metric: ic_ir
+    alpha_sleeve_metric: sharpe_ratio
+    top_k: 5
+
+  candidate_selection:
+    enabled: true
+    alpha_name: resume_alpha_quality
+    metric: ic_ir
+    max_candidates: 2
+    output:
+      path: docs/examples/output/real_world_resume_workflow_case_study/artifacts/candidate_selection
+      review_output_path: docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/candidate_review
+    execution:
+      enable_review: true
+      register_run: true
+
+  portfolio:
+    enabled: true
+    from_candidate_selection: true
+    portfolio_name: resume_candidate_portfolio
+
+  review:
+    output:
+      path: docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/research_review
+      emit_plots: false
+
+  outputs:
+    alpha_artifacts_root: docs/examples/output/real_world_resume_workflow_case_study/artifacts/alpha
+    comparison_output_path: docs/examples/output/real_world_resume_workflow_case_study/artifacts/campaign_comparisons
+    campaign_artifacts_root: docs/examples/output/real_world_resume_workflow_case_study/artifacts/research_campaigns
+    portfolio_artifacts_root: docs/examples/output/real_world_resume_workflow_case_study/artifacts/portfolios
+    review_output_path: docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/research_review

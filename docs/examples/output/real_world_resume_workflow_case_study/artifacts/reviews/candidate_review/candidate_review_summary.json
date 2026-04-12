@@ -1,0 +1,9 @@
+{
+  "candidate_selection_run_id": "candidate_selection_resume_demo",
+  "counts": {
+    "rejected_candidates": 0,
+    "selected_candidates": 2,
+    "total_candidates": 2
+  },
+  "portfolio_run_id": "resume_candidate_portfolio_portfolio_resume_demo"
+}

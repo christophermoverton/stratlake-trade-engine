@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import argparse
 from contextlib import contextmanager
 from dataclasses import dataclass
 import json
@@ -57,6 +58,18 @@ def example_environment() -> Iterator[None]:
 
 def _read_json(path: Path) -> dict[str, Any]:
     return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _path_from_result(result: Any, attribute: str, fallback: Path) -> Path:
+    value = getattr(result, attribute, None)
+    if value is None:
+        return fallback
+    return Path(value)
+
+
+def _value_from_result(result: Any, attribute: str, fallback: Any = None) -> Any:
+    value = getattr(result, attribute, None)
+    return fallback if value is None else value
 
 
 def _relative_to_output(path: Path, output_root: Path) -> str:
@@ -118,6 +131,59 @@ def _resolved_config(output_root: Path) -> dict[str, Any]:
     return base
 
 
+def _execute_campaign(
+    output_root: Path,
+    *,
+    reset_output: bool,
+) -> tuple[Any, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    if reset_output and output_root.exists():
+        shutil.rmtree(output_root)
+    output_root.mkdir(parents=True, exist_ok=True)
+
+    with example_environment():
+        config = resolve_research_campaign_config(_resolved_config(output_root))
+        result = run_research_campaign(config)
+
+    comparison_leaderboard = pd.read_csv(
+        _path_from_result(
+            result.alpha_comparison_result,
+            "csv_path",
+            Path(config.outputs.comparison_output_path) / "alpha" / "leaderboard.csv",
+        )
+    )
+    candidate_selection_dir = Path(result.candidate_selection_result.artifact_dir)
+    selected_candidates = pd.read_csv(
+        _path_from_result(
+            result.candidate_selection_result,
+            "selected_csv",
+            candidate_selection_dir / "selected_candidates.csv",
+        )
+    )
+    rejected_candidates = pd.read_csv(
+        _path_from_result(
+            result.candidate_selection_result,
+            "rejected_csv",
+            candidate_selection_dir / "rejected_candidates.csv",
+        )
+    )
+    portfolio_returns = pd.read_csv(result.portfolio_result.experiment_dir / "portfolio_returns.csv")
+    review_leaderboard = pd.read_csv(
+        _path_from_result(
+            result.review_result,
+            "csv_path",
+            Path(config.review.output.path) / "leaderboard.csv",
+        )
+    )
+    return (
+        result,
+        comparison_leaderboard,
+        selected_candidates,
+        rejected_candidates,
+        portfolio_returns,
+        review_leaderboard,
+    )
+
+
 def _write_summary(
     output_root: Path,
     *,
@@ -127,33 +193,77 @@ def _write_summary(
     rejected_candidates: pd.DataFrame,
     portfolio_returns: pd.DataFrame,
     review_leaderboard: pd.DataFrame,
+    checkpoint_demo: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     campaign_summary = _read_json(result.campaign_summary_path)
-    candidate_selection_summary = _read_json(result.candidate_selection_result.summary_json)
-    candidate_selection_manifest = _read_json(result.candidate_selection_result.manifest_json)
-    candidate_review_summary = _read_json(result.candidate_review_result.candidate_review_summary_json)
-    candidate_review_manifest = _read_json(result.candidate_review_result.manifest_json)
+    comparison_csv = _path_from_result(
+        result.alpha_comparison_result,
+        "csv_path",
+        Path(result.config.outputs.comparison_output_path) / "alpha" / "leaderboard.csv",
+    )
+    candidate_selection_dir = Path(result.candidate_selection_result.artifact_dir)
+    candidate_selection_summary = _read_json(
+        _path_from_result(
+            result.candidate_selection_result,
+            "summary_json",
+            candidate_selection_dir / "selection_summary.json",
+        )
+    )
+    candidate_selection_manifest = _read_json(
+        _path_from_result(
+            result.candidate_selection_result,
+            "manifest_json",
+            candidate_selection_dir / "manifest.json",
+        )
+    )
+    candidate_review_dir = Path(result.candidate_review_result.review_dir)
+    candidate_review_summary = _read_json(
+        _path_from_result(
+            result.candidate_review_result,
+            "candidate_review_summary_json",
+            candidate_review_dir / "candidate_review_summary.json",
+        )
+    )
+    candidate_review_manifest = _read_json(
+        _path_from_result(
+            result.candidate_review_result,
+            "manifest_json",
+            candidate_review_dir / "manifest.json",
+        )
+    )
     portfolio_manifest = _read_json(result.portfolio_result.experiment_dir / "manifest.json")
     portfolio_metrics = _read_json(result.portfolio_result.experiment_dir / "metrics.json")
+
+    review_csv = _path_from_result(
+        result.review_result,
+        "csv_path",
+        Path(result.config.review.output.path) / "leaderboard.csv",
+    )
 
     alpha_runs = []
     for alpha_result in sorted(result.alpha_results, key=lambda item: str(item.alpha_name)):
         evaluation_summary = alpha_result.evaluation.evaluation_result.summary
         sleeve_metrics = _read_json(Path(alpha_result.artifact_dir) / "sleeve_metrics.json")
         alpha_runs.append(
-            {
-                "alpha_name": alpha_result.alpha_name,
-                "run_id": alpha_result.run_id,
-                "mean_ic": float(evaluation_summary["mean_ic"]),
-                "ic_ir": None if evaluation_summary["ic_ir"] is None else float(evaluation_summary["ic_ir"]),
-                "mean_rank_ic": float(evaluation_summary["mean_rank_ic"]),
-                "rank_ic_ir": (
-                    None if evaluation_summary["rank_ic_ir"] is None else float(evaluation_summary["rank_ic_ir"])
-                ),
-                "n_periods": int(evaluation_summary["n_periods"]),
-                "sleeve_total_return": float(sleeve_metrics.get("total_return", 0.0)),
-                "sleeve_sharpe_ratio": float(sleeve_metrics.get("sharpe_ratio", 0.0)),
-            }
+                {
+                    "alpha_name": alpha_result.alpha_name,
+                    "run_id": alpha_result.run_id,
+                    "mean_ic": float(evaluation_summary["mean_ic"]),
+                    "ic_ir": None if evaluation_summary["ic_ir"] is None else float(evaluation_summary["ic_ir"]),
+                    "mean_rank_ic": (
+                        None
+                        if evaluation_summary.get("mean_rank_ic") is None
+                        else float(evaluation_summary["mean_rank_ic"])
+                    ),
+                    "rank_ic_ir": (
+                        None
+                        if evaluation_summary.get("rank_ic_ir") is None
+                        else float(evaluation_summary["rank_ic_ir"])
+                    ),
+                    "n_periods": int(evaluation_summary["n_periods"]),
+                    "sleeve_total_return": float(sleeve_metrics.get("total_return", 0.0)),
+                    "sleeve_sharpe_ratio": float(sleeve_metrics.get("sharpe_ratio", 0.0)),
+                }
         )
 
     summary = {
@@ -182,15 +292,16 @@ def _write_summary(
             "status": campaign_summary["status"],
             "preflight_status": campaign_summary["preflight_status"],
             "stage_statuses": campaign_summary["stage_statuses"],
+            "reused_stage_count": campaign_summary["checkpoint"]["reused_stage_count"],
             "summary_path": _relative_to_output(result.campaign_summary_path, output_root),
             "manifest_path": _relative_to_output(result.campaign_manifest_path, output_root),
         },
         "alpha_runs": alpha_runs,
         "comparison": {
-            "comparison_id": result.alpha_comparison_result.comparison_id,
-            "view": result.alpha_comparison_result.view,
-            "metric": result.alpha_comparison_result.metric,
-            "sleeve_metric": result.alpha_comparison_result.sleeve_metric,
+            "comparison_id": _value_from_result(result.alpha_comparison_result, "comparison_id"),
+            "view": _value_from_result(result.alpha_comparison_result, "view"),
+            "metric": _value_from_result(result.alpha_comparison_result, "metric"),
+            "sleeve_metric": _value_from_result(result.alpha_comparison_result, "sleeve_metric"),
             "row_count": int(len(comparison_leaderboard)),
             "leaderboard_preview": _preview(
                 comparison_leaderboard,
@@ -208,7 +319,11 @@ def _write_summary(
                 "selected": result.candidate_selection_result.selected_count,
                 "pruned_by_redundancy": result.candidate_selection_result.pruned_by_redundancy,
             },
-            "stage_execution": result.candidate_selection_result.stage_execution,
+            "stage_execution": _value_from_result(
+                result.candidate_selection_result,
+                "stage_execution",
+                campaign_summary["stage_execution"]["candidate_selection"],
+            ),
             "selection_summary": candidate_selection_summary,
             "manifest_artifact_files": candidate_selection_manifest.get("artifact_files"),
             "selected_preview": _preview(
@@ -276,13 +391,15 @@ def _write_summary(
         "artifacts": {
             "output_root": output_root.as_posix(),
             "campaign_dir": _relative_to_output(result.campaign_artifact_dir, output_root),
-            "comparison_csv": _relative_to_output(result.alpha_comparison_result.csv_path, output_root),
+            "comparison_csv": _relative_to_output(comparison_csv, output_root),
             "candidate_selection_dir": _relative_to_output(result.candidate_selection_result.artifact_dir, output_root),
             "portfolio_dir": _relative_to_output(result.portfolio_result.experiment_dir, output_root),
-            "review_dir": _relative_to_output(result.review_result.csv_path.parent, output_root),
+            "review_dir": _relative_to_output(review_csv.parent, output_root),
             "summary": SUMMARY_FILENAME,
         },
     }
+    if checkpoint_demo is not None:
+        summary["checkpoint_demo"] = checkpoint_demo
 
     normalized = _normalize_json_value(summary)
     (output_root / SUMMARY_FILENAME).write_text(
@@ -298,8 +415,17 @@ def print_summary(summary: dict[str, Any], output_root: Path) -> None:
     print(
         "Campaign: "
         f"{summary['campaign']['campaign_run_id']} "
-        f"(status={summary['campaign']['status']}, preflight={summary['campaign']['preflight_status']})"
+        f"(status={summary['campaign']['status']}, preflight={summary['campaign']['preflight_status']}, "
+        f"reused={summary['campaign']['reused_stage_count']})"
     )
+    checkpoint_demo = summary.get("checkpoint_demo")
+    if isinstance(checkpoint_demo, dict):
+        print(
+            "Checkpoint demo: "
+            f"same_campaign_run_id={checkpoint_demo['same_campaign_run_id']}, "
+            f"fingerprints_stable={checkpoint_demo['fingerprints_stable']}, "
+            f"second_run_reused={checkpoint_demo['second_run']['reused_stage_count']}"
+        )
     print("Alpha runs:")
     print(pd.DataFrame(summary["alpha_runs"]).to_string(index=False))
     counts = summary["candidate_selection"]["counts"]
@@ -324,21 +450,24 @@ def print_summary(summary: dict[str, Any], output_root: Path) -> None:
     print(f"Output directory: {output_root.as_posix()}")
 
 
-def run_example(*, output_root: Path | None = None, verbose: bool = True) -> ExampleArtifacts:
+def run_example(
+    *,
+    output_root: Path | None = None,
+    verbose: bool = True,
+    reset_output: bool = True,
+) -> ExampleArtifacts:
     resolved_output_root = DEFAULT_OUTPUT_ROOT if output_root is None else Path(output_root)
-    if resolved_output_root.exists():
-        shutil.rmtree(resolved_output_root)
-    resolved_output_root.mkdir(parents=True, exist_ok=True)
-
-    with example_environment():
-        config = resolve_research_campaign_config(_resolved_config(resolved_output_root))
-        result = run_research_campaign(config)
-
-    comparison_leaderboard = pd.read_csv(result.alpha_comparison_result.csv_path)
-    selected_candidates = pd.read_csv(result.candidate_selection_result.selected_csv)
-    rejected_candidates = pd.read_csv(result.candidate_selection_result.rejected_csv)
-    portfolio_returns = pd.read_csv(result.portfolio_result.experiment_dir / "portfolio_returns.csv")
-    review_leaderboard = pd.read_csv(result.review_result.csv_path)
+    (
+        result,
+        comparison_leaderboard,
+        selected_candidates,
+        rejected_candidates,
+        portfolio_returns,
+        review_leaderboard,
+    ) = _execute_campaign(
+        resolved_output_root,
+        reset_output=reset_output,
+    )
 
     summary = _write_summary(
         resolved_output_root,
@@ -365,8 +494,111 @@ def run_example(*, output_root: Path | None = None, verbose: bool = True) -> Exa
     )
 
 
-def main() -> None:
-    run_example()
+def run_checkpoint_demo(*, output_root: Path | None = None, verbose: bool = True) -> ExampleArtifacts:
+    resolved_output_root = DEFAULT_OUTPUT_ROOT if output_root is None else Path(output_root)
+    (
+        first_result,
+        comparison_leaderboard,
+        selected_candidates,
+        rejected_candidates,
+        portfolio_returns,
+        review_leaderboard,
+    ) = _execute_campaign(
+        resolved_output_root,
+        reset_output=True,
+    )
+    first_campaign_summary = _read_json(first_result.campaign_summary_path)
+    first_checkpoint = _read_json(first_result.campaign_checkpoint_path)
+
+    second_result, _, _, _, _, _ = _execute_campaign(resolved_output_root, reset_output=False)
+    second_campaign_summary = _read_json(second_result.campaign_summary_path)
+    second_checkpoint = _read_json(second_result.campaign_checkpoint_path)
+
+    checkpoint_demo = {
+        "same_campaign_run_id": first_result.campaign_run_id == second_result.campaign_run_id,
+        "fingerprints_stable": (
+            first_checkpoint["stage_input_fingerprints"] == second_checkpoint["stage_input_fingerprints"]
+        ),
+        "first_run": {
+            "campaign_run_id": first_result.campaign_run_id,
+            "status": first_campaign_summary["status"],
+            "stage_statuses": first_campaign_summary["stage_statuses"],
+            "reused_stage_count": first_checkpoint["reused_stage_count"],
+        },
+        "second_run": {
+            "campaign_run_id": second_result.campaign_run_id,
+            "status": second_campaign_summary["status"],
+            "stage_statuses": second_campaign_summary["stage_statuses"],
+            "reused_stage_count": second_checkpoint["reused_stage_count"],
+        },
+    }
+
+    summary = _write_summary(
+        resolved_output_root,
+        result=first_result,
+        comparison_leaderboard=comparison_leaderboard,
+        selected_candidates=selected_candidates,
+        rejected_candidates=rejected_candidates,
+        portfolio_returns=portfolio_returns,
+        review_leaderboard=review_leaderboard,
+        checkpoint_demo=checkpoint_demo,
+    )
+    summary["campaign"] = {
+        "campaign_run_id": second_result.campaign_run_id,
+        "status": second_campaign_summary["status"],
+        "preflight_status": second_campaign_summary["preflight_status"],
+        "stage_statuses": second_campaign_summary["stage_statuses"],
+        "reused_stage_count": second_checkpoint["reused_stage_count"],
+        "summary_path": _relative_to_output(second_result.campaign_summary_path, resolved_output_root),
+        "manifest_path": _relative_to_output(second_result.campaign_manifest_path, resolved_output_root),
+    }
+    normalized_summary = _normalize_json_value(summary)
+    (resolved_output_root / SUMMARY_FILENAME).write_text(
+        json.dumps(normalized_summary, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    if verbose:
+        print("First campaign run")
+        print_campaign_summary(first_result)
+        print()
+        print("Checkpoint replay run")
+        print_campaign_summary(second_result)
+        print()
+        print_summary(normalized_summary, resolved_output_root)
+
+    return ExampleArtifacts(
+        summary=normalized_summary,
+        comparison_leaderboard=comparison_leaderboard,
+        selected_candidates=selected_candidates,
+        rejected_candidates=rejected_candidates,
+        portfolio_returns=portfolio_returns,
+        review_leaderboard=review_leaderboard,
+    )
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Run the real-world campaign case study.")
+    parser.add_argument(
+        "--checkpoint-demo",
+        action="store_true",
+        help="Run the campaign twice on the same artifact root to demonstrate checkpoint reuse.",
+    )
+    parser.add_argument(
+        "--output-root",
+        help="Optional output root override. Defaults to docs/examples/output/real_world_campaign_case_study.",
+    )
+    return parser.parse_args(argv)
+
+
+def main(argv: list[str] | None = None) -> None:
+    args = parse_args(argv)
+    output_root = None if args.output_root is None else Path(args.output_root)
+    if args.checkpoint_demo:
+        run_checkpoint_demo(output_root=output_root)
+        return
+    run_example(output_root=output_root)
 
 
 if __name__ == "__main__":

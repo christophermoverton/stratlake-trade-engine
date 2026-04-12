@@ -1,0 +1,19 @@
+resume_alpha_quality:
+  alpha_name: resume_alpha_quality
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns:
+    - feature_ret_1d
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5
+
+resume_alpha_diversified:
+  alpha_name: resume_alpha_diversified
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns:
+    - feature_ret_1d
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 5

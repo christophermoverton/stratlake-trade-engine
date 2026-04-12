@@ -19,6 +19,8 @@ Use this doc as the main practical guide for Milestone 16. For the config
 contract, see [research_campaign_configuration.md](research_campaign_configuration.md).
 For committed example configs, see
 [examples/milestone_16_campaign_workflow.md](examples/milestone_16_campaign_workflow.md).
+For the resume/retry/reuse flow added afterward, see
+[milestone_17_resume_workflow.md](milestone_17_resume_workflow.md).
 
 ## Where It Fits
 
@@ -209,9 +211,88 @@ artifacts/research_campaigns/<campaign_run_id>/
 Core files:
 
 * `campaign_config.json`
+* `checkpoint.json`
 * `preflight_summary.json`
 * `manifest.json`
 * `summary.json`
+
+### `checkpoint.json`
+
+This is the canonical persisted stage-state contract for resumable campaign
+execution.
+
+It records all seven campaign stages in canonical order and persists one
+normalized state per stage:
+
+* `completed`: stage finished in this campaign run
+* `failed`: stage ran and failed; resume can restart from this boundary
+* `skipped`: stage was intentionally disabled or not applicable
+* `reused`: stage inputs were resolved from an existing artifact or registry
+  entry instead of being recomputed
+* `partial`: stage emitted incomplete resumable state and has not finished yet
+* `pending`: stage has not run yet or is blocked by an upstream failure
+
+Each stage entry also carries deterministic `selected_run_ids`,
+`key_metrics`, `output_paths`, `outcomes`, `details`, plus `terminal` and
+`resumable` flags so orchestration tooling can decide whether to continue,
+retry, or inspect reused artifacts.
+
+Each stage entry now also persists:
+
+* `fingerprint_inputs`: the canonical stage-defining inputs after campaign
+  defaults, inheritance, and upstream chaining are resolved
+* `input_fingerprint`: a deterministic SHA-256 hash of those canonical
+  `fingerprint_inputs`
+
+The checkpoint root mirrors those values in `stage_input_fingerprints` so
+orchestration code can compare the current effective inputs with prior
+campaign state without reparsing every stage payload.
+
+### Fingerprint Rules
+
+The fingerprints intentionally capture the inputs that define stage behavior,
+not incidental bookkeeping like campaign artifact file names.
+
+Current rules:
+
+* `preflight` fingerprints the fully normalized campaign config because
+  preflight validates the whole effective workflow contract.
+* `research` fingerprints shared dataset/time-window context, alpha and
+  strategy target selection, catalog paths, and the alpha artifact root used
+  by downstream stages.
+* `comparison` fingerprints the normalized comparison config plus the upstream
+  `research` fingerprint.
+* `candidate_selection` fingerprints the candidate-selection config after
+  removing non-defining output and registration knobs, then chains in the
+  upstream `research` fingerprint and any resolved reference metadata.
+* `portfolio` fingerprints the normalized portfolio config plus the upstream
+  `candidate_selection` fingerprint or resolved candidate-selection reference.
+* `candidate_review` fingerprints the review-mode knobs for candidate review
+  plus the upstream candidate-selection and portfolio fingerprints.
+* `review` fingerprints the normalized unified-review config, the registry
+  artifact roots it reads from, and the upstream comparison/candidate-review
+  fingerprints.
+
+That means orchestration can safely reuse a prior stage only when the stored
+`input_fingerprint` exactly matches the fingerprint for the current effective
+inputs for that stage.
+
+### Reuse Policy Controls
+
+Campaign configs can now override the default "reuse on exact fingerprint
+match" behavior through `reuse_policy`:
+
+* `enable_checkpoint_reuse: false` disables checkpoint reuse entirely
+* `reuse_prior_stages` whitelists the stages that may restore matching
+  checkpoints
+* `force_rerun_stages` forces selected stages to execute again even when their
+  fingerprints match
+* `invalidate_downstream_after_stages` cascades a rerun into every later stage
+  in the same campaign pass
+
+Every stage persists the applied decision under `details.reuse_policy` so
+operators can see whether a stage reused prior work, reran because of policy,
+or reran because an upstream stage invalidated downstream reuse.
 
 ### `campaign_config.json`
 
@@ -247,6 +328,7 @@ This is the main machine-readable stitched output for the campaign.
 It includes:
 
 * `stage_statuses`
+* `checkpoint`
 * ordered `stages`
 * `selected_run_ids`
 * `key_metrics`
@@ -268,6 +350,7 @@ This is the campaign inventory file.
 It records:
 
 * the core campaign artifact set
+* the relative checkpoint path
 * stage statuses
 * selected run ids
 * campaign targets
@@ -395,4 +478,7 @@ detail that still matters.
 * [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)
 * [milestone_15_candidate_selection_issue_1.md](milestone_15_candidate_selection_issue_1.md)
 * [milestone_16_merge_readiness.md](milestone_16_merge_readiness.md)
+* [milestone_17_resume_workflow.md](milestone_17_resume_workflow.md)
 * [examples/milestone_16_campaign_workflow.md](examples/milestone_16_campaign_workflow.md)
+* [examples/milestone_17_resume_workflow.md](examples/milestone_17_resume_workflow.md)
+* [examples/real_world_resume_workflow_case_study.md](examples/real_world_resume_workflow_case_study.md)

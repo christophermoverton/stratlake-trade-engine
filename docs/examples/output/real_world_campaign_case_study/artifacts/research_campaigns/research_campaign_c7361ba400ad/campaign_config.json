@@ -79,6 +79,20 @@
     "portfolio_name": "real_world_m16_campaign_case_study",
     "timeframe": "1D"
   },
+  "reuse_policy": {
+    "enable_checkpoint_reuse": true,
+    "force_rerun_stages": [],
+    "invalidate_downstream_after_stages": [],
+    "reuse_prior_stages": [
+      "preflight",
+      "research",
+      "comparison",
+      "candidate_selection",
+      "portfolio",
+      "candidate_review",
+      "review"
+    ]
+  },
   "review": {
     "filters": {
       "alpha_name": null,

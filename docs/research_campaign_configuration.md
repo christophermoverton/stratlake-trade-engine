@@ -2,6 +2,8 @@
 
 For the practical end-to-end workflow guide, see
 [milestone_16_campaign_workflow.md](milestone_16_campaign_workflow.md).
+For the operator-facing resume/retry/reuse flow, see
+[milestone_17_resume_workflow.md](milestone_17_resume_workflow.md).
 
 `src.config.research_campaign` defines one normalized contract for campaign-level
 research settings that span alpha comparison, strategy comparison, candidate
@@ -15,6 +17,9 @@ The campaign schema supports these sections:
   mapping name, and optional ticker file
 * `time_windows`: shared outer, train, and predict windows
 * `targets`: alpha, strategy, and portfolio names plus catalog/config paths
+* `reuse_policy`: operator-facing checkpoint reuse controls for explicit
+  stage reuse, forced reruns, global reuse disablement, and optional
+  downstream invalidation after a rerun
 * `comparison`: registry-backed comparison settings and ranking controls
 * `candidate_selection`: governed-candidate filters, thresholds, allocation,
   execution toggles, and artifact destinations
@@ -61,6 +66,27 @@ The loader applies a few shared defaults so one campaign file can stay concise:
   `outputs.alpha_artifacts_root` when left at the default `artifacts/alpha`
 * string lists are trimmed, deduplicated, and preserved in input order
 * path-like strings are normalized to forward-slash form for stable manifests
+* `reuse_policy` stage lists are normalized against the canonical campaign
+  stage order: `preflight`, `research`, `comparison`, `candidate_selection`,
+  `portfolio`, `candidate_review`, and `review`
+
+## Reuse Policy
+
+`reuse_policy` makes campaign resume behavior explicit instead of purely
+implicit:
+
+* `enable_checkpoint_reuse`: when `false`, every stage reruns even if a
+  matching checkpoint exists
+* `reuse_prior_stages`: whitelist of stages allowed to restore a matching
+  checkpoint
+* `force_rerun_stages`: stages that must rerun even when their checkpoint
+  fingerprint matches
+* `invalidate_downstream_after_stages`: when one of these stages reruns, all
+  later stages rerun in the same campaign pass
+
+Default behavior remains unchanged: checkpoint reuse stays enabled, every stage
+is eligible for reuse, no stages are force-rerun, and downstream invalidation
+is opt-in.
 
 ## Preflight
 
@@ -80,6 +106,7 @@ Preflight validates:
 Each campaign persists:
 
 * `campaign_config.json`
+* `checkpoint.json`
 * `preflight_summary.json`
 * `manifest.json`
 * `summary.json`
@@ -96,19 +123,49 @@ inspect the failed stage state without parsing exception text.
 The campaign directory now acts as the top-level stitched artifact surface for
 the full workflow:
 
+* `checkpoint.json`: canonical resumable campaign state with one persisted
+  stage-state record for each of `preflight`, `research`, `comparison`,
+  `candidate_selection`, `portfolio`, `candidate_review`, and `review`
 * `manifest.json`: deterministic file inventory and stage/run index for the
   campaign artifact directory itself
 * `summary.json`: machine-readable stitched campaign output with:
-  * stage status for preflight, research, comparison, candidate selection,
+  * stage state for preflight, research, comparison, candidate selection,
     portfolio, candidate review, and unified review
   * selected run IDs and comparison/review IDs
   * key alpha, strategy, candidate-selection, portfolio, and review metrics
   * output file paths for downstream stage artifacts
   * final review and promotion outcomes when review promotion gates are present
 
+The canonical checkpoint stage states are:
+
+* `completed`
+* `failed`
+* `skipped`
+* `reused`
+* `partial`
+* `pending`
+
 `summary.json` is intended for automation, orchestration, and audit tooling,
 while `manifest.json` is the stable inventory entry point for the campaign
-directory.
+directory and `checkpoint.json` is the resumable execution contract.
+
+Each executed or reused stage also persists `details.reuse_policy`, which
+records the deterministic reuse decision that was applied for that stage,
+including whether a checkpoint matched, whether fingerprints matched, whether
+the stage was invalidated by an upstream rerun, and the exact reason for the
+final reuse vs rerun choice.
+
+Milestone 17 also exposes stitched retry and resumability metadata directly in
+the campaign artifacts:
+
+* `summary.json.final_outcomes.retry_stage_names`
+* `summary.json.final_outcomes.partial_stage_names`
+* `summary.json.final_outcomes.resumable_stage_names`
+* `summary.json.stage_execution`
+* `manifest.json.retry_stage_names`
+* `manifest.json.partial_stage_names`
+* `manifest.json.resumable_stage_names`
+* `manifest.json.stage_execution`
 
 ## Loading
 

@@ -433,6 +433,15 @@ portfolios:
     assert campaign_manifest["checkpoint_path"] == "checkpoint.json"
     assert campaign_manifest["summary_path"] == "summary.json"
     assert campaign_manifest["stage_statuses"]["candidate_review"] == "completed"
+    assert campaign_manifest["skipped_stage_names"] == []
+    assert campaign_manifest["resumable_stage_names"] == []
+    assert campaign_manifest["stage_execution"]["candidate_review"]["resume"]["resumable"] is False
+    assert campaign_manifest["stage_execution"]["candidate_review"]["retry"]["attempted"] is False
+    assert campaign_manifest["stage_execution"]["candidate_review"]["skip"]["skipped"] is False
+    assert (
+        campaign_manifest["stage_execution"]["candidate_review"]["fingerprint"]["input_fingerprint"]
+        == campaign_checkpoint["stage_input_fingerprints"]["candidate_review"]
+    )
     assert campaign_manifest["selected_run_ids"]["portfolio_run_id"] == "portfolio_run"
 
     assert campaign_summary["run_type"] == "research_campaign"
@@ -445,7 +454,17 @@ portfolios:
     assert campaign_summary["selected_run_ids"]["portfolio_run_id"] == "portfolio_run"
     assert campaign_summary["selected_run_ids"]["review_id"] == "review_run"
     assert campaign_summary["stage_statuses"]["candidate_review"] == "completed"
+    assert campaign_summary["final_outcomes"]["skipped_stage_names"] == []
+    assert campaign_summary["final_outcomes"]["resumable_stage_names"] == []
     assert campaign_summary["checkpoint"]["stage_states"]["candidate_review"] == "completed"
+    candidate_review_stage = next(
+        stage for stage in campaign_summary["stages"] if stage["stage_name"] == "candidate_review"
+    )
+    assert candidate_review_stage["execution_metadata"] == campaign_summary["stage_execution"]["candidate_review"]
+    assert candidate_review_stage["execution_metadata"]["resume"]["checkpoint_state"] == "completed"
+    assert candidate_review_stage["execution_metadata"]["reuse"]["reused"] is False
+    assert candidate_review_stage["execution_metadata"]["skip"]["skipped"] is False
+    assert candidate_review_stage["execution_metadata"]["failure"] is None
     assert campaign_summary["output_paths"]["candidate_review_dir"] == review_dir.as_posix()
     assert campaign_summary["output_paths"]["campaign_checkpoint"] == result.campaign_checkpoint_path.as_posix()
     assert "candidate_review_counts" in campaign_summary["final_outcomes"]
@@ -2173,9 +2192,22 @@ portfolios:
     }
     assert failed_summary["final_outcomes"]["failed_stage_names"] == ["candidate_selection"]
     assert failed_summary["final_outcomes"]["retry_stage_names"] == []
+    assert failed_summary["final_outcomes"]["resumable_stage_names"] == [
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review",
+    ]
+    assert failed_stage["execution_metadata"]["resume"]["resumable"] is True
+    assert failed_stage["execution_metadata"]["retry"]["attempted"] is False
+    assert failed_stage["execution_metadata"]["failure"]["message"] == "candidate selection exploded"
+    assert failed_stage["execution_metadata"]["fingerprint"]["input_fingerprint"] == (
+        failed_checkpoint["stage_input_fingerprints"]["candidate_selection"]
+    )
 
     resumed_result = run_research_campaign(config)
     resumed_summary = json.loads(resumed_result.campaign_summary_path.read_text(encoding="utf-8"))
+    resumed_manifest = json.loads(resumed_result.campaign_manifest_path.read_text(encoding="utf-8"))
     resumed_checkpoint = json.loads(resumed_result.campaign_checkpoint_path.read_text(encoding="utf-8"))
     resumed_stage = next(stage for stage in resumed_summary["stages"] if stage["stage_name"] == "candidate_selection")
 
@@ -2188,6 +2220,10 @@ portfolios:
     assert resumed_stage["details"]["retry"]["previous_failure"]["message"] == "candidate selection exploded"
     assert resumed_summary["final_outcomes"]["retry_stage_names"] == ["candidate_selection"]
     assert resumed_summary["stage_state_counts"]["reused"] == 3
+    assert resumed_stage["execution_metadata"]["retry"]["attempted"] is True
+    assert resumed_stage["execution_metadata"]["retry"]["previous_state"] == "failed"
+    assert resumed_stage["execution_metadata"]["reuse"]["reused"] is False
+    assert resumed_manifest["stage_execution"]["candidate_selection"]["retry"]["attempted"] is True
 
 
 def test_run_research_campaign_persists_partial_stage_metadata_for_interrupts(
@@ -2319,6 +2355,16 @@ portfolios:
     assert partial_stage["details"]["failure"]["kind"] == "interrupted"
     assert partial_stage["details"]["failure"]["message"] == "manual stop"
     assert partial_summary["final_outcomes"]["partial_stage_names"] == ["comparison"]
+    assert partial_summary["final_outcomes"]["resumable_stage_names"] == [
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review",
+    ]
+    assert partial_stage["execution_metadata"]["resume"]["resumable"] is True
+    assert partial_stage["execution_metadata"]["failure"]["kind"] == "interrupted"
+    assert partial_stage["execution_metadata"]["retry"]["attempted"] is False
 
     resumed_result = run_research_campaign(config)
     print_summary(resumed_result)
@@ -2330,6 +2376,8 @@ portfolios:
     assert resumed_stage["details"]["retry"]["attempted"] is True
     assert resumed_stage["details"]["retry"]["previous_state"] == "partial"
     assert resumed_summary["final_outcomes"]["retry_stage_names"] == ["comparison"]
+    assert resumed_stage["execution_metadata"]["retry"]["attempted"] is True
+    assert resumed_stage["execution_metadata"]["retry"]["previous_state"] == "partial"
     assert "Stage States: completed=" in stdout
     assert "reused=" in stdout
     assert "Stage Details: preflight=reused | research=reused | comparison=completed" in stdout
@@ -2668,6 +2716,7 @@ portfolios:
         "portfolio": 2,
         "strategy": 1,
     }
+    assert summary["final_outcomes"]["skipped_stage_names"] == []
     assert [stage["state"] for stage in summary["stages"]] == [
         "reused",
         "reused",
@@ -2677,6 +2726,11 @@ portfolios:
         "reused",
         "reused",
     ]
+    assert summary["stage_execution"]["preflight"]["reuse"]["reused"] is True
+    assert summary["stage_execution"]["preflight"]["reuse"]["decision"]["fingerprint_match"] is True
+    assert summary["stage_execution"]["preflight"]["retry"]["attempted"] is False
+    assert summary["stage_execution"]["preflight"]["skip"]["skipped"] is False
+    assert manifest["stage_execution"]["preflight"] == summary["stage_execution"]["preflight"]
     assert manifest["artifact_files"] == [
         "campaign_config.json",
         "checkpoint.json",

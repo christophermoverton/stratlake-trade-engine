@@ -149,6 +149,83 @@ def _build_stage_failure_details(
     return canonicalize_value(payload)
 
 
+def _stage_execution_metadata(
+    checkpoint_stage: Mapping[str, Any],
+    *,
+    stage_details: Mapping[str, Any] | None,
+) -> dict[str, Any]:
+    details = stage_details if isinstance(stage_details, Mapping) else {}
+    retry_details = details.get("retry") if isinstance(details.get("retry"), Mapping) else None
+    reuse_details = (
+        details.get("reuse_policy") if isinstance(details.get("reuse_policy"), Mapping) else None
+    )
+    failure_details = details.get("failure") if isinstance(details.get("failure"), Mapping) else None
+    state = str(checkpoint_stage.get("state") or "")
+    state_reason = checkpoint_stage.get("state_reason")
+    return canonicalize_value(
+        {
+            "state": state,
+            "resume": {
+                "resumable": bool(checkpoint_stage.get("resumable")),
+                "terminal": bool(checkpoint_stage.get("terminal")),
+                "checkpoint_state": state,
+                "checkpoint_state_reason": state_reason,
+            },
+            "retry": {
+                "attempted": bool(retry_details.get("attempted")) if retry_details is not None else False,
+                "previous_state": None if retry_details is None else retry_details.get("previous_state"),
+                "previous_state_reason": (
+                    None if retry_details is None else retry_details.get("previous_state_reason")
+                ),
+                "previous_failure": None if retry_details is None else retry_details.get("previous_failure"),
+            },
+            "reuse": {
+                "reused": state == "reused",
+                "decision": None if reuse_details is None else canonicalize_value(dict(reuse_details)),
+            },
+            "skip": {
+                "skipped": state == "skipped",
+                "reason": state_reason if state == "skipped" else None,
+            },
+            "failure": None if failure_details is None else canonicalize_value(dict(failure_details)),
+            "checkpoint": {
+                "stage_name": checkpoint_stage.get("stage_name"),
+                "state": state,
+                "state_reason": state_reason,
+                "source": checkpoint_stage.get("source"),
+                "terminal": bool(checkpoint_stage.get("terminal")),
+                "resumable": bool(checkpoint_stage.get("resumable")),
+            },
+            "fingerprint": {
+                "input_fingerprint": checkpoint_stage.get("input_fingerprint"),
+                "fingerprint_inputs": canonicalize_value(
+                    dict(checkpoint_stage.get("fingerprint_inputs") or {})
+                ),
+            },
+        }
+    )
+
+
+def _stage_execution_by_name(
+    checkpoint_payload: Mapping[str, Any],
+    *,
+    stages: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    stage_details_by_name = {
+        str(stage.get("stage_name")): stage.get("details")
+        for stage in stages
+    }
+    return canonicalize_value(
+        {
+            str(checkpoint_stage.get("stage_name")): _stage_execution_metadata(
+                checkpoint_stage,
+                stage_details=stage_details_by_name.get(str(checkpoint_stage.get("stage_name"))),
+            )
+            for checkpoint_stage in checkpoint_payload.get("stages", [])
+        }
+    )
+
+
 def _upsert_stage_record(
     records: Sequence[CampaignStageRecord],
     record: CampaignStageRecord,
@@ -3030,6 +3107,10 @@ def _build_campaign_summary(
         summary_stage = stage_summaries.get(stage_name)
         if summary_stage is None:
             summary_stage = _campaign_pending_stage_summary(stage_name=stage_name)
+        execution_metadata = _stage_execution_metadata(
+            checkpoint_stage,
+            stage_details=summary_stage.get("details"),
+        )
         stages.append(
             canonicalize_value(
                 {
@@ -3039,10 +3120,12 @@ def _build_campaign_summary(
                     "source": checkpoint_stage.get("source"),
                     "terminal": checkpoint_stage["terminal"],
                     "resumable": checkpoint_stage["resumable"],
+                    "execution_metadata": execution_metadata,
                 }
             )
         )
     stage_state_counts = _stage_state_counts(checkpoint_payload["stage_states"])
+    stage_execution = _stage_execution_by_name(checkpoint_payload, stages=stages)
     retry_stage_names = [
         stage["stage_name"]
         for stage in stages
@@ -3064,6 +3147,16 @@ def _build_campaign_summary(
         stage["stage_name"]
         for stage in stages
         if str(stage.get("state")) == "reused"
+    ]
+    skipped_stage_names = [
+        stage["stage_name"]
+        for stage in stages
+        if str(stage.get("state")) == "skipped"
+    ]
+    resumable_stage_names = [
+        stage["stage_name"]
+        for stage in stages
+        if bool(stage.get("resumable"))
     ]
     failure_summaries = [
         canonicalize_value(
@@ -3090,6 +3183,8 @@ def _build_campaign_summary(
         "failed_stage_names": failed_stage_names,
         "partial_stage_names": partial_stage_names,
         "reused_stage_names": reused_stage_names,
+        "skipped_stage_names": skipped_stage_names,
+        "resumable_stage_names": resumable_stage_names,
         "failures": failure_summaries,
         "candidate_review_counts": (
             None
@@ -3128,6 +3223,7 @@ def _build_campaign_summary(
         ),
         "stage_statuses": dict(checkpoint_payload["stage_states"]),
         "stage_state_counts": stage_state_counts,
+        "stage_execution": stage_execution,
         "checkpoint": checkpoint_payload,
         "stages": stages,
         "selected_run_ids": selected_run_ids,
@@ -3146,6 +3242,10 @@ def _build_campaign_manifest(
     checkpoint_payload: dict[str, Any],
     summary_payload: dict[str, Any],
 ) -> dict[str, Any]:
+    stage_execution = _stage_execution_by_name(
+        checkpoint_payload,
+        stages=summary_payload.get("stages", []),
+    )
     artifact_files = sorted(
         [
             CAMPAIGN_CONFIG_FILENAME,
@@ -3186,10 +3286,13 @@ def _build_campaign_manifest(
         "checkpoint_path": CAMPAIGN_CHECKPOINT_FILENAME,
         "stage_statuses": dict(checkpoint_payload["stage_states"]),
         "stage_state_counts": _stage_state_counts(checkpoint_payload["stage_states"]),
+        "stage_execution": stage_execution,
         "retry_stage_names": list(summary_payload.get("final_outcomes", {}).get("retry_stage_names", [])),
         "failed_stage_names": list(summary_payload.get("final_outcomes", {}).get("failed_stage_names", [])),
         "partial_stage_names": list(summary_payload.get("final_outcomes", {}).get("partial_stage_names", [])),
         "reused_stage_names": list(summary_payload.get("final_outcomes", {}).get("reused_stage_names", [])),
+        "skipped_stage_names": list(summary_payload.get("final_outcomes", {}).get("skipped_stage_names", [])),
+        "resumable_stage_names": list(summary_payload.get("final_outcomes", {}).get("resumable_stage_names", [])),
         "selected_run_ids": dict(summary_payload["selected_run_ids"]),
         "targets": canonicalize_value(
             {

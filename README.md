@@ -323,6 +323,8 @@ What it provides:
   stage-level reuse tracking
 * campaign-level `summary.json` and `manifest.json` files for automation and
   auditability
+* per-stage audit metadata in stitched outputs covering resume, retry, reuse,
+  skip, failure, checkpoint state, and fingerprint inputs/details
 
 Start here:
 
@@ -803,6 +805,15 @@ Core files:
 * `preflight_summary.json`
 * `manifest.json`
 * `summary.json`
+
+The stitched `manifest.json` and `summary.json` files expose one
+`stage_execution` mapping plus per-stage `execution_metadata` blocks. Those
+surfaces are intended to answer operational questions deterministically:
+
+* whether a stage is resumable from the persisted checkpoint
+* whether a retry occurred and which prior failure or partial state triggered it
+* whether the stage was reused, skipped, or failed
+* which checkpoint state/source/fingerprint inputs justified that outcome
 
 ### Alpha-evaluation artifacts
 

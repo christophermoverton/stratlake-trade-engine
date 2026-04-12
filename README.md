@@ -8,11 +8,11 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 16 Summary
+## Milestone 17 Summary
 
-Milestone 16 adds a campaign-orchestration layer above the governed
-candidate-selection and allocation workflow introduced in Milestone 15.
-StratLake now supports a
+Milestone 17 keeps the campaign-orchestration layer introduced in Milestone 16
+and extends it with explicit resume, retry, partial-execution, and stage-reuse
+auditability. StratLake now supports a
 deterministic path from evaluated alpha sleeves to candidate decisions,
 redundancy control, governed allocation, candidate-driven portfolio
 construction, and candidate-level review outputs. The repository now supports:
@@ -72,6 +72,8 @@ Start with:
 * [docs/examples/candidate_selection_portfolio_case_study.py](docs/examples/candidate_selection_portfolio_case_study.py)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
+* [docs/milestone_17_resume_workflow.md](docs/milestone_17_resume_workflow.md)
+* [docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 
@@ -115,8 +117,15 @@ The repository currently supports:
   before expensive research execution starts
 * operator-facing `reuse_policy` controls for explicit checkpoint reuse,
   forced reruns, reuse disablement, and downstream invalidation
+* persisted `partial`, `failed`, `pending`, `completed`, and `reused` stage
+  states with resumable checkpoint metadata
+* stitched campaign retry/resume metadata through `stage_execution`,
+  `execution_metadata`, `retry_stage_names`, `partial_stage_names`,
+  `reused_stage_names`, and `resumable_stage_names`
 * stitched campaign `manifest.json` and `summary.json` artifacts for
   automation and multi-stage auditability
+* a committed Milestone 17 resume case study with partial, resumed, and stable
+  reused campaign snapshots
 * deterministic artifacts, manifests, and registry-backed reuse
 
 Feature naming note:
@@ -325,14 +334,19 @@ What it provides:
   auditability
 * per-stage audit metadata in stitched outputs covering resume, retry, reuse,
   skip, failure, checkpoint state, and fingerprint inputs/details
+* a Milestone 17 resume case study showing `partial -> completed -> reused`
+  stage transitions on one stable campaign root
 
 Start here:
 
 * [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
+* [docs/milestone_17_resume_workflow.md](docs/milestone_17_resume_workflow.md)
 * [docs/research_campaign_configuration.md](docs/research_campaign_configuration.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
 * [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
+* [docs/examples/milestone_17_resume_workflow.md](docs/examples/milestone_17_resume_workflow.md)
+* [docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md)
 
 Quick start:
 
@@ -340,6 +354,7 @@ Quick start:
 python -m src.cli.run_research_campaign
 python -m src.cli.run_research_campaign --config docs/examples/data/milestone_16_campaign_configs/full_campaign.yml
 python docs/examples/real_world_campaign_case_study.py
+python docs/examples/real_world_resume_workflow_case_study.py
 ```
 
 ## Cross-Sectional Utilities
@@ -550,6 +565,17 @@ This case study runs the campaign orchestration flow end to end on repository
 rank-composite alphas, then writes stitched campaign, candidate-selection,
 candidate-review, portfolio, and research-review summaries.
 
+### 4g. Run the Milestone 17 resume workflow case study
+
+```powershell
+python docs/examples/real_world_resume_workflow_case_study.py
+```
+
+This case study intentionally interrupts the campaign during `comparison`,
+then reruns on the same campaign root to demonstrate partial checkpoint state,
+resume behavior, retry metadata, full-stage reuse, and committed stitched
+summary/manifest/checkpoint snapshots.
+
 ### 5. Run a portfolio
 
 Baseline registry-backed portfolio:
@@ -671,6 +697,8 @@ See the companion guide
 For the latest real-data Milestone 16 campaign-backed case study on the Q1
 2026 `features_daily` surface, see
 [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md).
+For the Milestone 17 resume/retry/reuse case study, see
+[docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md).
 For the standalone XGBoost alpha workflow, see
 [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md).
 
@@ -864,6 +892,7 @@ Start here:
 * [docs/milestone_13_research_review_workflow.md](docs/milestone_13_research_review_workflow.md)
 * [docs/milestone_15_candidate_selection_issue_1.md](docs/milestone_15_candidate_selection_issue_1.md)
 * [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
+* [docs/milestone_17_resume_workflow.md](docs/milestone_17_resume_workflow.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
@@ -892,6 +921,8 @@ Examples:
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 * [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
 * [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
+* [docs/examples/milestone_17_resume_workflow.md](docs/examples/milestone_17_resume_workflow.md)
+* [docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md)
 * [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)

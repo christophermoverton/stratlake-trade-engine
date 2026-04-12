@@ -1,0 +1,6 @@
+{
+  "comparison_id": "alpha_resume_comparison_demo",
+  "metric": "ic_ir+sharpe_ratio",
+  "row_count": 2,
+  "view": "combined"
+}

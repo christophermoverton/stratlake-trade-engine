@@ -1,0 +1,5 @@
+portfolios:
+  resume_candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: resume_strategy_momentum

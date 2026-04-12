@@ -1,0 +1,13 @@
+{
+  "primary_metric": "ic_ir",
+  "pruned_by_redundancy": 0,
+  "rejected_candidates": 0,
+  "run_id": "candidate_selection_resume_demo",
+  "selected_candidates": 2,
+  "stage_execution": {
+    "allocation": true,
+    "eligibility": true,
+    "redundancy": true,
+    "universe": true
+  }
+}

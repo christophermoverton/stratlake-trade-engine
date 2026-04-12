@@ -1,0 +1,3 @@
+selection_rank,candidate_id,alpha_name,alpha_run_id,ic_ir,allocation_weight
+1,resume_alpha_quality_alpha_eval_resume_demo,resume_alpha_quality,resume_alpha_quality_alpha_eval_resume_demo,1.48,0.6
+2,resume_alpha_diversified_alpha_eval_resume_demo,resume_alpha_diversified,resume_alpha_diversified_alpha_eval_resume_demo,0.94,0.4

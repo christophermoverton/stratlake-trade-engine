@@ -1,0 +1,3 @@
+resume_strategy_momentum:
+  dataset: features_daily
+  parameters: {}

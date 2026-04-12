@@ -1,0 +1,7 @@
+{
+  "artifact_files": [
+    "candidate_review_summary.json",
+    "manifest.json"
+  ],
+  "run_id": "candidate_review_resume_demo"
+}

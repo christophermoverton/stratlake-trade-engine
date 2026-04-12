@@ -1,0 +1,8 @@
+{
+  "artifact_files": [
+    "manifest.json",
+    "metrics.json",
+    "portfolio_returns.csv"
+  ],
+  "run_id": "resume_candidate_portfolio_portfolio_resume_demo"
+}

@@ -2,6 +2,8 @@
 
 For the practical end-to-end workflow guide, see
 [milestone_16_campaign_workflow.md](milestone_16_campaign_workflow.md).
+For the operator-facing resume/retry/reuse flow, see
+[milestone_17_resume_workflow.md](milestone_17_resume_workflow.md).
 
 `src.config.research_campaign` defines one normalized contract for campaign-level
 research settings that span alpha comparison, strategy comparison, candidate
@@ -152,6 +154,18 @@ records the deterministic reuse decision that was applied for that stage,
 including whether a checkpoint matched, whether fingerprints matched, whether
 the stage was invalidated by an upstream rerun, and the exact reason for the
 final reuse vs rerun choice.
+
+Milestone 17 also exposes stitched retry and resumability metadata directly in
+the campaign artifacts:
+
+* `summary.json.final_outcomes.retry_stage_names`
+* `summary.json.final_outcomes.partial_stage_names`
+* `summary.json.final_outcomes.resumable_stage_names`
+* `summary.json.stage_execution`
+* `manifest.json.retry_stage_names`
+* `manifest.json.partial_stage_names`
+* `manifest.json.resumable_stage_names`
+* `manifest.json.stage_execution`
 
 ## Loading
 

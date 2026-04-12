@@ -19,6 +19,8 @@ Use this doc as the main practical guide for Milestone 16. For the config
 contract, see [research_campaign_configuration.md](research_campaign_configuration.md).
 For committed example configs, see
 [examples/milestone_16_campaign_workflow.md](examples/milestone_16_campaign_workflow.md).
+For the resume/retry/reuse flow added afterward, see
+[milestone_17_resume_workflow.md](milestone_17_resume_workflow.md).
 
 ## Where It Fits
 
@@ -476,4 +478,7 @@ detail that still matters.
 * [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)
 * [milestone_15_candidate_selection_issue_1.md](milestone_15_candidate_selection_issue_1.md)
 * [milestone_16_merge_readiness.md](milestone_16_merge_readiness.md)
+* [milestone_17_resume_workflow.md](milestone_17_resume_workflow.md)
 * [examples/milestone_16_campaign_workflow.md](examples/milestone_16_campaign_workflow.md)
+* [examples/milestone_17_resume_workflow.md](examples/milestone_17_resume_workflow.md)
+* [examples/real_world_resume_workflow_case_study.md](examples/real_world_resume_workflow_case_study.md)

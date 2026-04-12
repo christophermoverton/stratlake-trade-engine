@@ -1,0 +1,728 @@
+{
+  "artifacts": {
+    "campaign_dir": "artifacts/research_campaigns/research_campaign_7327a8915d50",
+    "output_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study",
+    "snapshots": {
+      "partial": {
+        "checkpoint": "snapshots/partial_checkpoint.json",
+        "manifest": "snapshots/partial_manifest.json",
+        "summary": "snapshots/partial_summary.json"
+      },
+      "resumed": {
+        "checkpoint": "snapshots/resumed_checkpoint.json",
+        "manifest": "snapshots/resumed_manifest.json",
+        "summary": "snapshots/resumed_summary.json"
+      },
+      "stable": {
+        "checkpoint": "snapshots/stable_checkpoint.json",
+        "manifest": "snapshots/stable_manifest.json",
+        "summary": "snapshots/stable_summary.json"
+      }
+    },
+    "summary": "summary.json"
+  },
+  "campaign": {
+    "campaign_run_id": "research_campaign_7327a8915d50",
+    "checkpoint_path": "artifacts/research_campaigns/research_campaign_7327a8915d50/checkpoint.json",
+    "manifest_path": "artifacts/research_campaigns/research_campaign_7327a8915d50/manifest.json",
+    "same_campaign_run_id_across_passes": true,
+    "summary_path": "artifacts/research_campaigns/research_campaign_7327a8915d50/summary.json"
+  },
+  "config": {
+    "alpha_names": [
+      "resume_alpha_quality",
+      "resume_alpha_diversified"
+    ],
+    "dataset": "features_daily",
+    "evaluation_horizon": 5,
+    "mapping_name": "top_bottom_quantile_q20",
+    "portfolio_name": "resume_candidate_portfolio",
+    "source_config": "docs/examples/data/milestone_17_campaign_configs/resume_reuse_campaign.yml",
+    "strategy_names": [
+      "resume_strategy_momentum"
+    ],
+    "timeframe": "1D"
+  },
+  "resume_workflow": {
+    "attempt_counts": {
+      "comparison": 2
+    },
+    "interrupt_stage": "comparison",
+    "partial_run": {
+      "campaign_run_id": "research_campaign_7327a8915d50",
+      "failure_summaries": [
+        {
+          "failure": {
+            "exception_type": "KeyboardInterrupt",
+            "kind": "interrupted",
+            "message": "operator requested checkpoint stop after research",
+            "retryable": true,
+            "stage_name": "comparison"
+          },
+          "stage_name": "comparison",
+          "state": "partial",
+          "state_reason": "Stage execution interrupted: operator requested checkpoint stop after research"
+        }
+      ],
+      "manifest": {
+        "partial_stage_names": [
+          "comparison"
+        ],
+        "resumable_stage_names": [
+          "comparison",
+          "candidate_selection",
+          "portfolio",
+          "candidate_review",
+          "review"
+        ],
+        "retry_stage_names": [],
+        "reused_stage_names": [],
+        "stage_execution": {
+          "checkpoint": {
+            "resumable": true,
+            "source": "executed",
+            "stage_name": "comparison",
+            "state": "partial",
+            "state_reason": "Stage execution interrupted: operator requested checkpoint stop after research",
+            "terminal": false
+          },
+          "failure": {
+            "exception_type": "KeyboardInterrupt",
+            "kind": "interrupted",
+            "message": "operator requested checkpoint stop after research",
+            "retryable": true,
+            "stage_name": "comparison"
+          },
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "comparison": {
+                "alpha_metric": "ic_ir",
+                "alpha_sleeve_metric": "sharpe_ratio",
+                "alpha_view": "combined",
+                "enabled": true,
+                "from_registry": true,
+                "strategy_metric": "sharpe_ratio",
+                "top_k": 5
+              },
+              "research_input_fingerprint": "c6e2b7a632990d8cec64fe3d9c044c08659b90d3f5374f70c5f82416ca3b7017",
+              "targets": {
+                "alpha_names": [
+                  "resume_alpha_quality",
+                  "resume_alpha_diversified"
+                ],
+                "strategy_names": [
+                  "resume_strategy_momentum"
+                ]
+              }
+            },
+            "input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945"
+          },
+          "resume": {
+            "checkpoint_state": "partial",
+            "checkpoint_state_reason": "Stage execution interrupted: operator requested checkpoint stop after research",
+            "resumable": true,
+            "terminal": false
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "rerun",
+              "checkpoint_input_fingerprint": null,
+              "checkpoint_state": null,
+              "fingerprint_match": false,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": false,
+              "reason": "No persisted checkpoint stage is available to reuse.",
+              "stage_name": "comparison"
+            },
+            "reused": false
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "partial"
+        },
+        "stage_status": "partial",
+        "status": "partial"
+      },
+      "partial_stage_names": [
+        "comparison"
+      ],
+      "resumable_stage_names": [
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review"
+      ],
+      "retry_stage_names": [],
+      "reused_stage_names": [],
+      "stage": {
+        "details": {
+          "failure": {
+            "exception_type": "KeyboardInterrupt",
+            "kind": "interrupted",
+            "message": "operator requested checkpoint stop after research",
+            "retryable": true,
+            "stage_name": "comparison"
+          },
+          "reuse_policy": {
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
+            "invalidated_by_stage": null,
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
+            "stage_name": "comparison"
+          }
+        },
+        "execution_metadata": {
+          "checkpoint": {
+            "resumable": true,
+            "source": "executed",
+            "stage_name": "comparison",
+            "state": "partial",
+            "state_reason": "Stage execution interrupted: operator requested checkpoint stop after research",
+            "terminal": false
+          },
+          "failure": {
+            "exception_type": "KeyboardInterrupt",
+            "kind": "interrupted",
+            "message": "operator requested checkpoint stop after research",
+            "retryable": true,
+            "stage_name": "comparison"
+          },
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "comparison": {
+                "alpha_metric": "ic_ir",
+                "alpha_sleeve_metric": "sharpe_ratio",
+                "alpha_view": "combined",
+                "enabled": true,
+                "from_registry": true,
+                "strategy_metric": "sharpe_ratio",
+                "top_k": 5
+              },
+              "research_input_fingerprint": "c6e2b7a632990d8cec64fe3d9c044c08659b90d3f5374f70c5f82416ca3b7017",
+              "targets": {
+                "alpha_names": [
+                  "resume_alpha_quality",
+                  "resume_alpha_diversified"
+                ],
+                "strategy_names": [
+                  "resume_strategy_momentum"
+                ]
+              }
+            },
+            "input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945"
+          },
+          "resume": {
+            "checkpoint_state": "partial",
+            "checkpoint_state_reason": "Stage execution interrupted: operator requested checkpoint stop after research",
+            "resumable": true,
+            "terminal": false
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "rerun",
+              "checkpoint_input_fingerprint": null,
+              "checkpoint_state": null,
+              "fingerprint_match": false,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": false,
+              "reason": "No persisted checkpoint stage is available to reuse.",
+              "stage_name": "comparison"
+            },
+            "reused": false
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "partial"
+        },
+        "stage_name": "comparison",
+        "state": "partial"
+      },
+      "stage_state_counts": {
+        "completed": 2,
+        "failed": 0,
+        "partial": 1,
+        "pending": 4,
+        "reused": 0,
+        "skipped": 0
+      },
+      "stage_statuses": {
+        "candidate_review": "pending",
+        "candidate_selection": "pending",
+        "comparison": "partial",
+        "portfolio": "pending",
+        "preflight": "completed",
+        "research": "completed",
+        "review": "pending"
+      },
+      "status": "partial"
+    },
+    "resumed_run": {
+      "campaign_run_id": "research_campaign_7327a8915d50",
+      "failure_summaries": [],
+      "manifest": {
+        "partial_stage_names": [],
+        "resumable_stage_names": [],
+        "retry_stage_names": [
+          "comparison"
+        ],
+        "reused_stage_names": [
+          "preflight",
+          "research"
+        ],
+        "stage_execution": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "executed",
+            "stage_name": "comparison",
+            "state": "completed",
+            "state_reason": null,
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "comparison": {
+                "alpha_metric": "ic_ir",
+                "alpha_sleeve_metric": "sharpe_ratio",
+                "alpha_view": "combined",
+                "enabled": true,
+                "from_registry": true,
+                "strategy_metric": "sharpe_ratio",
+                "top_k": 5
+              },
+              "research_input_fingerprint": "c6e2b7a632990d8cec64fe3d9c044c08659b90d3f5374f70c5f82416ca3b7017",
+              "targets": {
+                "alpha_names": [
+                  "resume_alpha_quality",
+                  "resume_alpha_diversified"
+                ],
+                "strategy_names": [
+                  "resume_strategy_momentum"
+                ]
+              }
+            },
+            "input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945"
+          },
+          "resume": {
+            "checkpoint_state": "completed",
+            "checkpoint_state_reason": null,
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": true,
+            "previous_failure": {
+              "exception_type": "KeyboardInterrupt",
+              "kind": "interrupted",
+              "message": "operator requested checkpoint stop after research",
+              "retryable": true,
+              "stage_name": "comparison"
+            },
+            "previous_state": "partial",
+            "previous_state_reason": "Stage execution interrupted: operator requested checkpoint stop after research"
+          },
+          "reuse": {
+            "decision": {
+              "action": "rerun",
+              "checkpoint_input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945",
+              "checkpoint_state": "partial",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Checkpoint stage state 'partial' is not reusable.",
+              "stage_name": "comparison"
+            },
+            "reused": false
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "completed"
+        },
+        "stage_status": "completed",
+        "status": "completed"
+      },
+      "partial_stage_names": [],
+      "resumable_stage_names": [],
+      "retry_stage_names": [
+        "comparison"
+      ],
+      "reused_stage_names": [
+        "preflight",
+        "research"
+      ],
+      "stage": {
+        "details": {
+          "alpha_comparison_id": "alpha_resume_comparison_demo",
+          "retry": {
+            "attempted": true,
+            "previous_failure": {
+              "exception_type": "KeyboardInterrupt",
+              "kind": "interrupted",
+              "message": "operator requested checkpoint stop after research",
+              "retryable": true,
+              "stage_name": "comparison"
+            },
+            "previous_state": "partial",
+            "previous_state_reason": "Stage execution interrupted: operator requested checkpoint stop after research"
+          },
+          "reuse_policy": {
+            "action": "rerun",
+            "checkpoint_input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945",
+            "checkpoint_state": "partial",
+            "fingerprint_match": true,
+            "invalidated_by_stage": null,
+            "matched_checkpoint": true,
+            "reason": "Checkpoint stage state 'partial' is not reusable.",
+            "stage_name": "comparison"
+          },
+          "strategy_comparison_id": "strategy_resume_comparison_demo"
+        },
+        "execution_metadata": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "executed",
+            "stage_name": "comparison",
+            "state": "completed",
+            "state_reason": null,
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "comparison": {
+                "alpha_metric": "ic_ir",
+                "alpha_sleeve_metric": "sharpe_ratio",
+                "alpha_view": "combined",
+                "enabled": true,
+                "from_registry": true,
+                "strategy_metric": "sharpe_ratio",
+                "top_k": 5
+              },
+              "research_input_fingerprint": "c6e2b7a632990d8cec64fe3d9c044c08659b90d3f5374f70c5f82416ca3b7017",
+              "targets": {
+                "alpha_names": [
+                  "resume_alpha_quality",
+                  "resume_alpha_diversified"
+                ],
+                "strategy_names": [
+                  "resume_strategy_momentum"
+                ]
+              }
+            },
+            "input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945"
+          },
+          "resume": {
+            "checkpoint_state": "completed",
+            "checkpoint_state_reason": null,
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": true,
+            "previous_failure": {
+              "exception_type": "KeyboardInterrupt",
+              "kind": "interrupted",
+              "message": "operator requested checkpoint stop after research",
+              "retryable": true,
+              "stage_name": "comparison"
+            },
+            "previous_state": "partial",
+            "previous_state_reason": "Stage execution interrupted: operator requested checkpoint stop after research"
+          },
+          "reuse": {
+            "decision": {
+              "action": "rerun",
+              "checkpoint_input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945",
+              "checkpoint_state": "partial",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Checkpoint stage state 'partial' is not reusable.",
+              "stage_name": "comparison"
+            },
+            "reused": false
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "completed"
+        },
+        "stage_name": "comparison",
+        "state": "completed"
+      },
+      "stage_state_counts": {
+        "completed": 5,
+        "failed": 0,
+        "partial": 0,
+        "pending": 0,
+        "reused": 2,
+        "skipped": 0
+      },
+      "stage_statuses": {
+        "candidate_review": "completed",
+        "candidate_selection": "completed",
+        "comparison": "completed",
+        "portfolio": "completed",
+        "preflight": "reused",
+        "research": "reused",
+        "review": "completed"
+      },
+      "status": "completed"
+    },
+    "stable_run": {
+      "campaign_run_id": "research_campaign_7327a8915d50",
+      "failure_summaries": [],
+      "manifest": {
+        "partial_stage_names": [],
+        "resumable_stage_names": [],
+        "retry_stage_names": [
+          "comparison"
+        ],
+        "reused_stage_names": [
+          "preflight",
+          "research",
+          "comparison",
+          "candidate_selection",
+          "portfolio",
+          "candidate_review",
+          "review"
+        ],
+        "stage_execution": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "comparison",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "comparison": {
+                "alpha_metric": "ic_ir",
+                "alpha_sleeve_metric": "sharpe_ratio",
+                "alpha_view": "combined",
+                "enabled": true,
+                "from_registry": true,
+                "strategy_metric": "sharpe_ratio",
+                "top_k": 5
+              },
+              "research_input_fingerprint": "c6e2b7a632990d8cec64fe3d9c044c08659b90d3f5374f70c5f82416ca3b7017",
+              "targets": {
+                "alpha_names": [
+                  "resume_alpha_quality",
+                  "resume_alpha_diversified"
+                ],
+                "strategy_names": [
+                  "resume_strategy_momentum"
+                ]
+              }
+            },
+            "input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": true,
+            "previous_failure": {
+              "exception_type": "KeyboardInterrupt",
+              "kind": "interrupted",
+              "message": "operator requested checkpoint stop after research",
+              "retryable": true,
+              "stage_name": "comparison"
+            },
+            "previous_state": "partial",
+            "previous_state_reason": "Stage execution interrupted: operator requested checkpoint stop after research"
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "comparison"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        },
+        "stage_status": "reused",
+        "status": "completed"
+      },
+      "partial_stage_names": [],
+      "resumable_stage_names": [],
+      "retry_stage_names": [
+        "comparison"
+      ],
+      "reused_stage_names": [
+        "preflight",
+        "research",
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review"
+      ],
+      "stage": {
+        "details": {
+          "alpha_comparison_id": "alpha_resume_comparison_demo",
+          "retry": {
+            "attempted": true,
+            "previous_failure": {
+              "exception_type": "KeyboardInterrupt",
+              "kind": "interrupted",
+              "message": "operator requested checkpoint stop after research",
+              "retryable": true,
+              "stage_name": "comparison"
+            },
+            "previous_state": "partial",
+            "previous_state_reason": "Stage execution interrupted: operator requested checkpoint stop after research"
+          },
+          "reuse_policy": {
+            "action": "reuse",
+            "checkpoint_input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945",
+            "checkpoint_state": "completed",
+            "fingerprint_match": true,
+            "invalidated_by_stage": null,
+            "matched_checkpoint": true,
+            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "stage_name": "comparison"
+          },
+          "strategy_comparison_id": "strategy_resume_comparison_demo"
+        },
+        "execution_metadata": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "comparison",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "comparison": {
+                "alpha_metric": "ic_ir",
+                "alpha_sleeve_metric": "sharpe_ratio",
+                "alpha_view": "combined",
+                "enabled": true,
+                "from_registry": true,
+                "strategy_metric": "sharpe_ratio",
+                "top_k": 5
+              },
+              "research_input_fingerprint": "c6e2b7a632990d8cec64fe3d9c044c08659b90d3f5374f70c5f82416ca3b7017",
+              "targets": {
+                "alpha_names": [
+                  "resume_alpha_quality",
+                  "resume_alpha_diversified"
+                ],
+                "strategy_names": [
+                  "resume_strategy_momentum"
+                ]
+              }
+            },
+            "input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": true,
+            "previous_failure": {
+              "exception_type": "KeyboardInterrupt",
+              "kind": "interrupted",
+              "message": "operator requested checkpoint stop after research",
+              "retryable": true,
+              "stage_name": "comparison"
+            },
+            "previous_state": "partial",
+            "previous_state_reason": "Stage execution interrupted: operator requested checkpoint stop after research"
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "comparison"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        },
+        "stage_name": "comparison",
+        "state": "reused"
+      },
+      "stage_state_counts": {
+        "completed": 0,
+        "failed": 0,
+        "partial": 0,
+        "pending": 0,
+        "reused": 7,
+        "skipped": 0
+      },
+      "stage_statuses": {
+        "candidate_review": "reused",
+        "candidate_selection": "reused",
+        "comparison": "reused",
+        "portfolio": "reused",
+        "preflight": "reused",
+        "research": "reused",
+        "review": "reused"
+      },
+      "status": "completed"
+    }
+  },
+  "workflow": [
+    "run_campaign_until_partial_comparison_interrupt",
+    "resume_campaign_from_checkpoint",
+    "rerun_campaign_to_confirm_full_stage_reuse",
+    "persist_campaign_summary_manifest_checkpoint_snapshots"
+  ]
+}

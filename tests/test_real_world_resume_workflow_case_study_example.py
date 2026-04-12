@@ -74,3 +74,10 @@ def test_real_world_resume_workflow_case_study_tracks_partial_resume_and_reuse(t
     assert (output_root / "snapshots" / "partial_summary.json").exists()
     assert (output_root / "snapshots" / "resumed_manifest.json").exists()
     assert (output_root / "snapshots" / "stable_checkpoint.json").exists()
+
+    output_root_text = output_root.resolve().as_posix()
+    repo_root_text = REPO_ROOT.resolve().as_posix()
+    for path in output_root.rglob("*.json"):
+        contents = path.read_text(encoding="utf-8").replace("\\", "/")
+        assert output_root_text not in contents
+        assert repo_root_text not in contents

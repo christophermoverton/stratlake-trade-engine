@@ -160,5 +160,8 @@ docs/examples/output/real_world_resume_workflow_case_study/snapshots/
   checkpoint, manifest, and summary tell one continuous recovery story.
 * The snapshot files are intentionally committed because they make the resume
   transitions easy to review in git without rerunning the example first.
+* The committed JSON outputs keep file references relative to the case-study
+  output root so the example stays portable across machines and repository
+  locations.
 * The stable reused pass still records the comparison retry history, which is
   the main Milestone 17 auditability improvement.

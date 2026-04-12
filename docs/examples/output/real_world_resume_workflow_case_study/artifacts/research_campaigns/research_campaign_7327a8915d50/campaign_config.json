@@ -35,9 +35,9 @@
     "max_candidates": 2,
     "metric": "ic_ir",
     "output": {
-      "path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/candidate_selection",
+      "path": "artifacts/candidate_selection",
       "registry_path": null,
-      "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/candidate_review"
+      "review_output_path": "artifacts/reviews/candidate_review"
     },
     "redundancy": {
       "max_pairwise_correlation": null,
@@ -62,13 +62,13 @@
     "timeframe": "1D"
   },
   "outputs": {
-    "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/alpha",
-    "campaign_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/research_campaigns",
-    "candidate_selection_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/candidate_selection",
+    "alpha_artifacts_root": "artifacts/alpha",
+    "campaign_artifacts_root": "artifacts/research_campaigns",
+    "candidate_selection_output_path": "artifacts/candidate_selection",
     "candidate_selection_registry_path": null,
-    "comparison_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/campaign_comparisons",
-    "portfolio_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/portfolios",
-    "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/research_review"
+    "comparison_output_path": "artifacts/campaign_comparisons",
+    "portfolio_artifacts_root": "artifacts/portfolios",
+    "review_output_path": "artifacts/reviews/research_review"
   },
   "portfolio": {
     "enabled": true,
@@ -109,7 +109,7 @@
     },
     "output": {
       "emit_plots": false,
-      "path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/research_review"
+      "path": "artifacts/reviews/research_review"
     },
     "promotion_gates": null,
     "ranking": {

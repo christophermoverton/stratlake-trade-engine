@@ -51,7 +51,7 @@
       "stage_count": 7
     }
   },
-  "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/research_campaigns/research_campaign_7327a8915d50",
+  "campaign_artifact_dir": "artifacts/research_campaigns/research_campaign_7327a8915d50",
   "campaign_run_id": "research_campaign_7327a8915d50",
   "checkpoint_path": "checkpoint.json",
   "failed_stage_names": [],
@@ -415,9 +415,9 @@
               "max_candidates": 2,
               "metric": "ic_ir",
               "output": {
-                "path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/candidate_selection",
+                "path": "artifacts/candidate_selection",
                 "registry_path": null,
-                "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/candidate_review"
+                "review_output_path": "artifacts/reviews/candidate_review"
               },
               "redundancy": {
                 "max_pairwise_correlation": null,
@@ -442,13 +442,13 @@
               "timeframe": "1D"
             },
             "outputs": {
-              "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/alpha",
-              "campaign_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/research_campaigns",
-              "candidate_selection_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/candidate_selection",
+              "alpha_artifacts_root": "artifacts/alpha",
+              "campaign_artifacts_root": "artifacts/research_campaigns",
+              "candidate_selection_output_path": "artifacts/candidate_selection",
               "candidate_selection_registry_path": null,
-              "comparison_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/campaign_comparisons",
-              "portfolio_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/portfolios",
-              "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/research_review"
+              "comparison_output_path": "artifacts/campaign_comparisons",
+              "portfolio_artifacts_root": "artifacts/portfolios",
+              "review_output_path": "artifacts/reviews/research_review"
             },
             "portfolio": {
               "enabled": true,
@@ -489,7 +489,7 @@
               },
               "output": {
                 "emit_plots": false,
-                "path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/reviews/research_review"
+                "path": "artifacts/reviews/research_review"
               },
               "promotion_gates": null,
               "ranking": {
@@ -579,7 +579,7 @@
             "timeframe": "1D"
           },
           "outputs": {
-            "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/alpha"
+            "alpha_artifacts_root": "artifacts/alpha"
           },
           "targets": {
             "alpha_catalog_path": "docs/examples/data/milestone_17_campaign_configs/resume_reuse_alphas.yml",
@@ -647,9 +647,9 @@
       "fingerprint": {
         "fingerprint_inputs": {
           "artifact_roots": {
-            "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/alpha",
-            "portfolio_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study/artifacts/portfolios",
-            "strategy_artifacts_root": "artifacts\\strategies"
+            "alpha_artifacts_root": "artifacts/alpha",
+            "portfolio_artifacts_root": "artifacts/portfolios",
+            "strategy_artifacts_root": "artifacts/strategies"
           },
           "candidate_review_input_fingerprint": "160168824677d759272d288a6982207b63bb6493b25e315da0e9dce6d7c0491a",
           "comparison_input_fingerprint": "f6a8028a9c561625d6d9359958864b9e48ea1a172733ba405b417890231f3945",

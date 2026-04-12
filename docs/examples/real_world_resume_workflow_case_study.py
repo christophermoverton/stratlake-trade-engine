@@ -157,6 +157,44 @@ def _relative_to_output(path: Path, output_root: Path) -> str:
         return path.as_posix()
 
 
+def _relativize_text(text: str, *, output_root: Path, repo_root: Path) -> str:
+    normalized = text.replace("\\", "/")
+    output_root_text = output_root.resolve().as_posix()
+    repo_root_text = repo_root.resolve().as_posix()
+
+    if normalized == repo_root_text:
+        return "."
+    if normalized.startswith(output_root_text + "/"):
+        return normalized[len(output_root_text) + 1 :]
+    if normalized == output_root_text:
+        return "."
+    if output_root_text in normalized:
+        return normalized.replace(output_root_text + "/", "").replace(output_root_text, ".")
+    if repo_root_text in normalized:
+        return normalized.replace(repo_root_text, ".")
+    return normalized
+
+
+def _relativize_payload(payload: Any, *, output_root: Path, repo_root: Path) -> Any:
+    if isinstance(payload, dict):
+        return {
+            key: _relativize_payload(value, output_root=output_root, repo_root=repo_root)
+            for key, value in payload.items()
+        }
+    if isinstance(payload, list):
+        return [_relativize_payload(value, output_root=output_root, repo_root=repo_root) for value in payload]
+    if isinstance(payload, str):
+        return _relativize_text(payload, output_root=output_root, repo_root=repo_root)
+    return payload
+
+
+def _sanitize_json_outputs(output_root: Path) -> None:
+    for path in sorted(output_root.rglob("*.json")):
+        payload = _read_json(path)
+        sanitized = _relativize_payload(payload, output_root=output_root, repo_root=REPO_ROOT)
+        _write_json(path, sanitized)
+
+
 def _build_stage_stubs(output_root: Path) -> tuple[dict[str, int], dict[str, Any]]:
     attempts = {"comparison": 0}
     alpha_metrics = {
@@ -508,6 +546,12 @@ def run_example(*, output_root: Path | None = None, verbose: bool = True, reset_
         },
     }
     _write_json(resolved_output_root / SUMMARY_FILENAME, summary)
+    _sanitize_json_outputs(resolved_output_root)
+
+    summary = _read_json(resolved_output_root / SUMMARY_FILENAME)
+    partial_summary = _read_json(resolved_output_root / "snapshots" / "partial_summary.json")
+    resumed_summary = _read_json(resolved_output_root / "snapshots" / "resumed_summary.json")
+    stable_summary = _read_json(resolved_output_root / "snapshots" / "stable_summary.json")
 
     if verbose:
         _print_snapshot("Interrupted pass", partial_summary, resolved_output_root)

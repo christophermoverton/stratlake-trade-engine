@@ -1,7 +1,7 @@
 {
   "artifacts": {
     "campaign_dir": "artifacts/research_campaigns/research_campaign_7327a8915d50",
-    "output_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_resume_workflow_case_study",
+    "output_root": ".",
     "snapshots": {
       "partial": {
         "checkpoint": "snapshots/partial_checkpoint.json",

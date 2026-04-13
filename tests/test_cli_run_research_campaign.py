@@ -387,6 +387,8 @@ portfolios:
     campaign_checkpoint = json.loads(result.campaign_checkpoint_path.read_text(encoding="utf-8"))
     campaign_manifest = json.loads(result.campaign_manifest_path.read_text(encoding="utf-8"))
     campaign_summary = json.loads(result.campaign_summary_path.read_text(encoding="utf-8"))
+    milestone_summary = json.loads(result.campaign_milestone_summary_path.read_text(encoding="utf-8"))
+    milestone_decision_log = json.loads(result.campaign_milestone_decision_log_path.read_text(encoding="utf-8"))
 
     alpha_argv = dict(enumerate(call_order[0][1]))
     assert "--alpha-name" in alpha_argv.values()
@@ -461,6 +463,7 @@ portfolios:
         "milestone_report/summary.json",
     ]
     assert campaign_manifest["artifacts"]["milestone_report/summary.json"]["decision_count"] == 2
+    assert campaign_manifest["artifacts"]["milestone_report/decision_log.json"]["decision_count"] == 2
     assert campaign_manifest["artifacts"]["milestone_report/report.md"]["path"] == "milestone_report/report.md"
 
     assert campaign_summary["run_type"] == "research_campaign"
@@ -491,6 +494,15 @@ portfolios:
     assert campaign_summary["output_paths"]["milestone_report_manifest"] == result.campaign_milestone_manifest_path.as_posix()
     assert campaign_summary["output_paths"]["milestone_report_markdown"] == result.campaign_milestone_markdown_path.as_posix()
     assert "candidate_review_counts" in campaign_summary["final_outcomes"]
+    assert milestone_summary["related_artifacts"]["campaign_summary"] == "../summary.json"
+    assert milestone_decision_log["decision_ids"] == ["campaign_execution", "review_promotion_outcome"]
+    assert milestone_decision_log["decision_counts_by_status"] == {"accepted": 1, "deferred": 1}
+    assert milestone_decision_log["decisions"][1]["summary"] == "Review `review_run`"
+    assert milestone_decision_log["decisions"][1]["source_artifacts"] == []
+    assert milestone_decision_log["decisions"][1]["follow_up_actions"] == [
+        "Persist promotion-gate outputs for reviewed campaigns so milestone decisions remain auditable."
+    ]
+    assert "## 2. Review and promotion outcome" in milestone_decision_log["rendered"]["markdown"]
     assert [stage["stage_name"] for stage in campaign_summary["stages"]] == [
         "preflight",
         "research",

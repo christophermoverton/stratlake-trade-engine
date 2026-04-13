@@ -339,6 +339,58 @@ def test_generate_campaign_milestone_report_is_deterministic_for_identical_campa
     assert first_bytes == second_bytes
 
 
+def test_generate_campaign_milestone_report_handles_incomplete_upstream_data(tmp_path: Path) -> None:
+    campaign_dir = _campaign_artifact_fixture(tmp_path)
+    summary_json = campaign_dir / "summary.json"
+    campaign_summary = json.loads(summary_json.read_text(encoding="utf-8"))
+    campaign_summary["output_paths"].pop("review_summary", None)
+    campaign_summary["output_paths"].pop("review_manifest", None)
+    campaign_summary["output_paths"].pop("review_promotion_gates", None)
+    campaign_summary["output_paths"].pop("candidate_review_summary", None)
+    campaign_summary["output_paths"].pop("candidate_review_manifest", None)
+    summary_json.write_text(
+        json.dumps(campaign_summary, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    summary_path, decision_log_path, _manifest_path = generate_campaign_milestone_report(campaign_dir)
+
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    decision_log_payload = json.loads(decision_log_path.read_text(encoding="utf-8"))
+
+    validate_milestone_report_payload(summary_payload)
+    validate_milestone_decision_log_payload(decision_log_payload)
+
+    assert summary_payload["related_artifacts"]["campaign_summary"] == "../summary.json"
+    assert "review_summary" not in summary_payload["related_artifacts"]
+    assert "review_promotion_gates" not in summary_payload["related_artifacts"]
+    assert summary_payload["open_questions"] == [
+        "Should a research review summary be attached to future campaign milestones?",
+        "Should promotion gates be persisted for reviewed campaigns that stop at review readiness?",
+    ]
+    assert any(
+        "Candidate review evaluated 4 candidate(s) with 2 selected and 2 rejected." in finding
+        for finding in summary_payload["key_findings"]
+    )
+    assert summary_payload["decision_counts_by_status"] == {
+        "accepted": 1,
+        "deferred": 1,
+    }
+
+    assert decision_log_payload["decision_ids"] == [
+        "campaign_execution",
+        "review_promotion_outcome",
+    ]
+    review_decision = decision_log_payload["decisions"][1]
+    assert review_decision["status"] == "deferred"
+    assert review_decision["summary"] == "Review `review_demo`"
+    assert review_decision["source_artifacts"] == []
+    assert review_decision["follow_up_actions"] == [
+        "Persist promotion-gate outputs for reviewed campaigns so milestone decisions remain auditable."
+    ]
+
+
 def test_campaign_milestone_helpers_accept_campaign_summary_path(tmp_path: Path) -> None:
     campaign_dir = _campaign_artifact_fixture(tmp_path)
     summary_json = campaign_dir / "summary.json"

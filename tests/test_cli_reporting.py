@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import sys
 
@@ -254,7 +255,14 @@ def test_generate_milestone_report_cli_writes_default_pack(
 
     assert summary_path == campaign_dir / "milestone_report" / "summary.json"
     assert summary_path.exists()
+    assert (campaign_dir / "milestone_report" / "decision_log.json").exists()
     assert (campaign_dir / "milestone_report" / "report.md").exists()
+
+    decision_log_payload = json.loads(
+        (campaign_dir / "milestone_report" / "decision_log.json").read_text(encoding="utf-8")
+    )
+    assert decision_log_payload["decision_ids"] == ["campaign_execution", "review_promotion_outcome"]
+    assert "Linked Source Artifacts:" in decision_log_payload["rendered"]["text"]
 
     stdout = capsys.readouterr().out
     assert f"campaign_artifact_path: {campaign_dir}" in stdout

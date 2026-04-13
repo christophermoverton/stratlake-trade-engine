@@ -1446,6 +1446,7 @@ alpha_one:
     assert result.orchestration_manifest_path.exists()
     assert result.orchestration_summary_path.exists()
 
+    orchestration_manifest = json.loads(result.orchestration_manifest_path.read_text(encoding="utf-8"))
     orchestration_summary = json.loads(result.orchestration_summary_path.read_text(encoding="utf-8"))
     scenario_catalog = json.loads(result.scenario_catalog_path.read_text(encoding="utf-8"))
 
@@ -1467,13 +1468,43 @@ alpha_one:
     scenario_run_ids = {scenario.result.campaign_run_id for scenario in result.scenario_results}
     assert len(scenario_run_ids) == 2
     assert result.orchestration_run_id not in scenario_run_ids
+    assert orchestration_summary["output_paths"]["scenario_root_dir"] == (
+        result.orchestration_artifact_dir / "scenarios"
+    ).as_posix()
+    assert orchestration_manifest["artifact_groups"]["scenarios"]
 
     for scenario_result in result.scenario_results:
+        scenario_dir = result.orchestration_artifact_dir / "scenarios" / scenario_result.scenario_id
         assert scenario_result.result.campaign_summary_path.exists()
         assert scenario_result.result.campaign_manifest_path.exists()
         assert scenario_result.result.campaign_checkpoint_path.exists()
         assert scenario_result.result.campaign_artifact_dir != result.orchestration_artifact_dir
+        assert scenario_result.result.campaign_artifact_dir == scenario_dir
         assert len(scenario_result.result.campaign_summary["selected_run_ids"]["alpha_run_ids"]) == 1
+        assert scenario_result.result.campaign_summary["scenario"]["scenario_id"] == scenario_result.scenario_id
+        assert scenario_result.result.campaign_summary["scenario"]["orchestration_run_id"] == result.orchestration_run_id
+        assert (
+            scenario_result.result.campaign_summary["output_paths"]["scenario_artifact_dir_relative"]
+            == f"scenarios/{scenario_result.scenario_id}"
+        )
+        assert (
+            scenario_result.result.campaign_manifest["scenario"]["scenario_artifact_dir_relative"]
+            == f"scenarios/{scenario_result.scenario_id}"
+        )
+        assert f"scenarios/{scenario_result.scenario_id}/summary.json" in orchestration_manifest["artifact_files"]
+        assert f"scenario:{scenario_result.scenario_id}" in orchestration_manifest["artifact_groups"]
+        assert (
+            orchestration_manifest["artifacts"][f"scenarios/{scenario_result.scenario_id}/summary.json"][
+                "scenario_id"
+            ]
+            == scenario_result.scenario_id
+        )
+        assert (
+            orchestration_manifest["artifacts"][f"scenarios/{scenario_result.scenario_id}/manifest.json"][
+                "campaign_run_id"
+            ]
+            == scenario_result.result.campaign_run_id
+        )
 
     assert "Research Campaign Orchestration Summary" in stdout
     assert f"Campaign: {result.orchestration_run_id}" in stdout

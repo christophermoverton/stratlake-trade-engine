@@ -124,7 +124,7 @@ docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns
 
 ### Campaign
 
-- campaign run id: `research_campaign_94ccbc7ce13d`
+- campaign run id: `research_campaign_c7361ba400ad`
 - status: `completed`
 - preflight: `passed`
 - stage statuses:

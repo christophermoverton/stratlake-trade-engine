@@ -22,6 +22,19 @@ def _write_json(path: Path, payload: dict[str, object]) -> Path:
     return path
 
 
+def _iter_strings(value: object):
+    if isinstance(value, str):
+        yield value
+        return
+    if isinstance(value, dict):
+        for item in value.values():
+            yield from _iter_strings(item)
+        return
+    if isinstance(value, list):
+        for item in value:
+            yield from _iter_strings(item)
+
+
 def _campaign_artifact_fixture(tmp_path: Path) -> Path:
     campaign_dir = tmp_path / "campaign_artifacts" / "research_campaign_demo"
     review_dir = tmp_path / "reviews" / "research_review"
@@ -274,6 +287,13 @@ def test_generate_campaign_milestone_report_builds_milestone_pack_from_completed
     assert any("Stage outcomes: completed=7" in finding for finding in summary_payload["key_findings"])
     assert any("promotion_status=approved" in finding for finding in summary_payload["key_findings"])
     assert summary_payload["decision_counts_by_status"] == {"accepted": 2}
+    assert summary_payload["metadata"]["stage_outcomes"][0]["output_paths"] == {
+        "manifest_json": "../../../candidate_selection/candidate_selection_demo/manifest.json",
+        "summary_json": "../../../candidate_selection/candidate_selection_demo/selection_summary.json",
+    }
+    summary_strings = list(_iter_strings(summary_payload))
+    assert not any("C:/" in item or "C:\\\\" in item for item in summary_strings)
+    assert not any("\\" in item for item in summary_strings if "\n" not in item)
 
     assert [row["decision_id"] for row in decision_log_payload["decisions"]] == [
         "campaign_execution",
@@ -317,6 +337,8 @@ def test_generate_campaign_milestone_report_builds_milestone_pack_from_completed
     assert "- No immediate risks were detected." in markdown_report
     assert "## Next Steps" in markdown_report
     assert "- Promotion gates passed; the selected outputs are ready for promotion handoff." in markdown_report
+    decision_log_strings = list(_iter_strings(decision_log_payload))
+    assert not any("C:/" in item or "C:\\\\" in item for item in decision_log_strings)
 
     metadata = summary_payload["metadata"]
     assert metadata["selected_run_ids"]["portfolio_run_id"] == "portfolio_demo"

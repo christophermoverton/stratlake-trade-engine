@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import re
 from typing import Any, Mapping
 
 from src.research.reporting.milestone_artifacts import (
@@ -16,6 +17,7 @@ from src.research.reporting.milestone_artifacts import (
 )
 
 DEFAULT_CAMPAIGN_MILESTONE_DIRNAME = "milestone_report"
+_WINDOWS_ABSOLUTE_PATH_RE = re.compile(r"[A-Za-z]:[\\/][^\s\"'`]+")
 
 
 def generate_campaign_milestone_report(
@@ -445,21 +447,29 @@ def _metadata(
         "source_campaign_run_id": campaign_summary.get("campaign_run_id"),
         "source_campaign_status": campaign_summary.get("status"),
         "preflight_status": campaign_summary.get("preflight_status"),
-        "stage_statuses": _mapping(campaign_summary.get("stage_statuses")),
-        "stage_state_counts": _mapping(campaign_summary.get("stage_state_counts")),
-        "selected_run_ids": _mapping(campaign_summary.get("selected_run_ids")),
-        "key_metrics": _mapping(campaign_summary.get("key_metrics")),
-        "final_outcomes": _mapping(campaign_summary.get("final_outcomes")),
+        "stage_statuses": _sanitize_embedded_payload(_mapping(campaign_summary.get("stage_statuses")), artifact_dir=artifact_dir),
+        "stage_state_counts": _sanitize_embedded_payload(
+            _mapping(campaign_summary.get("stage_state_counts")), artifact_dir=artifact_dir
+        ),
+        "selected_run_ids": _sanitize_embedded_payload(
+            _mapping(campaign_summary.get("selected_run_ids")), artifact_dir=artifact_dir
+        ),
+        "key_metrics": _sanitize_embedded_payload(_mapping(campaign_summary.get("key_metrics")), artifact_dir=artifact_dir),
+        "final_outcomes": _sanitize_embedded_payload(
+            _mapping(campaign_summary.get("final_outcomes")), artifact_dir=artifact_dir
+        ),
         "stage_outcomes": stage_summaries,
     }
     if campaign_manifest is not None:
-        metadata["campaign_manifest"] = dict(campaign_manifest)
+        metadata["campaign_manifest"] = _sanitize_embedded_payload(dict(campaign_manifest), artifact_dir=artifact_dir)
     if candidate_review_summary is not None:
-        metadata["candidate_review_summary"] = dict(candidate_review_summary)
+        metadata["candidate_review_summary"] = _sanitize_embedded_payload(
+            dict(candidate_review_summary), artifact_dir=artifact_dir
+        )
     if review_summary is not None:
-        metadata["review_summary"] = dict(review_summary)
+        metadata["review_summary"] = _sanitize_embedded_payload(dict(review_summary), artifact_dir=artifact_dir)
     if promotion_gates is not None:
-        metadata["promotion_gates"] = dict(promotion_gates)
+        metadata["promotion_gates"] = _sanitize_embedded_payload(dict(promotion_gates), artifact_dir=artifact_dir)
     return metadata
 
 
@@ -724,6 +734,70 @@ def _require_json(path: Path) -> dict[str, Any]:
 
 def _relative_path(base_dir: Path, target_path: Path) -> str:
     return Path(os.path.relpath(target_path, start=base_dir)).as_posix()
+
+
+def _sanitize_embedded_payload(
+    value: Any,
+    *,
+    artifact_dir: Path,
+    treat_as_path: bool = False,
+) -> Any:
+    if isinstance(value, Mapping):
+        sanitized: dict[str, Any] = {}
+        for key, item in value.items():
+            key_str = str(key)
+            sanitized[key_str] = _sanitize_embedded_payload(
+                item,
+                artifact_dir=artifact_dir,
+                treat_as_path=treat_as_path or _is_path_like_key(key_str),
+            )
+        return sanitized
+    if isinstance(value, list):
+        return [
+            _sanitize_embedded_payload(item, artifact_dir=artifact_dir, treat_as_path=treat_as_path)
+            for item in value
+        ]
+    if isinstance(value, tuple):
+        return [
+            _sanitize_embedded_payload(item, artifact_dir=artifact_dir, treat_as_path=treat_as_path)
+            for item in value
+        ]
+    if isinstance(value, str):
+        return _sanitize_embedded_string(value, artifact_dir=artifact_dir, treat_as_path=treat_as_path)
+    return value
+
+
+def _is_path_like_key(key: str) -> bool:
+    normalized = key.lower()
+    return normalized == "path" or normalized.endswith(("_path", "_paths", "_dir", "_dirs", "_root", "_roots"))
+
+
+def _sanitize_embedded_string(value: str, *, artifact_dir: Path, treat_as_path: bool) -> str:
+    if treat_as_path:
+        return _normalize_embedded_path(value, artifact_dir=artifact_dir)
+    return _replace_absolute_path_fragments(value, artifact_dir=artifact_dir)
+
+
+def _normalize_embedded_path(value: str, *, artifact_dir: Path) -> str:
+    stripped = value.strip()
+    if not stripped:
+        return stripped
+    candidate = Path(stripped)
+    if candidate.is_absolute():
+        return _relative_path(artifact_dir, candidate)
+    return candidate.as_posix()
+
+
+def _replace_absolute_path_fragments(value: str, *, artifact_dir: Path) -> str:
+    def replace(match: re.Match[str]) -> str:
+        raw = match.group(0)
+        suffix = ""
+        while raw and raw[-1] in ".,);":
+            suffix = raw[-1] + suffix
+            raw = raw[:-1]
+        return _normalize_embedded_path(raw, artifact_dir=artifact_dir) + suffix
+
+    return _WINDOWS_ABSOLUTE_PATH_RE.sub(replace, value)
 
 
 def _mapping(value: Any) -> dict[str, Any]:

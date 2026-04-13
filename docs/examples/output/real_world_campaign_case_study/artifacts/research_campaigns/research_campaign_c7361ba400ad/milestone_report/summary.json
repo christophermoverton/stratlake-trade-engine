@@ -70,7 +70,7 @@
           "stage_count": 7
         }
       },
-      "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad",
+      "campaign_artifact_dir": "..",
       "campaign_run_id": "research_campaign_c7361ba400ad",
       "checkpoint_path": "checkpoint.json",
       "failed_stage_names": [],
@@ -187,7 +187,7 @@
                   "min_allocation_weight": null
                 },
                 "alpha_name": null,
-                "artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha",
+                "artifacts_root": "../../../alpha",
                 "dataset": "features_daily",
                 "eligibility": {
                   "min_coverage": null,
@@ -402,7 +402,7 @@
                     "min_allocation_weight": null
                   },
                   "alpha_name": null,
-                  "artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha",
+                  "artifacts_root": "../../../alpha",
                   "dataset": "features_daily",
                   "eligibility": {
                     "min_coverage": null,
@@ -428,9 +428,9 @@
                   "max_candidates": 4,
                   "metric": "ic_ir",
                   "output": {
-                    "path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/candidate_selection",
+                    "path": "../../../candidate_selection",
                     "registry_path": null,
-                    "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/candidate_review"
+                    "review_output_path": "../../../reviews/candidate_review"
                   },
                   "redundancy": {
                     "max_pairwise_correlation": 0.75,
@@ -455,13 +455,13 @@
                   "timeframe": "1D"
                 },
                 "outputs": {
-                  "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha",
-                  "campaign_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns",
-                  "candidate_selection_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/candidate_selection",
+                  "alpha_artifacts_root": "../../../alpha",
+                  "campaign_artifacts_root": "../..",
+                  "candidate_selection_output_path": "../../../candidate_selection",
                   "candidate_selection_registry_path": null,
-                  "comparison_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/campaign_comparisons",
-                  "portfolio_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/portfolios",
-                  "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/research_review"
+                  "comparison_output_path": "../../../campaign_comparisons",
+                  "portfolio_artifacts_root": "../../../portfolios",
+                  "review_output_path": "../../../reviews/research_review"
                 },
                 "portfolio": {
                   "enabled": true,
@@ -501,7 +501,7 @@
                   },
                   "output": {
                     "emit_plots": false,
-                    "path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/research_review"
+                    "path": "../../../reviews/research_review"
                   },
                   "promotion_gates": null,
                   "ranking": {
@@ -514,18 +514,18 @@
                   }
                 },
                 "targets": {
-                  "alpha_catalog_path": "C:/Users/christophermoverton/stratlake-trade-engine/configs/alphas_2026_q1.yml",
+                  "alpha_catalog_path": "../../../../../../../../configs/alphas_2026_q1.yml",
                   "alpha_names": [
                     "ml_cross_sectional_xgb_2026_q1",
                     "ml_cross_sectional_lgbm_2026_q1",
                     "ml_cross_sectional_elastic_net_2026_q1",
                     "rank_composite_momentum_2026_q1"
                   ],
-                  "portfolio_config_path": "C:/Users/christophermoverton/stratlake-trade-engine/configs/portfolios_alpha_2026_q1.yml",
+                  "portfolio_config_path": "../../../../../../../../configs/portfolios_alpha_2026_q1.yml",
                   "portfolio_names": [
                     "real_world_m16_campaign_case_study"
                   ],
-                  "strategy_config_path": "C:/Users/christophermoverton/stratlake-trade-engine/configs/strategies.yml",
+                  "strategy_config_path": "../../../../../../../../configs/strategies.yml",
                   "strategy_names": []
                 },
                 "time_windows": {
@@ -591,17 +591,17 @@
                 "timeframe": "1D"
               },
               "outputs": {
-                "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha"
+                "alpha_artifacts_root": "../../../alpha"
               },
               "targets": {
-                "alpha_catalog_path": "C:/Users/christophermoverton/stratlake-trade-engine/configs/alphas_2026_q1.yml",
+                "alpha_catalog_path": "../../../../../../../../configs/alphas_2026_q1.yml",
                 "alpha_names": [
                   "ml_cross_sectional_xgb_2026_q1",
                   "ml_cross_sectional_lgbm_2026_q1",
                   "ml_cross_sectional_elastic_net_2026_q1",
                   "rank_composite_momentum_2026_q1"
                 ],
-                "strategy_config_path": "C:/Users/christophermoverton/stratlake-trade-engine/configs/strategies.yml",
+                "strategy_config_path": "../../../../../../../../configs/strategies.yml",
                 "strategy_names": []
               },
               "time_windows": {
@@ -659,9 +659,9 @@
           "fingerprint": {
             "fingerprint_inputs": {
               "artifact_roots": {
-                "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha",
-                "portfolio_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/portfolios",
-                "strategy_artifacts_root": "artifacts\\strategies"
+                "alpha_artifacts_root": "../../../alpha",
+                "portfolio_artifacts_root": "../../../portfolios",
+                "strategy_artifacts_root": "artifacts/strategies"
               },
               "candidate_review_input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a",
               "comparison_input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018",
@@ -1040,7 +1040,7 @@
       },
       "entries": [
         {
-          "artifact_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha/ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+          "artifact_path": "../../../alpha/ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
           "entity_name": "ml_cross_sectional_xgb_2026_q1",
           "evaluation_mode": "alpha_evaluation",
           "gate_count": null,
@@ -1065,7 +1065,7 @@
           "timeframe": "1D"
         },
         {
-          "artifact_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha/ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+          "artifact_path": "../../../alpha/ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
           "entity_name": "ml_cross_sectional_lgbm_2026_q1",
           "evaluation_mode": "alpha_evaluation",
           "gate_count": null,
@@ -1090,7 +1090,7 @@
           "timeframe": "1D"
         },
         {
-          "artifact_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha/ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+          "artifact_path": "../../../alpha/ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
           "entity_name": "ml_cross_sectional_elastic_net_2026_q1",
           "evaluation_mode": "alpha_evaluation",
           "gate_count": null,
@@ -1115,7 +1115,7 @@
           "timeframe": "1D"
         },
         {
-          "artifact_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha/rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+          "artifact_path": "../../../alpha/rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
           "entity_name": "rank_composite_momentum_2026_q1",
           "evaluation_mode": "alpha_evaluation",
           "gate_count": null,
@@ -1140,7 +1140,7 @@
           "timeframe": "1D"
         },
         {
-          "artifact_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/portfolios/real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+          "artifact_path": "../../../portfolios/real_world_m16_campaign_case_study_portfolio_cc99ba561315",
           "entity_name": "real_world_m16_campaign_case_study",
           "evaluation_mode": "single",
           "gate_count": null,
@@ -1194,7 +1194,7 @@
         },
         "output": {
           "emit_plots": false,
-          "path": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\docs\\examples\\output\\real_world_campaign_case_study\\artifacts\\reviews\\research_review"
+          "path": "../../../reviews/research_review"
         },
         "promotion_gates": null,
         "ranking": {

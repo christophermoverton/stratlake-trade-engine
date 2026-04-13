@@ -9,6 +9,8 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.cli.generate_report import parse_args as parse_report_args
+from src.cli.generate_milestone_report import parse_args as parse_milestone_report_args
+from src.cli.generate_milestone_report import run_cli as run_generate_milestone_report_cli
 from src.cli.generate_report import run_cli as run_generate_report_cli
 from src.cli.plot_strategy_run import parse_args as parse_plot_args
 from src.cli.plot_strategy_run import run_cli as run_plot_strategy_run_cli
@@ -78,6 +80,26 @@ def test_generate_report_parse_args_accepts_run_dir_and_output_path() -> None:
 
     assert args.run_dir == "artifacts/strategies/run-123"
     assert args.output_path == "artifacts/reports/custom.md"
+
+
+def test_generate_milestone_report_parse_args_accepts_campaign_artifact_path_and_output_path() -> None:
+    args = parse_milestone_report_args(
+        [
+            "--campaign-artifact-path",
+            "artifacts/research_campaigns/run-123",
+            "--output-path",
+            "artifacts/reports/milestone_pack",
+            "--milestone-name",
+            "Milestone 18",
+            "--title",
+            "Milestone 18 Report",
+        ]
+    )
+
+    assert args.campaign_artifact_path == "artifacts/research_campaigns/run-123"
+    assert args.output_path == "artifacts/reports/milestone_pack"
+    assert args.milestone_name == "Milestone 18"
+    assert args.title == "Milestone 18 Report"
 
 
 def test_plot_strategy_run_cli_generates_supported_plot_artifacts(
@@ -196,3 +218,43 @@ def test_generate_report_cli_raises_for_missing_metrics_artifact(tmp_path: Path)
 
     with pytest.raises(FileNotFoundError, match="metrics.json"):
         run_generate_report_cli(["--run-dir", str(run_dir)])
+
+
+def test_generate_milestone_report_cli_writes_default_pack(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    campaign_dir = tmp_path / "campaign"
+    review_dir = tmp_path / "review"
+    campaign_dir.mkdir()
+    review_dir.mkdir()
+    (review_dir / "review_summary.json").write_text('{"review_id":"review_demo","entry_count":2}', encoding="utf-8")
+    (campaign_dir / "summary.json").write_text(
+        """
+{
+  "run_type": "research_campaign",
+  "campaign_run_id": "research_campaign_demo",
+  "status": "completed",
+  "preflight_status": "passed",
+  "stage_statuses": {"review": "completed"},
+  "stage_state_counts": {"completed": 1, "failed": 0, "partial": 0, "pending": 0, "reused": 0, "skipped": 0},
+  "selected_run_ids": {"alpha_run_ids": [], "strategy_run_ids": [], "candidate_selection_run_id": null, "portfolio_run_id": null, "review_id": "review_demo"},
+  "targets": {"alpha_names": [], "strategy_names": [], "portfolio_names": [], "candidate_selection_alpha_name": null, "portfolio_name": null},
+  "key_metrics": {"alpha_runs": [], "strategy_runs": [], "candidate_selection": null, "portfolio": null, "review": {"review_id": "review_demo", "entry_count": 2}},
+  "output_paths": {"review_summary": "%REVIEW_SUMMARY%"},
+  "final_outcomes": {"failed_stage_names": [], "partial_stage_names": [], "resumable_stage_names": []},
+  "checkpoint": {"stages": []},
+  "stages": []
+}
+""".replace("%REVIEW_SUMMARY%", (review_dir / "review_summary.json").as_posix()).strip(),
+        encoding="utf-8",
+    )
+
+    summary_path = run_generate_milestone_report_cli(["--campaign-artifact-path", str(campaign_dir)])
+
+    assert summary_path == campaign_dir / "milestone_report" / "summary.json"
+    assert summary_path.exists()
+
+    stdout = capsys.readouterr().out
+    assert f"campaign_artifact_path: {campaign_dir}" in stdout
+    assert f"milestone_report_path: {summary_path}" in stdout

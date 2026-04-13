@@ -6,6 +6,12 @@ from typing import Any
 
 import pandas as pd
 
+from src.research.reporting.campaign_milestone_report import (
+    build_campaign_milestone_report_payloads,
+    generate_campaign_milestone_report,
+    load_campaign_reporting_payloads,
+    resolve_campaign_artifact_dir,
+)
 from src.research.reporting.milestone_artifacts import (
     MILESTONE_DECISION_LOG_FILENAME,
     MILESTONE_MANIFEST_FILENAME,
@@ -134,13 +140,17 @@ __all__ = [
     "MilestoneDecisionEntry",
     "MilestoneReport",
     "build_milestone_decision_log_payload",
+    "build_campaign_milestone_report_payloads",
     "build_milestone_report_id",
     "build_milestone_report_manifest_payload",
     "build_milestone_report_summary_payload",
+    "generate_campaign_milestone_report",
     "generate_strategy_plots",
     "generate_strategy_report",
+    "load_campaign_reporting_payloads",
     "load_run_artifacts",
     "print_quick_report",
+    "resolve_campaign_artifact_dir",
     "resolve_milestone_artifact_dir",
     "summarize_run",
     "validate_milestone_decision_log_payload",

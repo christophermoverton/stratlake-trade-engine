@@ -1359,6 +1359,129 @@ alpha_one:
     assert result.campaign_checkpoint_path.exists()
 
 
+def test_run_research_campaign_orchestrates_multi_scenario_sweeps(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("{}", encoding="utf-8")
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+            },
+            "outputs": {
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+            },
+            "scenarios": {
+                "enabled": True,
+                "matrix": [
+                    {
+                        "name": "timeframe",
+                        "path": "dataset_selection.timeframe",
+                        "values": ["1D", "4H"],
+                    }
+                ],
+            },
+        }
+    )
+
+    alpha_calls: list[list[str]] = []
+
+    def fake_alpha_cli(argv: list[str]) -> SimpleNamespace:
+        alpha_calls.append(list(argv))
+        run_suffix = f"{len(alpha_calls):02d}"
+        artifact_dir = tmp_path / "alpha" / run_suffix
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            alpha_name="alpha_one",
+            run_id=f"alpha_run_{run_suffix}",
+            artifact_dir=artifact_dir,
+        )
+
+    monkeypatch.setattr("src.cli.run_research_campaign.run_alpha_cli.run_cli", fake_alpha_cli)
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda _argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    result = run_research_campaign(config)
+    print_summary(result)
+    stdout = capsys.readouterr().out
+
+    assert len(result.scenario_results) == 2
+    assert [scenario.scenario_id for scenario in result.scenario_results] == [
+        "scenario_0000_timeframe_1d",
+        "scenario_0001_timeframe_4h",
+    ]
+    assert len(alpha_calls) == 2
+    assert result.orchestration_artifact_dir.exists()
+    assert result.scenario_catalog_path.exists()
+    assert result.orchestration_manifest_path.exists()
+    assert result.orchestration_summary_path.exists()
+
+    orchestration_summary = json.loads(result.orchestration_summary_path.read_text(encoding="utf-8"))
+    scenario_catalog = json.loads(result.scenario_catalog_path.read_text(encoding="utf-8"))
+
+    assert orchestration_summary["run_type"] == "research_campaign_orchestration"
+    assert orchestration_summary["scenario_count"] == 2
+    assert orchestration_summary["scenario_status_counts"] == {"completed": 2}
+    assert [entry["scenario_id"] for entry in orchestration_summary["scenarios"]] == [
+        "scenario_0000_timeframe_1d",
+        "scenario_0001_timeframe_4h",
+    ]
+    assert scenario_catalog["scenario_count"] == 2
+    assert [entry["scenario_id"] for entry in scenario_catalog["scenarios"]] == [
+        "scenario_0000_timeframe_1d",
+        "scenario_0001_timeframe_4h",
+    ]
+    assert scenario_catalog["scenarios"][0]["effective_config"]["dataset_selection"]["timeframe"] == "1D"
+    assert scenario_catalog["scenarios"][1]["effective_config"]["dataset_selection"]["timeframe"] == "4H"
+
+    scenario_run_ids = {scenario.result.campaign_run_id for scenario in result.scenario_results}
+    assert len(scenario_run_ids) == 2
+    assert result.orchestration_run_id not in scenario_run_ids
+
+    for scenario_result in result.scenario_results:
+        assert scenario_result.result.campaign_summary_path.exists()
+        assert scenario_result.result.campaign_manifest_path.exists()
+        assert scenario_result.result.campaign_checkpoint_path.exists()
+        assert scenario_result.result.campaign_artifact_dir != result.orchestration_artifact_dir
+        assert len(scenario_result.result.campaign_summary["selected_run_ids"]["alpha_run_ids"]) == 1
+
+    assert "Research Campaign Orchestration Summary" in stdout
+    assert f"Campaign: {result.orchestration_run_id}" in stdout
+    assert "Scenarios: total=2 | completed=2" in stdout
+    assert "Scenario: scenario_0000_timeframe_1d" in stdout
+    assert "Scenario: scenario_0001_timeframe_4h" in stdout
+
+
 def test_run_research_campaign_resolves_candidate_selection_registry_for_portfolio_chaining(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

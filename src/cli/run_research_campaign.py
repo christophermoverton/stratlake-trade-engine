@@ -22,6 +22,8 @@ from src.config.research_campaign import (
     CampaignReusePolicyConfig,
     ResearchCampaignConfig,
     ResearchCampaignConfigError,
+    build_research_campaign_scenario_catalog,
+    expand_research_campaign_scenarios,
     load_research_campaign_config,
     resolve_research_campaign_config,
 )
@@ -52,6 +54,7 @@ CAMPAIGN_CONFIG_FILENAME = "campaign_config.json"
 CAMPAIGN_CHECKPOINT_FILENAME = "checkpoint.json"
 CAMPAIGN_MANIFEST_FILENAME = "manifest.json"
 CAMPAIGN_SUMMARY_FILENAME = "summary.json"
+SCENARIO_CATALOG_FILENAME = "scenario_catalog.json"
 
 
 @dataclass(frozen=True)
@@ -281,6 +284,30 @@ class ResearchCampaignRunResult:
     review_result: Any | None
 
 
+@dataclass(frozen=True)
+class ScenarioCampaignRunResult:
+    scenario_id: str
+    description: str | None
+    source: str
+    sweep_values: dict[str, Any]
+    fingerprint: str
+    result: ResearchCampaignRunResult
+
+
+@dataclass(frozen=True)
+class ResearchCampaignOrchestrationResult:
+    config: ResearchCampaignConfig
+    orchestration_run_id: str
+    orchestration_artifact_dir: Path
+    scenario_catalog_path: Path
+    orchestration_manifest_path: Path
+    orchestration_summary_path: Path
+    scenario_catalog: dict[str, Any]
+    orchestration_manifest: dict[str, Any]
+    orchestration_summary: dict[str, Any]
+    scenario_results: tuple[ScenarioCampaignRunResult, ...]
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -305,7 +332,9 @@ def resolve_cli_config(config_path: str | Path | None = None) -> ResearchCampaig
     return resolve_research_campaign_config(loaded.to_dict())
 
 
-def run_cli(argv: Sequence[str] | None = None) -> ResearchCampaignRunResult:
+def run_cli(
+    argv: Sequence[str] | None = None,
+) -> ResearchCampaignRunResult | ResearchCampaignOrchestrationResult:
     args = parse_args(argv)
     config = resolve_cli_config(args.config)
     result = run_research_campaign(config)
@@ -313,7 +342,15 @@ def run_cli(argv: Sequence[str] | None = None) -> ResearchCampaignRunResult:
     return result
 
 
-def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRunResult:
+def run_research_campaign(
+    config: ResearchCampaignConfig,
+) -> ResearchCampaignRunResult | ResearchCampaignOrchestrationResult:
+    if config.scenarios.enabled:
+        return _run_research_campaign_orchestration(config)
+    return _run_single_research_campaign(config)
+
+
+def _run_single_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRunResult:
     records: list[CampaignStageRecord] = []
     campaign_run_id = _build_campaign_run_id(config)
     campaign_artifact_dir = _campaign_artifact_dir(config, campaign_run_id=campaign_run_id)
@@ -1009,10 +1046,83 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         portfolio_result=portfolio_result,
         candidate_review_result=candidate_review_result,
         review_result=review_result,
+        )
+
+
+def _run_research_campaign_orchestration(
+    config: ResearchCampaignConfig,
+) -> ResearchCampaignOrchestrationResult:
+    orchestration_run_id = _build_orchestration_run_id(config)
+    orchestration_artifact_dir = _campaign_artifact_dir(
+        config,
+        campaign_run_id=orchestration_run_id,
+    )
+    _persist_campaign_config(orchestration_artifact_dir, config)
+    scenario_catalog = build_research_campaign_scenario_catalog(config)
+    scenario_catalog_path = orchestration_artifact_dir / SCENARIO_CATALOG_FILENAME
+    scenario_catalog_path.write_text(
+        json.dumps(scenario_catalog, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    scenario_results: list[ScenarioCampaignRunResult] = []
+    for scenario in expand_research_campaign_scenarios(config):
+        scenario_result = _run_single_research_campaign(scenario.config)
+        scenario_results.append(
+            ScenarioCampaignRunResult(
+                scenario_id=scenario.scenario_id,
+                description=scenario.description,
+                source=scenario.source,
+                sweep_values=dict(scenario.sweep_values),
+                fingerprint=scenario.fingerprint,
+                result=scenario_result,
+            )
+        )
+
+    manifest_payload, summary_payload = _build_orchestration_artifacts(
+        config=config,
+        orchestration_run_id=orchestration_run_id,
+        orchestration_artifact_dir=orchestration_artifact_dir,
+        scenario_catalog=scenario_catalog,
+        scenario_results=scenario_results,
+    )
+    manifest_path = orchestration_artifact_dir / CAMPAIGN_MANIFEST_FILENAME
+    summary_path = orchestration_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
+    manifest_path.write_text(
+        json.dumps(manifest_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+    summary_path.write_text(
+        json.dumps(summary_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+    return ResearchCampaignOrchestrationResult(
+        config=config,
+        orchestration_run_id=orchestration_run_id,
+        orchestration_artifact_dir=orchestration_artifact_dir,
+        scenario_catalog_path=scenario_catalog_path,
+        orchestration_manifest_path=manifest_path,
+        orchestration_summary_path=summary_path,
+        scenario_catalog=scenario_catalog,
+        orchestration_manifest=manifest_payload,
+        orchestration_summary=summary_payload,
+        scenario_results=tuple(scenario_results),
     )
 
 
-def print_summary(result: ResearchCampaignRunResult) -> None:
+def print_summary(
+    result: ResearchCampaignRunResult | ResearchCampaignOrchestrationResult,
+) -> None:
+    if isinstance(result, ResearchCampaignOrchestrationResult):
+        _print_orchestration_summary(result)
+        return
+    _print_single_campaign_summary(result)
+
+
+def _print_single_campaign_summary(result: ResearchCampaignRunResult) -> None:
     stage_statuses = dict(result.campaign_summary.get("stage_statuses", {}))
     stage_counts = _stage_state_counts(stage_statuses)
     print("Research Campaign Summary")
@@ -1101,6 +1211,39 @@ def print_summary(result: ResearchCampaignRunResult) -> None:
             f"decision_log={result.campaign_milestone_decision_log_path.as_posix() if result.campaign_milestone_decision_log_path is not None else 'missing'} | "
             f"manifest={result.campaign_milestone_manifest_path.as_posix() if result.campaign_milestone_manifest_path is not None else 'missing'}"
         )
+
+
+def _print_orchestration_summary(result: ResearchCampaignOrchestrationResult) -> None:
+    scenario_status_counts = dict(result.orchestration_summary.get("scenario_status_counts", {}))
+    print("Research Campaign Orchestration Summary")
+    print("--------------------------------------")
+    print(
+        f"Campaign: {result.orchestration_run_id} | "
+        f"status={result.orchestration_summary.get('status', 'unknown')} | "
+        f"dir={result.orchestration_artifact_dir.as_posix()}"
+    )
+    print(
+        f"Scenarios: total={len(result.scenario_results)} | "
+        + " | ".join(
+            f"{state}={count}"
+            for state, count in scenario_status_counts.items()
+            if count
+        )
+    )
+    for scenario_result in result.scenario_results:
+        scenario_summary = scenario_result.result.campaign_summary
+        print(
+            f"Scenario: {scenario_result.scenario_id} | "
+            f"status={scenario_summary.get('status', 'unknown')} | "
+            f"campaign={scenario_result.result.campaign_run_id} | "
+            f"summary={scenario_result.result.campaign_summary_path.as_posix()}"
+        )
+    print(
+        "Orchestration Artifacts: "
+        f"catalog={result.scenario_catalog_path.as_posix()} | "
+        f"manifest={result.orchestration_manifest_path.as_posix()} | "
+        f"summary={result.orchestration_summary_path.as_posix()}"
+    )
 
 
 def main() -> None:
@@ -3852,6 +3995,115 @@ def _path_or_none(obj: Any | None, attribute: str) -> str | None:
     if value is None:
         return None
     return Path(value).as_posix() if isinstance(value, Path) else str(value)
+
+
+def _build_orchestration_run_id(config: ResearchCampaignConfig) -> str:
+    payload = json.dumps(config.to_dict(), sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+    return f"research_campaign_orchestration_{digest}"
+
+
+def _build_orchestration_artifacts(
+    *,
+    config: ResearchCampaignConfig,
+    orchestration_run_id: str,
+    orchestration_artifact_dir: Path,
+    scenario_catalog: Mapping[str, Any],
+    scenario_results: Sequence[ScenarioCampaignRunResult],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    scenario_entries = [
+        canonicalize_value(
+            {
+                "scenario_id": scenario_result.scenario_id,
+                "description": scenario_result.description,
+                "source": scenario_result.source,
+                "sweep_values": canonicalize_value(dict(scenario_result.sweep_values)),
+                "fingerprint": scenario_result.fingerprint,
+                "campaign_run_id": scenario_result.result.campaign_run_id,
+                "status": scenario_result.result.campaign_summary.get("status"),
+                "preflight_status": scenario_result.result.preflight_summary.get("status"),
+                "campaign_artifact_dir": scenario_result.result.campaign_artifact_dir.as_posix(),
+                "campaign_manifest_path": scenario_result.result.campaign_manifest_path.as_posix(),
+                "campaign_summary_path": scenario_result.result.campaign_summary_path.as_posix(),
+                "selected_run_ids": dict(scenario_result.result.campaign_summary.get("selected_run_ids", {})),
+                "final_outcomes": dict(scenario_result.result.campaign_summary.get("final_outcomes", {})),
+            }
+        )
+        for scenario_result in scenario_results
+    ]
+    scenario_status_counts: dict[str, int] = {}
+    for entry in scenario_entries:
+        state = str(entry.get("status") or "unknown")
+        scenario_status_counts[state] = scenario_status_counts.get(state, 0) + 1
+
+    output_paths = canonicalize_value(
+        {
+            "orchestration_artifact_dir": orchestration_artifact_dir.as_posix(),
+            "campaign_config": (orchestration_artifact_dir / CAMPAIGN_CONFIG_FILENAME).as_posix(),
+            "scenario_catalog": (orchestration_artifact_dir / SCENARIO_CATALOG_FILENAME).as_posix(),
+            "orchestration_manifest": (orchestration_artifact_dir / CAMPAIGN_MANIFEST_FILENAME).as_posix(),
+            "orchestration_summary": (orchestration_artifact_dir / CAMPAIGN_SUMMARY_FILENAME).as_posix(),
+            "scenario_artifact_dirs": [entry["campaign_artifact_dir"] for entry in scenario_entries],
+            "scenario_summary_paths": [entry["campaign_summary_path"] for entry in scenario_entries],
+            "scenario_manifest_paths": [entry["campaign_manifest_path"] for entry in scenario_entries],
+        }
+    )
+    summary_payload = canonicalize_value(
+        {
+            "run_type": "research_campaign_orchestration",
+            "orchestration_run_id": orchestration_run_id,
+            "status": "completed" if scenario_entries else "unknown",
+            "scenario_count": len(scenario_entries),
+            "scenario_status_counts": dict(sorted(scenario_status_counts.items())),
+            "scenarios_enabled": config.scenarios.enabled,
+            "scenario_catalog": canonicalize_value(dict(scenario_catalog)),
+            "scenarios": scenario_entries,
+            "output_paths": output_paths,
+        }
+    )
+    manifest_payload = canonicalize_value(
+        {
+            "run_type": "research_campaign_orchestration",
+            "orchestration_run_id": orchestration_run_id,
+            "status": summary_payload["status"],
+            "scenario_count": len(scenario_entries),
+            "scenario_ids": [entry["scenario_id"] for entry in scenario_entries],
+            "scenario_status_counts": dict(sorted(scenario_status_counts.items())),
+            "campaign_artifact_dir": orchestration_artifact_dir.as_posix(),
+            "artifact_files": sorted(
+                [
+                    CAMPAIGN_CONFIG_FILENAME,
+                    SCENARIO_CATALOG_FILENAME,
+                    CAMPAIGN_MANIFEST_FILENAME,
+                    CAMPAIGN_SUMMARY_FILENAME,
+                ]
+            ),
+            "artifacts": {
+                CAMPAIGN_CONFIG_FILENAME: {"path": CAMPAIGN_CONFIG_FILENAME},
+                SCENARIO_CATALOG_FILENAME: {
+                    "path": SCENARIO_CATALOG_FILENAME,
+                    "scenario_count": len(scenario_entries),
+                },
+                CAMPAIGN_MANIFEST_FILENAME: {"path": CAMPAIGN_MANIFEST_FILENAME},
+                CAMPAIGN_SUMMARY_FILENAME: {
+                    "path": CAMPAIGN_SUMMARY_FILENAME,
+                    "scenario_count": len(scenario_entries),
+                },
+            },
+            "summary_path": CAMPAIGN_SUMMARY_FILENAME,
+            "scenarios": [
+                {
+                    "scenario_id": entry["scenario_id"],
+                    "campaign_run_id": entry["campaign_run_id"],
+                    "status": entry["status"],
+                    "campaign_artifact_dir": entry["campaign_artifact_dir"],
+                    "campaign_summary_path": entry["campaign_summary_path"],
+                }
+                for entry in scenario_entries
+            ],
+        }
+    )
+    return manifest_payload, summary_payload
 
 
 def _mapping_value(obj: Any | None, attribute: str) -> dict[str, Any] | None:

@@ -26,6 +26,9 @@ The campaign schema supports these sections:
 * `portfolio`: portfolio execution target and high-level run settings
 * `review`: unified research review filters, ranking, outputs, and promotion
   gate wiring through the existing `ReviewConfig` contract
+* `milestone_reporting`: campaign milestone artifact controls for decision
+  categories, decision-log render formats, report section toggles, summary
+  behavior, and optional `report.md` emission
 * `outputs`: common artifact roots and shared output destinations, including
   the campaign artifact root used for persisted campaign manifests, summaries,
   and preflight reports
@@ -64,6 +67,8 @@ The loader applies a few shared defaults so one campaign file can stay concise:
   local sections omit explicit paths
 * `candidate_selection.artifacts_root` inherits from
   `outputs.alpha_artifacts_root` when left at the default `artifacts/alpha`
+* milestone reporting defaults to the full artifact pack, but can selectively
+  disable `report.md`, filter decision categories, and trim report sections
 * string lists are trimmed, deduplicated, and preserved in input order
 * path-like strings are normalized to forward-slash form for stable manifests
 * `reuse_policy` stage lists are normalized against the canonical campaign
@@ -110,6 +115,8 @@ Each campaign persists:
 * `preflight_summary.json`
 * `manifest.json`
 * `summary.json`
+* a milestone-report pack under `milestone_report/` when
+  `milestone_reporting.enabled` stays `true`
 
 under `outputs.campaign_artifacts_root/<campaign_run_id>/`.
 
@@ -166,6 +173,44 @@ the campaign artifacts:
 * `manifest.json.partial_stage_names`
 * `manifest.json.resumable_stage_names`
 * `manifest.json.stage_execution`
+
+## Milestone Reporting
+
+`milestone_reporting` controls the campaign-level milestone pack written after a
+campaign summary and manifest exist.
+
+Supported fields:
+
+* `enabled`: turn milestone generation on or off for campaign runs
+* `decision_categories`: optional allowlist of decision categories to keep, for
+  example `campaign_execution` or `review_promotion`
+* `output.include_markdown_report`: emit or suppress `milestone_report/report.md`
+* `output.decision_log_render_formats`: rendered decision-log views to persist
+  inside `decision_log.json`; supported values are `markdown` and `text`
+* `sections.*`: booleans for the optional markdown sections
+  `campaign_scope`, `selections`, `key_findings`, `key_metrics`,
+  `gate_outcomes`, `risks`, `next_steps`, `open_questions`,
+  `decision_snapshot`, and `related_artifacts`
+* `summary.include_stage_counts`: include or suppress the tracked-stage count
+  sentence in the top-level milestone summary text
+* `summary.include_review_outcome`: include or suppress the review/promotion
+  outcome sentence in the top-level milestone summary text
+
+Example:
+
+```yaml
+research_campaign:
+  milestone_reporting:
+    decision_categories: [review_promotion]
+    output:
+      include_markdown_report: false
+      decision_log_render_formats: [text]
+    sections:
+      related_artifacts: false
+      decision_snapshot: false
+    summary:
+      include_stage_counts: false
+```
 
 ## Loading
 

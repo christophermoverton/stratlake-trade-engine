@@ -117,6 +117,29 @@ research_campaign:
       path:
       emit_plots: true
 
+  milestone_reporting:
+    enabled: true
+    decision_categories: []
+    output:
+      include_markdown_report: true
+      decision_log_render_formats:
+        - markdown
+        - text
+    sections:
+      campaign_scope: true
+      selections: true
+      key_findings: true
+      key_metrics: true
+      gate_outcomes: true
+      risks: true
+      next_steps: true
+      open_questions: true
+      decision_snapshot: true
+      related_artifacts: true
+    summary:
+      include_stage_counts: true
+      include_review_outcome: true
+
   outputs:
     alpha_artifacts_root: artifacts/alpha
     candidate_selection_output_path: artifacts/candidate_selection

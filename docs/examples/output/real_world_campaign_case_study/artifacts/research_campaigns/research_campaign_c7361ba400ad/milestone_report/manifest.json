@@ -1,0 +1,65 @@
+{
+  "artifact_files": [
+    "decision_log.json",
+    "manifest.json",
+    "report.md",
+    "summary.json"
+  ],
+  "artifact_groups": {
+    "core": [
+      "decision_log.json",
+      "manifest.json",
+      "report.md",
+      "summary.json"
+    ],
+    "decision_log": [
+      "decision_log.json"
+    ],
+    "markdown": [
+      "report.md"
+    ],
+    "report": [
+      "summary.json",
+      "report.md"
+    ],
+    "summary": [
+      "summary.json"
+    ]
+  },
+  "artifacts": {
+    "decision_log.json": {
+      "decision_count": 2,
+      "path": "decision_log.json"
+    },
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "report.md": {
+      "path": "report.md",
+      "section_count": 11
+    },
+    "summary.json": {
+      "decision_count": 2,
+      "finding_count": 5,
+      "path": "summary.json",
+      "recommendation_count": 1
+    }
+  },
+  "decision_counts_by_status": {
+    "accepted": 1,
+    "deferred": 1
+  },
+  "decision_ids": [
+    "campaign_execution",
+    "review_promotion_outcome"
+  ],
+  "decision_log_path": "decision_log.json",
+  "milestone_id": "milestone_report_a2443a03ccea",
+  "milestone_name": "Milestone 18",
+  "report_markdown_path": "report.md",
+  "run_type": "milestone_report",
+  "schema_version": 2,
+  "status": "final",
+  "summary_path": "summary.json",
+  "timestamp": "2000-04-02T01:09:37Z"
+}

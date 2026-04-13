@@ -8,11 +8,11 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
-## Milestone 17 Summary
+## Milestone 18 Summary
 
-Milestone 17 keeps the campaign-orchestration layer introduced in Milestone 16
-and extends it with explicit resume, retry, partial-execution, and stage-reuse
-auditability. StratLake now supports a
+Milestone 18 keeps the campaign-orchestration and resume/reuse layers
+introduced in Milestones 16 and 17, and adds deterministic milestone-review
+artifacts derived from completed campaign flows. StratLake now supports a
 deterministic path from evaluated alpha sleeves to candidate decisions,
 redundancy control, governed allocation, candidate-driven portfolio
 construction, and candidate-level review outputs. The repository now supports:
@@ -73,9 +73,11 @@ Start with:
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
 * [docs/milestone_17_resume_workflow.md](docs/milestone_17_resume_workflow.md)
+* [docs/milestone_18_milestone_review_workflow.md](docs/milestone_18_milestone_review_workflow.md)
 * [docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
+* [docs/milestone_reporting_artifacts.md](docs/milestone_reporting_artifacts.md)
 
 ## Overview
 
@@ -124,6 +126,14 @@ The repository currently supports:
   `reused_stage_names`, and `resumable_stage_names`
 * stitched campaign `manifest.json` and `summary.json` artifacts for
   automation and multi-stage auditability
+* auto-generated milestone review packs under
+  `artifacts/research_campaigns/<campaign_run_id>/milestone_report/`
+  containing `summary.json`, `decision_log.json`, `manifest.json`, and
+  optional `report.md`
+* milestone decision logs with relative evidence links back to campaign,
+  candidate-review, and research-review artifacts
+* follow-on milestone generation from an existing saved campaign via
+  `python -m src.cli.generate_milestone_report --campaign-artifact-path ...`
 * a committed Milestone 17 resume case study with partial, resumed, and stable
   reused campaign snapshots
 * deterministic artifacts, manifests, and registry-backed reuse

@@ -233,6 +233,19 @@ def _write_summary(
     )
     portfolio_manifest = _read_json(result.portfolio_result.experiment_dir / "manifest.json")
     portfolio_metrics = _read_json(result.portfolio_result.experiment_dir / "metrics.json")
+    milestone_summary_path = _value_from_result(result, "campaign_milestone_summary_path")
+    milestone_decision_log_path = _value_from_result(result, "campaign_milestone_decision_log_path")
+    milestone_manifest_path = _value_from_result(result, "campaign_milestone_manifest_path")
+    milestone_markdown_path = _value_from_result(result, "campaign_milestone_markdown_path")
+    milestone_summary = (
+        None if milestone_summary_path is None else _read_json(Path(milestone_summary_path))
+    )
+    milestone_decision_log = (
+        None if milestone_decision_log_path is None else _read_json(Path(milestone_decision_log_path))
+    )
+    milestone_manifest = (
+        None if milestone_manifest_path is None else _read_json(Path(milestone_manifest_path))
+    )
 
     review_csv = _path_from_result(
         result.review_result,
@@ -388,6 +401,46 @@ def _write_summary(
                 "manifest_artifact_files": candidate_review_manifest.get("artifact_files"),
             },
         },
+        "milestone_reporting": {
+            "enabled": milestone_summary is not None,
+            "summary_path": (
+                None
+                if milestone_summary_path is None
+                else _relative_to_output(Path(milestone_summary_path), output_root)
+            ),
+            "decision_log_path": (
+                None
+                if milestone_decision_log_path is None
+                else _relative_to_output(Path(milestone_decision_log_path), output_root)
+            ),
+            "manifest_path": (
+                None
+                if milestone_manifest_path is None
+                else _relative_to_output(Path(milestone_manifest_path), output_root)
+            ),
+            "report_markdown_path": (
+                None
+                if milestone_markdown_path is None
+                else _relative_to_output(Path(milestone_markdown_path), output_root)
+            ),
+            "milestone_id": None if milestone_summary is None else milestone_summary.get("milestone_id"),
+            "milestone_name": None if milestone_summary is None else milestone_summary.get("milestone_name"),
+            "status": None if milestone_summary is None else milestone_summary.get("status"),
+            "decision_count": None if milestone_summary is None else milestone_summary.get("decision_count"),
+            "decision_counts_by_status": (
+                {} if milestone_summary is None else milestone_summary.get("decision_counts_by_status", {})
+            ),
+            "decision_ids": [] if milestone_summary is None else milestone_summary.get("decision_ids", []),
+            "summary_text": None if milestone_summary is None else milestone_summary.get("summary"),
+            "key_findings": [] if milestone_summary is None else milestone_summary.get("key_findings", []),
+            "related_artifacts": {} if milestone_summary is None else milestone_summary.get("related_artifacts", {}),
+            "decision_log_rendered_formats": (
+                [] if milestone_decision_log is None else sorted(milestone_decision_log.get("rendered", {}).keys())
+            ),
+            "manifest_artifact_files": (
+                [] if milestone_manifest is None else milestone_manifest.get("artifact_files", [])
+            ),
+        },
         "artifacts": {
             "output_root": output_root.as_posix(),
             "campaign_dir": _relative_to_output(result.campaign_artifact_dir, output_root),
@@ -447,6 +500,14 @@ def print_summary(summary: dict[str, Any], output_root: Path) -> None:
         f"review_id={summary['review']['review_id']}, "
         f"candidate_review_dir={summary['review']['candidate_review']['review_dir']}"
     )
+    milestone_reporting = summary.get("milestone_reporting", {})
+    if milestone_reporting.get("enabled"):
+        print(
+            "Milestone reporting: "
+            f"milestone_id={milestone_reporting['milestone_id']}, "
+            f"decisions={milestone_reporting['decision_count']}, "
+            f"summary={milestone_reporting['summary_path']}"
+        )
     print(f"Output directory: {output_root.as_posix()}")
 
 

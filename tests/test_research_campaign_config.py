@@ -24,6 +24,9 @@ def test_resolve_research_campaign_config_loads_defaults() -> None:
     assert config.candidate_selection.output.path == "artifacts/candidate_selection"
     assert config.portfolio.enabled is False
     assert config.review.ranking.strategy_primary_metric == "sharpe_ratio"
+    assert config.milestone_reporting.enabled is True
+    assert config.milestone_reporting.output.include_markdown_report is True
+    assert config.milestone_reporting.output.decision_log_render_formats == ("markdown", "text")
     assert config.outputs.alpha_artifacts_root == "artifacts/alpha"
     assert config.outputs.campaign_artifacts_root == "artifacts/research_campaigns"
     assert config.reuse_policy.enable_checkpoint_reuse is True
@@ -66,6 +69,13 @@ research_campaign:
   review:
     filters:
       run_types: [alpha_evaluation, portfolio]
+  milestone_reporting:
+    decision_categories: [review_promotion]
+    output:
+      include_markdown_report: false
+      decision_log_render_formats: [text]
+    summary:
+      include_stage_counts: false
 """.strip(),
         encoding="utf-8",
     )
@@ -85,6 +95,10 @@ research_campaign:
     assert config.review.filters.portfolio_name == "candidate_portfolio"
     assert config.review.output.path == "artifacts/reviews/q1"
     assert config.review.filters.run_types == ["alpha_evaluation", "portfolio"]
+    assert config.milestone_reporting.decision_categories == ("review_promotion",)
+    assert config.milestone_reporting.output.include_markdown_report is False
+    assert config.milestone_reporting.output.decision_log_render_formats == ("text",)
+    assert config.milestone_reporting.summary.include_stage_counts is False
 
 
 def test_resolve_research_campaign_config_applies_precedence_and_normalization(
@@ -127,6 +141,10 @@ research_campaign:
                 "output": {"registry_path": "artifacts/candidate_selection/custom/registry.jsonl"},
             },
             "portfolio": {"enabled": True},
+            "milestone_reporting": {
+                "decision_categories": ["campaign_execution"],
+                "sections": {"open_questions": False},
+            },
         },
     )
 
@@ -146,6 +164,8 @@ research_campaign:
     assert config.reuse_policy.invalidate_downstream_after_stages == ("research",)
     assert config.outputs.campaign_artifacts_root == "artifacts/research_campaigns/custom"
     assert config.portfolio.enabled is True
+    assert config.milestone_reporting.decision_categories == ("campaign_execution",)
+    assert config.milestone_reporting.sections.open_questions is False
 
 
 def test_resolve_research_campaign_config_validates_fields_explicitly() -> None:
@@ -174,6 +194,13 @@ def test_resolve_research_campaign_config_validates_fields_explicitly() -> None:
 
     with pytest.raises(ResearchCampaignConfigError, match="reuse_policy.reuse_prior_stages"):
         resolve_research_campaign_config({"reuse_policy": {"reuse_prior_stages": ["review", "unknown"]}})
+
+    with pytest.raises(
+        ResearchCampaignConfigError, match="milestone_reporting.output.decision_log_render_formats"
+    ):
+        resolve_research_campaign_config(
+            {"milestone_reporting": {"output": {"decision_log_render_formats": ["html"]}}}
+        )
 
 
 def test_resolve_research_campaign_config_produces_stable_equivalent_payloads(

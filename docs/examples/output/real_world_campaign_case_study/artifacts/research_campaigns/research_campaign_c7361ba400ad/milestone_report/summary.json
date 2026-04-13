@@ -1,0 +1,1472 @@
+{
+  "decision_count": 2,
+  "decision_counts_by_status": {
+    "accepted": 1,
+    "deferred": 1
+  },
+  "decision_ids": [
+    "campaign_execution",
+    "review_promotion_outcome"
+  ],
+  "decision_log_path": "decision_log.json",
+  "key_findings": [
+    "Research scope resolved 4 alpha run(s), 0 strategy run(s), candidate_selection=candidate_selection_e35992810577, portfolio=real_world_m16_campaign_case_study_portfolio_cc99ba561315.",
+    "Stage outcomes: completed=0, failed=0, partial=0, pending=0, reused=7, skipped=0.",
+    "Portfolio metrics: Sharpe=4.06716156929312, Total Return=0.008101759628482474, Max Drawdown=0.004632462958028327.",
+    "Candidate review evaluated 0 candidate(s) with 0 selected and 0 rejected.",
+    "Review outcome: Review ranked 5 entries."
+  ],
+  "metadata": {
+    "campaign_manifest": {
+      "artifact_files": [
+        "campaign_config.json",
+        "checkpoint.json",
+        "manifest.json",
+        "preflight_summary.json",
+        "summary.json"
+      ],
+      "artifact_groups": {
+        "campaign": [
+          "campaign_config.json",
+          "checkpoint.json",
+          "manifest.json",
+          "preflight_summary.json",
+          "summary.json"
+        ],
+        "checkpoint": [
+          "checkpoint.json"
+        ],
+        "core": [
+          "campaign_config.json",
+          "checkpoint.json",
+          "manifest.json",
+          "preflight_summary.json",
+          "summary.json"
+        ],
+        "preflight": [
+          "preflight_summary.json"
+        ],
+        "summary": [
+          "summary.json"
+        ]
+      },
+      "artifacts": {
+        "campaign_config.json": {
+          "path": "campaign_config.json"
+        },
+        "checkpoint.json": {
+          "path": "checkpoint.json",
+          "schema_version": 2,
+          "stage_count": 7
+        },
+        "manifest.json": {
+          "path": "manifest.json"
+        },
+        "preflight_summary.json": {
+          "path": "preflight_summary.json"
+        },
+        "summary.json": {
+          "path": "summary.json",
+          "stage_count": 7
+        }
+      },
+      "campaign_artifact_dir": "..",
+      "campaign_run_id": "research_campaign_c7361ba400ad",
+      "checkpoint_path": "checkpoint.json",
+      "failed_stage_names": [],
+      "partial_stage_names": [],
+      "resumable_stage_names": [],
+      "retry_stage_names": [],
+      "reused_stage_names": [
+        "preflight",
+        "research",
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review"
+      ],
+      "run_type": "research_campaign",
+      "selected_run_ids": {
+        "alpha_run_ids": [
+          "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+          "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+          "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+          "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306"
+        ],
+        "candidate_selection_run_id": "candidate_selection_e35992810577",
+        "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+        "review_id": "registry_review_63c30be06cb7",
+        "strategy_run_ids": []
+      },
+      "skipped_stage_names": [],
+      "stage_execution": {
+        "candidate_review": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "candidate_review",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "candidate_review": {
+                "enabled": true,
+                "no_markdown_review": false
+              },
+              "candidate_selection_input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618",
+              "portfolio_input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1",
+              "resolved_candidate_selection_reference": null,
+              "resolved_portfolio_reference": {
+                "candidate_selection_run_id": null,
+                "input_fingerprint": null,
+                "match_criteria": {},
+                "run_id": "candidate_selection_e35992810577",
+                "source": "same_campaign",
+                "stage_name": "candidate_selection",
+                "upstream_alpha_run_ids": null
+              },
+              "same_campaign_candidate_selection_run_id": "candidate_selection_e35992810577",
+              "same_campaign_portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
+            },
+            "input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "candidate_review"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        },
+        "candidate_selection": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "candidate_selection",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "candidate_selection": {
+                "allocation": {
+                  "allocation_method": "equal_weight",
+                  "allocation_rounding_decimals": 12,
+                  "allocation_weight_sum_tolerance": 1e-12,
+                  "max_weight_per_candidate": 0.5,
+                  "min_allocation_candidate_count": 2,
+                  "min_allocation_weight": null
+                },
+                "alpha_name": null,
+                "artifacts_root": "../../../alpha",
+                "dataset": "features_daily",
+                "eligibility": {
+                  "min_coverage": null,
+                  "min_history_length": 10,
+                  "min_ic_ir": -1.0,
+                  "min_mean_ic": -1.0,
+                  "min_mean_rank_ic": -1.0,
+                  "min_rank_ic_ir": -1.0
+                },
+                "enabled": true,
+                "evaluation_horizon": 5,
+                "execution": {
+                  "skip_allocation": false,
+                  "skip_eligibility": false,
+                  "skip_redundancy": false,
+                  "strict_mode": false
+                },
+                "mapping_name": "top_bottom_quantile_q20",
+                "max_candidates": 4,
+                "metric": "ic_ir",
+                "redundancy": {
+                  "max_pairwise_correlation": 0.75,
+                  "min_overlap_observations": 10
+                },
+                "timeframe": "1D"
+              },
+              "research_input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612",
+              "resolved_input_reference": null,
+              "same_campaign_alpha_run_ids": [
+                "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+                "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+                "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+                "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306"
+              ]
+            },
+            "input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "candidate_selection"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        },
+        "comparison": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "comparison",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "comparison": {
+                "alpha_metric": "ic_ir",
+                "alpha_sleeve_metric": "sharpe_ratio",
+                "alpha_view": "combined",
+                "enabled": true,
+                "from_registry": true,
+                "strategy_metric": "sharpe_ratio",
+                "top_k": 4
+              },
+              "research_input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612",
+              "targets": {
+                "alpha_names": [
+                  "ml_cross_sectional_xgb_2026_q1",
+                  "ml_cross_sectional_lgbm_2026_q1",
+                  "ml_cross_sectional_elastic_net_2026_q1",
+                  "rank_composite_momentum_2026_q1"
+                ],
+                "strategy_names": []
+              }
+            },
+            "input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "comparison"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        },
+        "portfolio": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "portfolio",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "candidate_selection_input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618",
+              "portfolio": {
+                "enabled": true,
+                "evaluation_path": null,
+                "from_candidate_selection": true,
+                "from_registry": false,
+                "optimizer_method": "equal_weight",
+                "portfolio_name": "real_world_m16_campaign_case_study",
+                "timeframe": "1D"
+              },
+              "resolved_candidate_selection_reference": null,
+              "same_campaign_candidate_selection_run_id": "candidate_selection_e35992810577"
+            },
+            "input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "portfolio"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        },
+        "preflight": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "preflight",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "config": {
+                "candidate_selection": {
+                  "allocation": {
+                    "allocation_method": "equal_weight",
+                    "allocation_rounding_decimals": 12,
+                    "allocation_weight_sum_tolerance": 1e-12,
+                    "max_weight_per_candidate": 0.5,
+                    "min_allocation_candidate_count": 2,
+                    "min_allocation_weight": null
+                  },
+                  "alpha_name": null,
+                  "artifacts_root": "../../../alpha",
+                  "dataset": "features_daily",
+                  "eligibility": {
+                    "min_coverage": null,
+                    "min_history_length": 10,
+                    "min_ic_ir": -1.0,
+                    "min_mean_ic": -1.0,
+                    "min_mean_rank_ic": -1.0,
+                    "min_rank_ic_ir": -1.0
+                  },
+                  "enabled": true,
+                  "evaluation_horizon": 5,
+                  "execution": {
+                    "enable_review": true,
+                    "from_registry": false,
+                    "no_markdown_review": false,
+                    "register_run": true,
+                    "skip_allocation": false,
+                    "skip_eligibility": false,
+                    "skip_redundancy": false,
+                    "strict_mode": false
+                  },
+                  "mapping_name": "top_bottom_quantile_q20",
+                  "max_candidates": 4,
+                  "metric": "ic_ir",
+                  "output": {
+                    "path": "../../../candidate_selection",
+                    "registry_path": null,
+                    "review_output_path": "../../../reviews/candidate_review"
+                  },
+                  "redundancy": {
+                    "max_pairwise_correlation": 0.75,
+                    "min_overlap_observations": 10
+                  },
+                  "timeframe": "1D"
+                },
+                "comparison": {
+                  "alpha_metric": "ic_ir",
+                  "alpha_sleeve_metric": "sharpe_ratio",
+                  "alpha_view": "combined",
+                  "enabled": true,
+                  "from_registry": true,
+                  "strategy_metric": "sharpe_ratio",
+                  "top_k": 4
+                },
+                "dataset_selection": {
+                  "dataset": "features_daily",
+                  "evaluation_horizon": 5,
+                  "mapping_name": "top_bottom_quantile_q20",
+                  "tickers_path": null,
+                  "timeframe": "1D"
+                },
+                "outputs": {
+                  "alpha_artifacts_root": "../../../alpha",
+                  "campaign_artifacts_root": "../..",
+                  "candidate_selection_output_path": "../../../candidate_selection",
+                  "candidate_selection_registry_path": null,
+                  "comparison_output_path": "../../../campaign_comparisons",
+                  "portfolio_artifacts_root": "../../../portfolios",
+                  "review_output_path": "../../../reviews/research_review"
+                },
+                "portfolio": {
+                  "enabled": true,
+                  "evaluation_path": null,
+                  "from_candidate_selection": true,
+                  "from_registry": false,
+                  "optimizer_method": "equal_weight",
+                  "portfolio_name": "real_world_m16_campaign_case_study",
+                  "timeframe": "1D"
+                },
+                "reuse_policy": {
+                  "enable_checkpoint_reuse": true,
+                  "force_rerun_stages": [],
+                  "invalidate_downstream_after_stages": [],
+                  "reuse_prior_stages": [
+                    "preflight",
+                    "research",
+                    "comparison",
+                    "candidate_selection",
+                    "portfolio",
+                    "candidate_review",
+                    "review"
+                  ]
+                },
+                "review": {
+                  "filters": {
+                    "alpha_name": null,
+                    "dataset": "features_daily",
+                    "portfolio_name": "real_world_m16_campaign_case_study",
+                    "run_types": [
+                      "alpha_evaluation",
+                      "portfolio"
+                    ],
+                    "strategy_name": null,
+                    "timeframe": "1D",
+                    "top_k_per_type": 4
+                  },
+                  "output": {
+                    "emit_plots": false,
+                    "path": "../../../reviews/research_review"
+                  },
+                  "promotion_gates": null,
+                  "ranking": {
+                    "alpha_evaluation_primary_metric": "ic_ir",
+                    "alpha_evaluation_secondary_metric": "mean_ic",
+                    "portfolio_primary_metric": "sharpe_ratio",
+                    "portfolio_secondary_metric": "total_return",
+                    "strategy_primary_metric": "sharpe_ratio",
+                    "strategy_secondary_metric": "total_return"
+                  }
+                },
+                "targets": {
+                  "alpha_catalog_path": "../../../../../../../../configs/alphas_2026_q1.yml",
+                  "alpha_names": [
+                    "ml_cross_sectional_xgb_2026_q1",
+                    "ml_cross_sectional_lgbm_2026_q1",
+                    "ml_cross_sectional_elastic_net_2026_q1",
+                    "rank_composite_momentum_2026_q1"
+                  ],
+                  "portfolio_config_path": "../../../../../../../../configs/portfolios_alpha_2026_q1.yml",
+                  "portfolio_names": [
+                    "real_world_m16_campaign_case_study"
+                  ],
+                  "strategy_config_path": "../../../../../../../../configs/strategies.yml",
+                  "strategy_names": []
+                },
+                "time_windows": {
+                  "end": "2026-04-03",
+                  "predict_end": "2026-04-03",
+                  "predict_start": "2026-03-02",
+                  "start": "2026-01-01",
+                  "train_end": "2026-03-02",
+                  "train_start": "2026-01-01"
+                }
+              }
+            },
+            "input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "preflight"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        },
+        "research": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "research",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "dataset_selection": {
+                "dataset": "features_daily",
+                "evaluation_horizon": 5,
+                "mapping_name": "top_bottom_quantile_q20",
+                "tickers_path": null,
+                "timeframe": "1D"
+              },
+              "outputs": {
+                "alpha_artifacts_root": "../../../alpha"
+              },
+              "targets": {
+                "alpha_catalog_path": "../../../../../../../../configs/alphas_2026_q1.yml",
+                "alpha_names": [
+                  "ml_cross_sectional_xgb_2026_q1",
+                  "ml_cross_sectional_lgbm_2026_q1",
+                  "ml_cross_sectional_elastic_net_2026_q1",
+                  "rank_composite_momentum_2026_q1"
+                ],
+                "strategy_config_path": "../../../../../../../../configs/strategies.yml",
+                "strategy_names": []
+              },
+              "time_windows": {
+                "end": "2026-04-03",
+                "predict_end": "2026-04-03",
+                "predict_start": "2026-03-02",
+                "start": "2026-01-01",
+                "train_end": "2026-03-02",
+                "train_start": "2026-01-01"
+              }
+            },
+            "input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "research"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        },
+        "review": {
+          "checkpoint": {
+            "resumable": false,
+            "source": "checkpoint",
+            "stage_name": "review",
+            "state": "reused",
+            "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "terminal": true
+          },
+          "failure": null,
+          "fingerprint": {
+            "fingerprint_inputs": {
+              "artifact_roots": {
+                "alpha_artifacts_root": "../../../alpha",
+                "portfolio_artifacts_root": "../../../portfolios",
+                "strategy_artifacts_root": "artifacts/strategies"
+              },
+              "candidate_review_input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a",
+              "comparison_input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018",
+              "review": {
+                "filters": {
+                  "alpha_name": null,
+                  "dataset": "features_daily",
+                  "portfolio_name": "real_world_m16_campaign_case_study",
+                  "run_types": [
+                    "alpha_evaluation",
+                    "portfolio"
+                  ],
+                  "strategy_name": null,
+                  "timeframe": "1D",
+                  "top_k_per_type": 4
+                },
+                "promotion_gates": null,
+                "ranking": {
+                  "alpha_evaluation_primary_metric": "ic_ir",
+                  "alpha_evaluation_secondary_metric": "mean_ic",
+                  "portfolio_primary_metric": "sharpe_ratio",
+                  "portfolio_secondary_metric": "total_return",
+                  "strategy_primary_metric": "sharpe_ratio",
+                  "strategy_secondary_metric": "total_return"
+                }
+              }
+            },
+            "input_fingerprint": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303"
+          },
+          "resume": {
+            "checkpoint_state": "reused",
+            "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "resumable": false,
+            "terminal": true
+          },
+          "retry": {
+            "attempted": false,
+            "previous_failure": null,
+            "previous_state": null,
+            "previous_state_reason": null
+          },
+          "reuse": {
+            "decision": {
+              "action": "reuse",
+              "checkpoint_input_fingerprint": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303",
+              "checkpoint_state": "completed",
+              "fingerprint_match": true,
+              "invalidated_by_stage": null,
+              "matched_checkpoint": true,
+              "reason": "Reused persisted stage outputs from a matching checkpoint.",
+              "stage_name": "review"
+            },
+            "reused": true
+          },
+          "skip": {
+            "reason": null,
+            "skipped": false
+          },
+          "state": "reused"
+        }
+      },
+      "stage_state_counts": {
+        "completed": 0,
+        "failed": 0,
+        "partial": 0,
+        "pending": 0,
+        "reused": 7,
+        "skipped": 0
+      },
+      "stage_statuses": {
+        "candidate_review": "reused",
+        "candidate_selection": "reused",
+        "comparison": "reused",
+        "portfolio": "reused",
+        "preflight": "reused",
+        "research": "reused",
+        "review": "reused"
+      },
+      "status": "completed",
+      "summary_path": "summary.json",
+      "targets": {
+        "alpha_names": [
+          "ml_cross_sectional_xgb_2026_q1",
+          "ml_cross_sectional_lgbm_2026_q1",
+          "ml_cross_sectional_elastic_net_2026_q1",
+          "rank_composite_momentum_2026_q1"
+        ],
+        "portfolio_names": [
+          "real_world_m16_campaign_case_study"
+        ],
+        "strategy_names": []
+      }
+    },
+    "candidate_review_summary": {
+      "allocation_summary": {
+        "concentration_hhi": 0.33333333333333337,
+        "configured_allocation_summary": {
+          "allocated_candidates": 3,
+          "allocation_enabled": true,
+          "allocation_method": "equal_weight",
+          "concentration_hhi": 0.33333333333333337,
+          "constraint_adjusted_candidates": 0,
+          "constraints": {
+            "max_weight_per_candidate": 0.5,
+            "min_candidate_count": 2,
+            "min_weight_threshold": null,
+            "rounding_decimals": 12,
+            "weight_sum_tolerance": 1e-12
+          },
+          "weight_max": 0.333333333334,
+          "weight_min": 0.333333333333,
+          "weight_sum": 1.0
+        },
+        "weight_sum": 1.0
+      },
+      "candidate_selection_run_id": "candidate_selection_e35992810577",
+      "counts": {
+        "rejected_by_stage": {
+          "eligibility": 0,
+          "redundancy": 1
+        },
+        "rejected_candidates": 1,
+        "selected_candidates": 3,
+        "total_candidates": 4
+      },
+      "diversification_summary": {
+        "average_abs_correlation_selected_vs_rejected": 0.5559364758146407,
+        "average_pairwise_abs_correlation_selected": 0.289211546752227,
+        "average_pairwise_correlation_selected": 0.05474667667062005,
+        "concentration": {
+          "herfindahl_index": 0.33333333333333337,
+          "top3_concentration_ratio": 1.0
+        },
+        "rejected_candidate_count": 1,
+        "selected_candidate_count": 3
+      },
+      "key_observations": [
+        {
+          "name": "selection_rate",
+          "value": 0.75
+        },
+        {
+          "name": "eligibility_rejection_rate",
+          "value": 0.0
+        },
+        {
+          "name": "redundancy_rejection_rate",
+          "value": 0.25
+        },
+        {
+          "name": "average_selected_allocation_weight",
+          "value": 0.3333333333333333
+        },
+        {
+          "name": "selected_avg_abs_pairwise_correlation",
+          "value": 0.289211546752227
+        }
+      ],
+      "portfolio_metrics": {
+        "annualized_return": 0.08841849862390871,
+        "annualized_volatility": 0.020886541053111638,
+        "average_execution_friction_per_trade": 0.0,
+        "average_fixed_fee_per_trade": 0.0,
+        "average_gross_exposure": 0.9999999999990905,
+        "average_leverage": 0.9999999999990905,
+        "average_net_exposure": 0.9999999999990905,
+        "average_trade_size": 0.9999999999990905,
+        "average_turnover": 0.04166666666662877,
+        "conditional_value_at_risk": 0.0019060161714443999,
+        "conditional_value_at_risk_confidence_level": 0.95,
+        "cumulative_return": 0.008101759628482474,
+        "current_drawdown": 0.0027004595295651024,
+        "current_drawdown_duration": 4.0,
+        "estimated_post_target_volatility": null,
+        "estimated_pre_target_volatility": 0.022202083060691866,
+        "execution_drag_total_return": 0.0,
+        "exposure_pct": 100.0,
+        "gross_annualized_return": 0.08841849862390871,
+        "gross_cumulative_return": 0.008101759628482474,
+        "gross_total_return": 0.008101759628482474,
+        "hit_rate": 0.625,
+        "latest_rolling_volatility": 0.022202083060691866,
+        "max_drawdown": 0.004632462958028327,
+        "max_drawdown_duration": 4.0,
+        "max_gross_exposure": 0.9999999999990905,
+        "max_leverage": 0.9999999999990905,
+        "max_net_exposure": 0.9999999999990905,
+        "max_single_weight": 0.33333333333303017,
+        "max_weight_sum_deviation": 9.094947017729282e-13,
+        "min_net_exposure": 0.9999999999990905,
+        "net_total_return": 0.008101759628482474,
+        "percent_periods_traded": 4.166666666666666,
+        "profit_factor": 1.8996614268719028,
+        "realized_volatility": 0.020886541053111638,
+        "rebalance_count": 1.0,
+        "rolling_volatility_latest": 0.022202083060691866,
+        "rolling_volatility_max": 0.022202083060691866,
+        "rolling_volatility_mean": 0.020372950316728897,
+        "rolling_volatility_window": 20.0,
+        "sanity_issue_count": 0.0,
+        "sanity_status": "pass",
+        "sanity_strict_mode": false,
+        "sanity_warning_count": 0.0,
+        "sharpe_ratio": 4.06716156929312,
+        "target_volatility": null,
+        "total_execution_friction": 0.0,
+        "total_fixed_fee": 0.0,
+        "total_return": 0.008101759628482474,
+        "total_slippage_cost": 0.0,
+        "total_transaction_cost": 0.0,
+        "total_turnover": 0.9999999999990905,
+        "trade_count": 1.0,
+        "turnover": 0.04166666666662877,
+        "validation_issue_count": 0.0,
+        "value_at_risk": 0.0014066173809777207,
+        "value_at_risk_confidence_level": 0.95,
+        "volatility": 0.0013157284136874883,
+        "volatility_scaling_factor": null,
+        "volatility_target_scale": null,
+        "volatility_target_scale_capped": 0.0,
+        "volatility_targeting_enabled": 0.0,
+        "win_rate": 0.625
+      },
+      "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+      "run_type": "candidate_selection_review",
+      "top_contributors": [
+        {
+          "average_weight": 0.3333333333330301,
+          "candidate_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+          "return_contribution": 0.009444664311377235,
+          "return_contribution_share": 1.1673951278315897
+        },
+        {
+          "average_weight": 0.3333333333330301,
+          "candidate_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+          "return_contribution": 0.002381577952784934,
+          "return_contribution_share": 0.29437176451926694
+        },
+        {
+          "average_weight": 0.3333333333330301,
+          "candidate_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+          "return_contribution": -0.003735867303526101,
+          "return_contribution_share": -0.4617668923508566
+        }
+      ],
+      "weakest_contributors": [
+        {
+          "average_weight": 0.3333333333330301,
+          "candidate_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+          "return_contribution": -0.003735867303526101,
+          "return_contribution_share": -0.4617668923508566
+        },
+        {
+          "average_weight": 0.3333333333330301,
+          "candidate_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+          "return_contribution": 0.002381577952784934,
+          "return_contribution_share": 0.29437176451926694
+        },
+        {
+          "average_weight": 0.3333333333330301,
+          "candidate_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+          "return_contribution": 0.009444664311377235,
+          "return_contribution_share": 1.1673951278315897
+        }
+      ]
+    },
+    "final_outcomes": {
+      "candidate_review_counts": {
+        "rejected_candidates": 1,
+        "selected_candidates": 3,
+        "total_candidates": 4
+      },
+      "failed_stage_names": [],
+      "failures": [],
+      "partial_stage_names": [],
+      "preflight_status": "passed",
+      "resumable_stage_names": [],
+      "retry_stage_names": [],
+      "reused_stage_names": [
+        "preflight",
+        "research",
+        "comparison",
+        "candidate_selection",
+        "portfolio",
+        "candidate_review",
+        "review"
+      ],
+      "review_counts_by_run_type": {
+        "alpha_evaluation": 4,
+        "portfolio": 1
+      },
+      "review_promotion_gate_status": null,
+      "review_promotion_gate_summary": null,
+      "review_promotion_status": null,
+      "skipped_stage_names": [],
+      "stage_state_counts": {
+        "completed": 0,
+        "failed": 0,
+        "partial": 0,
+        "pending": 0,
+        "reused": 7,
+        "skipped": 0
+      }
+    },
+    "key_metrics": {
+      "alpha_runs": [
+        {
+          "alpha_name": "ml_cross_sectional_elastic_net_2026_q1",
+          "ic_ir": 0.8272437066429204,
+          "mean_ic": 0.12084441007118236,
+          "n_periods": 19,
+          "run_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+          "sleeve_sharpe_ratio": null,
+          "sleeve_total_return": null
+        },
+        {
+          "alpha_name": "ml_cross_sectional_lgbm_2026_q1",
+          "ic_ir": 1.589418842850813,
+          "mean_ic": 0.24848289027411252,
+          "n_periods": 19,
+          "run_id": "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+          "sleeve_sharpe_ratio": null,
+          "sleeve_total_return": null
+        },
+        {
+          "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+          "ic_ir": 1.9198107890623903,
+          "mean_ic": 0.2546042594447913,
+          "n_periods": 19,
+          "run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+          "sleeve_sharpe_ratio": null,
+          "sleeve_total_return": null
+        },
+        {
+          "alpha_name": "rank_composite_momentum_2026_q1",
+          "ic_ir": -0.04543185604194747,
+          "mean_ic": -0.007925863633708358,
+          "n_periods": 19,
+          "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+          "sleeve_sharpe_ratio": null,
+          "sleeve_total_return": null
+        }
+      ],
+      "candidate_selection": {
+        "eligible_count": 4,
+        "primary_metric": "ic_ir",
+        "pruned_by_redundancy": 1,
+        "rejected_count": 1,
+        "run_id": "candidate_selection_e35992810577",
+        "selected_count": 3,
+        "universe_count": 4
+      },
+      "portfolio": {
+        "component_count": 3,
+        "max_drawdown": 0.004632462958028327,
+        "portfolio_name": "real_world_m16_campaign_case_study",
+        "run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+        "sharpe_ratio": 4.06716156929312,
+        "total_return": 0.008101759628482474
+      },
+      "review": {
+        "counts_by_run_type": {
+          "alpha_evaluation": 4,
+          "portfolio": 1
+        },
+        "entry_count": 5,
+        "review_id": "registry_review_63c30be06cb7"
+      },
+      "strategy_runs": []
+    },
+    "preflight_status": "passed",
+    "review_summary": {
+      "counts_by_run_type": {
+        "alpha_evaluation": 4,
+        "portfolio": 1
+      },
+      "entries": [
+        {
+          "artifact_path": "../../../alpha/ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+          "entity_name": "ml_cross_sectional_xgb_2026_q1",
+          "evaluation_mode": "alpha_evaluation",
+          "gate_count": null,
+          "linked_portfolio_count": 1,
+          "linked_portfolio_metric_name": "sharpe_ratio",
+          "linked_portfolio_metric_value": 4.06716156929312,
+          "linked_portfolio_names": "real_world_m16_campaign_case_study",
+          "mapping_name": "top_bottom_quantile_q20",
+          "passed_gate_count": null,
+          "promotion_status": "needs_review",
+          "rank_within_type": 1,
+          "run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+          "run_type": "alpha_evaluation",
+          "secondary_metric_name": "mean_ic",
+          "secondary_metric_value": 0.2546042594447913,
+          "selected_metric_name": "ic_ir",
+          "selected_metric_value": 1.9198107890623903,
+          "sleeve_metric_name": "sharpe_ratio",
+          "sleeve_metric_value": 12.465814141682714,
+          "sleeve_secondary_metric_name": "total_return",
+          "sleeve_secondary_metric_value": 0.028695366787475418,
+          "timeframe": "1D"
+        },
+        {
+          "artifact_path": "../../../alpha/ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+          "entity_name": "ml_cross_sectional_lgbm_2026_q1",
+          "evaluation_mode": "alpha_evaluation",
+          "gate_count": null,
+          "linked_portfolio_count": null,
+          "linked_portfolio_metric_name": null,
+          "linked_portfolio_metric_value": null,
+          "linked_portfolio_names": null,
+          "mapping_name": "top_bottom_quantile_q20",
+          "passed_gate_count": null,
+          "promotion_status": "needs_review",
+          "rank_within_type": 2,
+          "run_id": "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+          "run_type": "alpha_evaluation",
+          "secondary_metric_name": "mean_ic",
+          "secondary_metric_value": 0.24848289027411252,
+          "selected_metric_name": "ic_ir",
+          "selected_metric_value": 1.589418842850813,
+          "sleeve_metric_name": "sharpe_ratio",
+          "sleeve_metric_value": 10.311078656234617,
+          "sleeve_secondary_metric_name": "total_return",
+          "sleeve_secondary_metric_value": 0.02395039005237276,
+          "timeframe": "1D"
+        },
+        {
+          "artifact_path": "../../../alpha/ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+          "entity_name": "ml_cross_sectional_elastic_net_2026_q1",
+          "evaluation_mode": "alpha_evaluation",
+          "gate_count": null,
+          "linked_portfolio_count": 1,
+          "linked_portfolio_metric_name": "sharpe_ratio",
+          "linked_portfolio_metric_value": 4.06716156929312,
+          "linked_portfolio_names": "real_world_m16_campaign_case_study",
+          "mapping_name": "top_bottom_quantile_q20",
+          "passed_gate_count": null,
+          "promotion_status": "needs_review",
+          "rank_within_type": 3,
+          "run_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+          "run_type": "alpha_evaluation",
+          "secondary_metric_name": "mean_ic",
+          "secondary_metric_value": 0.12084441007118236,
+          "selected_metric_name": "ic_ir",
+          "selected_metric_value": 0.8272437066429204,
+          "sleeve_metric_name": "sharpe_ratio",
+          "sleeve_metric_value": 2.4534389930906864,
+          "sleeve_secondary_metric_name": "total_return",
+          "sleeve_secondary_metric_value": 0.007126280964646847,
+          "timeframe": "1D"
+        },
+        {
+          "artifact_path": "../../../alpha/rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+          "entity_name": "rank_composite_momentum_2026_q1",
+          "evaluation_mode": "alpha_evaluation",
+          "gate_count": null,
+          "linked_portfolio_count": 1,
+          "linked_portfolio_metric_name": "sharpe_ratio",
+          "linked_portfolio_metric_value": 4.06716156929312,
+          "linked_portfolio_names": "real_world_m16_campaign_case_study",
+          "mapping_name": "top_bottom_quantile_q20",
+          "passed_gate_count": null,
+          "promotion_status": "needs_review",
+          "rank_within_type": 4,
+          "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+          "run_type": "alpha_evaluation",
+          "secondary_metric_name": "mean_ic",
+          "secondary_metric_value": -0.007925863633708358,
+          "selected_metric_name": "ic_ir",
+          "selected_metric_value": -0.04543185604194747,
+          "sleeve_metric_name": "sharpe_ratio",
+          "sleeve_metric_value": -2.8283515697147212,
+          "sleeve_secondary_metric_name": "total_return",
+          "sleeve_secondary_metric_value": -0.011225884228951988,
+          "timeframe": "1D"
+        },
+        {
+          "artifact_path": "../../../portfolios/real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+          "entity_name": "real_world_m16_campaign_case_study",
+          "evaluation_mode": "single",
+          "gate_count": null,
+          "linked_portfolio_count": null,
+          "linked_portfolio_metric_name": null,
+          "linked_portfolio_metric_value": null,
+          "linked_portfolio_names": null,
+          "mapping_name": null,
+          "passed_gate_count": null,
+          "promotion_status": "needs_review",
+          "rank_within_type": 1,
+          "run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+          "run_type": "portfolio",
+          "secondary_metric_name": "total_return",
+          "secondary_metric_value": 0.008101759628482474,
+          "selected_metric_name": "sharpe_ratio",
+          "selected_metric_value": 4.06716156929312,
+          "sleeve_metric_name": null,
+          "sleeve_metric_value": null,
+          "sleeve_secondary_metric_name": null,
+          "sleeve_secondary_metric_value": null,
+          "timeframe": "1D"
+        }
+      ],
+      "entry_count": 5,
+      "filters": {
+        "alpha_name": null,
+        "dataset": "features_daily",
+        "portfolio_name": "real_world_m16_campaign_case_study",
+        "run_types": [
+          "alpha_evaluation",
+          "portfolio"
+        ],
+        "strategy_name": null,
+        "timeframe": "1D",
+        "top_k_per_type": 4
+      },
+      "plot_paths": {},
+      "review_config": {
+        "filters": {
+          "alpha_name": null,
+          "dataset": "features_daily",
+          "portfolio_name": "real_world_m16_campaign_case_study",
+          "run_types": [
+            "alpha_evaluation",
+            "portfolio"
+          ],
+          "strategy_name": null,
+          "timeframe": "1D",
+          "top_k_per_type": 4
+        },
+        "output": {
+          "emit_plots": false,
+          "path": "../../../reviews/research_review"
+        },
+        "promotion_gates": null,
+        "ranking": {
+          "alpha_evaluation_primary_metric": "ic_ir",
+          "alpha_evaluation_secondary_metric": "mean_ic",
+          "portfolio_primary_metric": "sharpe_ratio",
+          "portfolio_secondary_metric": "total_return",
+          "strategy_primary_metric": "sharpe_ratio",
+          "strategy_secondary_metric": "total_return"
+        }
+      },
+      "review_id": "registry_review_63c30be06cb7",
+      "run_ids": [
+        "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+        "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+        "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+        "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+        "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
+      ],
+      "skipped_plots": {
+        "alpha_evaluation_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false.",
+        "portfolio_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false."
+      }
+    },
+    "selected_run_ids": {
+      "alpha_run_ids": [
+        "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+        "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+        "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+        "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306"
+      ],
+      "candidate_selection_run_id": "candidate_selection_e35992810577",
+      "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+      "review_id": "registry_review_63c30be06cb7",
+      "strategy_run_ids": []
+    },
+    "source_campaign_run_id": "research_campaign_c7361ba400ad",
+    "source_campaign_status": "completed",
+    "source_run_type": "research_campaign",
+    "stage_outcomes": [
+      {
+        "key_metrics": {},
+        "outcomes": {
+          "failed_checks": []
+        },
+        "output_paths": {},
+        "selected_run_ids": {},
+        "stage_name": "preflight",
+        "state": "reused",
+        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "status": "reused"
+      },
+      {
+        "key_metrics": {
+          "alpha_runs": [
+            {
+              "alpha_name": "ml_cross_sectional_elastic_net_2026_q1",
+              "ic_ir": 0.8272437066429204,
+              "mean_ic": 0.12084441007118236,
+              "n_periods": 19,
+              "run_id": "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+              "sleeve_sharpe_ratio": null,
+              "sleeve_total_return": null
+            },
+            {
+              "alpha_name": "ml_cross_sectional_lgbm_2026_q1",
+              "ic_ir": 1.589418842850813,
+              "mean_ic": 0.24848289027411252,
+              "n_periods": 19,
+              "run_id": "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+              "sleeve_sharpe_ratio": null,
+              "sleeve_total_return": null
+            },
+            {
+              "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+              "ic_ir": 1.9198107890623903,
+              "mean_ic": 0.2546042594447913,
+              "n_periods": 19,
+              "run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+              "sleeve_sharpe_ratio": null,
+              "sleeve_total_return": null
+            },
+            {
+              "alpha_name": "rank_composite_momentum_2026_q1",
+              "ic_ir": -0.04543185604194747,
+              "mean_ic": -0.007925863633708358,
+              "n_periods": 19,
+              "run_id": "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306",
+              "sleeve_sharpe_ratio": null,
+              "sleeve_total_return": null
+            }
+          ],
+          "strategy_runs": []
+        },
+        "outcomes": {},
+        "output_paths": {},
+        "selected_run_ids": {
+          "alpha_run_ids": [
+            "ml_cross_sectional_elastic_net_2026_q1_alpha_eval_813a3a37e1a0",
+            "ml_cross_sectional_lgbm_2026_q1_alpha_eval_b666eb92f4bd",
+            "ml_cross_sectional_xgb_2026_q1_alpha_eval_366f61a76d97",
+            "rank_composite_momentum_2026_q1_alpha_eval_81ef86e27306"
+          ],
+          "strategy_run_ids": []
+        },
+        "stage_name": "research",
+        "state": "reused",
+        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "status": "reused"
+      },
+      {
+        "key_metrics": {},
+        "outcomes": {},
+        "output_paths": {
+          "alpha_comparison_csv": "../../../campaign_comparisons/alpha/leaderboard.csv",
+          "alpha_comparison_summary": "../../../campaign_comparisons/alpha/leaderboard.json"
+        },
+        "selected_run_ids": {
+          "alpha_comparison_id": "registry_alpha_combined_af4ec0488c60",
+          "strategy_comparison_id": null
+        },
+        "stage_name": "comparison",
+        "state": "reused",
+        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "status": "reused"
+      },
+      {
+        "key_metrics": {
+          "eligible_count": 4,
+          "primary_metric": "ic_ir",
+          "pruned_by_redundancy": 1,
+          "rejected_count": 1,
+          "run_id": "candidate_selection_e35992810577",
+          "selected_count": 3,
+          "universe_count": 4
+        },
+        "outcomes": {},
+        "output_paths": {
+          "artifact_dir": "../../../candidate_selection/candidate_selection_e35992810577",
+          "manifest_json": "../../../candidate_selection/candidate_selection_e35992810577/manifest.json",
+          "summary_json": "../../../candidate_selection/candidate_selection_e35992810577/selection_summary.json"
+        },
+        "selected_run_ids": {
+          "candidate_selection_run_id": "candidate_selection_e35992810577"
+        },
+        "stage_name": "candidate_selection",
+        "state": "reused",
+        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "status": "reused"
+      },
+      {
+        "key_metrics": {
+          "component_count": 3,
+          "max_drawdown": 0.004632462958028327,
+          "portfolio_name": "real_world_m16_campaign_case_study",
+          "run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
+          "sharpe_ratio": 4.06716156929312,
+          "total_return": 0.008101759628482474
+        },
+        "outcomes": {},
+        "output_paths": {
+          "artifact_dir": "../../../portfolios/real_world_m16_campaign_case_study_portfolio_cc99ba561315"
+        },
+        "selected_run_ids": {
+          "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
+        },
+        "stage_name": "portfolio",
+        "state": "reused",
+        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "status": "reused"
+      },
+      {
+        "key_metrics": {},
+        "outcomes": {
+          "rejected_candidates": 1,
+          "selected_candidates": 3,
+          "total_candidates": 4
+        },
+        "output_paths": {
+          "manifest_json": "../../../reviews/candidate_review/manifest.json",
+          "review_dir": "../../../reviews/candidate_review",
+          "summary_json": "../../../reviews/candidate_review/candidate_review_summary.json"
+        },
+        "selected_run_ids": {
+          "candidate_selection_run_id": "candidate_selection_e35992810577",
+          "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
+        },
+        "stage_name": "candidate_review",
+        "state": "reused",
+        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "status": "reused"
+      },
+      {
+        "key_metrics": {
+          "counts_by_run_type": {
+            "alpha_evaluation": 4,
+            "portfolio": 1
+          },
+          "entry_count": 5,
+          "review_id": "registry_review_63c30be06cb7"
+        },
+        "outcomes": {},
+        "output_paths": {
+          "leaderboard_csv": "../../../reviews/research_review/leaderboard.csv",
+          "manifest_json": "../../../reviews/research_review/manifest.json",
+          "summary_json": "../../../reviews/research_review/review_summary.json"
+        },
+        "selected_run_ids": {
+          "review_id": "registry_review_63c30be06cb7"
+        },
+        "stage_name": "review",
+        "state": "reused",
+        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "status": "reused"
+      }
+    ],
+    "stage_state_counts": {
+      "completed": 0,
+      "failed": 0,
+      "partial": 0,
+      "pending": 0,
+      "reused": 7,
+      "skipped": 0
+    },
+    "stage_statuses": {
+      "candidate_review": "reused",
+      "candidate_selection": "reused",
+      "comparison": "reused",
+      "portfolio": "reused",
+      "preflight": "reused",
+      "research": "reused",
+      "review": "reused"
+    }
+  },
+  "milestone_id": "milestone_report_a2443a03ccea",
+  "milestone_name": "Milestone 18",
+  "open_questions": [
+    "Should promotion gates be persisted for reviewed campaigns that stop at review readiness?"
+  ],
+  "owner": null,
+  "recommendations": [
+    "No blocking follow-up actions were detected in the completed campaign artifacts."
+  ],
+  "related_artifacts": {
+    "alpha_comparison_summary": "../../../campaign_comparisons/alpha/leaderboard.json",
+    "campaign_checkpoint": "../checkpoint.json",
+    "campaign_manifest": "../manifest.json",
+    "campaign_manifest_summary_path": "../summary.json",
+    "campaign_summary": "../summary.json",
+    "candidate_review_manifest": "../../../reviews/candidate_review/manifest.json",
+    "candidate_review_summary": "../../../reviews/candidate_review/candidate_review_summary.json",
+    "candidate_selection_manifest": "../../../candidate_selection/candidate_selection_e35992810577/manifest.json",
+    "candidate_selection_summary": "../../../candidate_selection/candidate_selection_e35992810577/selection_summary.json",
+    "preflight_summary": "../preflight_summary.json",
+    "review_manifest": "../../../reviews/research_review/manifest.json",
+    "review_summary": "../../../reviews/research_review/review_summary.json"
+  },
+  "report_markdown_path": "report.md",
+  "reporting_window": {
+    "end": "2026-04-03",
+    "start": "2026-01-01"
+  },
+  "run_type": "milestone_report",
+  "schema_version": 2,
+  "scope": [
+    "alpha:ml_cross_sectional_elastic_net_2026_q1",
+    "alpha:ml_cross_sectional_lgbm_2026_q1",
+    "alpha:ml_cross_sectional_xgb_2026_q1",
+    "alpha:rank_composite_momentum_2026_q1",
+    "portfolio:real_world_m16_campaign_case_study"
+  ],
+  "status": "final",
+  "summary": "Campaign `research_campaign_c7361ba400ad` finished with status `completed`. 7 of 7 tracked stages completed or were reused. Review outcome: Review ranked 5 entries.",
+  "title": "Milestone 18 Readiness Report"
+}

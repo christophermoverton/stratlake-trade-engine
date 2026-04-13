@@ -15,6 +15,12 @@ from src.cli.run_research_campaign import (
     run_cli,
     run_research_campaign,
 )
+from src.research.reporting import (
+    MILESTONE_DECISION_LOG_FILENAME,
+    MILESTONE_MANIFEST_FILENAME,
+    MILESTONE_MARKDOWN_REPORT_FILENAME,
+    MILESTONE_SUMMARY_FILENAME,
+)
 from src.config.research_campaign import resolve_research_campaign_config
 
 
@@ -371,6 +377,10 @@ portfolios:
     assert result.campaign_checkpoint_path.exists()
     assert result.campaign_manifest_path.exists()
     assert result.campaign_summary_path.exists()
+    assert result.campaign_milestone_summary_path == result.campaign_artifact_dir / "milestone_report" / MILESTONE_SUMMARY_FILENAME
+    assert result.campaign_milestone_decision_log_path == result.campaign_artifact_dir / "milestone_report" / MILESTONE_DECISION_LOG_FILENAME
+    assert result.campaign_milestone_manifest_path == result.campaign_artifact_dir / "milestone_report" / MILESTONE_MANIFEST_FILENAME
+    assert result.campaign_milestone_markdown_path == result.campaign_artifact_dir / "milestone_report" / MILESTONE_MARKDOWN_REPORT_FILENAME
     assert result.preflight_summary["status"] == "passed"
     assert result.preflight_summary["check_counts"]["failed"] == 0
 
@@ -410,6 +420,7 @@ portfolios:
     assert "Review: candidate_review=" in stdout
     assert "review_id=review_run" in stdout
     assert "Campaign Artifacts: manifest=" in stdout
+    assert "Milestone Artifacts: summary=" in stdout
 
     assert campaign_checkpoint["run_type"] == "research_campaign_checkpoint"
     assert campaign_checkpoint["campaign_run_id"] == result.campaign_run_id
@@ -443,6 +454,14 @@ portfolios:
         == campaign_checkpoint["stage_input_fingerprints"]["candidate_review"]
     )
     assert campaign_manifest["selected_run_ids"]["portfolio_run_id"] == "portfolio_run"
+    assert sorted(campaign_manifest["artifact_groups"]["milestone_report"]) == [
+        "milestone_report/decision_log.json",
+        "milestone_report/manifest.json",
+        "milestone_report/report.md",
+        "milestone_report/summary.json",
+    ]
+    assert campaign_manifest["artifacts"]["milestone_report/summary.json"]["decision_count"] == 2
+    assert campaign_manifest["artifacts"]["milestone_report/report.md"]["path"] == "milestone_report/report.md"
 
     assert campaign_summary["run_type"] == "research_campaign"
     assert campaign_summary["campaign_run_id"] == result.campaign_run_id
@@ -467,6 +486,10 @@ portfolios:
     assert candidate_review_stage["execution_metadata"]["failure"] is None
     assert campaign_summary["output_paths"]["candidate_review_dir"] == review_dir.as_posix()
     assert campaign_summary["output_paths"]["campaign_checkpoint"] == result.campaign_checkpoint_path.as_posix()
+    assert campaign_summary["output_paths"]["milestone_report_summary"] == result.campaign_milestone_summary_path.as_posix()
+    assert campaign_summary["output_paths"]["milestone_report_decision_log"] == result.campaign_milestone_decision_log_path.as_posix()
+    assert campaign_summary["output_paths"]["milestone_report_manifest"] == result.campaign_milestone_manifest_path.as_posix()
+    assert campaign_summary["output_paths"]["milestone_report_markdown"] == result.campaign_milestone_markdown_path.as_posix()
     assert "candidate_review_counts" in campaign_summary["final_outcomes"]
     assert [stage["stage_name"] for stage in campaign_summary["stages"]] == [
         "preflight",
@@ -3041,9 +3064,17 @@ portfolios:
         "campaign_config.json",
         "checkpoint.json",
         "manifest.json",
+        "milestone_report/decision_log.json",
+        "milestone_report/manifest.json",
+        "milestone_report/report.md",
+        "milestone_report/summary.json",
         "preflight_summary.json",
         "summary.json",
     ]
+    assert summary["output_paths"]["milestone_report_summary"].endswith("milestone_report/summary.json")
+    assert summary["output_paths"]["milestone_report_decision_log"].endswith("milestone_report/decision_log.json")
+    assert summary["output_paths"]["milestone_report_manifest"].endswith("milestone_report/manifest.json")
+    assert summary["output_paths"]["milestone_report_markdown"].endswith("milestone_report/report.md")
 
 
 def test_run_research_campaign_changes_dependent_stage_fingerprints_when_inputs_change(

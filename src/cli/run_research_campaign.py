@@ -38,6 +38,13 @@ from src.research.campaign_checkpoint import (
 )
 from src.research.candidate_selection.registry import candidate_selection_registry_path
 from src.research.experiment_tracker import ARTIFACTS_ROOT as STRATEGY_ARTIFACTS_ROOT
+from src.research.reporting import (
+    MILESTONE_DECISION_LOG_FILENAME,
+    MILESTONE_MANIFEST_FILENAME,
+    MILESTONE_MARKDOWN_REPORT_FILENAME,
+    MILESTONE_SUMMARY_FILENAME,
+    generate_campaign_milestone_report,
+)
 from src.research.registry import canonicalize_value, default_registry_path, load_registry
 
 PREFLIGHT_SUMMARY_FILENAME = "preflight_summary.json"
@@ -254,6 +261,10 @@ class ResearchCampaignRunResult:
     campaign_checkpoint_path: Path
     campaign_manifest_path: Path
     campaign_summary_path: Path
+    campaign_milestone_summary_path: Path | None
+    campaign_milestone_decision_log_path: Path | None
+    campaign_milestone_manifest_path: Path | None
+    campaign_milestone_markdown_path: Path | None
     preflight_summary_path: Path
     campaign_checkpoint: dict[str, Any]
     campaign_manifest: dict[str, Any]
@@ -972,6 +983,18 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         campaign_checkpoint_path=checkpoint_path,
         campaign_manifest_path=manifest_path,
         campaign_summary_path=summary_path,
+        campaign_milestone_summary_path=_optional_path(
+            summary_payload.get("output_paths", {}).get("milestone_report_summary")
+        ),
+        campaign_milestone_decision_log_path=_optional_path(
+            summary_payload.get("output_paths", {}).get("milestone_report_decision_log")
+        ),
+        campaign_milestone_manifest_path=_optional_path(
+            summary_payload.get("output_paths", {}).get("milestone_report_manifest")
+        ),
+        campaign_milestone_markdown_path=_optional_path(
+            summary_payload.get("output_paths", {}).get("milestone_report_markdown")
+        ),
         preflight_summary_path=preflight_result.summary_path,
         campaign_checkpoint=checkpoint_payload,
         campaign_manifest=manifest_payload,
@@ -1071,6 +1094,13 @@ def print_summary(result: ResearchCampaignRunResult) -> None:
         f"checkpoint={result.campaign_checkpoint_path.as_posix()} | "
         f"summary={result.campaign_summary_path.as_posix()}"
     )
+    if result.campaign_milestone_summary_path is not None:
+        print(
+            "Milestone Artifacts: "
+            f"summary={result.campaign_milestone_summary_path.as_posix()} | "
+            f"decision_log={result.campaign_milestone_decision_log_path.as_posix() if result.campaign_milestone_decision_log_path is not None else 'missing'} | "
+            f"manifest={result.campaign_milestone_manifest_path.as_posix() if result.campaign_milestone_manifest_path is not None else 'missing'}"
+        )
 
 
 def main() -> None:
@@ -2967,6 +2997,7 @@ def _write_campaign_artifacts(
         candidate_review_result=candidate_review_result,
         review_result=review_result,
         status=status,
+        milestone_outputs=None,
     )
     manifest_payload = _build_campaign_manifest(
         config=config,
@@ -2974,6 +3005,7 @@ def _write_campaign_artifacts(
         campaign_artifact_dir=campaign_artifact_dir,
         checkpoint_payload=checkpoint_payload,
         summary_payload=summary_payload,
+        milestone_outputs=None,
     )
     checkpoint_path = campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME
     summary_path = campaign_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
@@ -2981,7 +3013,66 @@ def _write_campaign_artifacts(
     write_campaign_checkpoint(checkpoint_path, checkpoint_payload)
     summary_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
     manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
+    milestone_outputs = _generate_campaign_milestone_outputs(campaign_artifact_dir=campaign_artifact_dir)
+    summary_payload = _build_campaign_summary(
+        config=config,
+        campaign_run_id=campaign_run_id,
+        campaign_artifact_dir=campaign_artifact_dir,
+        checkpoint_payload=checkpoint_payload,
+        preflight_result=preflight_result,
+        stage_records=stage_records,
+        alpha_results=alpha_results,
+        strategy_results=strategy_results,
+        alpha_comparison_result=alpha_comparison_result,
+        strategy_comparison_result=strategy_comparison_result,
+        candidate_selection_result=candidate_selection_result,
+        portfolio_result=portfolio_result,
+        candidate_review_result=candidate_review_result,
+        review_result=review_result,
+        status=status,
+        milestone_outputs=milestone_outputs,
+    )
+    manifest_payload = _build_campaign_manifest(
+        config=config,
+        campaign_run_id=campaign_run_id,
+        campaign_artifact_dir=campaign_artifact_dir,
+        checkpoint_payload=checkpoint_payload,
+        summary_payload=summary_payload,
+        milestone_outputs=milestone_outputs,
+    )
+    summary_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
+    manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
     return checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload
+
+
+def _generate_campaign_milestone_outputs(*, campaign_artifact_dir: Path) -> dict[str, Any]:
+    summary_path, decision_log_path, manifest_path = generate_campaign_milestone_report(campaign_artifact_dir)
+    milestone_dir = summary_path.parent
+    markdown_path = milestone_dir / MILESTONE_MARKDOWN_REPORT_FILENAME
+    summary_payload = _read_json_mapping(
+        summary_path,
+        missing_message=f"Campaign milestone summary missing at {summary_path.as_posix()}.",
+        invalid_message=f"Campaign milestone summary invalid at {summary_path.as_posix()}.",
+    )
+    manifest_payload = _read_json_mapping(
+        manifest_path,
+        missing_message=f"Campaign milestone manifest missing at {manifest_path.as_posix()}.",
+        invalid_message=f"Campaign milestone manifest invalid at {manifest_path.as_posix()}.",
+    )
+    return canonicalize_value(
+        {
+            "artifact_dir": milestone_dir.as_posix(),
+            "summary_path": summary_path.as_posix(),
+            "decision_log_path": decision_log_path.as_posix(),
+            "manifest_path": manifest_path.as_posix(),
+            "report_markdown_path": markdown_path.as_posix() if markdown_path.exists() else None,
+            "artifact_files": list(manifest_payload.get("artifact_files") or []),
+            "decision_count": _coerce_int(summary_payload.get("decision_count")),
+            "decision_counts_by_status": canonicalize_value(
+                dict(summary_payload.get("decision_counts_by_status") or {})
+            ),
+        }
+    )
 
 
 def _build_campaign_checkpoint(
@@ -3051,6 +3142,7 @@ def _build_campaign_summary(
     candidate_review_result: Any | None,
     review_result: Any | None,
     status: str,
+    milestone_outputs: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     selected_run_ids = {
         "alpha_run_ids": sorted(str(result.run_id) for result in alpha_results),
@@ -3084,6 +3176,16 @@ def _build_campaign_summary(
         "review_manifest": _path_or_none(review_result, "manifest_path"),
         "review_promotion_gates": _path_or_none(review_result, "promotion_gate_path"),
     }
+    if isinstance(milestone_outputs, Mapping):
+        output_paths.update(
+            {
+                "milestone_report_dir": milestone_outputs.get("artifact_dir"),
+                "milestone_report_summary": milestone_outputs.get("summary_path"),
+                "milestone_report_decision_log": milestone_outputs.get("decision_log_path"),
+                "milestone_report_manifest": milestone_outputs.get("manifest_path"),
+                "milestone_report_markdown": milestone_outputs.get("report_markdown_path"),
+            }
+        )
     output_paths["alpha_artifact_dirs"] = [path for path in output_paths["alpha_artifact_dirs"] if path is not None]
     output_paths["strategy_artifact_dirs"] = [path for path in output_paths["strategy_artifact_dirs"] if path is not None]
 
@@ -3241,6 +3343,7 @@ def _build_campaign_manifest(
     campaign_artifact_dir: Path,
     checkpoint_payload: dict[str, Any],
     summary_payload: dict[str, Any],
+    milestone_outputs: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     stage_execution = _stage_execution_by_name(
         checkpoint_payload,
@@ -3255,6 +3358,31 @@ def _build_campaign_manifest(
             CAMPAIGN_SUMMARY_FILENAME,
         ]
     )
+    milestone_artifact_files: list[str] = []
+    if isinstance(milestone_outputs, Mapping):
+        milestone_artifact_files = [
+            path
+            for path in [
+                _campaign_relative_artifact_path(
+                    campaign_artifact_dir,
+                    milestone_outputs.get("summary_path"),
+                ),
+                _campaign_relative_artifact_path(
+                    campaign_artifact_dir,
+                    milestone_outputs.get("decision_log_path"),
+                ),
+                _campaign_relative_artifact_path(
+                    campaign_artifact_dir,
+                    milestone_outputs.get("manifest_path"),
+                ),
+                _campaign_relative_artifact_path(
+                    campaign_artifact_dir,
+                    milestone_outputs.get("report_markdown_path"),
+                ),
+            ]
+            if path is not None
+        ]
+        artifact_files = sorted([*artifact_files, *milestone_artifact_files])
     artifact_groups = {
         "campaign": artifact_files,
         "core": artifact_files,
@@ -3262,6 +3390,8 @@ def _build_campaign_manifest(
         "preflight": [PREFLIGHT_SUMMARY_FILENAME],
         "summary": [CAMPAIGN_SUMMARY_FILENAME],
     }
+    if milestone_artifact_files:
+        artifact_groups["milestone_report"] = milestone_artifact_files
     payload = {
         "run_type": "research_campaign",
         "campaign_run_id": campaign_run_id,
@@ -3303,7 +3433,55 @@ def _build_campaign_manifest(
         ),
         "summary_path": CAMPAIGN_SUMMARY_FILENAME,
     }
+    if isinstance(milestone_outputs, Mapping):
+        milestone_summary_file = _campaign_relative_artifact_path(
+            campaign_artifact_dir,
+            milestone_outputs.get("summary_path"),
+        )
+        milestone_decision_log_file = _campaign_relative_artifact_path(
+            campaign_artifact_dir,
+            milestone_outputs.get("decision_log_path"),
+        )
+        milestone_manifest_file = _campaign_relative_artifact_path(
+            campaign_artifact_dir,
+            milestone_outputs.get("manifest_path"),
+        )
+        milestone_markdown_file = _campaign_relative_artifact_path(
+            campaign_artifact_dir,
+            milestone_outputs.get("report_markdown_path"),
+        )
+        if milestone_summary_file is not None:
+            payload["artifacts"][milestone_summary_file] = {
+                "path": milestone_summary_file,
+                "decision_count": _coerce_int(milestone_outputs.get("decision_count")),
+                "decision_counts_by_status": canonicalize_value(
+                    dict(milestone_outputs.get("decision_counts_by_status") or {})
+                ),
+            }
+        if milestone_decision_log_file is not None:
+            payload["artifacts"][milestone_decision_log_file] = {
+                "path": milestone_decision_log_file,
+                "decision_count": _coerce_int(milestone_outputs.get("decision_count")),
+            }
+        if milestone_manifest_file is not None:
+            payload["artifacts"][milestone_manifest_file] = {
+                "path": milestone_manifest_file,
+                "artifact_count": len(milestone_artifact_files),
+            }
+        if milestone_markdown_file is not None:
+            payload["artifacts"][milestone_markdown_file] = {
+                "path": milestone_markdown_file,
+            }
     return canonicalize_value(payload)
+
+
+def _campaign_relative_artifact_path(campaign_artifact_dir: Path, value: Any) -> str | None:
+    if value is None:
+        return None
+    try:
+        return Path(value).resolve().relative_to(campaign_artifact_dir.resolve()).as_posix()
+    except ValueError:
+        return None
 
 
 def _campaign_stage_checkpoint(

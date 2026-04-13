@@ -6,6 +6,23 @@ from typing import Any
 
 import pandas as pd
 
+from src.research.reporting.milestone_artifacts import (
+    MILESTONE_DECISION_LOG_FILENAME,
+    MILESTONE_MANIFEST_FILENAME,
+    MILESTONE_SUMMARY_FILENAME,
+    MilestoneArtifactValidationError,
+    MilestoneDecisionEntry,
+    MilestoneReport,
+    build_milestone_decision_log_payload,
+    build_milestone_report_id,
+    build_milestone_report_manifest_payload,
+    build_milestone_report_summary_payload,
+    resolve_milestone_artifact_dir,
+    validate_milestone_decision_log_payload,
+    validate_milestone_report,
+    validate_milestone_report_payload,
+    write_milestone_report_artifacts,
+)
 from src.research.reporting.report_generator import generate_strategy_plots, generate_strategy_report
 
 
@@ -110,9 +127,24 @@ def _format_metric(value: Any) -> str:
 
 
 __all__ = [
+    "MILESTONE_DECISION_LOG_FILENAME",
+    "MILESTONE_MANIFEST_FILENAME",
+    "MILESTONE_SUMMARY_FILENAME",
+    "MilestoneArtifactValidationError",
+    "MilestoneDecisionEntry",
+    "MilestoneReport",
+    "build_milestone_decision_log_payload",
+    "build_milestone_report_id",
+    "build_milestone_report_manifest_payload",
+    "build_milestone_report_summary_payload",
     "generate_strategy_plots",
     "generate_strategy_report",
     "load_run_artifacts",
     "print_quick_report",
+    "resolve_milestone_artifact_dir",
     "summarize_run",
+    "validate_milestone_decision_log_payload",
+    "validate_milestone_report",
+    "validate_milestone_report_payload",
+    "write_milestone_report_artifacts",
 ]

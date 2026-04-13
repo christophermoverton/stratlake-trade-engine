@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import csv
 import json
 from pathlib import Path
 from types import SimpleNamespace
@@ -1511,6 +1512,337 @@ alpha_one:
     assert "Scenarios: total=2 | completed=2" in stdout
     assert "Scenario: scenario_0000_timeframe_1d" in stdout
     assert "Scenario: scenario_0001_timeframe_4h" in stdout
+
+
+def test_run_research_campaign_writes_scenario_matrix_leaderboard_for_sweeps(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text(
+        """
+momentum_v1:
+  dataset: features_daily
+  parameters: {}
+""".strip(),
+        encoding="utf-8",
+    )
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        _build_full_campaign_config(
+            tmp_path=tmp_path,
+            alpha_catalog=alpha_catalog,
+            strategy_config=strategy_config,
+            portfolio_config=portfolio_config,
+        ).to_dict(),
+        {
+            "scenarios": {
+                "enabled": True,
+                "matrix": [
+                    {
+                        "name": "timeframe",
+                        "path": "dataset_selection.timeframe",
+                        "values": ["1D", "4H"],
+                    }
+                ],
+            },
+        },
+    )
+
+    scenario_metrics = {
+        "1D": {
+            "alpha_mean_ic": 0.03,
+            "alpha_ic_ir": 0.5,
+            "strategy_cumulative_return": 0.11,
+            "strategy_sharpe_ratio": 0.95,
+            "candidate_selected_count": 3,
+            "portfolio_total_return": 0.14,
+            "portfolio_sharpe_ratio": 1.05,
+            "review_entry_count": 2,
+            "promotion_status": "deferred",
+            "promotion_gate_status": "warning",
+        },
+        "4H": {
+            "alpha_mean_ic": 0.04,
+            "alpha_ic_ir": 0.62,
+            "strategy_cumulative_return": 0.18,
+            "strategy_sharpe_ratio": 1.22,
+            "candidate_selected_count": 4,
+            "portfolio_total_return": 0.17,
+            "portfolio_sharpe_ratio": 1.31,
+            "review_entry_count": 3,
+            "promotion_status": "accepted",
+            "promotion_gate_status": "passed",
+        },
+    }
+    scenario_sequence = ["1D", "4H"]
+    stage_call_counts = {
+        "alpha": 0,
+        "strategy": 0,
+        "alpha_comparison": 0,
+        "strategy_comparison": 0,
+        "candidate_selection": 0,
+        "review": 0,
+    }
+
+    def timeframe_from_argv(argv: list[str], *, stage_name: str | None = None) -> str:
+        if "--timeframe" in argv:
+            return argv[argv.index("--timeframe") + 1]
+        if stage_name is None:
+            raise ValueError("stage_name is required when --timeframe is not present")
+        index = stage_call_counts[stage_name]
+        stage_call_counts[stage_name] += 1
+        return scenario_sequence[index]
+
+    def write_json(path: Path, payload: dict[str, object]) -> Path:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+        return path
+
+    def next_scenario_timeframe(stage_name: str) -> str:
+        index = stage_call_counts[stage_name]
+        stage_call_counts[stage_name] += 1
+        return scenario_sequence[index]
+
+    def fake_alpha_cli(argv: list[str]) -> SimpleNamespace:
+        timeframe = timeframe_from_argv(argv, stage_name="alpha")
+        metrics = scenario_metrics[timeframe]
+        artifact_dir = tmp_path / "alpha_artifacts" / timeframe
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            alpha_name="alpha_one",
+            run_id=f"alpha_run_{timeframe}",
+            artifact_dir=artifact_dir,
+            evaluation=SimpleNamespace(
+                evaluation_result=SimpleNamespace(
+                    summary={
+                        "mean_ic": metrics["alpha_mean_ic"],
+                        "ic_ir": metrics["alpha_ic_ir"],
+                        "n_periods": 12,
+                    }
+                ),
+                manifest={
+                    "sleeve": {
+                        "metric_summary": {
+                            "sharpe_ratio": metrics["portfolio_sharpe_ratio"],
+                            "total_return": metrics["portfolio_total_return"],
+                        }
+                    }
+                },
+            ),
+        )
+
+    def fake_strategy_cli(argv: list[str]) -> SimpleNamespace:
+        timeframe = timeframe_from_argv(argv, stage_name="strategy")
+        metrics = scenario_metrics[timeframe]
+        experiment_dir = tmp_path / "strategy_artifacts" / timeframe
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            strategy_name="momentum_v1",
+            run_id=f"strategy_run_{timeframe}",
+            experiment_dir=experiment_dir,
+            metrics={
+                "cumulative_return": metrics["strategy_cumulative_return"],
+                "sharpe_ratio": metrics["strategy_sharpe_ratio"],
+                "max_drawdown": -0.05,
+            },
+        )
+
+    def fake_candidate_selection_cli(argv: list[str]) -> SimpleNamespace:
+        timeframe = next_scenario_timeframe("candidate_selection")
+        metrics = scenario_metrics[timeframe]
+        artifact_dir = tmp_path / "candidate_selection" / timeframe
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            run_id=f"candidate_run_{timeframe}",
+            artifact_dir=artifact_dir,
+            summary_json=write_json(
+                artifact_dir / "selection_summary.json",
+                {"selected_count": metrics["candidate_selected_count"]},
+            ),
+            manifest_json=write_json(
+                artifact_dir / "manifest.json",
+                {"run_id": f"candidate_run_{timeframe}"},
+            ),
+            primary_metric="ic_ir",
+            universe_count=10,
+            eligible_count=6,
+            selected_count=metrics["candidate_selected_count"],
+            rejected_count=2,
+            pruned_by_redundancy=1,
+        )
+
+    def fake_portfolio_cli(argv: list[str]) -> SimpleNamespace:
+        timeframe = Path(argv[argv.index("--from-candidate-selection") + 1]).name
+        metrics = scenario_metrics[timeframe]
+        experiment_dir = tmp_path / "portfolio_artifacts" / timeframe
+        experiment_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            run_id=f"portfolio_run_{timeframe}",
+            experiment_dir=experiment_dir,
+            portfolio_name="candidate_portfolio",
+            component_count=2,
+            metrics={
+                "total_return": metrics["portfolio_total_return"],
+                "sharpe_ratio": metrics["portfolio_sharpe_ratio"],
+                "max_drawdown": -0.03,
+            },
+        )
+
+    def fake_candidate_review_cli(argv: list[str]) -> SimpleNamespace:
+        timeframe = Path(argv[argv.index("--candidate-selection-path") + 1]).name
+        metrics = scenario_metrics[timeframe]
+        review_dir = tmp_path / "candidate_review" / timeframe
+        return SimpleNamespace(
+            review_dir=review_dir,
+            candidate_review_summary_json=write_json(
+                review_dir / "candidate_review_summary.json",
+                {"selected_candidates": metrics["candidate_selected_count"]},
+            ),
+            manifest_json=write_json(review_dir / "manifest.json", {"timeframe": timeframe}),
+            candidate_selection_run_id=f"candidate_run_{timeframe}",
+            portfolio_run_id=f"portfolio_run_{timeframe}",
+            total_candidates=6,
+            selected_candidates=metrics["candidate_selected_count"],
+            rejected_candidates=2,
+        )
+
+    def fake_review_cli(argv: list[str]) -> SimpleNamespace:
+        timeframe = next_scenario_timeframe("review")
+        metrics = scenario_metrics[timeframe]
+        review_dir = tmp_path / "reviews" / timeframe
+        csv_path = review_dir / "leaderboard.csv"
+        json_path = review_dir / "summary.json"
+        manifest_path = review_dir / "manifest.json"
+        promotion_gate_path = review_dir / "promotion_gates.json"
+        write_json(json_path, {"review_id": f"review_{timeframe}"})
+        write_json(manifest_path, {"review_id": f"review_{timeframe}"})
+        write_json(
+            promotion_gate_path,
+            {
+                "evaluation_status": metrics["promotion_gate_status"],
+                "promotion_status": metrics["promotion_status"],
+                "gate_count": 3,
+                "passed_gate_count": 2,
+                "failed_gate_count": 0,
+                "missing_gate_count": 1,
+            },
+        )
+        csv_path.parent.mkdir(parents=True, exist_ok=True)
+        csv_path.write_text("run_type,run_id\nportfolio,portfolio_run\n", encoding="utf-8")
+        return SimpleNamespace(
+            review_id=f"review_{timeframe}",
+            entries=[SimpleNamespace(run_type="portfolio") for _ in range(metrics["review_entry_count"])],
+            csv_path=csv_path,
+            json_path=json_path,
+            manifest_path=manifest_path,
+            promotion_gate_path=promotion_gate_path,
+        )
+
+    monkeypatch.setattr("src.cli.run_research_campaign.run_alpha_cli.run_cli", fake_alpha_cli)
+    monkeypatch.setattr("src.cli.run_research_campaign.run_strategy_cli.run_cli", fake_strategy_cli)
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            comparison_id=f"alpha_cmp_{timeframe_from_argv(argv, stage_name='alpha_comparison')}"
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            comparison_id=f"strategy_cmp_{timeframe_from_argv(argv, stage_name='strategy_comparison')}"
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+        fake_candidate_selection_cli,
+    )
+    monkeypatch.setattr("src.cli.run_research_campaign.run_portfolio_cli.run_cli", fake_portfolio_cli)
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+        fake_candidate_review_cli,
+    )
+    monkeypatch.setattr("src.cli.run_research_campaign.compare_research_cli.run_cli", fake_review_cli)
+
+    result = run_research_campaign(config)
+    print_summary(result)
+    stdout = capsys.readouterr().out
+
+    assert result.scenario_matrix_csv_path.exists()
+    assert result.scenario_matrix_summary_path.exists()
+
+    matrix_summary = json.loads(result.scenario_matrix_summary_path.read_text(encoding="utf-8"))
+    orchestration_summary = json.loads(result.orchestration_summary_path.read_text(encoding="utf-8"))
+    orchestration_manifest = json.loads(result.orchestration_manifest_path.read_text(encoding="utf-8"))
+    with result.scenario_matrix_csv_path.open(encoding="utf-8", newline="") as handle:
+        matrix_rows = list(csv.DictReader(handle))
+
+    assert matrix_summary["scenario_matrix_id"] == result.orchestration_run_id
+    assert matrix_summary["row_count"] == 2
+    assert matrix_summary["metric_priority"][0] == "portfolio_sharpe_ratio"
+    assert [row["scenario_id"] for row in matrix_summary["leaderboard"]] == [
+        "scenario_0001_timeframe_4h",
+        "scenario_0000_timeframe_1d",
+    ]
+    assert matrix_summary["leaderboard"][0]["ranking_metric"] == "portfolio_sharpe_ratio"
+    assert matrix_summary["leaderboard"][0]["portfolio_sharpe_ratio"] == 1.31
+    assert matrix_summary["leaderboard"][0]["strategy_sharpe_ratio_max"] == 1.22
+    assert matrix_summary["leaderboard"][0]["alpha_ic_ir_max"] == 0.62
+    assert matrix_summary["leaderboard"][0]["candidate_selected_count"] == 4
+    assert matrix_summary["leaderboard"][0]["review_promotion_status"] == "accepted"
+    assert matrix_summary["leaderboard"][0]["review_promotion_gate_status"] == "passed"
+
+    assert orchestration_summary["scenario_matrix"]["row_count"] == 2
+    assert orchestration_summary["output_paths"]["scenario_matrix_csv"] == result.scenario_matrix_csv_path.as_posix()
+    assert orchestration_summary["output_paths"]["scenario_matrix_summary"] == result.scenario_matrix_summary_path.as_posix()
+    assert orchestration_manifest["artifact_groups"]["scenario_matrix"] == [
+        "scenario_matrix.csv",
+        "scenario_matrix.json",
+    ]
+    assert orchestration_manifest["artifacts"]["scenario_matrix.csv"]["row_count"] == 2
+    assert orchestration_manifest["artifacts"]["scenario_matrix.json"]["ranking_metric_priority"][0] == "portfolio_sharpe_ratio"
+
+    assert [row["scenario_id"] for row in matrix_rows] == [
+        "scenario_0001_timeframe_4h",
+        "scenario_0000_timeframe_1d",
+    ]
+    assert [row["sweep_timeframe"] for row in matrix_rows] == ["4H", "1D"]
+    assert matrix_rows[0]["ranking_metric"] == "portfolio_sharpe_ratio"
+    assert matrix_rows[0]["review_promotion_status"] == "accepted"
+
+    assert "Scenario Matrix: rows=2 | ranking=portfolio_sharpe_ratio desc" in stdout
+    assert "Scenario Matrix Artifacts: csv=" in stdout
+    assert "scenario_0001_timeframe_4h" in stdout
+    assert "scenario_0000_timeframe_1d" in stdout
 
 
 def test_run_research_campaign_resolves_candidate_selection_registry_for_portfolio_chaining(

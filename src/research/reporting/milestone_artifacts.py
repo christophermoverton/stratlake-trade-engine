@@ -8,7 +8,7 @@ from typing import Any, Mapping, Sequence
 
 from src.research.registry import canonicalize_value, serialize_canonical_json, stable_timestamp_from_run_id
 
-MILESTONE_REPORT_SCHEMA_VERSION = 1
+MILESTONE_REPORT_SCHEMA_VERSION = 2
 MILESTONE_REPORT_RUN_TYPE = "milestone_report"
 MILESTONE_DECISION_LOG_RUN_TYPE = "milestone_decision_log"
 MILESTONE_SUMMARY_FILENAME = "summary.json"
@@ -23,6 +23,17 @@ class MilestoneArtifactValidationError(ValueError):
 
 
 @dataclass(frozen=True)
+class MilestoneSourceArtifact:
+    artifact_id: str
+    path: str
+    label: str | None = None
+    role: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        return canonicalize_value(asdict(self))
+
+
+@dataclass(frozen=True)
 class MilestoneDecisionEntry:
     decision_id: str
     title: str
@@ -33,7 +44,9 @@ class MilestoneDecisionEntry:
     owner: str | None = None
     category: str | None = None
     timestamp: str | None = None
+    follow_up_actions: tuple[str, ...] = ()
     evidence_artifacts: tuple[str, ...] = ()
+    source_artifacts: tuple[MilestoneSourceArtifact, ...] = ()
     related_stage_names: tuple[str, ...] = ()
     tags: tuple[str, ...] = ()
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -163,7 +176,12 @@ def build_milestone_decision_log_payload(
         "title": report.title,
         "decision_count": len(decision_rows),
         "decision_ids": [row["decision_id"] for row in decision_rows],
+        "decision_counts_by_status": _decision_counts_by_status(decisions),
         "decisions": decision_rows,
+        "rendered": _render_milestone_decision_log(
+            report=report,
+            decision_rows=decision_rows,
+        ),
     }
     return canonicalize_value(payload)
 
@@ -248,6 +266,8 @@ def validate_milestone_report(
             )
         seen_decision_ids.add(decision.decision_id)
         _require_posix_relative_paths(decision.evidence_artifacts, owner=f"decisions[{index}].evidence_artifacts")
+        _require_non_empty_strings(decision.follow_up_actions, owner=f"decisions[{index}].follow_up_actions")
+        _require_source_artifacts(decision.source_artifacts, owner=f"decisions[{index}].source_artifacts")
 
 
 def validate_milestone_report_payload(payload: Mapping[str, Any]) -> None:
@@ -276,6 +296,13 @@ def validate_milestone_decision_log_payload(payload: Mapping[str, Any]) -> None:
     decision_count = int(payload.get("decision_count") or 0)
     if decision_count != len(decisions):
         raise MilestoneArtifactValidationError("Milestone decision log decision_count must match len(decisions).")
+    rendered = payload.get("rendered")
+    if not isinstance(rendered, Mapping):
+        raise MilestoneArtifactValidationError("Milestone decision log payload must contain rendered human-readable content.")
+    if not str(rendered.get("markdown") or "").strip():
+        raise MilestoneArtifactValidationError("Milestone decision log rendered.markdown must be populated.")
+    if not str(rendered.get("text") or "").strip():
+        raise MilestoneArtifactValidationError("Milestone decision log rendered.text must be populated.")
 
 
 def _decision_counts_by_status(decisions: Sequence[MilestoneDecisionEntry]) -> dict[str, int]:
@@ -304,6 +331,104 @@ def _require_posix_relative_paths(paths: Sequence[str], *, owner: str) -> None:
             )
 
 
+def _require_non_empty_strings(values: Sequence[str], *, owner: str) -> None:
+    for index, value in enumerate(values):
+        _require_text(value, f"{owner}[{index}]")
+
+
+def _require_source_artifacts(
+    source_artifacts: Sequence[MilestoneSourceArtifact],
+    *,
+    owner: str,
+) -> None:
+    for index, source_artifact in enumerate(source_artifacts):
+        _require_text(source_artifact.artifact_id, f"{owner}[{index}].artifact_id")
+        _require_text(source_artifact.path, f"{owner}[{index}].path")
+        _require_posix_relative_paths((source_artifact.path,), owner=f"{owner}[{index}].path")
+
+
+def _render_milestone_decision_log(
+    *,
+    report: MilestoneReport,
+    decision_rows: Sequence[Mapping[str, Any]],
+) -> dict[str, Any]:
+    lines = [
+        f"# {report.title}",
+        "",
+        f"Milestone: {report.milestone_name}",
+        f"Milestone ID: {report.milestone_id}",
+        f"Status: {report.status}",
+        f"Decision Count: {len(decision_rows)}",
+        "",
+    ]
+    text_lines = [
+        f"{report.title}",
+        f"Milestone: {report.milestone_name}",
+        f"Milestone ID: {report.milestone_id}",
+        f"Status: {report.status}",
+        f"Decision Count: {len(decision_rows)}",
+        "",
+    ]
+
+    for index, row in enumerate(decision_rows, start=1):
+        lines.extend(_render_decision_markdown(index=index, row=row))
+        text_lines.extend(_render_decision_text(index=index, row=row))
+        if index != len(decision_rows):
+            lines.append("")
+            text_lines.append("")
+
+    return {
+        "markdown": "\n".join(lines).strip(),
+        "text": "\n".join(text_lines).strip(),
+    }
+
+
+def _render_decision_markdown(*, index: int, row: Mapping[str, Any]) -> list[str]:
+    lines = [
+        f"## {index}. {row['title']}",
+        f"- Decision ID: `{row['decision_id']}`",
+        f"- Status: `{row['status']}`",
+        f"- Summary: {row['summary']}",
+        f"- Rationale: {row['rationale']}",
+    ]
+    if row.get("impact"):
+        lines.append(f"- Impact: {row['impact']}")
+    follow_up_actions = row.get("follow_up_actions")
+    if isinstance(follow_up_actions, list) and follow_up_actions:
+        lines.append("- Follow-Up Actions:")
+        lines.extend(f"  - {action}" for action in follow_up_actions)
+    source_artifacts = row.get("source_artifacts")
+    if isinstance(source_artifacts, list) and source_artifacts:
+        lines.append("- Linked Source Artifacts:")
+        for source_artifact in source_artifacts:
+            label = source_artifact.get("label") or source_artifact.get("artifact_id") or source_artifact.get("path")
+            lines.append(f"  - {label}: `{source_artifact.get('path')}`")
+    return lines
+
+
+def _render_decision_text(*, index: int, row: Mapping[str, Any]) -> list[str]:
+    lines = [
+        f"{index}. {row['title']}",
+        f"   Decision ID: {row['decision_id']}",
+        f"   Status: {row['status']}",
+        f"   Summary: {row['summary']}",
+        f"   Rationale: {row['rationale']}",
+    ]
+    if row.get("impact"):
+        lines.append(f"   Impact: {row['impact']}")
+    follow_up_actions = row.get("follow_up_actions")
+    if isinstance(follow_up_actions, list) and follow_up_actions:
+        lines.append("   Follow-Up Actions:")
+        lines.extend(f"   - {action}" for action in follow_up_actions)
+    source_artifacts = row.get("source_artifacts")
+    if isinstance(source_artifacts, list) and source_artifacts:
+        lines.append("   Linked Source Artifacts:")
+        for source_artifact in source_artifacts:
+            label = source_artifact.get("label") or source_artifact.get("artifact_id") or source_artifact.get("path")
+            lines.append(f"   - {label}: {source_artifact.get('path')}")
+    return lines
+
+
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.write_text(json.dumps(canonicalize_value(dict(payload)), indent=2, sort_keys=True), encoding="utf-8", newline="\n")
 
@@ -317,6 +442,7 @@ __all__ = [
     "MilestoneArtifactValidationError",
     "MilestoneDecisionEntry",
     "MilestoneReport",
+    "MilestoneSourceArtifact",
     "build_milestone_decision_log_payload",
     "build_milestone_report_id",
     "build_milestone_report_manifest_payload",

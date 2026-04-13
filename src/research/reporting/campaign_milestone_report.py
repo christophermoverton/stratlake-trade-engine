@@ -8,6 +8,7 @@ from typing import Any, Mapping
 from src.research.reporting.milestone_artifacts import (
     MilestoneDecisionEntry,
     MilestoneReport,
+    MilestoneSourceArtifact,
     build_milestone_report_id,
     resolve_milestone_artifact_dir,
     write_milestone_report_artifacts,
@@ -464,8 +465,18 @@ def _decision_entries(
                 "provide the deterministic source of truth for milestone execution status."
             ),
             category="campaign_execution",
+            follow_up_actions=tuple(_campaign_execution_follow_up_actions(campaign_summary)),
             evidence_artifacts=tuple(
                 path
+                for key, path in (
+                    ("campaign_summary", related_artifacts.get("campaign_summary")),
+                    ("campaign_manifest", related_artifacts.get("campaign_manifest")),
+                    ("campaign_checkpoint", related_artifacts.get("campaign_checkpoint")),
+                )
+                if path is not None
+            ),
+            source_artifacts=tuple(
+                _source_artifact(key=key, path=path)
                 for key, path in (
                     ("campaign_summary", related_artifacts.get("campaign_summary")),
                     ("campaign_manifest", related_artifacts.get("campaign_manifest")),
@@ -567,7 +578,17 @@ def _review_decision(
             "for campaign outputs without re-evaluating prior stages."
         ),
         category="review_promotion",
+        follow_up_actions=tuple(_review_follow_up_actions(promotion_gates=promotion_gates)),
         evidence_artifacts=tuple(evidence_artifacts),
+        source_artifacts=tuple(
+            _source_artifact(key=key, path=path)
+            for key, path in (
+                ("review_summary", related_artifacts.get("review_summary")),
+                ("review_manifest", related_artifacts.get("review_manifest")),
+                ("review_promotion_gates", related_artifacts.get("review_promotion_gates")),
+            )
+            if path is not None
+        ),
         related_stage_names=("review",),
     )
 
@@ -591,6 +612,60 @@ def _review_result_fragment(
     if not fragments:
         return None
     return "Review outcome: " + "; ".join(fragments) + "."
+
+
+def _campaign_execution_follow_up_actions(campaign_summary: Mapping[str, Any]) -> list[str]:
+    final_outcomes = _mapping(campaign_summary.get("final_outcomes"))
+    actions: list[str] = []
+    actions.extend(
+        _stage_follow_up_actions(
+            stage_names=final_outcomes.get("failed_stage_names"),
+            template="Resolve failed stage `{stage_name}` before closing the milestone.",
+        )
+    )
+    actions.extend(
+        _stage_follow_up_actions(
+            stage_names=final_outcomes.get("partial_stage_names"),
+            template="Review partial outputs for `{stage_name}` before downstream reuse.",
+        )
+    )
+    actions.extend(
+        _stage_follow_up_actions(
+            stage_names=final_outcomes.get("resumable_stage_names"),
+            template="Preserve checkpoint continuity for resumable stage `{stage_name}`.",
+        )
+    )
+    if not actions:
+        actions.append("No additional campaign execution follow-up actions were required.")
+    return actions
+
+
+def _review_follow_up_actions(*, promotion_gates: Mapping[str, Any] | None) -> list[str]:
+    if promotion_gates is None:
+        return ["Persist promotion-gate outputs for reviewed campaigns so milestone decisions remain auditable."]
+
+    promotion_status = str(promotion_gates.get("promotion_status") or "").strip()
+    evaluation_status = str(promotion_gates.get("evaluation_status") or "").strip()
+    if promotion_status == "approved":
+        return ["Prepare the approved reviewed outputs for promotion handoff."]
+    if promotion_status in {"blocked", "rejected"} or evaluation_status in {"failed", "blocked"}:
+        return ["Address blocked promotion gates before promoting the reviewed campaign outputs."]
+    return ["Complete review and promotion follow-ups before promoting the reviewed campaign outputs."]
+
+
+def _stage_follow_up_actions(*, stage_names: Any, template: str) -> list[str]:
+    if not isinstance(stage_names, list):
+        return []
+    return [template.format(stage_name=str(stage_name)) for stage_name in sorted(stage_names)]
+
+
+def _source_artifact(*, key: str, path: str) -> MilestoneSourceArtifact:
+    return MilestoneSourceArtifact(
+        artifact_id=key,
+        label=key.replace("_", " "),
+        path=path,
+        role="source_artifact",
+    )
 
 
 def _reporting_window(campaign_summary: Mapping[str, Any]) -> dict[str, Any]:

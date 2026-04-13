@@ -275,6 +275,33 @@ def test_generate_campaign_milestone_report_builds_milestone_pack_from_completed
         "review_promotion_outcome",
     ]
     assert decision_log_payload["decisions"][1]["status"] == "accepted"
+    assert decision_log_payload["decisions"][0]["follow_up_actions"] == [
+        "No additional campaign execution follow-up actions were required."
+    ]
+    assert decision_log_payload["decisions"][1]["follow_up_actions"] == [
+        "Prepare the approved reviewed outputs for promotion handoff."
+    ]
+    assert decision_log_payload["decisions"][1]["source_artifacts"] == [
+        {
+            "artifact_id": "review_summary",
+            "label": "review summary",
+            "path": "../../../reviews/research_review/review_summary.json",
+            "role": "source_artifact",
+        },
+        {
+            "artifact_id": "review_manifest",
+            "label": "review manifest",
+            "path": "../../../reviews/research_review/manifest.json",
+            "role": "source_artifact",
+        },
+        {
+            "artifact_id": "review_promotion_gates",
+            "label": "review promotion gates",
+            "path": "../../../reviews/research_review/promotion_gates.json",
+            "role": "source_artifact",
+        },
+    ]
+    assert "## 2. Review and promotion outcome" in decision_log_payload["rendered"]["markdown"]
     assert manifest_payload["artifacts"]["summary.json"]["decision_count"] == 2
 
     metadata = summary_payload["metadata"]

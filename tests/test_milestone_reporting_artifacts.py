@@ -12,6 +12,7 @@ from src.research.reporting import (
     MilestoneArtifactValidationError,
     MilestoneDecisionEntry,
     MilestoneReport,
+    MilestoneSourceArtifact,
     build_milestone_report_id,
     resolve_milestone_artifact_dir,
     validate_milestone_decision_log_payload,
@@ -56,7 +57,25 @@ def _sample_decisions() -> list[MilestoneDecisionEntry]:
             owner="research-platform",
             category="artifact_contract",
             timestamp="2026-04-13T12:00:00Z",
+            follow_up_actions=(
+                "Document the shared naming contract for milestone packs.",
+                "Keep summary.json as the default report entry point.",
+            ),
             evidence_artifacts=("docs/milestone_16_campaign_workflow.md", "artifacts/research_campaigns/demo/manifest.json"),
+            source_artifacts=(
+                MilestoneSourceArtifact(
+                    artifact_id="workflow_doc",
+                    path="docs/milestone_16_campaign_workflow.md",
+                    label="workflow doc",
+                    role="documentation",
+                ),
+                MilestoneSourceArtifact(
+                    artifact_id="campaign_manifest",
+                    path="artifacts/research_campaigns/demo/manifest.json",
+                    label="campaign manifest",
+                    role="artifact",
+                ),
+            ),
             related_stage_names=("review", "campaign"),
             tags=("naming", "compatibility"),
             metadata={"schema_alignment": "existing_manifest_summary_patterns"},
@@ -67,7 +86,16 @@ def _sample_decisions() -> list[MilestoneDecisionEntry]:
             status="accepted",
             summary="Decision details should live in a dedicated JSON artifact.",
             rationale="This keeps the report summary compact while preserving auditable decision detail.",
+            follow_up_actions=("Keep the dedicated decision log payload compact but complete.",),
             evidence_artifacts=("docs/backfilled_2026_q1_research_workflow.md",),
+            source_artifacts=(
+                MilestoneSourceArtifact(
+                    artifact_id="backfill_workflow_doc",
+                    path="docs/backfilled_2026_q1_research_workflow.md",
+                    label="backfill workflow doc",
+                    role="documentation",
+                ),
+            ),
             tags=("audit", "decision_log"),
         ),
     ]
@@ -133,6 +161,26 @@ def test_write_milestone_report_artifacts_writes_summary_decision_log_and_manife
         "reuse_summary_contract",
         "keep_decision_log_separate",
     ]
+    assert decision_log_payload["decisions"][0]["follow_up_actions"] == [
+        "Document the shared naming contract for milestone packs.",
+        "Keep summary.json as the default report entry point.",
+    ]
+    assert decision_log_payload["decisions"][0]["source_artifacts"] == [
+        {
+            "artifact_id": "workflow_doc",
+            "label": "workflow doc",
+            "path": "docs/milestone_16_campaign_workflow.md",
+            "role": "documentation",
+        },
+        {
+            "artifact_id": "campaign_manifest",
+            "label": "campaign manifest",
+            "path": "artifacts/research_campaigns/demo/manifest.json",
+            "role": "artifact",
+        },
+    ]
+    assert "# Milestone 18 Readiness Report" in decision_log_payload["rendered"]["markdown"]
+    assert "Linked Source Artifacts:" in decision_log_payload["rendered"]["text"]
 
     assert manifest_payload["artifact_files"] == [
         "decision_log.json",
@@ -170,6 +218,24 @@ def test_write_milestone_report_artifacts_rejects_duplicate_decision_ids_and_abs
             report=_sample_report(),
             decisions=duplicate_decisions,
             output_path=tmp_path / "duplicate_ids",
+        )
+
+    invalid_follow_up_actions = [
+        MilestoneDecisionEntry(
+            decision_id="invalid_follow_up",
+            title="Invalid follow-up action",
+            status="accepted",
+            summary="A",
+            rationale="A",
+            follow_up_actions=("",),
+        )
+    ]
+
+    with pytest.raises(MilestoneArtifactValidationError, match="follow_up_actions"):
+        write_milestone_report_artifacts(
+            report=_sample_report(),
+            decisions=invalid_follow_up_actions,
+            output_path=tmp_path / "invalid_follow_up_actions",
         )
 
     absolute_path_decisions = [

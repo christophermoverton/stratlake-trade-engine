@@ -350,3 +350,33 @@ def test_campaign_milestone_helpers_accept_campaign_summary_path(tmp_path: Path)
     assert payloads["campaign_summary"]["campaign_run_id"] == "research_campaign_demo"
     assert payloads["review_summary"]["review_id"] == "review_demo"
     assert payloads["promotion_gates"]["promotion_status"] == "approved"
+
+
+def test_generate_campaign_milestone_report_applies_generation_options(tmp_path: Path) -> None:
+    campaign_dir = _campaign_artifact_fixture(tmp_path)
+
+    summary_path, decision_log_path, manifest_path = generate_campaign_milestone_report(
+        campaign_dir,
+        options={
+            "include_markdown_report": False,
+            "decision_log_render_formats": ["text"],
+            "decision_categories": ["review_promotion"],
+            "summary": {
+                "include_stage_counts": False,
+                "include_review_outcome": False,
+            },
+        },
+    )
+
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    decision_log_payload = json.loads(decision_log_path.read_text(encoding="utf-8"))
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert summary_payload["report_markdown_path"] is None
+    assert "tracked stages completed or were reused" not in summary_payload["summary"]
+    assert "Review outcome:" not in summary_payload["summary"]
+    assert summary_payload["decision_ids"] == ["review_promotion_outcome"]
+    assert decision_log_payload["decision_ids"] == ["review_promotion_outcome"]
+    assert sorted(decision_log_payload["rendered"]) == ["text"]
+    assert "report.md" not in manifest_payload["artifact_files"]
+    assert not (campaign_dir / "milestone_report" / MILESTONE_MARKDOWN_REPORT_FILENAME).exists()

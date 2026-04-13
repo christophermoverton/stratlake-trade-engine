@@ -270,3 +270,35 @@ def test_write_milestone_report_artifacts_rejects_duplicate_decision_ids_and_abs
             decisions=absolute_path_decisions,
             output_path=tmp_path / "absolute_paths",
         )
+
+
+def test_write_milestone_report_artifacts_supports_generation_controls(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "controlled_milestone"
+    summary_path, decision_log_path, manifest_path = write_milestone_report_artifacts(
+        report=_sample_report(),
+        decisions=_sample_decisions(),
+        output_path=artifact_dir,
+        options={
+            "include_markdown_report": False,
+            "decision_log_render_formats": ["text"],
+            "decision_categories": ["artifact_contract"],
+            "sections": {
+                "related_artifacts": False,
+                "decision_snapshot": False,
+            },
+        },
+    )
+
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    decision_log_payload = json.loads(decision_log_path.read_text(encoding="utf-8"))
+    manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert summary_payload["report_markdown_path"] is None
+    assert summary_payload["decision_count"] == 1
+    assert summary_payload["decision_ids"] == ["reuse_summary_contract"]
+    assert decision_log_payload["decision_ids"] == ["reuse_summary_contract"]
+    assert sorted(decision_log_payload["rendered"]) == ["text"]
+    assert "markdown" not in decision_log_payload["rendered"]
+    assert "report.md" not in manifest_payload["artifact_files"]
+    assert "markdown" not in manifest_payload["artifact_groups"]
+    assert not (artifact_dir / MILESTONE_MARKDOWN_REPORT_FILENAME).exists()

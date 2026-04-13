@@ -17,6 +17,19 @@ MILESTONE_MANIFEST_FILENAME = "manifest.json"
 MILESTONE_MARKDOWN_REPORT_FILENAME = "report.md"
 _VALID_REPORT_STATUSES = frozenset({"draft", "final"})
 _VALID_DECISION_STATUSES = frozenset({"accepted", "deferred", "rejected", "superseded"})
+_VALID_DECISION_LOG_RENDER_FORMATS = frozenset({"markdown", "text"})
+_REPORT_SECTION_KEYS = (
+    "campaign_scope",
+    "selections",
+    "key_findings",
+    "key_metrics",
+    "gate_outcomes",
+    "risks",
+    "next_steps",
+    "open_questions",
+    "decision_snapshot",
+    "related_artifacts",
+)
 
 
 class MilestoneArtifactValidationError(ValueError):
@@ -76,6 +89,100 @@ class MilestoneReport:
         return canonicalize_value(asdict(self))
 
 
+def _default_generation_options() -> dict[str, Any]:
+    return {
+        "include_markdown_report": True,
+        "decision_log_render_formats": ("markdown", "text"),
+        "sections": {key: True for key in _REPORT_SECTION_KEYS},
+        "decision_categories": (),
+        "summary": {
+            "include_stage_counts": True,
+            "include_review_outcome": True,
+        },
+    }
+
+
+def resolve_milestone_generation_options(options: Mapping[str, Any] | None = None) -> dict[str, Any]:
+    resolved = _default_generation_options()
+    if options is None:
+        return resolved
+    if not isinstance(options, Mapping):
+        raise MilestoneArtifactValidationError("Milestone generation options must be a mapping when provided.")
+
+    include_markdown = options.get("include_markdown_report")
+    if include_markdown is not None:
+        if not isinstance(include_markdown, bool):
+            raise MilestoneArtifactValidationError(
+                "Milestone generation option 'include_markdown_report' must be a boolean."
+            )
+        resolved["include_markdown_report"] = include_markdown
+
+    render_formats = options.get("decision_log_render_formats")
+    if render_formats is not None:
+        normalized_formats = _normalize_string_sequence(
+            render_formats,
+            owner="decision_log_render_formats",
+        )
+        invalid_formats = [value for value in normalized_formats if value not in _VALID_DECISION_LOG_RENDER_FORMATS]
+        if invalid_formats:
+            raise MilestoneArtifactValidationError(
+                "Milestone generation option 'decision_log_render_formats' must contain only "
+                f"{sorted(_VALID_DECISION_LOG_RENDER_FORMATS)}."
+            )
+        if not normalized_formats:
+            raise MilestoneArtifactValidationError(
+                "Milestone generation option 'decision_log_render_formats' must not be empty."
+            )
+        resolved["decision_log_render_formats"] = normalized_formats
+
+    sections = options.get("sections")
+    if sections is not None:
+        if not isinstance(sections, Mapping):
+            raise MilestoneArtifactValidationError("Milestone generation option 'sections' must be a mapping.")
+        unknown_sections = sorted(set(sections) - set(_REPORT_SECTION_KEYS))
+        if unknown_sections:
+            raise MilestoneArtifactValidationError(
+                f"Milestone generation option 'sections' contains unsupported keys: {unknown_sections}."
+            )
+        for key in _REPORT_SECTION_KEYS:
+            value = sections.get(key)
+            if value is None:
+                continue
+            if not isinstance(value, bool):
+                raise MilestoneArtifactValidationError(
+                    f"Milestone generation option 'sections.{key}' must be a boolean."
+                )
+            resolved["sections"][key] = value
+
+    categories = options.get("decision_categories")
+    if categories is not None:
+        resolved["decision_categories"] = _normalize_string_sequence(
+            categories,
+            owner="decision_categories",
+        )
+
+    summary = options.get("summary")
+    if summary is not None:
+        if not isinstance(summary, Mapping):
+            raise MilestoneArtifactValidationError("Milestone generation option 'summary' must be a mapping.")
+        unknown_summary_keys = sorted(set(summary) - {"include_stage_counts", "include_review_outcome"})
+        if unknown_summary_keys:
+            raise MilestoneArtifactValidationError(
+                f"Milestone generation option 'summary' contains unsupported keys: {unknown_summary_keys}."
+            )
+        for key in ("include_stage_counts", "include_review_outcome"):
+            value = summary.get(key)
+            if value is None:
+                continue
+            if not isinstance(value, bool):
+                raise MilestoneArtifactValidationError(
+                    f"Milestone generation option 'summary.{key}' must be a boolean."
+                )
+            resolved["summary"][key] = value
+
+    return resolved
+
+
 def build_milestone_report_id(
     *,
     milestone_name: str,
@@ -109,17 +216,28 @@ def write_milestone_report_artifacts(
     report: MilestoneReport,
     decisions: Sequence[MilestoneDecisionEntry],
     output_path: str | Path,
+    options: Mapping[str, Any] | None = None,
 ) -> tuple[Path, Path, Path]:
-    validate_milestone_report(report=report, decisions=decisions)
+    resolved_options = resolve_milestone_generation_options(options)
+    filtered_decisions = _filter_decisions(
+        decisions,
+        allowed_categories=resolved_options["decision_categories"],
+    )
+    validate_milestone_report(report=report, decisions=filtered_decisions)
     artifact_dir = resolve_milestone_artifact_dir(output_path)
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    summary_payload = build_milestone_report_summary_payload(report=report, decisions=decisions)
-    decision_log_payload = build_milestone_decision_log_payload(report=report, decisions=decisions)
+    summary_payload = build_milestone_report_summary_payload(report=report, decisions=filtered_decisions, options=resolved_options)
+    decision_log_payload = build_milestone_decision_log_payload(
+        report=report,
+        decisions=filtered_decisions,
+        options=resolved_options,
+    )
     manifest_payload = build_milestone_report_manifest_payload(
         report=report,
         summary_payload=summary_payload,
         decision_log_payload=decision_log_payload,
+        options=resolved_options,
     )
 
     summary_path = artifact_dir / MILESTONE_SUMMARY_FILENAME
@@ -129,11 +247,14 @@ def write_milestone_report_artifacts(
     _write_json(summary_path, summary_payload)
     _write_json(decision_log_path, decision_log_payload)
     _write_json(manifest_path, manifest_payload)
-    markdown_report_path.write_text(
-        build_milestone_markdown_report(report=report, decisions=decisions),
-        encoding="utf-8",
-        newline="\n",
-    )
+    if resolved_options["include_markdown_report"]:
+        markdown_report_path.write_text(
+            build_milestone_markdown_report(report=report, decisions=filtered_decisions, options=resolved_options),
+            encoding="utf-8",
+            newline="\n",
+        )
+    elif markdown_report_path.exists():
+        markdown_report_path.unlink()
     return summary_path, decision_log_path, manifest_path
 
 
@@ -141,9 +262,15 @@ def build_milestone_report_summary_payload(
     *,
     report: MilestoneReport,
     decisions: Sequence[MilestoneDecisionEntry],
+    options: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    validate_milestone_report(report=report, decisions=decisions)
-    decision_rows = [decision.to_dict() for decision in decisions]
+    resolved_options = resolve_milestone_generation_options(options)
+    filtered_decisions = _filter_decisions(
+        decisions,
+        allowed_categories=resolved_options["decision_categories"],
+    )
+    validate_milestone_report(report=report, decisions=filtered_decisions)
+    decision_rows = [decision.to_dict() for decision in filtered_decisions]
     payload = {
         "run_type": MILESTONE_REPORT_RUN_TYPE,
         "schema_version": MILESTONE_REPORT_SCHEMA_VERSION,
@@ -160,9 +287,11 @@ def build_milestone_report_summary_payload(
         "open_questions": list(report.open_questions),
         "related_artifacts": canonicalize_value(dict(report.related_artifacts)),
         "decision_log_path": MILESTONE_DECISION_LOG_FILENAME,
-        "report_markdown_path": MILESTONE_MARKDOWN_REPORT_FILENAME,
+        "report_markdown_path": (
+            MILESTONE_MARKDOWN_REPORT_FILENAME if resolved_options["include_markdown_report"] else None
+        ),
         "decision_ids": [row["decision_id"] for row in decision_rows],
-        "decision_counts_by_status": _decision_counts_by_status(decisions),
+        "decision_counts_by_status": _decision_counts_by_status(filtered_decisions),
         "decision_count": len(decision_rows),
         "metadata": canonicalize_value(dict(report.metadata)),
     }
@@ -173,9 +302,15 @@ def build_milestone_decision_log_payload(
     *,
     report: MilestoneReport,
     decisions: Sequence[MilestoneDecisionEntry],
+    options: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
-    validate_milestone_report(report=report, decisions=decisions)
-    decision_rows = [decision.to_dict() for decision in decisions]
+    resolved_options = resolve_milestone_generation_options(options)
+    filtered_decisions = _filter_decisions(
+        decisions,
+        allowed_categories=resolved_options["decision_categories"],
+    )
+    validate_milestone_report(report=report, decisions=filtered_decisions)
+    decision_rows = [decision.to_dict() for decision in filtered_decisions]
     payload = {
         "run_type": MILESTONE_DECISION_LOG_RUN_TYPE,
         "schema_version": MILESTONE_REPORT_SCHEMA_VERSION,
@@ -184,11 +319,12 @@ def build_milestone_decision_log_payload(
         "title": report.title,
         "decision_count": len(decision_rows),
         "decision_ids": [row["decision_id"] for row in decision_rows],
-        "decision_counts_by_status": _decision_counts_by_status(decisions),
+        "decision_counts_by_status": _decision_counts_by_status(filtered_decisions),
         "decisions": decision_rows,
         "rendered": _render_milestone_decision_log(
             report=report,
             decision_rows=decision_rows,
+            render_formats=resolved_options["decision_log_render_formats"],
         ),
     }
     return canonicalize_value(payload)
@@ -199,17 +335,45 @@ def build_milestone_report_manifest_payload(
     report: MilestoneReport,
     summary_payload: Mapping[str, Any],
     decision_log_payload: Mapping[str, Any],
+    options: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
+    resolved_options = resolve_milestone_generation_options(options)
     validate_milestone_report_payload(summary_payload)
     validate_milestone_decision_log_payload(decision_log_payload)
-    artifact_files = sorted(
-        [
-            MILESTONE_DECISION_LOG_FILENAME,
-            MILESTONE_MANIFEST_FILENAME,
-            MILESTONE_MARKDOWN_REPORT_FILENAME,
-            MILESTONE_SUMMARY_FILENAME,
-        ]
-    )
+    artifact_files = [
+        MILESTONE_DECISION_LOG_FILENAME,
+        MILESTONE_MANIFEST_FILENAME,
+        MILESTONE_SUMMARY_FILENAME,
+    ]
+    if resolved_options["include_markdown_report"]:
+        artifact_files.append(MILESTONE_MARKDOWN_REPORT_FILENAME)
+    artifact_files = sorted(artifact_files)
+    artifact_groups = {
+        "core": artifact_files,
+        "decision_log": [MILESTONE_DECISION_LOG_FILENAME],
+        "report": [MILESTONE_SUMMARY_FILENAME],
+        "summary": [MILESTONE_SUMMARY_FILENAME],
+    }
+    artifacts = {
+        MILESTONE_DECISION_LOG_FILENAME: {
+            "path": MILESTONE_DECISION_LOG_FILENAME,
+            "decision_count": int(decision_log_payload["decision_count"]),
+        },
+        MILESTONE_MANIFEST_FILENAME: {"path": MILESTONE_MANIFEST_FILENAME},
+        MILESTONE_SUMMARY_FILENAME: {
+            "path": MILESTONE_SUMMARY_FILENAME,
+            "decision_count": int(summary_payload["decision_count"]),
+            "finding_count": len(list(summary_payload["key_findings"])),
+            "recommendation_count": len(list(summary_payload["recommendations"])),
+        },
+    }
+    if resolved_options["include_markdown_report"]:
+        artifact_groups["markdown"] = [MILESTONE_MARKDOWN_REPORT_FILENAME]
+        artifact_groups["report"] = [MILESTONE_SUMMARY_FILENAME, MILESTONE_MARKDOWN_REPORT_FILENAME]
+        artifacts[MILESTONE_MARKDOWN_REPORT_FILENAME] = {
+            "path": MILESTONE_MARKDOWN_REPORT_FILENAME,
+            "section_count": _markdown_section_count(report=report, options=resolved_options),
+        }
     payload = {
         "run_type": MILESTONE_REPORT_RUN_TYPE,
         "schema_version": MILESTONE_REPORT_SCHEMA_VERSION,
@@ -217,34 +381,14 @@ def build_milestone_report_manifest_payload(
         "milestone_name": report.milestone_name,
         "status": summary_payload["status"],
         "artifact_files": artifact_files,
-        "artifact_groups": {
-            "core": artifact_files,
-            "decision_log": [MILESTONE_DECISION_LOG_FILENAME],
-            "markdown": [MILESTONE_MARKDOWN_REPORT_FILENAME],
-            "report": [MILESTONE_SUMMARY_FILENAME, MILESTONE_MARKDOWN_REPORT_FILENAME],
-            "summary": [MILESTONE_SUMMARY_FILENAME],
-        },
-        "artifacts": {
-            MILESTONE_DECISION_LOG_FILENAME: {
-                "path": MILESTONE_DECISION_LOG_FILENAME,
-                "decision_count": int(decision_log_payload["decision_count"]),
-            },
-            MILESTONE_MANIFEST_FILENAME: {"path": MILESTONE_MANIFEST_FILENAME},
-            MILESTONE_MARKDOWN_REPORT_FILENAME: {
-                "path": MILESTONE_MARKDOWN_REPORT_FILENAME,
-                "section_count": _markdown_section_count(report=report),
-            },
-            MILESTONE_SUMMARY_FILENAME: {
-                "path": MILESTONE_SUMMARY_FILENAME,
-                "decision_count": int(summary_payload["decision_count"]),
-                "finding_count": len(list(summary_payload["key_findings"])),
-                "recommendation_count": len(list(summary_payload["recommendations"])),
-            },
-        },
+        "artifact_groups": artifact_groups,
+        "artifacts": artifacts,
         "decision_counts_by_status": canonicalize_value(dict(summary_payload["decision_counts_by_status"])),
         "decision_ids": list(summary_payload["decision_ids"]),
         "decision_log_path": MILESTONE_DECISION_LOG_FILENAME,
-        "report_markdown_path": MILESTONE_MARKDOWN_REPORT_FILENAME,
+        "report_markdown_path": (
+            MILESTONE_MARKDOWN_REPORT_FILENAME if resolved_options["include_markdown_report"] else None
+        ),
         "summary_path": MILESTONE_SUMMARY_FILENAME,
         "timestamp": stable_timestamp_from_run_id(report.milestone_id),
     }
@@ -296,7 +440,8 @@ def validate_milestone_report_payload(payload: Mapping[str, Any]) -> None:
     _require_text(payload.get("summary"), "payload.summary")
     if str(payload.get("decision_log_path")) != MILESTONE_DECISION_LOG_FILENAME:
         raise MilestoneArtifactValidationError("Milestone report summary must reference decision_log.json.")
-    if str(payload.get("report_markdown_path")) != MILESTONE_MARKDOWN_REPORT_FILENAME:
+    report_markdown_path = payload.get("report_markdown_path")
+    if report_markdown_path not in {None, MILESTONE_MARKDOWN_REPORT_FILENAME}:
         raise MilestoneArtifactValidationError("Milestone report summary must reference report.md.")
 
 
@@ -316,10 +461,20 @@ def validate_milestone_decision_log_payload(payload: Mapping[str, Any]) -> None:
     rendered = payload.get("rendered")
     if not isinstance(rendered, Mapping):
         raise MilestoneArtifactValidationError("Milestone decision log payload must contain rendered human-readable content.")
-    if not str(rendered.get("markdown") or "").strip():
-        raise MilestoneArtifactValidationError("Milestone decision log rendered.markdown must be populated.")
-    if not str(rendered.get("text") or "").strip():
-        raise MilestoneArtifactValidationError("Milestone decision log rendered.text must be populated.")
+    render_keys = sorted(rendered)
+    if not render_keys:
+        raise MilestoneArtifactValidationError("Milestone decision log rendered content must not be empty.")
+    unsupported = sorted(set(rendered) - _VALID_DECISION_LOG_RENDER_FORMATS)
+    if unsupported:
+        raise MilestoneArtifactValidationError(
+            "Milestone decision log rendered content contains unsupported formats: "
+            f"{unsupported}."
+        )
+    for render_key in render_keys:
+        if not str(rendered.get(render_key) or "").strip():
+            raise MilestoneArtifactValidationError(
+                f"Milestone decision log rendered.{render_key} must be populated."
+            )
 
 
 def _decision_counts_by_status(decisions: Sequence[MilestoneDecisionEntry]) -> dict[str, int]:
@@ -368,6 +523,7 @@ def _render_milestone_decision_log(
     *,
     report: MilestoneReport,
     decision_rows: Sequence[Mapping[str, Any]],
+    render_formats: Sequence[str],
 ) -> dict[str, Any]:
     lines = [
         f"# {report.title}",
@@ -394,19 +550,27 @@ def _render_milestone_decision_log(
             lines.append("")
             text_lines.append("")
 
-    return {
-        "markdown": "\n".join(lines).strip(),
-        "text": "\n".join(text_lines).strip(),
-    }
+    rendered: dict[str, Any] = {}
+    if "markdown" in render_formats:
+        rendered["markdown"] = "\n".join(lines).strip()
+    if "text" in render_formats:
+        rendered["text"] = "\n".join(text_lines).strip()
+    return rendered
 
 
 def build_milestone_markdown_report(
     *,
     report: MilestoneReport,
     decisions: Sequence[MilestoneDecisionEntry],
+    options: Mapping[str, Any] | None = None,
 ) -> str:
-    validate_milestone_report(report=report, decisions=decisions)
-    decision_rows = [decision.to_dict() for decision in decisions]
+    resolved_options = resolve_milestone_generation_options(options)
+    filtered_decisions = _filter_decisions(
+        decisions,
+        allowed_categories=resolved_options["decision_categories"],
+    )
+    validate_milestone_report(report=report, decisions=filtered_decisions)
+    decision_rows = [decision.to_dict() for decision in filtered_decisions]
     metadata = _mapping(report.metadata)
     selected_run_ids = _mapping(metadata.get("selected_run_ids"))
     key_metrics = _mapping(metadata.get("key_metrics"))
@@ -426,39 +590,49 @@ def build_milestone_markdown_report(
         lines.append(f"- Owner: `{report.owner}`")
     lines.append(f"- Reporting Window: {_format_reporting_window(report.reporting_window)}")
     lines.append(f"- Summary: {report.summary}")
-
-    lines.extend(_render_string_list_section("Campaign Scope", report.scope, empty_text="No explicit campaign scope was recorded."))
-    lines.extend(_render_mapping_section("Selections", _selection_rows(selected_run_ids), empty_text="No run selections were recorded."))
-    lines.extend(_render_string_list_section("Key Findings", report.key_findings, empty_text="No key findings were recorded."))
-    lines.extend(_render_mapping_section("Key Metrics", _metric_rows(key_metrics), empty_text="No key metrics were recorded."))
-    lines.extend(
-        _render_mapping_section(
-            "Gate Outcomes",
-            _gate_outcome_rows(
-                decision_rows=decision_rows,
-                promotion_gates=promotion_gates,
-                stage_state_counts=stage_state_counts,
-            ),
-            empty_text="No gate outcomes were recorded.",
+    sections = resolved_options["sections"]
+    if sections["campaign_scope"]:
+        lines.extend(_render_string_list_section("Campaign Scope", report.scope, empty_text="No explicit campaign scope was recorded."))
+    if sections["selections"]:
+        lines.extend(_render_mapping_section("Selections", _selection_rows(selected_run_ids), empty_text="No run selections were recorded."))
+    if sections["key_findings"]:
+        lines.extend(_render_string_list_section("Key Findings", report.key_findings, empty_text="No key findings were recorded."))
+    if sections["key_metrics"]:
+        lines.extend(_render_mapping_section("Key Metrics", _metric_rows(key_metrics), empty_text="No key metrics were recorded."))
+    if sections["gate_outcomes"]:
+        lines.extend(
+            _render_mapping_section(
+                "Gate Outcomes",
+                _gate_outcome_rows(
+                    decision_rows=decision_rows,
+                    promotion_gates=promotion_gates,
+                    stage_state_counts=stage_state_counts,
+                ),
+                empty_text="No gate outcomes were recorded.",
+            )
         )
-    )
-    lines.extend(_render_string_list_section("Risks", _risk_rows(final_outcomes, promotion_gates, decision_rows), empty_text="No immediate risks were detected."))
-    lines.extend(
-        _render_string_list_section(
-            "Next Steps",
-            _next_step_rows(report=report, decision_rows=decision_rows),
-            empty_text="No additional next steps were recorded.",
+    if sections["risks"]:
+        lines.extend(_render_string_list_section("Risks", _risk_rows(final_outcomes, promotion_gates, decision_rows), empty_text="No immediate risks were detected."))
+    if sections["next_steps"]:
+        lines.extend(
+            _render_string_list_section(
+                "Next Steps",
+                _next_step_rows(report=report, decision_rows=decision_rows),
+                empty_text="No additional next steps were recorded.",
+            )
         )
-    )
-    lines.extend(_render_string_list_section("Open Questions", report.open_questions, empty_text="No open questions were recorded."))
-    lines.extend(_render_decision_snapshot_section(decision_rows))
-    lines.extend(
-        _render_mapping_section(
-            "Related Artifacts",
-            sorted(report.related_artifacts.items()),
-            empty_text="No related artifacts were recorded.",
+    if sections["open_questions"]:
+        lines.extend(_render_string_list_section("Open Questions", report.open_questions, empty_text="No open questions were recorded."))
+    if sections["decision_snapshot"]:
+        lines.extend(_render_decision_snapshot_section(decision_rows))
+    if sections["related_artifacts"]:
+        lines.extend(
+            _render_mapping_section(
+                "Related Artifacts",
+                sorted(report.related_artifacts.items()),
+                empty_text="No related artifacts were recorded.",
+            )
         )
-    )
     return "\n".join(lines).strip() + "\n"
 
 
@@ -692,9 +866,45 @@ def _mapping(value: Any) -> dict[str, Any]:
     return {}
 
 
-def _markdown_section_count(*, report: MilestoneReport) -> int:
+def _markdown_section_count(*, report: MilestoneReport, options: Mapping[str, Any] | None = None) -> int:
     _ = report
-    return 11
+    resolved_options = resolve_milestone_generation_options(options)
+    return 1 + sum(1 for value in resolved_options["sections"].values() if value)
+
+
+def _normalize_string_sequence(value: Any, *, owner: str) -> tuple[str, ...]:
+    if isinstance(value, str):
+        raw_values = [value]
+    elif isinstance(value, Sequence):
+        raw_values = list(value)
+    else:
+        raise MilestoneArtifactValidationError(f"Milestone generation option '{owner}' must be a string or sequence of strings.")
+
+    normalized: list[str] = []
+    for index, item in enumerate(raw_values):
+        if not isinstance(item, str):
+            raise MilestoneArtifactValidationError(
+                f"Milestone generation option '{owner}[{index}]' must be a string."
+            )
+        text = item.strip()
+        if not text:
+            raise MilestoneArtifactValidationError(
+                f"Milestone generation option '{owner}[{index}]' must not be empty."
+            )
+        if text not in normalized:
+            normalized.append(text)
+    return tuple(normalized)
+
+
+def _filter_decisions(
+    decisions: Sequence[MilestoneDecisionEntry],
+    *,
+    allowed_categories: Sequence[str],
+) -> list[MilestoneDecisionEntry]:
+    if not allowed_categories:
+        return list(decisions)
+    allowed = {str(value) for value in allowed_categories}
+    return [decision for decision in decisions if decision.category in allowed]
 
 
 def _dedupe_preserve_order(values: Sequence[str]) -> list[str]:
@@ -729,6 +939,7 @@ __all__ = [
     "build_milestone_report_id",
     "build_milestone_report_manifest_payload",
     "build_milestone_report_summary_payload",
+    "resolve_milestone_generation_options",
     "resolve_milestone_artifact_dir",
     "validate_milestone_decision_log_payload",
     "validate_milestone_report",

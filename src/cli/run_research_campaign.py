@@ -3013,7 +3013,14 @@ def _write_campaign_artifacts(
     write_campaign_checkpoint(checkpoint_path, checkpoint_payload)
     summary_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
     manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
-    milestone_outputs = _generate_campaign_milestone_outputs(campaign_artifact_dir=campaign_artifact_dir)
+    milestone_outputs = (
+        _generate_campaign_milestone_outputs(
+            campaign_artifact_dir=campaign_artifact_dir,
+            config=config,
+        )
+        if config.milestone_reporting.enabled
+        else None
+    )
     summary_payload = _build_campaign_summary(
         config=config,
         campaign_run_id=campaign_run_id,
@@ -3045,8 +3052,23 @@ def _write_campaign_artifacts(
     return checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload
 
 
-def _generate_campaign_milestone_outputs(*, campaign_artifact_dir: Path) -> dict[str, Any]:
-    summary_path, decision_log_path, manifest_path = generate_campaign_milestone_report(campaign_artifact_dir)
+def _generate_campaign_milestone_outputs(
+    *,
+    campaign_artifact_dir: Path,
+    config: ResearchCampaignConfig,
+) -> dict[str, Any]:
+    summary_path, decision_log_path, manifest_path = generate_campaign_milestone_report(
+        campaign_artifact_dir,
+        options={
+            "include_markdown_report": config.milestone_reporting.output.include_markdown_report,
+            "decision_log_render_formats": list(
+                config.milestone_reporting.output.decision_log_render_formats
+            ),
+            "sections": config.milestone_reporting.sections.to_dict(),
+            "decision_categories": list(config.milestone_reporting.decision_categories),
+            "summary": config.milestone_reporting.summary.to_dict(),
+        },
+    )
     milestone_dir = summary_path.parent
     markdown_path = milestone_dir / MILESTONE_MARKDOWN_REPORT_FILENAME
     summary_payload = _read_json_mapping(

@@ -10,6 +10,7 @@ from src.research.reporting.milestone_artifacts import (
     MilestoneReport,
     MilestoneSourceArtifact,
     build_milestone_report_id,
+    resolve_milestone_generation_options,
     resolve_milestone_artifact_dir,
     write_milestone_report_artifacts,
 )
@@ -25,6 +26,7 @@ def generate_campaign_milestone_report(
     title: str | None = None,
     owner: str | None = None,
     status: str = "final",
+    options: Mapping[str, Any] | None = None,
 ) -> tuple[Path, Path, Path]:
     """Generate a milestone report pack from completed campaign artifacts."""
 
@@ -48,8 +50,14 @@ def generate_campaign_milestone_report(
         title=title,
         owner=owner,
         status=status,
+        options=options,
     )
-    return write_milestone_report_artifacts(report=report, decisions=decisions, output_path=artifact_dir)
+    return write_milestone_report_artifacts(
+        report=report,
+        decisions=decisions,
+        output_path=artifact_dir,
+        options=options,
+    )
 
 
 def build_campaign_milestone_report_payloads(
@@ -65,7 +73,9 @@ def build_campaign_milestone_report_payloads(
     title: str | None,
     owner: str | None,
     status: str,
+    options: Mapping[str, Any] | None,
 ) -> tuple[MilestoneReport, list[MilestoneDecisionEntry]]:
+    resolved_options = resolve_milestone_generation_options(options)
     run_type = str(campaign_summary.get("run_type") or "")
     if run_type != "research_campaign":
         raise ValueError(
@@ -99,6 +109,7 @@ def build_campaign_milestone_report_payloads(
             campaign_summary=campaign_summary,
             promotion_gates=promotion_gates,
             review_summary=review_summary,
+            summary_options=resolved_options["summary"],
         ),
         owner=owner,
         reporting_window=reporting_window,
@@ -134,6 +145,9 @@ def build_campaign_milestone_report_payloads(
         review_summary=review_summary,
         promotion_gates=promotion_gates,
     )
+    if resolved_options["decision_categories"]:
+        allowed = set(resolved_options["decision_categories"])
+        decisions = [decision for decision in decisions if decision.category in allowed]
     return report, decisions
 
 
@@ -179,6 +193,7 @@ def _campaign_summary_text(
     campaign_summary: Mapping[str, Any],
     promotion_gates: Mapping[str, Any] | None,
     review_summary: Mapping[str, Any] | None,
+    summary_options: Mapping[str, Any],
 ) -> str:
     campaign_run_id = str(campaign_summary.get("campaign_run_id") or "unknown_campaign")
     stage_counts = campaign_summary.get("stage_state_counts")
@@ -188,14 +203,15 @@ def _campaign_summary_text(
     completed_like_count = _safe_int(stage_counts.get("completed")) + _safe_int(stage_counts.get("reused"))
     failed_like_count = _safe_int(stage_counts.get("failed")) + _safe_int(stage_counts.get("partial"))
 
-    parts = [
-        f"Campaign `{campaign_run_id}` finished with status `{campaign_summary.get('status', 'unknown')}`.",
-        f"{completed_like_count} of {tracked_stage_count} tracked stages completed or were reused.",
-    ]
+    parts = [f"Campaign `{campaign_run_id}` finished with status `{campaign_summary.get('status', 'unknown')}`."]
+    if bool(summary_options.get("include_stage_counts", True)):
+        parts.append(f"{completed_like_count} of {tracked_stage_count} tracked stages completed or were reused.")
     if failed_like_count:
         parts.append(f"{failed_like_count} stage(s) require follow-up.")
 
-    review_fragment = _review_result_fragment(review_summary=review_summary, promotion_gates=promotion_gates)
+    review_fragment = None
+    if bool(summary_options.get("include_review_outcome", True)):
+        review_fragment = _review_result_fragment(review_summary=review_summary, promotion_gates=promotion_gates)
     if review_fragment is not None:
         parts.append(review_fragment)
     return " ".join(parts)

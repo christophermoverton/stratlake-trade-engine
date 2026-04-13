@@ -22,6 +22,7 @@ _ROOT_SECTION_KEYS = frozenset(
         "candidate_selection",
         "portfolio",
         "review",
+        "milestone_reporting",
         "outputs",
     }
 )
@@ -144,6 +145,24 @@ _OUTPUT_KEYS = frozenset(
         "review_output_path",
     }
 )
+_MILESTONE_REPORTING_KEYS = frozenset({"enabled", "decision_categories", "output", "sections", "summary"})
+_MILESTONE_REPORTING_OUTPUT_KEYS = frozenset({"include_markdown_report", "decision_log_render_formats"})
+_MILESTONE_REPORTING_SECTION_KEYS = frozenset(
+    {
+        "campaign_scope",
+        "selections",
+        "key_findings",
+        "key_metrics",
+        "gate_outcomes",
+        "risks",
+        "next_steps",
+        "open_questions",
+        "decision_snapshot",
+        "related_artifacts",
+    }
+)
+_MILESTONE_REPORTING_SUMMARY_KEYS = frozenset({"include_stage_counts", "include_review_outcome"})
+_SUPPORTED_DECISION_LOG_RENDER_FORMATS = frozenset({"markdown", "text"})
 _SUPPORTED_ALPHA_VIEWS = frozenset({"forecast", "sleeve", "combined"})
 _DEFAULT_CANDIDATE_SELECTION_OUTPUT_PATH = "artifacts/candidate_selection"
 _CAMPAIGN_STAGE_NAMES = (
@@ -428,6 +447,76 @@ class CampaignOutputsConfig:
 
 
 @dataclass(frozen=True)
+class CampaignMilestoneReportingOutputConfig:
+    include_markdown_report: bool
+    decision_log_render_formats: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "include_markdown_report": self.include_markdown_report,
+            "decision_log_render_formats": list(self.decision_log_render_formats),
+        }
+
+
+@dataclass(frozen=True)
+class CampaignMilestoneReportingSectionsConfig:
+    campaign_scope: bool
+    selections: bool
+    key_findings: bool
+    key_metrics: bool
+    gate_outcomes: bool
+    risks: bool
+    next_steps: bool
+    open_questions: bool
+    decision_snapshot: bool
+    related_artifacts: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "campaign_scope": self.campaign_scope,
+            "selections": self.selections,
+            "key_findings": self.key_findings,
+            "key_metrics": self.key_metrics,
+            "gate_outcomes": self.gate_outcomes,
+            "risks": self.risks,
+            "next_steps": self.next_steps,
+            "open_questions": self.open_questions,
+            "decision_snapshot": self.decision_snapshot,
+            "related_artifacts": self.related_artifacts,
+        }
+
+
+@dataclass(frozen=True)
+class CampaignMilestoneReportingSummaryConfig:
+    include_stage_counts: bool
+    include_review_outcome: bool
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "include_stage_counts": self.include_stage_counts,
+            "include_review_outcome": self.include_review_outcome,
+        }
+
+
+@dataclass(frozen=True)
+class CampaignMilestoneReportingConfig:
+    enabled: bool
+    decision_categories: tuple[str, ...]
+    output: CampaignMilestoneReportingOutputConfig
+    sections: CampaignMilestoneReportingSectionsConfig
+    summary: CampaignMilestoneReportingSummaryConfig
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "decision_categories": list(self.decision_categories),
+            "output": self.output.to_dict(),
+            "sections": self.sections.to_dict(),
+            "summary": self.summary.to_dict(),
+        }
+
+
+@dataclass(frozen=True)
 class ResearchCampaignConfig:
     dataset_selection: DatasetSelectionConfig
     time_windows: TimeWindowsConfig
@@ -437,6 +526,7 @@ class ResearchCampaignConfig:
     candidate_selection: CampaignCandidateSelectionConfig
     portfolio: CampaignPortfolioConfig
     review: ReviewConfig
+    milestone_reporting: CampaignMilestoneReportingConfig
     outputs: CampaignOutputsConfig
 
     @classmethod
@@ -545,6 +635,30 @@ class ResearchCampaignConfig:
                 optimizer_method=None,
             ),
             review=ReviewConfig.default(),
+            milestone_reporting=CampaignMilestoneReportingConfig(
+                enabled=True,
+                decision_categories=(),
+                output=CampaignMilestoneReportingOutputConfig(
+                    include_markdown_report=True,
+                    decision_log_render_formats=("markdown", "text"),
+                ),
+                sections=CampaignMilestoneReportingSectionsConfig(
+                    campaign_scope=True,
+                    selections=True,
+                    key_findings=True,
+                    key_metrics=True,
+                    gate_outcomes=True,
+                    risks=True,
+                    next_steps=True,
+                    open_questions=True,
+                    decision_snapshot=True,
+                    related_artifacts=True,
+                ),
+                summary=CampaignMilestoneReportingSummaryConfig(
+                    include_stage_counts=True,
+                    include_review_outcome=True,
+                ),
+            ),
             outputs=outputs,
         )
 
@@ -590,6 +704,10 @@ class ResearchCampaignConfig:
             shared_targets=targets,
             outputs=outputs,
         )
+        milestone_reporting = _resolve_milestone_reporting(
+            container.get("milestone_reporting"),
+            base=seed.milestone_reporting,
+        )
         return cls(
             dataset_selection=dataset_selection,
             time_windows=time_windows,
@@ -599,6 +717,7 @@ class ResearchCampaignConfig:
             candidate_selection=candidate_selection,
             portfolio=portfolio,
             review=review,
+            milestone_reporting=milestone_reporting,
             outputs=outputs,
         )
 
@@ -613,6 +732,7 @@ class ResearchCampaignConfig:
                 "candidate_selection": self.candidate_selection.to_dict(),
                 "portfolio": self.portfolio.to_dict(),
                 "review": self.review.to_dict(),
+                "milestone_reporting": self.milestone_reporting.to_dict(),
                 "outputs": self.outputs.to_dict(),
             }
         )
@@ -1316,6 +1436,181 @@ def _resolve_review(
         return ReviewConfig.from_mapping(payload, base=resolved)
     except ReviewConfigError as exc:
         raise ResearchCampaignConfigError(str(exc)) from exc
+
+
+def _resolve_milestone_reporting(
+    payload: Any,
+    *,
+    base: CampaignMilestoneReportingConfig,
+) -> CampaignMilestoneReportingConfig:
+    if payload is None:
+        return base
+    if not isinstance(payload, Mapping):
+        raise ResearchCampaignConfigError("Research campaign field 'milestone_reporting' must be a mapping.")
+    unknown_keys = sorted(set(payload) - _MILESTONE_REPORTING_KEYS)
+    if unknown_keys:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field 'milestone_reporting' contains unsupported keys: {unknown_keys}."
+        )
+    return CampaignMilestoneReportingConfig(
+        enabled=_resolve_bool(
+            payload.get("enabled"),
+            field_name="milestone_reporting.enabled",
+            default=base.enabled,
+        ),
+        decision_categories=_normalize_string_collection(
+            payload.get("decision_categories"),
+            field_name="milestone_reporting.decision_categories",
+            default=base.decision_categories,
+        ),
+        output=_resolve_milestone_reporting_output(
+            payload.get("output"),
+            base=base.output,
+        ),
+        sections=_resolve_milestone_reporting_sections(
+            payload.get("sections"),
+            base=base.sections,
+        ),
+        summary=_resolve_milestone_reporting_summary(
+            payload.get("summary"),
+            base=base.summary,
+        ),
+    )
+
+
+def _resolve_milestone_reporting_output(
+    payload: Any,
+    *,
+    base: CampaignMilestoneReportingOutputConfig,
+) -> CampaignMilestoneReportingOutputConfig:
+    if payload is None:
+        return base
+    if not isinstance(payload, Mapping):
+        raise ResearchCampaignConfigError("Research campaign field 'milestone_reporting.output' must be a mapping.")
+    unknown_keys = sorted(set(payload) - _MILESTONE_REPORTING_OUTPUT_KEYS)
+    if unknown_keys:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field 'milestone_reporting.output' contains unsupported keys: {unknown_keys}."
+        )
+    render_formats = payload.get("decision_log_render_formats")
+    if render_formats is None:
+        resolved_formats = base.decision_log_render_formats
+    else:
+        resolved_formats = _normalize_string_collection(
+            render_formats,
+            field_name="milestone_reporting.output.decision_log_render_formats",
+            default=base.decision_log_render_formats,
+        )
+        invalid = [value for value in resolved_formats if value not in _SUPPORTED_DECISION_LOG_RENDER_FORMATS]
+        if invalid:
+            raise ResearchCampaignConfigError(
+                "Research campaign field 'milestone_reporting.output.decision_log_render_formats' "
+                f"must contain only {sorted(_SUPPORTED_DECISION_LOG_RENDER_FORMATS)}."
+            )
+    return CampaignMilestoneReportingOutputConfig(
+        include_markdown_report=_resolve_bool(
+            payload.get("include_markdown_report"),
+            field_name="milestone_reporting.output.include_markdown_report",
+            default=base.include_markdown_report,
+        ),
+        decision_log_render_formats=resolved_formats,
+    )
+
+
+def _resolve_milestone_reporting_sections(
+    payload: Any,
+    *,
+    base: CampaignMilestoneReportingSectionsConfig,
+) -> CampaignMilestoneReportingSectionsConfig:
+    if payload is None:
+        return base
+    if not isinstance(payload, Mapping):
+        raise ResearchCampaignConfigError("Research campaign field 'milestone_reporting.sections' must be a mapping.")
+    unknown_keys = sorted(set(payload) - _MILESTONE_REPORTING_SECTION_KEYS)
+    if unknown_keys:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field 'milestone_reporting.sections' contains unsupported keys: {unknown_keys}."
+        )
+    return CampaignMilestoneReportingSectionsConfig(
+        campaign_scope=_resolve_bool(
+            payload.get("campaign_scope"),
+            field_name="milestone_reporting.sections.campaign_scope",
+            default=base.campaign_scope,
+        ),
+        selections=_resolve_bool(
+            payload.get("selections"),
+            field_name="milestone_reporting.sections.selections",
+            default=base.selections,
+        ),
+        key_findings=_resolve_bool(
+            payload.get("key_findings"),
+            field_name="milestone_reporting.sections.key_findings",
+            default=base.key_findings,
+        ),
+        key_metrics=_resolve_bool(
+            payload.get("key_metrics"),
+            field_name="milestone_reporting.sections.key_metrics",
+            default=base.key_metrics,
+        ),
+        gate_outcomes=_resolve_bool(
+            payload.get("gate_outcomes"),
+            field_name="milestone_reporting.sections.gate_outcomes",
+            default=base.gate_outcomes,
+        ),
+        risks=_resolve_bool(
+            payload.get("risks"),
+            field_name="milestone_reporting.sections.risks",
+            default=base.risks,
+        ),
+        next_steps=_resolve_bool(
+            payload.get("next_steps"),
+            field_name="milestone_reporting.sections.next_steps",
+            default=base.next_steps,
+        ),
+        open_questions=_resolve_bool(
+            payload.get("open_questions"),
+            field_name="milestone_reporting.sections.open_questions",
+            default=base.open_questions,
+        ),
+        decision_snapshot=_resolve_bool(
+            payload.get("decision_snapshot"),
+            field_name="milestone_reporting.sections.decision_snapshot",
+            default=base.decision_snapshot,
+        ),
+        related_artifacts=_resolve_bool(
+            payload.get("related_artifacts"),
+            field_name="milestone_reporting.sections.related_artifacts",
+            default=base.related_artifacts,
+        ),
+    )
+
+
+def _resolve_milestone_reporting_summary(
+    payload: Any,
+    *,
+    base: CampaignMilestoneReportingSummaryConfig,
+) -> CampaignMilestoneReportingSummaryConfig:
+    if payload is None:
+        return base
+    if not isinstance(payload, Mapping):
+        raise ResearchCampaignConfigError("Research campaign field 'milestone_reporting.summary' must be a mapping.")
+    unknown_keys = sorted(set(payload) - _MILESTONE_REPORTING_SUMMARY_KEYS)
+    if unknown_keys:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field 'milestone_reporting.summary' contains unsupported keys: {unknown_keys}."
+        )
+    return CampaignMilestoneReportingSummaryConfig(
+        include_stage_counts=_resolve_bool(
+            payload.get("include_stage_counts"),
+            field_name="milestone_reporting.summary.include_stage_counts",
+            default=base.include_stage_counts,
+        ),
+        include_review_outcome=_resolve_bool(
+            payload.get("include_review_outcome"),
+            field_name="milestone_reporting.summary.include_review_outcome",
+            default=base.include_review_outcome,
+        ),
+    )
 
 
 def _resolve_outputs(payload: Any, *, base: CampaignOutputsConfig) -> CampaignOutputsConfig:

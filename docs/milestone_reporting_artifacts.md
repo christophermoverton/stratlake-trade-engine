@@ -33,6 +33,14 @@ Default file names are fixed by contract:
 * `manifest.json` inventories the pack and mirrors key counts
 * `report.md` is the human-readable milestone brief
 
+Campaign-driven generation can now tune the pack without changing the base file
+names:
+
+* `summary.json`, `decision_log.json`, and `manifest.json` always persist when
+  milestone generation is enabled
+* `report.md` is optional and can be disabled through campaign config
+* `decision_log.json.rendered` can include `markdown`, `text`, or both
+
 This mirrors the repo-wide pattern where `summary.json` is the main
 machine-readable entrypoint, `report.md` is the operator-facing summary, and
 `manifest.json` is the file-level inventory.
@@ -94,10 +102,9 @@ Optional structured fields:
 * `related_artifacts`
 * `metadata`
 
-`decision_log_path` is always `decision_log.json` and
-`report_markdown_path` is always `report.md` so summary-first consumers can
-jump to the detailed audit trail or the human-readable brief without scanning
-the directory.
+`decision_log_path` is always `decision_log.json`.
+`report_markdown_path` is `report.md` when markdown output is enabled and
+`null` when the pack is configured to omit the standalone Markdown brief.
 
 ## `decision_log.json` Schema
 
@@ -114,6 +121,7 @@ Top-level fields:
 * `decision_count`
 * `decision_ids`
 * `decisions`
+* `rendered`
 
 Each decision entry includes:
 
@@ -170,8 +178,8 @@ The current artifact groups are:
 * `summary`
 * `decision_log`
 
-`report.md` is generated deterministically from the milestone summary metadata
-and decision log so it presents, in a stable order:
+When enabled, `report.md` is generated deterministically from the milestone
+summary metadata and decision log so it presents, in a stable order:
 
 * campaign scope
 * selections
@@ -182,6 +190,9 @@ and decision log so it presents, in a stable order:
 * open questions
 * a decision snapshot
 * related artifacts
+
+Campaign config can independently disable any of those optional markdown
+sections while leaving the canonical JSON artifacts intact.
 
 ## Serialization Rules
 
@@ -216,9 +227,10 @@ Payload-level validators also confirm:
 
 * `summary.json` has the expected `run_type`, `schema_version`, and
   `decision_log_path`
-* `summary.json` references `report.md`
-* `decision_log.json` has the expected `run_type`, `schema_version`, and
-  `decision_count == len(decisions)`
+* `summary.json` references `report.md` only when Markdown output is enabled
+* `decision_log.json` has the expected `run_type`, `schema_version`,
+  `decision_count == len(decisions)`, and at least one supported rendered
+  format
 
 ## Usage
 

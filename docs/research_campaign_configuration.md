@@ -133,7 +133,16 @@ research_campaign:
 ## Scenario Expansion
 
 Use `expand_research_campaign_scenarios(config)` to materialize the scenario
-set from one resolved campaign config.
+set from one resolved campaign config when you want typed
+`ResolvedResearchCampaignScenario` objects in Python.
+
+Use `build_research_campaign_scenario_catalog(config)` when you want one
+JSON-serializable deterministic payload containing:
+
+* the base campaign fingerprint without the `scenarios` section
+* the ordered concrete scenario list
+* each scenario's `scenario_id`, `source`, `sweep_values`, fingerprint, and
+  normalized effective config snapshot
 
 Expansion rules:
 
@@ -171,7 +180,9 @@ future orchestration code that needs durable per-scenario artifact partitioning.
 * matrix `values` must be non-empty and deduplicated
 * matrix `path` must be a dotted override path and cannot target the
   `scenarios` section itself
+* matrix expansion must still produce unique normalized scenario identifiers
 * included scenarios must use unique normalized `scenario_id` values
+* included `overrides` cannot override the `scenarios` section
 * included `overrides` must be valid campaign override mappings using the same
   schema as the main campaign config
 

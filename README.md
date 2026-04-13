@@ -115,6 +115,9 @@ The repository currently supports:
   candidate-selection, portfolio, review, and output-path settings
 * campaign-level orchestration through
   `python -m src.cli.run_research_campaign --config ...`
+* deterministic scenario expansion from one sweep-enabled campaign spec into
+  stable concrete scenario IDs plus effective config snapshots for tooling and
+  review
 * campaign preflight validation with persisted `preflight_summary.json` reports
   before expensive research execution starts
 * operator-facing `reuse_policy` controls for explicit checkpoint reuse,

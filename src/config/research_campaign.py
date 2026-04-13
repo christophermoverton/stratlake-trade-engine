@@ -573,13 +573,15 @@ class ResolvedResearchCampaignScenario:
     fingerprint: str
 
     def to_dict(self) -> dict[str, Any]:
+        effective_config = self.config.to_dict()
         return {
             "scenario_id": self.scenario_id,
             "description": self.description,
             "source": self.source,
             "sweep_values": _canonicalize_value(dict(self.sweep_values)),
             "fingerprint": self.fingerprint,
-            "config": self.config.to_dict(),
+            "config": effective_config,
+            "effective_config": effective_config,
         }
 
 
@@ -785,7 +787,7 @@ class ResearchCampaignConfig:
             container.get("scenarios"),
             base=seed.scenarios,
         )
-        return cls(
+        resolved = cls(
             dataset_selection=dataset_selection,
             time_windows=time_windows,
             targets=targets,
@@ -798,6 +800,9 @@ class ResearchCampaignConfig:
             outputs=outputs,
             scenarios=scenarios,
         )
+        if resolved.scenarios.enabled:
+            build_research_campaign_scenario_catalog(resolved)
+        return resolved
 
     def to_dict(self) -> dict[str, Any]:
         return _canonicalize_value(
@@ -1798,6 +1803,12 @@ def _resolve_scenario_include(payload: Any) -> tuple[CampaignScenarioIncludeConf
                 f"Research campaign field '{field_name}.overrides' must be a mapping."
             )
 
+        overrides = dict(_extract_root_container(raw_overrides))
+        if "scenarios" in overrides:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}.overrides' cannot override the 'scenarios' section."
+            )
+
         scenarios.append(
             CampaignScenarioIncludeConfig(
                 scenario_id=scenario_id,
@@ -1806,7 +1817,7 @@ def _resolve_scenario_include(payload: Any) -> tuple[CampaignScenarioIncludeConf
                     field_name=f"{field_name}.description",
                     default=None,
                 ),
-                overrides=_canonicalize_value(dict(_extract_root_container(raw_overrides))),
+                overrides=_canonicalize_value(overrides),
             )
         )
     return tuple(scenarios)
@@ -2146,6 +2157,10 @@ def expand_research_campaign_scenarios(
     matrix_overrides = _expand_scenario_matrix_overrides(scenarios_config.matrix)
     for index, (sweep_values, override_payload) in enumerate(matrix_overrides):
         scenario_id = _build_matrix_scenario_id(index, sweep_values)
+        if scenario_id in seen_ids:
+            raise ResearchCampaignConfigError(
+                f"Research campaign scenarios resolve duplicate scenario_id '{scenario_id}'."
+            )
         seen_ids.add(scenario_id)
         scenario_config = ResearchCampaignConfig.from_mapping(override_payload, base=base_config)
         resolved.append(
@@ -2177,6 +2192,19 @@ def expand_research_campaign_scenarios(
             )
         )
     return tuple(resolved)
+
+
+def build_research_campaign_scenario_catalog(config: ResearchCampaignConfig) -> dict[str, Any]:
+    base_config = ResearchCampaignConfig.from_mapping(_config_payload_without_scenarios(config))
+    scenarios = expand_research_campaign_scenarios(config)
+    return _canonicalize_value(
+        {
+            "scenario_count": len(scenarios),
+            "base_fingerprint": _scenario_fingerprint(base_config),
+            "scenarios_enabled": config.scenarios.enabled,
+            "scenarios": [scenario.to_dict() for scenario in scenarios],
+        }
+    )
 
 
 def _config_payload_without_scenarios(config: ResearchCampaignConfig) -> dict[str, Any]:
@@ -2291,6 +2319,7 @@ __all__ = [
     "ResolvedResearchCampaignScenario",
     "ResearchCampaignConfig",
     "ResearchCampaignConfigError",
+    "build_research_campaign_scenario_catalog",
     "expand_research_campaign_scenarios",
     "load_research_campaign_config",
     "resolve_research_campaign_config",

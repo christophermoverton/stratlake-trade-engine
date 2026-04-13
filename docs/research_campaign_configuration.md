@@ -32,6 +32,8 @@ The campaign schema supports these sections:
 * `outputs`: common artifact roots and shared output destinations, including
   the campaign artifact root used for persisted campaign manifests, summaries,
   and preflight reports
+* `scenarios`: optional parameter-sweep and scenario-matrix expansion contract
+  for generating multiple resolved campaign variants from one campaign spec
 
 The repository example lives at `configs/research_campaign.yml`.
 
@@ -74,6 +76,104 @@ The loader applies a few shared defaults so one campaign file can stay concise:
 * `reuse_policy` stage lists are normalized against the canonical campaign
   stage order: `preflight`, `research`, `comparison`, `candidate_selection`,
   `portfolio`, `candidate_review`, and `review`
+* scenario matrix values are expanded in declaration order, then explicit
+  included scenarios are appended in declaration order
+
+## Scenarios
+
+`scenarios` adds an optional multi-scenario contract on top of the base
+campaign config. The base campaign still uses the same sections and validation
+rules; scenarios only describe how to derive additional resolved variants from
+that shared baseline.
+
+Supported fields:
+
+* `enabled`: turns scenario expansion on or off
+* `matrix`: ordered list of sweep axes, each with:
+  * `name`: stable axis label used in deterministic scenario IDs
+  * `path`: dotted config path to override, for example
+    `dataset_selection.timeframe` or `comparison.top_k`
+  * `values`: non-empty ordered list of scalar sweep values
+* `include`: ordered list of explicit one-off scenarios, each with:
+  * `scenario_id`: stable explicit scenario identifier
+  * `description`: optional operator-facing description
+  * `overrides`: normal campaign override mapping using the same root sections
+    as the main campaign spec
+
+Example:
+
+```yaml
+research_campaign:
+  dataset_selection:
+    dataset: features_daily
+    timeframe: 1D
+    evaluation_horizon: 5
+  targets:
+    alpha_names: [ml_alpha_q1]
+  scenarios:
+    enabled: true
+    matrix:
+      - name: timeframe
+        path: dataset_selection.timeframe
+        values: [1D, 4H]
+      - name: top_k
+        path: comparison.top_k
+        values: [5, 10]
+    include:
+      - scenario_id: sleeve_review
+        description: Use sleeve comparison for the review-only pass.
+        overrides:
+          comparison:
+            alpha_view: sleeve
+          review:
+            filters:
+              run_types: [alpha_evaluation]
+```
+
+## Scenario Expansion
+
+Use `expand_research_campaign_scenarios(config)` to materialize the scenario
+set from one resolved campaign config.
+
+Expansion rules:
+
+* when `scenarios.enabled` is `false`, expansion returns one implicit scenario
+  with `scenario_id=default`
+* matrix expansion is the cartesian product of `matrix[*].values` using the
+  declared axis order
+* each matrix scenario starts from the fully resolved base campaign config, then
+  applies one override value per declared matrix axis
+* each `include[*].overrides` scenario also starts from the same resolved base
+  campaign config, then applies the explicit override mapping
+* every expanded scenario is re-resolved through the same campaign resolver, so
+  inheritance and validation behave exactly like a standalone campaign config
+
+## Scenario Identity
+
+Scenario identity is deterministic:
+
+* matrix scenarios receive IDs like
+  `scenario_0003_timeframe_4h__top_k_10`
+* explicit scenarios use their normalized `include[*].scenario_id`
+* every expanded scenario also exposes a short deterministic fingerprint based
+  on the resolved config payload without the `scenarios` section
+
+This makes scenario identity stable across repeated loads, docs/examples, and
+future orchestration code that needs durable per-scenario artifact partitioning.
+
+## Scenario Validation
+
+`scenarios` is validated explicitly in the config layer:
+
+* `scenarios.enabled=true` requires at least one matrix axis or included
+  scenario
+* matrix axes must use unique `name` and `path` values
+* matrix `values` must be non-empty and deduplicated
+* matrix `path` must be a dotted override path and cannot target the
+  `scenarios` section itself
+* included scenarios must use unique normalized `scenario_id` values
+* included `overrides` must be valid campaign override mappings using the same
+  schema as the main campaign config
 
 ## Reuse Policy
 

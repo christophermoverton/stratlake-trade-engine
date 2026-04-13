@@ -14,12 +14,14 @@ from src.research.reporting.campaign_milestone_report import (
 )
 from src.research.reporting.milestone_artifacts import (
     MILESTONE_DECISION_LOG_FILENAME,
+    MILESTONE_MARKDOWN_REPORT_FILENAME,
     MILESTONE_MANIFEST_FILENAME,
     MILESTONE_SUMMARY_FILENAME,
     MilestoneArtifactValidationError,
     MilestoneDecisionEntry,
     MilestoneReport,
     MilestoneSourceArtifact,
+    build_milestone_markdown_report,
     build_milestone_decision_log_payload,
     build_milestone_report_id,
     build_milestone_report_manifest_payload,
@@ -135,12 +137,14 @@ def _format_metric(value: Any) -> str:
 
 __all__ = [
     "MILESTONE_DECISION_LOG_FILENAME",
+    "MILESTONE_MARKDOWN_REPORT_FILENAME",
     "MILESTONE_MANIFEST_FILENAME",
     "MILESTONE_SUMMARY_FILENAME",
     "MilestoneArtifactValidationError",
     "MilestoneDecisionEntry",
     "MilestoneReport",
     "MilestoneSourceArtifact",
+    "build_milestone_markdown_report",
     "build_milestone_decision_log_payload",
     "build_campaign_milestone_report_payloads",
     "build_milestone_report_id",

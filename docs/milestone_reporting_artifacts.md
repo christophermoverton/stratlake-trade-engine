@@ -8,6 +8,7 @@ by campaign, candidate-selection, portfolio, and unified-review outputs:
 * one canonical `summary.json`
 * one explicit `manifest.json`
 * one optional-detail companion artifact, here `decision_log.json`
+* one deterministic human-readable `report.md`
 * canonical JSON serialization with sorted keys and LF newlines
 * deterministic IDs and relative artifact references
 
@@ -22,6 +23,7 @@ One milestone report pack writes:
     summary.json
     decision_log.json
     manifest.json
+    report.md
 ```
 
 Default file names are fixed by contract:
@@ -29,9 +31,11 @@ Default file names are fixed by contract:
 * `summary.json` is the milestone report payload
 * `decision_log.json` is the detailed decision record
 * `manifest.json` inventories the pack and mirrors key counts
+* `report.md` is the human-readable milestone brief
 
 This mirrors the repo-wide pattern where `summary.json` is the main
-machine-readable entrypoint and `manifest.json` is the file-level inventory.
+machine-readable entrypoint, `report.md` is the operator-facing summary, and
+`manifest.json` is the file-level inventory.
 
 ## Naming Conventions
 
@@ -64,7 +68,7 @@ leak local workspace roots.
 `summary.json` uses:
 
 * `run_type: "milestone_report"`
-* `schema_version: 1`
+* `schema_version: 2`
 
 Required fields:
 
@@ -74,6 +78,7 @@ Required fields:
 * `status`
 * `summary`
 * `decision_log_path`
+* `report_markdown_path`
 * `decision_ids`
 * `decision_counts_by_status`
 * `decision_count`
@@ -89,15 +94,17 @@ Optional structured fields:
 * `related_artifacts`
 * `metadata`
 
-`decision_log_path` is always `decision_log.json` so summary-first consumers can
-jump to the detailed audit trail without scanning the directory.
+`decision_log_path` is always `decision_log.json` and
+`report_markdown_path` is always `report.md` so summary-first consumers can
+jump to the detailed audit trail or the human-readable brief without scanning
+the directory.
 
 ## `decision_log.json` Schema
 
 `decision_log.json` uses:
 
 * `run_type: "milestone_decision_log"`
-* `schema_version: 1`
+* `schema_version: 2`
 
 Top-level fields:
 
@@ -144,6 +151,7 @@ and review manifests:
 * `artifacts`
 * `summary_path`
 * `decision_log_path`
+* `report_markdown_path`
 
 It also records:
 
@@ -157,9 +165,23 @@ It also records:
 The current artifact groups are:
 
 * `core`
+* `markdown`
 * `report`
 * `summary`
 * `decision_log`
+
+`report.md` is generated deterministically from the milestone summary metadata
+and decision log so it presents, in a stable order:
+
+* campaign scope
+* selections
+* key findings and key metrics
+* gate outcomes
+* risks
+* next steps
+* open questions
+* a decision snapshot
+* related artifacts
 
 ## Serialization Rules
 
@@ -194,6 +216,7 @@ Payload-level validators also confirm:
 
 * `summary.json` has the expected `run_type`, `schema_version`, and
   `decision_log_path`
+* `summary.json` references `report.md`
 * `decision_log.json` has the expected `run_type`, `schema_version`, and
   `decision_count == len(decisions)`
 

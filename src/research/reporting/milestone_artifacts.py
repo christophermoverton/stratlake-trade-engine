@@ -14,6 +14,7 @@ MILESTONE_DECISION_LOG_RUN_TYPE = "milestone_decision_log"
 MILESTONE_SUMMARY_FILENAME = "summary.json"
 MILESTONE_DECISION_LOG_FILENAME = "decision_log.json"
 MILESTONE_MANIFEST_FILENAME = "manifest.json"
+MILESTONE_MARKDOWN_REPORT_FILENAME = "report.md"
 _VALID_REPORT_STATUSES = frozenset({"draft", "final"})
 _VALID_DECISION_STATUSES = frozenset({"accepted", "deferred", "rejected", "superseded"})
 
@@ -124,9 +125,15 @@ def write_milestone_report_artifacts(
     summary_path = artifact_dir / MILESTONE_SUMMARY_FILENAME
     decision_log_path = artifact_dir / MILESTONE_DECISION_LOG_FILENAME
     manifest_path = artifact_dir / MILESTONE_MANIFEST_FILENAME
+    markdown_report_path = artifact_dir / MILESTONE_MARKDOWN_REPORT_FILENAME
     _write_json(summary_path, summary_payload)
     _write_json(decision_log_path, decision_log_payload)
     _write_json(manifest_path, manifest_payload)
+    markdown_report_path.write_text(
+        build_milestone_markdown_report(report=report, decisions=decisions),
+        encoding="utf-8",
+        newline="\n",
+    )
     return summary_path, decision_log_path, manifest_path
 
 
@@ -153,6 +160,7 @@ def build_milestone_report_summary_payload(
         "open_questions": list(report.open_questions),
         "related_artifacts": canonicalize_value(dict(report.related_artifacts)),
         "decision_log_path": MILESTONE_DECISION_LOG_FILENAME,
+        "report_markdown_path": MILESTONE_MARKDOWN_REPORT_FILENAME,
         "decision_ids": [row["decision_id"] for row in decision_rows],
         "decision_counts_by_status": _decision_counts_by_status(decisions),
         "decision_count": len(decision_rows),
@@ -198,6 +206,7 @@ def build_milestone_report_manifest_payload(
         [
             MILESTONE_DECISION_LOG_FILENAME,
             MILESTONE_MANIFEST_FILENAME,
+            MILESTONE_MARKDOWN_REPORT_FILENAME,
             MILESTONE_SUMMARY_FILENAME,
         ]
     )
@@ -211,7 +220,8 @@ def build_milestone_report_manifest_payload(
         "artifact_groups": {
             "core": artifact_files,
             "decision_log": [MILESTONE_DECISION_LOG_FILENAME],
-            "report": [MILESTONE_SUMMARY_FILENAME],
+            "markdown": [MILESTONE_MARKDOWN_REPORT_FILENAME],
+            "report": [MILESTONE_SUMMARY_FILENAME, MILESTONE_MARKDOWN_REPORT_FILENAME],
             "summary": [MILESTONE_SUMMARY_FILENAME],
         },
         "artifacts": {
@@ -220,6 +230,10 @@ def build_milestone_report_manifest_payload(
                 "decision_count": int(decision_log_payload["decision_count"]),
             },
             MILESTONE_MANIFEST_FILENAME: {"path": MILESTONE_MANIFEST_FILENAME},
+            MILESTONE_MARKDOWN_REPORT_FILENAME: {
+                "path": MILESTONE_MARKDOWN_REPORT_FILENAME,
+                "section_count": _markdown_section_count(report=report),
+            },
             MILESTONE_SUMMARY_FILENAME: {
                 "path": MILESTONE_SUMMARY_FILENAME,
                 "decision_count": int(summary_payload["decision_count"]),
@@ -230,6 +244,7 @@ def build_milestone_report_manifest_payload(
         "decision_counts_by_status": canonicalize_value(dict(summary_payload["decision_counts_by_status"])),
         "decision_ids": list(summary_payload["decision_ids"]),
         "decision_log_path": MILESTONE_DECISION_LOG_FILENAME,
+        "report_markdown_path": MILESTONE_MARKDOWN_REPORT_FILENAME,
         "summary_path": MILESTONE_SUMMARY_FILENAME,
         "timestamp": stable_timestamp_from_run_id(report.milestone_id),
     }
@@ -281,6 +296,8 @@ def validate_milestone_report_payload(payload: Mapping[str, Any]) -> None:
     _require_text(payload.get("summary"), "payload.summary")
     if str(payload.get("decision_log_path")) != MILESTONE_DECISION_LOG_FILENAME:
         raise MilestoneArtifactValidationError("Milestone report summary must reference decision_log.json.")
+    if str(payload.get("report_markdown_path")) != MILESTONE_MARKDOWN_REPORT_FILENAME:
+        raise MilestoneArtifactValidationError("Milestone report summary must reference report.md.")
 
 
 def validate_milestone_decision_log_payload(payload: Mapping[str, Any]) -> None:
@@ -383,6 +400,68 @@ def _render_milestone_decision_log(
     }
 
 
+def build_milestone_markdown_report(
+    *,
+    report: MilestoneReport,
+    decisions: Sequence[MilestoneDecisionEntry],
+) -> str:
+    validate_milestone_report(report=report, decisions=decisions)
+    decision_rows = [decision.to_dict() for decision in decisions]
+    metadata = _mapping(report.metadata)
+    selected_run_ids = _mapping(metadata.get("selected_run_ids"))
+    key_metrics = _mapping(metadata.get("key_metrics"))
+    final_outcomes = _mapping(metadata.get("final_outcomes"))
+    promotion_gates = _mapping(metadata.get("promotion_gates"))
+    stage_state_counts = _mapping(metadata.get("stage_state_counts"))
+
+    lines = [
+        f"# {report.title}",
+        "",
+        "## Milestone Summary",
+        f"- Milestone: `{report.milestone_name}`",
+        f"- Milestone ID: `{report.milestone_id}`",
+        f"- Status: `{report.status}`",
+    ]
+    if report.owner:
+        lines.append(f"- Owner: `{report.owner}`")
+    lines.append(f"- Reporting Window: {_format_reporting_window(report.reporting_window)}")
+    lines.append(f"- Summary: {report.summary}")
+
+    lines.extend(_render_string_list_section("Campaign Scope", report.scope, empty_text="No explicit campaign scope was recorded."))
+    lines.extend(_render_mapping_section("Selections", _selection_rows(selected_run_ids), empty_text="No run selections were recorded."))
+    lines.extend(_render_string_list_section("Key Findings", report.key_findings, empty_text="No key findings were recorded."))
+    lines.extend(_render_mapping_section("Key Metrics", _metric_rows(key_metrics), empty_text="No key metrics were recorded."))
+    lines.extend(
+        _render_mapping_section(
+            "Gate Outcomes",
+            _gate_outcome_rows(
+                decision_rows=decision_rows,
+                promotion_gates=promotion_gates,
+                stage_state_counts=stage_state_counts,
+            ),
+            empty_text="No gate outcomes were recorded.",
+        )
+    )
+    lines.extend(_render_string_list_section("Risks", _risk_rows(final_outcomes, promotion_gates, decision_rows), empty_text="No immediate risks were detected."))
+    lines.extend(
+        _render_string_list_section(
+            "Next Steps",
+            _next_step_rows(report=report, decision_rows=decision_rows),
+            empty_text="No additional next steps were recorded.",
+        )
+    )
+    lines.extend(_render_string_list_section("Open Questions", report.open_questions, empty_text="No open questions were recorded."))
+    lines.extend(_render_decision_snapshot_section(decision_rows))
+    lines.extend(
+        _render_mapping_section(
+            "Related Artifacts",
+            sorted(report.related_artifacts.items()),
+            empty_text="No related artifacts were recorded.",
+        )
+    )
+    return "\n".join(lines).strip() + "\n"
+
+
 def _render_decision_markdown(*, index: int, row: Mapping[str, Any]) -> list[str]:
     lines = [
         f"## {index}. {row['title']}",
@@ -429,12 +508,214 @@ def _render_decision_text(*, index: int, row: Mapping[str, Any]) -> list[str]:
     return lines
 
 
+def _render_string_list_section(title: str, values: Sequence[str], *, empty_text: str) -> list[str]:
+    lines = ["", f"## {title}"]
+    items = [str(value).strip() for value in values if str(value).strip()]
+    if not items:
+        lines.append(f"- {empty_text}")
+        return lines
+    lines.extend(f"- {item}" for item in items)
+    return lines
+
+
+def _render_mapping_section(
+    title: str,
+    rows: Sequence[tuple[str, str]],
+    *,
+    empty_text: str,
+) -> list[str]:
+    lines = ["", f"## {title}"]
+    normalized_rows = [(str(label).strip(), str(value).strip()) for label, value in rows if str(label).strip() and str(value).strip()]
+    if not normalized_rows:
+        lines.append(f"- {empty_text}")
+        return lines
+    lines.extend(f"- {label}: {value}" for label, value in normalized_rows)
+    return lines
+
+
+def _render_decision_snapshot_section(decision_rows: Sequence[Mapping[str, Any]]) -> list[str]:
+    lines = ["", "## Decision Snapshot"]
+    if not decision_rows:
+        lines.append("- No milestone decisions were recorded.")
+        return lines
+
+    for index, row in enumerate(decision_rows, start=1):
+        lines.append(f"### {index}. {row['title']}")
+        lines.append(f"- Decision ID: `{row['decision_id']}`")
+        lines.append(f"- Status: `{row['status']}`")
+        lines.append(f"- Summary: {row['summary']}")
+        follow_up_actions = row.get("follow_up_actions")
+        if isinstance(follow_up_actions, list) and follow_up_actions:
+            lines.append("- Follow-Up Actions:")
+            lines.extend(f"  - {action}" for action in follow_up_actions if str(action).strip())
+    return lines
+
+
+def _selection_rows(selected_run_ids: Mapping[str, Any]) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    for key, label in (
+        ("alpha_run_ids", "Alpha Runs"),
+        ("strategy_run_ids", "Strategy Runs"),
+        ("candidate_selection_run_id", "Candidate Selection Run"),
+        ("portfolio_run_id", "Portfolio Run"),
+        ("review_id", "Review"),
+    ):
+        value = selected_run_ids.get(key)
+        rendered = _render_selection_value(value)
+        if rendered is not None:
+            rows.append((label, rendered))
+    return rows
+
+
+def _metric_rows(key_metrics: Mapping[str, Any]) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    alpha_runs = key_metrics.get("alpha_runs")
+    if isinstance(alpha_runs, list) and alpha_runs:
+        rows.append(("Alpha Runs", "; ".join(_render_metric_mapping(_mapping(row)) for row in alpha_runs if _mapping(row))))
+
+    strategy_runs = key_metrics.get("strategy_runs")
+    if isinstance(strategy_runs, list) and strategy_runs:
+        rows.append(("Strategy Runs", "; ".join(_render_metric_mapping(_mapping(row)) for row in strategy_runs if _mapping(row))))
+
+    for key, label in (
+        ("candidate_selection", "Candidate Selection"),
+        ("portfolio", "Portfolio"),
+        ("review", "Review"),
+    ):
+        value = _mapping(key_metrics.get(key))
+        if value:
+            rows.append((label, _render_metric_mapping(value)))
+    return rows
+
+
+def _gate_outcome_rows(
+    *,
+    decision_rows: Sequence[Mapping[str, Any]],
+    promotion_gates: Mapping[str, Any],
+    stage_state_counts: Mapping[str, Any],
+) -> list[tuple[str, str]]:
+    rows: list[tuple[str, str]] = []
+    if stage_state_counts:
+        rows.append(
+            (
+                "Stage State Counts",
+                ", ".join(f"{key}={_format_metric_value(stage_state_counts[key])}" for key in sorted(stage_state_counts)),
+            )
+        )
+    if promotion_gates:
+        rows.append(("Promotion Gates", _render_metric_mapping(promotion_gates)))
+    for row in decision_rows:
+        rows.append((str(row["title"]), f"status={row['status']}; summary={row['summary']}"))
+    return rows
+
+
+def _risk_rows(
+    final_outcomes: Mapping[str, Any],
+    promotion_gates: Mapping[str, Any],
+    decision_rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    risks: list[str] = []
+    risks.extend(_stage_name_risks(final_outcomes.get("failed_stage_names"), "Failed stages require follow-up"))
+    risks.extend(_stage_name_risks(final_outcomes.get("partial_stage_names"), "Partial stages require review before reuse"))
+    risks.extend(_stage_name_risks(final_outcomes.get("resumable_stage_names"), "Resumable stages depend on preserved checkpoint continuity"))
+
+    promotion_status = str(promotion_gates.get("promotion_status") or "").strip()
+    evaluation_status = str(promotion_gates.get("evaluation_status") or "").strip()
+    if promotion_status in {"blocked", "rejected", "deferred", "pending", "review_ready"}:
+        risks.append(
+            "Promotion status requires follow-up: "
+            f"promotion_status={promotion_status or 'NA'}, evaluation_status={evaluation_status or 'NA'}."
+        )
+    elif evaluation_status in {"blocked", "failed", "warn", "pending"}:
+        risks.append(f"Promotion evaluation requires follow-up: evaluation_status={evaluation_status}.")
+
+    for row in decision_rows:
+        if row.get("status") in {"deferred", "rejected", "superseded"}:
+            risks.append(f"Decision `{row['decision_id']}` is `{row['status']}` and still needs resolution.")
+    return _dedupe_preserve_order(risks)
+
+
+def _next_step_rows(
+    *,
+    report: MilestoneReport,
+    decision_rows: Sequence[Mapping[str, Any]],
+) -> list[str]:
+    steps = list(report.recommendations)
+    for row in decision_rows:
+        follow_up_actions = row.get("follow_up_actions")
+        if isinstance(follow_up_actions, list):
+            steps.extend(str(action) for action in follow_up_actions if str(action).strip())
+    return _dedupe_preserve_order(steps)
+
+
+def _stage_name_risks(stage_names: Any, prefix: str) -> list[str]:
+    if not isinstance(stage_names, list) or not stage_names:
+        return []
+    return [f"{prefix}: {', '.join(sorted(str(stage_name) for stage_name in stage_names))}."]
+
+
+def _render_selection_value(value: Any) -> str | None:
+    if isinstance(value, list):
+        rendered = ", ".join(str(item) for item in value if str(item).strip())
+        return rendered or None
+    text = str(value).strip() if value is not None else ""
+    return text or None
+
+
+def _render_metric_mapping(metrics: Mapping[str, Any]) -> str:
+    return "; ".join(f"{key}={_format_metric_value(metrics[key])}" for key in sorted(metrics))
+
+
+def _format_reporting_window(reporting_window: Mapping[str, Any]) -> str:
+    start = reporting_window.get("start")
+    end = reporting_window.get("end")
+    if start is None and end is None:
+        return "Not recorded"
+    if start is None:
+        return f"through {end}"
+    if end is None:
+        return f"from {start}"
+    return f"{start} to {end}"
+
+
+def _format_metric_value(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if value is None:
+        return "NA"
+    return str(value)
+
+
+def _mapping(value: Any) -> dict[str, Any]:
+    if isinstance(value, Mapping):
+        return dict(value)
+    return {}
+
+
+def _markdown_section_count(*, report: MilestoneReport) -> int:
+    _ = report
+    return 11
+
+
+def _dedupe_preserve_order(values: Sequence[str]) -> list[str]:
+    seen: set[str] = set()
+    deduped: list[str] = []
+    for value in values:
+        normalized = str(value).strip()
+        if not normalized or normalized in seen:
+            continue
+        seen.add(normalized)
+        deduped.append(normalized)
+    return deduped
+
+
 def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
     path.write_text(json.dumps(canonicalize_value(dict(payload)), indent=2, sort_keys=True), encoding="utf-8", newline="\n")
 
 
 __all__ = [
     "MILESTONE_DECISION_LOG_FILENAME",
+    "MILESTONE_MARKDOWN_REPORT_FILENAME",
     "MILESTONE_MANIFEST_FILENAME",
     "MILESTONE_REPORT_RUN_TYPE",
     "MILESTONE_REPORT_SCHEMA_VERSION",
@@ -443,6 +724,7 @@ __all__ = [
     "MilestoneDecisionEntry",
     "MilestoneReport",
     "MilestoneSourceArtifact",
+    "build_milestone_markdown_report",
     "build_milestone_decision_log_payload",
     "build_milestone_report_id",
     "build_milestone_report_manifest_payload",

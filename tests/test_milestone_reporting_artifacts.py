@@ -7,6 +7,7 @@ import pytest
 
 from src.research.reporting import (
     MILESTONE_DECISION_LOG_FILENAME,
+    MILESTONE_MARKDOWN_REPORT_FILENAME,
     MILESTONE_MANIFEST_FILENAME,
     MILESTONE_SUMMARY_FILENAME,
     MilestoneArtifactValidationError,
@@ -137,19 +138,23 @@ def test_write_milestone_report_artifacts_writes_summary_decision_log_and_manife
         decisions=_sample_decisions(),
         output_path=artifact_dir,
     )
+    markdown_report_path = artifact_dir / MILESTONE_MARKDOWN_REPORT_FILENAME
 
     assert summary_path == artifact_dir / MILESTONE_SUMMARY_FILENAME
     assert decision_log_path == artifact_dir / MILESTONE_DECISION_LOG_FILENAME
     assert manifest_path == artifact_dir / MILESTONE_MANIFEST_FILENAME
+    assert markdown_report_path == artifact_dir / "report.md"
 
     summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
     decision_log_payload = json.loads(decision_log_path.read_text(encoding="utf-8"))
     manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    markdown_report = markdown_report_path.read_text(encoding="utf-8")
 
     validate_milestone_report_payload(summary_payload)
     validate_milestone_decision_log_payload(decision_log_payload)
 
     assert summary_payload["decision_log_path"] == MILESTONE_DECISION_LOG_FILENAME
+    assert summary_payload["report_markdown_path"] == MILESTONE_MARKDOWN_REPORT_FILENAME
     assert summary_payload["decision_counts_by_status"] == {"accepted": 2}
     assert summary_payload["decision_ids"] == [
         "reuse_summary_contract",
@@ -181,16 +186,26 @@ def test_write_milestone_report_artifacts_writes_summary_decision_log_and_manife
     ]
     assert "# Milestone 18 Readiness Report" in decision_log_payload["rendered"]["markdown"]
     assert "Linked Source Artifacts:" in decision_log_payload["rendered"]["text"]
+    assert "# Milestone 18 Readiness Report" in markdown_report
+    assert "## Campaign Scope" in markdown_report
+    assert "- Strategy Runs: No run selections were recorded." not in markdown_report
+    assert "- Summary: The milestone is ready for review with two follow-up questions." in markdown_report
+    assert "- Risks: No immediate risks were detected." not in markdown_report
+    assert "## Decision Snapshot" in markdown_report
+    assert "### 1. Reuse summary and manifest naming" in markdown_report
 
     assert manifest_payload["artifact_files"] == [
         "decision_log.json",
         "manifest.json",
+        "report.md",
         "summary.json",
     ]
     assert manifest_payload["summary_path"] == MILESTONE_SUMMARY_FILENAME
     assert manifest_payload["decision_log_path"] == MILESTONE_DECISION_LOG_FILENAME
+    assert manifest_payload["report_markdown_path"] == MILESTONE_MARKDOWN_REPORT_FILENAME
     assert manifest_payload["artifacts"]["summary.json"]["finding_count"] == 2
     assert manifest_payload["artifacts"]["decision_log.json"]["decision_count"] == 2
+    assert manifest_payload["artifacts"]["report.md"]["path"] == "report.md"
 
 
 def test_write_milestone_report_artifacts_rejects_duplicate_decision_ids_and_absolute_evidence_paths(

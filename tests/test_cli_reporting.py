@@ -254,6 +254,7 @@ def test_generate_milestone_report_cli_writes_default_pack(
 
     assert summary_path == campaign_dir / "milestone_report" / "summary.json"
     assert summary_path.exists()
+    assert (campaign_dir / "milestone_report" / "report.md").exists()
 
     stdout = capsys.readouterr().out
     assert f"campaign_artifact_path: {campaign_dir}" in stdout

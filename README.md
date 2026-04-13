@@ -76,6 +76,7 @@ Start with:
 * [docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md)
 * [docs/examples/milestone_11_5_alpha_portfolio_workflow.md](docs/examples/milestone_11_5_alpha_portfolio_workflow.md)
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
+* [docs/milestone_reporting_artifacts.md](docs/milestone_reporting_artifacts.md)
 
 ## Overview
 

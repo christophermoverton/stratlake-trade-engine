@@ -5,6 +5,7 @@ from pathlib import Path
 
 from src.research.reporting import (
     MILESTONE_DECISION_LOG_FILENAME,
+    MILESTONE_MARKDOWN_REPORT_FILENAME,
     MILESTONE_MANIFEST_FILENAME,
     MILESTONE_SUMMARY_FILENAME,
     generate_campaign_milestone_report,
@@ -244,20 +245,24 @@ def test_generate_campaign_milestone_report_builds_milestone_pack_from_completed
     campaign_dir = _campaign_artifact_fixture(tmp_path)
 
     summary_path, decision_log_path, manifest_path = generate_campaign_milestone_report(campaign_dir)
+    markdown_report_path = campaign_dir / "milestone_report" / MILESTONE_MARKDOWN_REPORT_FILENAME
 
     assert summary_path == campaign_dir / "milestone_report" / MILESTONE_SUMMARY_FILENAME
     assert decision_log_path == campaign_dir / "milestone_report" / MILESTONE_DECISION_LOG_FILENAME
     assert manifest_path == campaign_dir / "milestone_report" / MILESTONE_MANIFEST_FILENAME
+    assert markdown_report_path.exists()
 
     summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
     decision_log_payload = json.loads(decision_log_path.read_text(encoding="utf-8"))
     manifest_payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    markdown_report = markdown_report_path.read_text(encoding="utf-8")
 
     validate_milestone_report_payload(summary_payload)
     validate_milestone_decision_log_payload(decision_log_payload)
 
     assert summary_payload["milestone_name"] == "research_campaign_demo"
     assert summary_payload["title"] == "Milestone Report for research_campaign_demo"
+    assert summary_payload["report_markdown_path"] == "report.md"
     assert summary_payload["reporting_window"] == {
         "start": "2026-01-01",
         "end": "2026-03-31",
@@ -303,6 +308,15 @@ def test_generate_campaign_milestone_report_builds_milestone_pack_from_completed
     ]
     assert "## 2. Review and promotion outcome" in decision_log_payload["rendered"]["markdown"]
     assert manifest_payload["artifacts"]["summary.json"]["decision_count"] == 2
+    assert manifest_payload["artifacts"]["report.md"]["path"] == "report.md"
+    assert "## Campaign Scope" in markdown_report
+    assert "- Alpha Runs: alpha_demo_a, alpha_demo_b" in markdown_report
+    assert "- Portfolio: max_drawdown=-0.05; portfolio_name=portfolio_demo; run_id=portfolio_demo; sharpe_ratio=1.7; total_return=0.14" in markdown_report
+    assert "- Promotion Gates: evaluation_status=passed; failed_gate_count=0; gate_count=3; missing_gate_count=0; passed_gate_count=3; promotion_status=approved" in markdown_report
+    assert "## Risks" in markdown_report
+    assert "- No immediate risks were detected." in markdown_report
+    assert "## Next Steps" in markdown_report
+    assert "- Promotion gates passed; the selected outputs are ready for promotion handoff." in markdown_report
 
     metadata = summary_payload["metadata"]
     assert metadata["selected_run_ids"]["portfolio_run_id"] == "portfolio_demo"
@@ -315,9 +329,11 @@ def test_generate_campaign_milestone_report_is_deterministic_for_identical_campa
     campaign_dir = _campaign_artifact_fixture(tmp_path)
 
     first_paths = generate_campaign_milestone_report(campaign_dir)
-    first_bytes = tuple(path.read_bytes() for path in first_paths)
+    first_report_bytes = (campaign_dir / "milestone_report" / MILESTONE_MARKDOWN_REPORT_FILENAME).read_bytes()
+    first_bytes = tuple(path.read_bytes() for path in first_paths) + (first_report_bytes,)
     second_paths = generate_campaign_milestone_report(campaign_dir)
-    second_bytes = tuple(path.read_bytes() for path in second_paths)
+    second_report_bytes = (campaign_dir / "milestone_report" / MILESTONE_MARKDOWN_REPORT_FILENAME).read_bytes()
+    second_bytes = tuple(path.read_bytes() for path in second_paths) + (second_report_bytes,)
 
     assert first_paths == second_paths
     assert first_bytes == second_bytes

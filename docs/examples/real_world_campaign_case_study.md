@@ -124,7 +124,7 @@ docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns
 
 ### Campaign
 
-- campaign run id: `research_campaign_c7361ba400ad`
+- campaign run id: `research_campaign_1b8cdf9211cf`
 - status: `completed`
 - preflight: `passed`
 - stage statuses:
@@ -221,7 +221,7 @@ From an existing campaign directory, the equivalent follow-on CLI is:
 
 ```powershell
 python -m src.cli.generate_milestone_report `
-  --campaign-artifact-path docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad `
+  --campaign-artifact-path docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf `
   --milestone-name "Milestone 18" `
   --title "Milestone 18 Readiness Report"
 ```
@@ -231,7 +231,7 @@ python -m src.cli.generate_milestone_report `
 The milestone pack lives under the campaign artifact root:
 
 ```text
-docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/milestone_report/
+docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/
 ```
 
 That location matters because the milestone files use relative links back into
@@ -287,7 +287,7 @@ and surface follow-up actions instead of marking promotion as fully approved.
 
 ### Observed Milestone Results (Validated 2026-04-13)
 
-- milestone id: `milestone_report_a2443a03ccea`
+- milestone id: `milestone_report_39d8310e7734`
 - milestone name: `Milestone 18`
 - milestone status: `final`
 - decision count: `2`

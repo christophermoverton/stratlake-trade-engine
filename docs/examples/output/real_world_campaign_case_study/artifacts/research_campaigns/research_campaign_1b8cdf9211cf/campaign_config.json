@@ -61,6 +61,33 @@
     "tickers_path": null,
     "timeframe": "1D"
   },
+  "milestone_reporting": {
+    "decision_categories": [],
+    "enabled": true,
+    "output": {
+      "decision_log_render_formats": [
+        "markdown",
+        "text"
+      ],
+      "include_markdown_report": true
+    },
+    "sections": {
+      "campaign_scope": true,
+      "decision_snapshot": true,
+      "gate_outcomes": true,
+      "key_findings": true,
+      "key_metrics": true,
+      "next_steps": true,
+      "open_questions": true,
+      "related_artifacts": true,
+      "risks": true,
+      "selections": true
+    },
+    "summary": {
+      "include_review_outcome": true,
+      "include_stage_counts": true
+    }
+  },
   "outputs": {
     "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha",
     "campaign_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns",

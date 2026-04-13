@@ -46,7 +46,7 @@
     }
   ],
   "artifacts": {
-    "campaign_dir": "artifacts/research_campaigns/research_campaign_c7361ba400ad",
+    "campaign_dir": "artifacts/research_campaigns/research_campaign_1b8cdf9211cf",
     "candidate_selection_dir": "artifacts/candidate_selection/candidate_selection_e35992810577",
     "comparison_csv": "artifacts/campaign_comparisons/alpha/leaderboard.csv",
     "output_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study",
@@ -55,21 +55,21 @@
     "summary": "summary.json"
   },
   "campaign": {
-    "campaign_run_id": "research_campaign_c7361ba400ad",
-    "manifest_path": "artifacts/research_campaigns/research_campaign_c7361ba400ad/manifest.json",
+    "campaign_run_id": "research_campaign_1b8cdf9211cf",
+    "manifest_path": "artifacts/research_campaigns/research_campaign_1b8cdf9211cf/manifest.json",
     "preflight_status": "passed",
-    "reused_stage_count": 7,
+    "reused_stage_count": 0,
     "stage_statuses": {
-      "candidate_review": "reused",
-      "candidate_selection": "reused",
-      "comparison": "reused",
-      "portfolio": "reused",
-      "preflight": "reused",
-      "research": "reused",
-      "review": "reused"
+      "candidate_review": "completed",
+      "candidate_selection": "completed",
+      "comparison": "completed",
+      "portfolio": "completed",
+      "preflight": "completed",
+      "research": "completed",
+      "review": "completed"
     },
     "status": "completed",
-    "summary_path": "artifacts/research_campaigns/research_campaign_c7361ba400ad/summary.json"
+    "summary_path": "artifacts/research_campaigns/research_campaign_1b8cdf9211cf/summary.json"
   },
   "candidate_selection": {
     "counts": {
@@ -209,38 +209,6 @@
       "universe": true
     }
   },
-  "checkpoint_demo": {
-    "fingerprints_stable": true,
-    "first_run": {
-      "campaign_run_id": "research_campaign_c7361ba400ad",
-      "reused_stage_count": 0,
-      "stage_statuses": {
-        "candidate_review": "completed",
-        "candidate_selection": "completed",
-        "comparison": "completed",
-        "portfolio": "completed",
-        "preflight": "completed",
-        "research": "completed",
-        "review": "completed"
-      },
-      "status": "completed"
-    },
-    "same_campaign_run_id": true,
-    "second_run": {
-      "campaign_run_id": "research_campaign_c7361ba400ad",
-      "reused_stage_count": 7,
-      "stage_statuses": {
-        "candidate_review": "reused",
-        "candidate_selection": "reused",
-        "comparison": "reused",
-        "portfolio": "reused",
-        "preflight": "reused",
-        "research": "reused",
-        "review": "reused"
-      },
-      "status": "completed"
-    }
-  },
   "comparison": {
     "comparison_id": "registry_alpha_combined_af4ec0488c60",
     "leaderboard_preview": [
@@ -296,6 +264,57 @@
     "portfolio_name": "real_world_m16_campaign_case_study",
     "source_config": "docs/examples/data/milestone_16_campaign_configs/real_world_campaign.yml",
     "timeframe": "1D"
+  },
+  "milestone_reporting": {
+    "decision_count": 2,
+    "decision_counts_by_status": {
+      "accepted": 1,
+      "deferred": 1
+    },
+    "decision_ids": [
+      "campaign_execution",
+      "review_promotion_outcome"
+    ],
+    "decision_log_path": "artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/decision_log.json",
+    "decision_log_rendered_formats": [
+      "markdown",
+      "text"
+    ],
+    "enabled": true,
+    "key_findings": [
+      "Research scope resolved 4 alpha run(s), 0 strategy run(s), candidate_selection=candidate_selection_e35992810577, portfolio=real_world_m16_campaign_case_study_portfolio_cc99ba561315.",
+      "Stage outcomes: completed=7, failed=0, partial=0, pending=0, reused=0, skipped=0.",
+      "Portfolio metrics: Sharpe=4.06716156929312, Total Return=0.008101759628482474, Max Drawdown=0.004632462958028327.",
+      "Candidate review evaluated 0 candidate(s) with 0 selected and 0 rejected.",
+      "Review outcome: Review ranked 5 entries."
+    ],
+    "manifest_artifact_files": [
+      "decision_log.json",
+      "manifest.json",
+      "report.md",
+      "summary.json"
+    ],
+    "manifest_path": "artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/manifest.json",
+    "milestone_id": "milestone_report_39d8310e7734",
+    "milestone_name": "research_campaign_1b8cdf9211cf",
+    "related_artifacts": {
+      "alpha_comparison_summary": "../../../campaign_comparisons/alpha/leaderboard.json",
+      "campaign_checkpoint": "../checkpoint.json",
+      "campaign_manifest": "../manifest.json",
+      "campaign_manifest_summary_path": "../summary.json",
+      "campaign_summary": "../summary.json",
+      "candidate_review_manifest": "../../../reviews/candidate_review/manifest.json",
+      "candidate_review_summary": "../../../reviews/candidate_review/candidate_review_summary.json",
+      "candidate_selection_manifest": "../../../candidate_selection/candidate_selection_e35992810577/manifest.json",
+      "candidate_selection_summary": "../../../candidate_selection/candidate_selection_e35992810577/selection_summary.json",
+      "preflight_summary": "../preflight_summary.json",
+      "review_manifest": "../../../reviews/research_review/manifest.json",
+      "review_summary": "../../../reviews/research_review/review_summary.json"
+    },
+    "report_markdown_path": "artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/report.md",
+    "status": "final",
+    "summary_path": "artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/summary.json",
+    "summary_text": "Campaign `research_campaign_1b8cdf9211cf` finished with status `completed`. 7 of 7 tracked stages completed or were reused. Review outcome: Review ranked 5 entries."
   },
   "portfolio": {
     "allocator": "equal_weight",

@@ -1,14 +1,14 @@
 {
-  "campaign_run_id": "research_campaign_c7361ba400ad",
+  "campaign_run_id": "research_campaign_1b8cdf9211cf",
   "checkpoint": {
-    "campaign_run_id": "research_campaign_c7361ba400ad",
-    "checkpoint_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/checkpoint.json",
-    "completed_stage_count": 0,
+    "campaign_run_id": "research_campaign_1b8cdf9211cf",
+    "checkpoint_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/checkpoint.json",
+    "completed_stage_count": 7,
     "failed_stage_count": 0,
     "partial_stage_count": 0,
     "pending_stage_count": 0,
     "resumable_stage_names": [],
-    "reused_stage_count": 7,
+    "reused_stage_count": 0,
     "run_type": "research_campaign_checkpoint",
     "schema_version": 2,
     "stage_input_fingerprints": {
@@ -16,7 +16,7 @@
       "candidate_selection": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618",
       "comparison": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018",
       "portfolio": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1",
-      "preflight": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1",
+      "preflight": "3088872992fc5f8a7e97571f1ce0afad6051ce3835bba05e1845f857db842100",
       "research": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612",
       "review": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303"
     },
@@ -30,21 +30,21 @@
       "review"
     ],
     "stage_state_counts": {
-      "completed": 0,
+      "completed": 7,
       "failed": 0,
       "partial": 0,
       "pending": 0,
-      "reused": 7,
+      "reused": 0,
       "skipped": 0
     },
     "stage_states": {
-      "candidate_review": "reused",
-      "candidate_selection": "reused",
-      "comparison": "reused",
-      "portfolio": "reused",
-      "preflight": "reused",
-      "research": "reused",
-      "review": "reused"
+      "candidate_review": "completed",
+      "candidate_selection": "completed",
+      "comparison": "completed",
+      "portfolio": "completed",
+      "preflight": "completed",
+      "research": "completed",
+      "review": "completed"
     },
     "stages": [
       {
@@ -59,8 +59,8 @@
             "portfolio_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/portfolios",
             "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/research_review"
           },
-          "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad",
-          "campaign_run_id": "research_campaign_c7361ba400ad",
+          "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf",
+          "campaign_run_id": "research_campaign_1b8cdf9211cf",
           "check_counts": {
             "failed": 0,
             "passed": 23,
@@ -269,7 +269,7 @@
               "status": "passed"
             }
           ],
-          "config_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/campaign_config.json",
+          "config_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/campaign_config.json",
           "datasets": [
             {
               "consumers": [
@@ -291,13 +291,13 @@
           },
           "failed_checks": [],
           "reuse_policy": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "preflight"
           },
           "status": "passed",
@@ -379,6 +379,33 @@
               "mapping_name": "top_bottom_quantile_q20",
               "tickers_path": null,
               "timeframe": "1D"
+            },
+            "milestone_reporting": {
+              "decision_categories": [],
+              "enabled": true,
+              "output": {
+                "decision_log_render_formats": [
+                  "markdown",
+                  "text"
+                ],
+                "include_markdown_report": true
+              },
+              "sections": {
+                "campaign_scope": true,
+                "decision_snapshot": true,
+                "gate_outcomes": true,
+                "key_findings": true,
+                "key_metrics": true,
+                "next_steps": true,
+                "open_questions": true,
+                "related_artifacts": true,
+                "risks": true,
+                "selections": true
+              },
+              "summary": {
+                "include_review_outcome": true,
+                "include_stage_counts": true
+              }
             },
             "outputs": {
               "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha",
@@ -464,7 +491,7 @@
             }
           }
         },
-        "input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1",
+        "input_fingerprint": "3088872992fc5f8a7e97571f1ce0afad6051ce3835bba05e1845f857db842100",
         "key_metrics": {},
         "outcomes": {
           "failed_checks": []
@@ -474,23 +501,23 @@
         },
         "resumable": false,
         "selected_run_ids": {},
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "preflight",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       {
         "details": {
           "alpha_runs": 4,
           "reuse_policy": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "research"
           },
           "strategy_runs": 0
@@ -588,23 +615,23 @@
           ],
           "strategy_run_ids": []
         },
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "research",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       {
         "details": {
           "alpha_comparison_id": "registry_alpha_combined_af4ec0488c60",
           "reuse_policy": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "comparison"
           },
           "strategy_comparison_id": null
@@ -644,23 +671,23 @@
           "alpha_comparison_id": "registry_alpha_combined_af4ec0488c60",
           "strategy_comparison_id": null
         },
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "comparison",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       {
         "details": {
           "input_reference": null,
           "reuse_policy": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "candidate_selection"
           },
           "run_id": "candidate_selection_e35992810577"
@@ -732,10 +759,10 @@
         "selected_run_ids": {
           "candidate_selection_run_id": "candidate_selection_e35992810577"
         },
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "candidate_selection",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       {
@@ -753,13 +780,13 @@
             "stage_name": "candidate_selection"
           },
           "reuse_policy": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "portfolio"
           },
           "run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
@@ -795,10 +822,10 @@
         "selected_run_ids": {
           "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
         },
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "portfolio",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       {
@@ -818,13 +845,13 @@
           },
           "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
           "reuse_policy": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "candidate_review"
           },
           "review_dir": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\docs\\examples\\output\\real_world_campaign_case_study\\artifacts\\reviews\\candidate_review"
@@ -866,23 +893,23 @@
           "candidate_selection_run_id": "candidate_selection_e35992810577",
           "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
         },
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "candidate_review",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       {
         "details": {
           "candidate_review_dir": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\docs\\examples\\output\\real_world_campaign_case_study\\artifacts\\reviews\\candidate_review",
           "reuse_policy": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "review"
           },
           "review_id": "registry_review_63c30be06cb7"
@@ -939,17 +966,17 @@
         "selected_run_ids": {
           "review_id": "registry_review_63c30be06cb7"
         },
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "review",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       }
     ],
     "status": "completed",
     "terminal_stage_count": 7
   },
-  "checkpoint_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/checkpoint.json",
+  "checkpoint_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/checkpoint.json",
   "checkpoint_schema_version": 2,
   "final_outcomes": {
     "candidate_review_counts": {
@@ -963,15 +990,7 @@
     "preflight_status": "passed",
     "resumable_stage_names": [],
     "retry_stage_names": [],
-    "reused_stage_names": [
-      "preflight",
-      "research",
-      "comparison",
-      "candidate_selection",
-      "portfolio",
-      "candidate_review",
-      "review"
-    ],
+    "reused_stage_names": [],
     "review_counts_by_run_type": {
       "alpha_evaluation": 4,
       "portfolio": 1
@@ -981,11 +1000,11 @@
     "review_promotion_status": null,
     "skipped_stage_names": [],
     "stage_state_counts": {
-      "completed": 0,
+      "completed": 7,
       "failed": 0,
       "partial": 0,
       "pending": 0,
-      "reused": 7,
+      "reused": 0,
       "skipped": 0
     }
   },
@@ -1064,19 +1083,24 @@
     ],
     "alpha_comparison_csv": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/campaign_comparisons/alpha/leaderboard.csv",
     "alpha_comparison_summary": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/campaign_comparisons/alpha/leaderboard.json",
-    "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad",
-    "campaign_checkpoint": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/checkpoint.json",
-    "campaign_config": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/campaign_config.json",
-    "campaign_manifest": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/manifest.json",
-    "campaign_summary": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/summary.json",
+    "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf",
+    "campaign_checkpoint": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/checkpoint.json",
+    "campaign_config": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/campaign_config.json",
+    "campaign_manifest": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/manifest.json",
+    "campaign_summary": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/summary.json",
     "candidate_review_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/candidate_review",
     "candidate_review_manifest": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/candidate_review/manifest.json",
     "candidate_review_summary": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/candidate_review/candidate_review_summary.json",
     "candidate_selection_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/candidate_selection/candidate_selection_e35992810577",
     "candidate_selection_manifest": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/candidate_selection/candidate_selection_e35992810577/manifest.json",
     "candidate_selection_summary": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/candidate_selection/candidate_selection_e35992810577/selection_summary.json",
+    "milestone_report_decision_log": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/decision_log.json",
+    "milestone_report_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report",
+    "milestone_report_manifest": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/manifest.json",
+    "milestone_report_markdown": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/report.md",
+    "milestone_report_summary": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/milestone_report/summary.json",
     "portfolio_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/portfolios/real_world_m16_campaign_case_study_portfolio_cc99ba561315",
-    "preflight_summary": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/preflight_summary.json",
+    "preflight_summary": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/preflight_summary.json",
     "review_leaderboard_csv": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/research_review/leaderboard.csv",
     "review_manifest": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/research_review/manifest.json",
     "review_promotion_gates": null,
@@ -1103,10 +1127,10 @@
     "candidate_review": {
       "checkpoint": {
         "resumable": false,
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "candidate_review",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       "failure": null,
@@ -1134,8 +1158,8 @@
         "input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a"
       },
       "resume": {
-        "checkpoint_state": "reused",
-        "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "checkpoint_state": "completed",
+        "checkpoint_state_reason": null,
         "resumable": false,
         "terminal": true
       },
@@ -1147,30 +1171,30 @@
       },
       "reuse": {
         "decision": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "candidate_review"
         },
-        "reused": true
+        "reused": false
       },
       "skip": {
         "reason": null,
         "skipped": false
       },
-      "state": "reused"
+      "state": "completed"
     },
     "candidate_selection": {
       "checkpoint": {
         "resumable": false,
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "candidate_selection",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       "failure": null,
@@ -1225,8 +1249,8 @@
         "input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618"
       },
       "resume": {
-        "checkpoint_state": "reused",
-        "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "checkpoint_state": "completed",
+        "checkpoint_state_reason": null,
         "resumable": false,
         "terminal": true
       },
@@ -1238,30 +1262,30 @@
       },
       "reuse": {
         "decision": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "candidate_selection"
         },
-        "reused": true
+        "reused": false
       },
       "skip": {
         "reason": null,
         "skipped": false
       },
-      "state": "reused"
+      "state": "completed"
     },
     "comparison": {
       "checkpoint": {
         "resumable": false,
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "comparison",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       "failure": null,
@@ -1290,8 +1314,8 @@
         "input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018"
       },
       "resume": {
-        "checkpoint_state": "reused",
-        "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "checkpoint_state": "completed",
+        "checkpoint_state_reason": null,
         "resumable": false,
         "terminal": true
       },
@@ -1303,30 +1327,30 @@
       },
       "reuse": {
         "decision": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "comparison"
         },
-        "reused": true
+        "reused": false
       },
       "skip": {
         "reason": null,
         "skipped": false
       },
-      "state": "reused"
+      "state": "completed"
     },
     "portfolio": {
       "checkpoint": {
         "resumable": false,
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "portfolio",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       "failure": null,
@@ -1348,8 +1372,8 @@
         "input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1"
       },
       "resume": {
-        "checkpoint_state": "reused",
-        "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "checkpoint_state": "completed",
+        "checkpoint_state_reason": null,
         "resumable": false,
         "terminal": true
       },
@@ -1361,30 +1385,30 @@
       },
       "reuse": {
         "decision": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "portfolio"
         },
-        "reused": true
+        "reused": false
       },
       "skip": {
         "reason": null,
         "skipped": false
       },
-      "state": "reused"
+      "state": "completed"
     },
     "preflight": {
       "checkpoint": {
         "resumable": false,
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "preflight",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       "failure": null,
@@ -1452,6 +1476,33 @@
               "mapping_name": "top_bottom_quantile_q20",
               "tickers_path": null,
               "timeframe": "1D"
+            },
+            "milestone_reporting": {
+              "decision_categories": [],
+              "enabled": true,
+              "output": {
+                "decision_log_render_formats": [
+                  "markdown",
+                  "text"
+                ],
+                "include_markdown_report": true
+              },
+              "sections": {
+                "campaign_scope": true,
+                "decision_snapshot": true,
+                "gate_outcomes": true,
+                "key_findings": true,
+                "key_metrics": true,
+                "next_steps": true,
+                "open_questions": true,
+                "related_artifacts": true,
+                "risks": true,
+                "selections": true
+              },
+              "summary": {
+                "include_review_outcome": true,
+                "include_stage_counts": true
+              }
             },
             "outputs": {
               "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha",
@@ -1537,11 +1588,11 @@
             }
           }
         },
-        "input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1"
+        "input_fingerprint": "3088872992fc5f8a7e97571f1ce0afad6051ce3835bba05e1845f857db842100"
       },
       "resume": {
-        "checkpoint_state": "reused",
-        "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "checkpoint_state": "completed",
+        "checkpoint_state_reason": null,
         "resumable": false,
         "terminal": true
       },
@@ -1553,30 +1604,30 @@
       },
       "reuse": {
         "decision": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "preflight"
         },
-        "reused": true
+        "reused": false
       },
       "skip": {
         "reason": null,
         "skipped": false
       },
-      "state": "reused"
+      "state": "completed"
     },
     "research": {
       "checkpoint": {
         "resumable": false,
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "research",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       "failure": null,
@@ -1615,8 +1666,8 @@
         "input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612"
       },
       "resume": {
-        "checkpoint_state": "reused",
-        "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "checkpoint_state": "completed",
+        "checkpoint_state_reason": null,
         "resumable": false,
         "terminal": true
       },
@@ -1628,30 +1679,30 @@
       },
       "reuse": {
         "decision": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "research"
         },
-        "reused": true
+        "reused": false
       },
       "skip": {
         "reason": null,
         "skipped": false
       },
-      "state": "reused"
+      "state": "completed"
     },
     "review": {
       "checkpoint": {
         "resumable": false,
-        "source": "checkpoint",
+        "source": "executed",
         "stage_name": "review",
-        "state": "reused",
-        "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "state": "completed",
+        "state_reason": null,
         "terminal": true
       },
       "failure": null,
@@ -1691,8 +1742,8 @@
         "input_fingerprint": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303"
       },
       "resume": {
-        "checkpoint_state": "reused",
-        "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+        "checkpoint_state": "completed",
+        "checkpoint_state_reason": null,
         "resumable": false,
         "terminal": true
       },
@@ -1704,40 +1755,40 @@
       },
       "reuse": {
         "decision": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "review"
         },
-        "reused": true
+        "reused": false
       },
       "skip": {
         "reason": null,
         "skipped": false
       },
-      "state": "reused"
+      "state": "completed"
     }
   },
   "stage_state_counts": {
-    "completed": 0,
+    "completed": 7,
     "failed": 0,
     "partial": 0,
     "pending": 0,
-    "reused": 7,
+    "reused": 0,
     "skipped": 0
   },
   "stage_statuses": {
-    "candidate_review": "reused",
-    "candidate_selection": "reused",
-    "comparison": "reused",
-    "portfolio": "reused",
-    "preflight": "reused",
-    "research": "reused",
-    "review": "reused"
+    "candidate_review": "completed",
+    "candidate_selection": "completed",
+    "comparison": "completed",
+    "portfolio": "completed",
+    "preflight": "completed",
+    "research": "completed",
+    "review": "completed"
   },
   "stages": [
     {
@@ -1752,8 +1803,8 @@
           "portfolio_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/portfolios",
           "review_output_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/reviews/research_review"
         },
-        "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad",
-        "campaign_run_id": "research_campaign_c7361ba400ad",
+        "campaign_artifact_dir": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf",
+        "campaign_run_id": "research_campaign_1b8cdf9211cf",
         "check_counts": {
           "failed": 0,
           "passed": 23,
@@ -1962,7 +2013,7 @@
             "status": "passed"
           }
         ],
-        "config_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_c7361ba400ad/campaign_config.json",
+        "config_path": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/research_campaigns/research_campaign_1b8cdf9211cf/campaign_config.json",
         "datasets": [
           {
             "consumers": [
@@ -1984,13 +2035,13 @@
         },
         "failed_checks": [],
         "reuse_policy": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "preflight"
         },
         "status": "passed",
@@ -2012,10 +2063,10 @@
       "execution_metadata": {
         "checkpoint": {
           "resumable": false,
-          "source": "checkpoint",
+          "source": "executed",
           "stage_name": "preflight",
-          "state": "reused",
-          "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "state": "completed",
+          "state_reason": null,
           "terminal": true
         },
         "failure": null,
@@ -2083,6 +2134,33 @@
                 "mapping_name": "top_bottom_quantile_q20",
                 "tickers_path": null,
                 "timeframe": "1D"
+              },
+              "milestone_reporting": {
+                "decision_categories": [],
+                "enabled": true,
+                "output": {
+                  "decision_log_render_formats": [
+                    "markdown",
+                    "text"
+                  ],
+                  "include_markdown_report": true
+                },
+                "sections": {
+                  "campaign_scope": true,
+                  "decision_snapshot": true,
+                  "gate_outcomes": true,
+                  "key_findings": true,
+                  "key_metrics": true,
+                  "next_steps": true,
+                  "open_questions": true,
+                  "related_artifacts": true,
+                  "risks": true,
+                  "selections": true
+                },
+                "summary": {
+                  "include_review_outcome": true,
+                  "include_stage_counts": true
+                }
               },
               "outputs": {
                 "alpha_artifacts_root": "C:/Users/christophermoverton/stratlake-trade-engine/docs/examples/output/real_world_campaign_case_study/artifacts/alpha",
@@ -2168,11 +2246,11 @@
               }
             }
           },
-          "input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1"
+          "input_fingerprint": "3088872992fc5f8a7e97571f1ce0afad6051ce3835bba05e1845f857db842100"
         },
         "resume": {
-          "checkpoint_state": "reused",
-          "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "checkpoint_state": "completed",
+          "checkpoint_state_reason": null,
           "resumable": false,
           "terminal": true
         },
@@ -2184,22 +2262,22 @@
         },
         "reuse": {
           "decision": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "da8b92d59f840cb4682324f013e0777b4f651dbd1876e625091e104359c0d8a1",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "preflight"
           },
-          "reused": true
+          "reused": false
         },
         "skip": {
           "reason": null,
           "skipped": false
         },
-        "state": "reused"
+        "state": "completed"
       },
       "key_metrics": {},
       "outcomes": {
@@ -2210,24 +2288,24 @@
       },
       "resumable": false,
       "selected_run_ids": {},
-      "source": "checkpoint",
+      "source": "executed",
       "stage_name": "preflight",
-      "state": "reused",
-      "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
-      "status": "reused",
+      "state": "completed",
+      "state_reason": null,
+      "status": "completed",
       "terminal": true
     },
     {
       "details": {
         "alpha_runs": 4,
         "reuse_policy": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "research"
         },
         "strategy_runs": 0
@@ -2235,10 +2313,10 @@
       "execution_metadata": {
         "checkpoint": {
           "resumable": false,
-          "source": "checkpoint",
+          "source": "executed",
           "stage_name": "research",
-          "state": "reused",
-          "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "state": "completed",
+          "state_reason": null,
           "terminal": true
         },
         "failure": null,
@@ -2277,8 +2355,8 @@
           "input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612"
         },
         "resume": {
-          "checkpoint_state": "reused",
-          "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "checkpoint_state": "completed",
+          "checkpoint_state_reason": null,
           "resumable": false,
           "terminal": true
         },
@@ -2290,22 +2368,22 @@
         },
         "reuse": {
           "decision": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "ed0b17effbcd79c97bccbf24e0284943a857a8cf2f3ee8ed8b607a7e2a1e3612",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "research"
           },
-          "reused": true
+          "reused": false
         },
         "skip": {
           "reason": null,
           "skipped": false
         },
-        "state": "reused"
+        "state": "completed"
       },
       "key_metrics": {
         "alpha_runs": [
@@ -2368,24 +2446,24 @@
         ],
         "strategy_run_ids": []
       },
-      "source": "checkpoint",
+      "source": "executed",
       "stage_name": "research",
-      "state": "reused",
-      "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
-      "status": "reused",
+      "state": "completed",
+      "state_reason": null,
+      "status": "completed",
       "terminal": true
     },
     {
       "details": {
         "alpha_comparison_id": "registry_alpha_combined_af4ec0488c60",
         "reuse_policy": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "comparison"
         },
         "strategy_comparison_id": null
@@ -2393,10 +2471,10 @@
       "execution_metadata": {
         "checkpoint": {
           "resumable": false,
-          "source": "checkpoint",
+          "source": "executed",
           "stage_name": "comparison",
-          "state": "reused",
-          "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "state": "completed",
+          "state_reason": null,
           "terminal": true
         },
         "failure": null,
@@ -2425,8 +2503,8 @@
           "input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018"
         },
         "resume": {
-          "checkpoint_state": "reused",
-          "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "checkpoint_state": "completed",
+          "checkpoint_state_reason": null,
           "resumable": false,
           "terminal": true
         },
@@ -2438,22 +2516,22 @@
         },
         "reuse": {
           "decision": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "365409b3eb375becad26d4980246c965090b729d1daac1b73e639a0fe5195018",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "comparison"
           },
-          "reused": true
+          "reused": false
         },
         "skip": {
           "reason": null,
           "skipped": false
         },
-        "state": "reused"
+        "state": "completed"
       },
       "key_metrics": {},
       "outcomes": {},
@@ -2468,24 +2546,24 @@
         "alpha_comparison_id": "registry_alpha_combined_af4ec0488c60",
         "strategy_comparison_id": null
       },
-      "source": "checkpoint",
+      "source": "executed",
       "stage_name": "comparison",
-      "state": "reused",
-      "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
-      "status": "reused",
+      "state": "completed",
+      "state_reason": null,
+      "status": "completed",
       "terminal": true
     },
     {
       "details": {
         "input_reference": null,
         "reuse_policy": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "candidate_selection"
         },
         "run_id": "candidate_selection_e35992810577"
@@ -2493,10 +2571,10 @@
       "execution_metadata": {
         "checkpoint": {
           "resumable": false,
-          "source": "checkpoint",
+          "source": "executed",
           "stage_name": "candidate_selection",
-          "state": "reused",
-          "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "state": "completed",
+          "state_reason": null,
           "terminal": true
         },
         "failure": null,
@@ -2551,8 +2629,8 @@
           "input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618"
         },
         "resume": {
-          "checkpoint_state": "reused",
-          "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "checkpoint_state": "completed",
+          "checkpoint_state_reason": null,
           "resumable": false,
           "terminal": true
         },
@@ -2564,22 +2642,22 @@
         },
         "reuse": {
           "decision": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "832e7ea901d5d03c9d5c7e94e2708970bb3dd450e2ea9a01ed916d9c4453f618",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "candidate_selection"
           },
-          "reused": true
+          "reused": false
         },
         "skip": {
           "reason": null,
           "skipped": false
         },
-        "state": "reused"
+        "state": "completed"
       },
       "key_metrics": {
         "eligible_count": 4,
@@ -2600,11 +2678,11 @@
       "selected_run_ids": {
         "candidate_selection_run_id": "candidate_selection_e35992810577"
       },
-      "source": "checkpoint",
+      "source": "executed",
       "stage_name": "candidate_selection",
-      "state": "reused",
-      "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
-      "status": "reused",
+      "state": "completed",
+      "state_reason": null,
+      "status": "completed",
       "terminal": true
     },
     {
@@ -2622,13 +2700,13 @@
           "stage_name": "candidate_selection"
         },
         "reuse_policy": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "portfolio"
         },
         "run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
@@ -2636,10 +2714,10 @@
       "execution_metadata": {
         "checkpoint": {
           "resumable": false,
-          "source": "checkpoint",
+          "source": "executed",
           "stage_name": "portfolio",
-          "state": "reused",
-          "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "state": "completed",
+          "state_reason": null,
           "terminal": true
         },
         "failure": null,
@@ -2661,8 +2739,8 @@
           "input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1"
         },
         "resume": {
-          "checkpoint_state": "reused",
-          "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "checkpoint_state": "completed",
+          "checkpoint_state_reason": null,
           "resumable": false,
           "terminal": true
         },
@@ -2674,22 +2752,22 @@
         },
         "reuse": {
           "decision": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "88664d124c07461c2e907897e51a6e1aff27302c8e4a9201d54c857256037fb1",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "portfolio"
           },
-          "reused": true
+          "reused": false
         },
         "skip": {
           "reason": null,
           "skipped": false
         },
-        "state": "reused"
+        "state": "completed"
       },
       "key_metrics": {
         "component_count": 3,
@@ -2707,11 +2785,11 @@
       "selected_run_ids": {
         "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
       },
-      "source": "checkpoint",
+      "source": "executed",
       "stage_name": "portfolio",
-      "state": "reused",
-      "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
-      "status": "reused",
+      "state": "completed",
+      "state_reason": null,
+      "status": "completed",
       "terminal": true
     },
     {
@@ -2731,13 +2809,13 @@
         },
         "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315",
         "reuse_policy": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "candidate_review"
         },
         "review_dir": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\docs\\examples\\output\\real_world_campaign_case_study\\artifacts\\reviews\\candidate_review"
@@ -2745,10 +2823,10 @@
       "execution_metadata": {
         "checkpoint": {
           "resumable": false,
-          "source": "checkpoint",
+          "source": "executed",
           "stage_name": "candidate_review",
-          "state": "reused",
-          "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "state": "completed",
+          "state_reason": null,
           "terminal": true
         },
         "failure": null,
@@ -2776,8 +2854,8 @@
           "input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a"
         },
         "resume": {
-          "checkpoint_state": "reused",
-          "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "checkpoint_state": "completed",
+          "checkpoint_state_reason": null,
           "resumable": false,
           "terminal": true
         },
@@ -2789,22 +2867,22 @@
         },
         "reuse": {
           "decision": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "6e2d272b0d6bd1b30e2ea651228d20fa7ee6592848e5d422afb78dd97a10fd9a",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "candidate_review"
           },
-          "reused": true
+          "reused": false
         },
         "skip": {
           "reason": null,
           "skipped": false
         },
-        "state": "reused"
+        "state": "completed"
       },
       "key_metrics": {},
       "outcomes": {
@@ -2822,24 +2900,24 @@
         "candidate_selection_run_id": "candidate_selection_e35992810577",
         "portfolio_run_id": "real_world_m16_campaign_case_study_portfolio_cc99ba561315"
       },
-      "source": "checkpoint",
+      "source": "executed",
       "stage_name": "candidate_review",
-      "state": "reused",
-      "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
-      "status": "reused",
+      "state": "completed",
+      "state_reason": null,
+      "status": "completed",
       "terminal": true
     },
     {
       "details": {
         "candidate_review_dir": "C:\\Users\\christophermoverton\\stratlake-trade-engine\\docs\\examples\\output\\real_world_campaign_case_study\\artifacts\\reviews\\candidate_review",
         "reuse_policy": {
-          "action": "reuse",
-          "checkpoint_input_fingerprint": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303",
-          "checkpoint_state": "completed",
-          "fingerprint_match": true,
+          "action": "rerun",
+          "checkpoint_input_fingerprint": null,
+          "checkpoint_state": null,
+          "fingerprint_match": false,
           "invalidated_by_stage": null,
-          "matched_checkpoint": true,
-          "reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "matched_checkpoint": false,
+          "reason": "No persisted checkpoint stage is available to reuse.",
           "stage_name": "review"
         },
         "review_id": "registry_review_63c30be06cb7"
@@ -2847,10 +2925,10 @@
       "execution_metadata": {
         "checkpoint": {
           "resumable": false,
-          "source": "checkpoint",
+          "source": "executed",
           "stage_name": "review",
-          "state": "reused",
-          "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "state": "completed",
+          "state_reason": null,
           "terminal": true
         },
         "failure": null,
@@ -2890,8 +2968,8 @@
           "input_fingerprint": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303"
         },
         "resume": {
-          "checkpoint_state": "reused",
-          "checkpoint_state_reason": "Reused persisted stage outputs from a matching checkpoint.",
+          "checkpoint_state": "completed",
+          "checkpoint_state_reason": null,
           "resumable": false,
           "terminal": true
         },
@@ -2903,22 +2981,22 @@
         },
         "reuse": {
           "decision": {
-            "action": "reuse",
-            "checkpoint_input_fingerprint": "105480eb25715e6908b2ec5b0aebefdaa12ae36b9f6041b6d51c9d92e6b07303",
-            "checkpoint_state": "completed",
-            "fingerprint_match": true,
+            "action": "rerun",
+            "checkpoint_input_fingerprint": null,
+            "checkpoint_state": null,
+            "fingerprint_match": false,
             "invalidated_by_stage": null,
-            "matched_checkpoint": true,
-            "reason": "Reused persisted stage outputs from a matching checkpoint.",
+            "matched_checkpoint": false,
+            "reason": "No persisted checkpoint stage is available to reuse.",
             "stage_name": "review"
           },
-          "reused": true
+          "reused": false
         },
         "skip": {
           "reason": null,
           "skipped": false
         },
-        "state": "reused"
+        "state": "completed"
       },
       "key_metrics": {
         "counts_by_run_type": {
@@ -2939,11 +3017,11 @@
       "selected_run_ids": {
         "review_id": "registry_review_63c30be06cb7"
       },
-      "source": "checkpoint",
+      "source": "executed",
       "stage_name": "review",
-      "state": "reused",
-      "state_reason": "Reused persisted stage outputs from a matching checkpoint.",
-      "status": "reused",
+      "state": "completed",
+      "state_reason": null,
+      "status": "completed",
       "terminal": true
     }
   ],

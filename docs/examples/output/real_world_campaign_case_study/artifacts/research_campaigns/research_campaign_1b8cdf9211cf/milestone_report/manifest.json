@@ -54,12 +54,12 @@
     "review_promotion_outcome"
   ],
   "decision_log_path": "decision_log.json",
-  "milestone_id": "milestone_report_a2443a03ccea",
-  "milestone_name": "Milestone 18",
+  "milestone_id": "milestone_report_39d8310e7734",
+  "milestone_name": "research_campaign_1b8cdf9211cf",
   "report_markdown_path": "report.md",
   "run_type": "milestone_report",
   "schema_version": 2,
   "status": "final",
   "summary_path": "summary.json",
-  "timestamp": "2000-04-02T01:09:37Z"
+  "timestamp": "2016-07-21T09:51:57Z"
 }

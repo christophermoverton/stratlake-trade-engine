@@ -45,6 +45,16 @@ This mirrors the repo-wide pattern where `summary.json` is the main
 machine-readable entrypoint, `report.md` is the operator-facing summary, and
 `manifest.json` is the file-level inventory.
 
+When a campaign generates the pack automatically, the canonical location is:
+
+```text
+artifacts/research_campaigns/<campaign_run_id>/milestone_report/
+```
+
+Campaign stitched outputs then point at those files through
+`output_paths.milestone_report_*` fields so operators can jump from the
+campaign packet into the milestone packet without guessing paths.
+
 ## Naming Conventions
 
 Milestone report identifiers should be deterministic and content-derived.
@@ -194,6 +204,19 @@ summary metadata and decision log so it presents, in a stable order:
 Campaign config can independently disable any of those optional markdown
 sections while leaving the canonical JSON artifacts intact.
 
+## Campaign Integration
+
+Milestone reporting can be produced in two ways:
+
+* automatically at the end of `python -m src.cli.run_research_campaign`
+* later from an existing campaign artifact directory through
+  `python -m src.cli.generate_milestone_report`
+
+Automatic generation uses the completed campaign `summary.json`,
+`manifest.json`, and any attached review artifacts as the source of truth. The
+milestone pack then writes back relative links to those upstream artifacts so
+the review packet stays portable and auditable.
+
 ## Serialization Rules
 
 Milestone artifacts use the existing canonical JSON utilities from
@@ -231,6 +254,42 @@ Payload-level validators also confirm:
 * `decision_log.json` has the expected `run_type`, `schema_version`,
   `decision_count == len(decisions)`, and at least one supported rendered
   format
+
+## Output Interpretation
+
+Use the files this way:
+
+* `summary.json`
+  Read first for milestone status, high-level findings, decision counts, and
+  linked artifact paths.
+* `decision_log.json`
+  Read second for auditable per-decision rationale, follow-up actions, and
+  linked source artifacts.
+* `report.md`
+  Use for operator-facing review meetings, handoff notes, and quick narrative
+  scans.
+* `manifest.json`
+  Use for deterministic inventory checks and automation entrypoints.
+
+In practice, `summary.json` tells you what the review concluded,
+`decision_log.json` tells you why, and `manifest.json` tells automation what
+was actually persisted.
+
+## Practical Review Workflow
+
+One practical milestone review pass is:
+
+1. open the campaign `summary.json`
+2. jump to `output_paths.milestone_report_summary`
+3. inspect `decision_counts_by_status`, `key_findings`, and
+   `recommendations`
+4. open `decision_log.json` for the accepted, deferred, or rejected items that
+   need discussion
+5. follow `related_artifacts` or per-decision `source_artifacts` back into the
+   campaign, candidate-review, or research-review outputs when you need deeper
+   evidence
+6. use `report.md` as the meeting-ready brief after the machine-readable pack
+   looks correct
 
 ## Usage
 
@@ -274,6 +333,7 @@ write_milestone_report_artifacts(
 
 ## Related Docs
 
+* [milestone_18_milestone_review_workflow.md](milestone_18_milestone_review_workflow.md)
 * [milestone_16_campaign_workflow.md](milestone_16_campaign_workflow.md)
 * [milestone_17_resume_workflow.md](milestone_17_resume_workflow.md)
 * [strategy_comparison_cli.md](strategy_comparison_cli.md)

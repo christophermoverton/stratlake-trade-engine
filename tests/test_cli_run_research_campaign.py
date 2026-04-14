@@ -1514,6 +1514,230 @@ alpha_one:
     assert "Scenario: scenario_0001_timeframe_4h" in stdout
 
 
+def test_run_research_campaign_orchestration_reuses_scenario_checkpoints_on_resume(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("{}", encoding="utf-8")
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+            },
+            "comparison": {"enabled": False},
+            "candidate_selection": {"enabled": False},
+            "portfolio": {"enabled": False},
+            "outputs": {
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+            },
+            "scenarios": {
+                "enabled": True,
+                "matrix": [
+                    {
+                        "name": "timeframe",
+                        "path": "dataset_selection.timeframe",
+                        "values": ["1D", "4H"],
+                    }
+                ],
+            },
+        }
+    )
+
+    first_alpha_calls: list[list[str]] = []
+    second_alpha_calls: list[list[str]] = []
+
+    def fake_alpha_cli_first(argv: list[str]) -> SimpleNamespace:
+        first_alpha_calls.append(list(argv))
+        run_suffix = f"{len(first_alpha_calls):02d}"
+        artifact_dir = tmp_path / "alpha" / run_suffix
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            alpha_name="alpha_one",
+            run_id=f"alpha_run_{run_suffix}",
+            artifact_dir=artifact_dir,
+        )
+
+    monkeypatch.setattr("src.cli.run_research_campaign.run_alpha_cli.run_cli", fake_alpha_cli_first)
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda _argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    first_result = run_research_campaign(config)
+
+    def fake_alpha_cli_second(argv: list[str]) -> SimpleNamespace:
+        second_alpha_calls.append(list(argv))
+        run_suffix = f"resume_{len(second_alpha_calls):02d}"
+        artifact_dir = tmp_path / "alpha" / run_suffix
+        artifact_dir.mkdir(parents=True, exist_ok=True)
+        return SimpleNamespace(
+            alpha_name="alpha_one",
+            run_id=f"alpha_run_{run_suffix}",
+            artifact_dir=artifact_dir,
+        )
+
+    monkeypatch.setattr("src.cli.run_research_campaign.run_alpha_cli.run_cli", fake_alpha_cli_second)
+    second_result = run_research_campaign(config)
+
+    assert len(first_result.scenario_results) == 2
+    assert len(first_alpha_calls) == 2
+    assert second_alpha_calls == []
+
+    for scenario_result in second_result.scenario_results:
+        assert scenario_result.result.campaign_checkpoint["scenario"]["scenario_id"] == scenario_result.scenario_id
+        assert (
+            scenario_result.result.campaign_checkpoint["scenario"]["orchestration_run_id"]
+            == second_result.orchestration_run_id
+        )
+        stage_states = scenario_result.result.campaign_checkpoint["stage_states"]
+        assert stage_states["preflight"] == "reused"
+        assert stage_states["research"] == "reused"
+        assert stage_states["review"] == "reused"
+
+
+def test_run_research_campaign_orchestration_reruns_only_scenario_with_stale_parent_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text("{}", encoding="utf-8")
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+
+    config = resolve_research_campaign_config(
+        {
+            "targets": {
+                "alpha_names": ["alpha_one"],
+                "alpha_catalog_path": alpha_catalog.as_posix(),
+                "strategy_config_path": strategy_config.as_posix(),
+            },
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+            },
+            "comparison": {"enabled": False},
+            "candidate_selection": {"enabled": False},
+            "portfolio": {"enabled": False},
+            "outputs": {
+                "campaign_artifacts_root": (tmp_path / "campaign_artifacts").as_posix(),
+            },
+            "scenarios": {
+                "enabled": True,
+                "matrix": [
+                    {
+                        "name": "timeframe",
+                        "path": "dataset_selection.timeframe",
+                        "values": ["1D", "4H"],
+                    }
+                ],
+            },
+        }
+    )
+
+    first_alpha_calls: list[list[str]] = []
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: first_alpha_calls.append(list(argv))
+        or SimpleNamespace(
+            alpha_name="alpha_one",
+            run_id=f"alpha_run_{len(first_alpha_calls):02d}",
+            artifact_dir=tmp_path / "alpha" / f"{len(first_alpha_calls):02d}",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda _argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    first_result = run_research_campaign(config)
+    tampered_scenario_id = first_result.scenario_results[0].scenario_id
+    tampered_checkpoint_path = first_result.scenario_results[0].result.campaign_checkpoint_path
+    tampered_checkpoint = json.loads(tampered_checkpoint_path.read_text(encoding="utf-8"))
+    tampered_checkpoint["scenario"]["orchestration_run_id"] = "research_campaign_orchestration_tampered"
+    tampered_checkpoint_path.write_text(
+        json.dumps(tampered_checkpoint, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    second_alpha_calls: list[list[str]] = []
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: second_alpha_calls.append(list(argv))
+        or SimpleNamespace(
+            alpha_name="alpha_one",
+            run_id=f"alpha_run_resume_{len(second_alpha_calls):02d}",
+            artifact_dir=tmp_path / "alpha" / f"resume_{len(second_alpha_calls):02d}",
+        ),
+    )
+
+    second_result = run_research_campaign(config)
+    scenario_by_id = {
+        scenario_result.scenario_id: scenario_result
+        for scenario_result in second_result.scenario_results
+    }
+
+    assert len(first_alpha_calls) == 2
+    assert len(second_alpha_calls) == 1
+
+    rerun_states = scenario_by_id[tampered_scenario_id].result.campaign_checkpoint["stage_states"]
+    assert rerun_states["preflight"] == "completed"
+    assert rerun_states["research"] == "completed"
+    assert rerun_states["review"] == "completed"
+
+    other_scenario_id = next(
+        scenario_id
+        for scenario_id in scenario_by_id
+        if scenario_id != tampered_scenario_id
+    )
+    reused_states = scenario_by_id[other_scenario_id].result.campaign_checkpoint["stage_states"]
+    assert reused_states["preflight"] == "reused"
+    assert reused_states["research"] == "reused"
+    assert reused_states["review"] == "reused"
+
+
 def test_run_research_campaign_writes_scenario_matrix_leaderboard_for_sweeps(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

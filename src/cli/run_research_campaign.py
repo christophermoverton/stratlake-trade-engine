@@ -408,7 +408,10 @@ def _run_single_research_campaign(
     scenario_context: ScenarioExecutionContext | None = None,
 ) -> ResearchCampaignRunResult:
     records: list[CampaignStageRecord] = []
-    campaign_run_id = _build_campaign_run_id(config)
+    campaign_run_id = _build_campaign_run_id(
+        config,
+        scenario_context=scenario_context,
+    )
     campaign_artifact_dir = (
         scenario_context.scenario_artifact_dir
         if scenario_context is not None
@@ -418,6 +421,7 @@ def _run_single_research_campaign(
     existing_checkpoint = _load_existing_campaign_checkpoint(
         campaign_artifact_dir=campaign_artifact_dir,
         campaign_run_id=campaign_run_id,
+        scenario_context=scenario_context,
     )
     stage_input_fingerprints: dict[str, str | None] = {}
     candidate_selection_reference: CampaignArtifactReference | None = None
@@ -2595,8 +2599,25 @@ def _comparison_output_path(
     return Path(config.outputs.comparison_output_path) / stage_name
 
 
-def _build_campaign_run_id(config: ResearchCampaignConfig) -> str:
-    payload = json.dumps(config.to_dict(), sort_keys=True, separators=(",", ":"))
+def _build_campaign_run_id(
+    config: ResearchCampaignConfig,
+    *,
+    scenario_context: ScenarioExecutionContext | None = None,
+) -> str:
+    payload_inputs: dict[str, Any] = {
+        "config": config.to_dict(),
+    }
+    if scenario_context is not None:
+        payload_inputs["scenario"] = {
+            "orchestration_run_id": scenario_context.orchestration_run_id,
+            "scenario_id": scenario_context.scenario_id,
+            "fingerprint": scenario_context.fingerprint,
+        }
+    payload = json.dumps(
+        payload_inputs,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
     return f"research_campaign_{digest}"
 
@@ -2616,6 +2637,7 @@ def _load_existing_campaign_checkpoint(
     *,
     campaign_artifact_dir: Path,
     campaign_run_id: str,
+    scenario_context: ScenarioExecutionContext | None,
 ) -> dict[str, Any] | None:
     checkpoint_path = campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME
     if not checkpoint_path.exists():
@@ -2630,6 +2652,22 @@ def _load_existing_campaign_checkpoint(
         raise ValueError(f"Invalid existing campaign checkpoint {checkpoint_path.as_posix()}: {exc}") from exc
     if str(payload.get("campaign_run_id")) != campaign_run_id:
         return None
+    if scenario_context is not None:
+        checkpoint_scenario = payload.get("scenario")
+        if not isinstance(checkpoint_scenario, Mapping):
+            return None
+        if str(checkpoint_scenario.get("scenario_id") or "") != scenario_context.scenario_id:
+            return None
+        if (
+            str(checkpoint_scenario.get("orchestration_run_id") or "")
+            != scenario_context.orchestration_run_id
+        ):
+            return None
+        if str(checkpoint_scenario.get("fingerprint") or "") != scenario_context.fingerprint:
+            return None
+    else:
+        if isinstance(payload.get("scenario"), Mapping):
+            return None
     return canonicalize_value(dict(payload))
 
 
@@ -3282,6 +3320,7 @@ def _write_campaign_artifacts(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        scenario_context=scenario_context,
         preflight_result=preflight_result,
         stage_records=stage_records,
         alpha_results=alpha_results,
@@ -3421,6 +3460,7 @@ def _build_campaign_checkpoint(
     config: ResearchCampaignConfig,
     campaign_run_id: str,
     campaign_artifact_dir: Path,
+    scenario_context: ScenarioExecutionContext | None,
     preflight_result: CampaignPreflightResult,
     stage_records: Sequence[CampaignStageRecord],
     alpha_results: Sequence[Any],
@@ -3458,12 +3498,16 @@ def _build_campaign_checkpoint(
         )
         stages.append(stage_payload)
         stage_input_fingerprints[stage_name] = stage_payload.get("input_fingerprint")
-    return build_campaign_checkpoint_payload(
+    checkpoint_payload = build_campaign_checkpoint_payload(
         campaign_run_id=campaign_run_id,
         status=status,
         checkpoint_path=campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME,
         stages=stages,
     )
+    checkpoint_payload["scenario"] = (
+        None if scenario_context is None else scenario_context.to_dict()
+    )
+    return canonicalize_value(checkpoint_payload)
 
 
 def _build_campaign_summary(

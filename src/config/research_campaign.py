@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Mapping
@@ -24,6 +25,7 @@ _ROOT_SECTION_KEYS = frozenset(
         "review",
         "milestone_reporting",
         "outputs",
+        "scenarios",
     }
 )
 _DATASET_SELECTION_KEYS = frozenset(
@@ -145,6 +147,10 @@ _OUTPUT_KEYS = frozenset(
         "review_output_path",
     }
 )
+_SCENARIOS_KEYS = frozenset({"enabled", "matrix", "include", "max_scenarios", "max_values_per_axis"})
+_SCENARIO_MATRIX_KEYS = frozenset({"name", "path", "values"})
+_SCENARIOS_HARD_MAX = 1000
+_SCENARIO_INCLUDE_KEYS = frozenset({"scenario_id", "description", "overrides"})
 _MILESTONE_REPORTING_KEYS = frozenset({"enabled", "decision_categories", "output", "sections", "summary"})
 _MILESTONE_REPORTING_OUTPUT_KEYS = frozenset({"include_markdown_report", "decision_log_render_formats"})
 _MILESTONE_REPORTING_SECTION_KEYS = frozenset(
@@ -517,6 +523,74 @@ class CampaignMilestoneReportingConfig:
 
 
 @dataclass(frozen=True)
+class CampaignScenarioMatrixAxisConfig:
+    name: str
+    path: str
+    values: tuple[Any, ...]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "name": self.name,
+            "path": self.path,
+            "values": list(self.values),
+        }
+
+
+@dataclass(frozen=True)
+class CampaignScenarioIncludeConfig:
+    scenario_id: str
+    description: str | None
+    overrides: dict[str, Any]
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "scenario_id": self.scenario_id,
+            "description": self.description,
+            "overrides": _canonicalize_value(dict(self.overrides)),
+        }
+
+
+@dataclass(frozen=True)
+class CampaignScenariosConfig:
+    enabled: bool
+    matrix: tuple[CampaignScenarioMatrixAxisConfig, ...]
+    include: tuple[CampaignScenarioIncludeConfig, ...]
+    max_scenarios: int | None
+    max_values_per_axis: int | None
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "enabled": self.enabled,
+            "matrix": [axis.to_dict() for axis in self.matrix],
+            "include": [scenario.to_dict() for scenario in self.include],
+            "max_scenarios": self.max_scenarios,
+            "max_values_per_axis": self.max_values_per_axis,
+        }
+
+
+@dataclass(frozen=True)
+class ResolvedResearchCampaignScenario:
+    scenario_id: str
+    description: str | None
+    source: str
+    sweep_values: dict[str, Any]
+    config: "ResearchCampaignConfig"
+    fingerprint: str
+
+    def to_dict(self) -> dict[str, Any]:
+        effective_config = self.config.to_dict()
+        return {
+            "scenario_id": self.scenario_id,
+            "description": self.description,
+            "source": self.source,
+            "sweep_values": _canonicalize_value(dict(self.sweep_values)),
+            "fingerprint": self.fingerprint,
+            "config": effective_config,
+            "effective_config": effective_config,
+        }
+
+
+@dataclass(frozen=True)
 class ResearchCampaignConfig:
     dataset_selection: DatasetSelectionConfig
     time_windows: TimeWindowsConfig
@@ -528,6 +602,7 @@ class ResearchCampaignConfig:
     review: ReviewConfig
     milestone_reporting: CampaignMilestoneReportingConfig
     outputs: CampaignOutputsConfig
+    scenarios: CampaignScenariosConfig
 
     @classmethod
     def default(cls) -> "ResearchCampaignConfig":
@@ -660,6 +735,13 @@ class ResearchCampaignConfig:
                 ),
             ),
             outputs=outputs,
+            scenarios=CampaignScenariosConfig(
+                enabled=False,
+                matrix=(),
+                include=(),
+                max_scenarios=None,
+                max_values_per_axis=None,
+            ),
         )
 
     @classmethod
@@ -708,7 +790,11 @@ class ResearchCampaignConfig:
             container.get("milestone_reporting"),
             base=seed.milestone_reporting,
         )
-        return cls(
+        scenarios = _resolve_scenarios(
+            container.get("scenarios"),
+            base=seed.scenarios,
+        )
+        resolved = cls(
             dataset_selection=dataset_selection,
             time_windows=time_windows,
             targets=targets,
@@ -719,7 +805,11 @@ class ResearchCampaignConfig:
             review=review,
             milestone_reporting=milestone_reporting,
             outputs=outputs,
+            scenarios=scenarios,
         )
+        if resolved.scenarios.enabled:
+            build_research_campaign_scenario_catalog(resolved)
+        return resolved
 
     def to_dict(self) -> dict[str, Any]:
         return _canonicalize_value(
@@ -734,6 +824,7 @@ class ResearchCampaignConfig:
                 "review": self.review.to_dict(),
                 "milestone_reporting": self.milestone_reporting.to_dict(),
                 "outputs": self.outputs.to_dict(),
+                "scenarios": self.scenarios.to_dict(),
             }
         )
 
@@ -1613,6 +1704,178 @@ def _resolve_milestone_reporting_summary(
     )
 
 
+def _resolve_scenarios(payload: Any, *, base: CampaignScenariosConfig) -> CampaignScenariosConfig:
+    if payload is None:
+        return base
+    if not isinstance(payload, Mapping):
+        raise ResearchCampaignConfigError("Research campaign field 'scenarios' must be a mapping.")
+    unknown_keys = sorted(set(payload) - _SCENARIOS_KEYS)
+    if unknown_keys:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field 'scenarios' contains unsupported keys: {unknown_keys}."
+        )
+
+    enabled = _resolve_bool(
+        payload.get("enabled"),
+        field_name="scenarios.enabled",
+        default=base.enabled,
+    )
+    raw_matrix = payload.get("matrix")
+    matrix = base.matrix if raw_matrix is None else _resolve_scenario_matrix(raw_matrix)
+    raw_include = payload.get("include")
+    include = base.include if raw_include is None else _resolve_scenario_include(raw_include)
+    max_scenarios = _resolve_optional_positive_int(
+        payload.get("max_scenarios"),
+        field_name="scenarios.max_scenarios",
+        default=base.max_scenarios,
+    )
+    max_values_per_axis = _resolve_optional_positive_int(
+        payload.get("max_values_per_axis"),
+        field_name="scenarios.max_values_per_axis",
+        default=base.max_values_per_axis,
+    )
+
+    if enabled and not matrix and not include:
+        raise ResearchCampaignConfigError(
+            "Research campaign field 'scenarios' must define at least one matrix axis or included scenario when enabled."
+        )
+
+    if max_values_per_axis is not None:
+        for axis in matrix:
+            if len(axis.values) > max_values_per_axis:
+                raise ResearchCampaignConfigError(
+                    f"scenarios.matrix axis '{axis.name}' has {len(axis.values)} values, "
+                    f"which exceeds scenarios.max_values_per_axis ({max_values_per_axis}). "
+                    "Reduce the number of values for this axis or raise the limit."
+                )
+
+    if enabled:
+        matrix_count = 1
+        for axis in matrix:
+            matrix_count *= len(axis.values)
+        total_count = (matrix_count if matrix else 0) + len(include)
+        effective_max = (
+            min(_SCENARIOS_HARD_MAX, max_scenarios)
+            if max_scenarios is not None
+            else _SCENARIOS_HARD_MAX
+        )
+        if total_count > effective_max:
+            raise ResearchCampaignConfigError(
+                f"scenarios would expand to {total_count} scenarios, which exceeds the "
+                f"effective limit of {effective_max} "
+                f"(hard_max={_SCENARIOS_HARD_MAX}, "
+                f"configured_max={'none' if max_scenarios is None else max_scenarios}). "
+                "Reduce the matrix dimensions, set scenarios.max_scenarios, or split "
+                "into multiple campaigns."
+            )
+
+    return CampaignScenariosConfig(
+        enabled=enabled,
+        matrix=matrix,
+        include=include,
+        max_scenarios=max_scenarios,
+        max_values_per_axis=max_values_per_axis,
+    )
+
+
+def _resolve_scenario_matrix(payload: Any) -> tuple[CampaignScenarioMatrixAxisConfig, ...]:
+    if not isinstance(payload, list):
+        raise ResearchCampaignConfigError("Research campaign field 'scenarios.matrix' must be a list.")
+
+    axes: list[CampaignScenarioMatrixAxisConfig] = []
+    seen_names: set[str] = set()
+    seen_paths: set[str] = set()
+    for index, entry in enumerate(payload):
+        field_name = f"scenarios.matrix[{index}]"
+        if not isinstance(entry, Mapping):
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}' must be a mapping."
+            )
+        unknown_keys = sorted(set(entry) - _SCENARIO_MATRIX_KEYS)
+        if unknown_keys:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}' contains unsupported keys: {unknown_keys}."
+            )
+
+        axis = CampaignScenarioMatrixAxisConfig(
+            name=_normalize_required_string(entry.get("name"), field_name=f"{field_name}.name"),
+            path=_normalize_scenario_override_path(
+                entry.get("path"),
+                field_name=f"{field_name}.path",
+            ),
+            values=_normalize_scenario_matrix_values(
+                entry.get("values"),
+                field_name=f"{field_name}.values",
+            ),
+        )
+        if axis.name in seen_names:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field 'scenarios.matrix' contains duplicate axis name '{axis.name}'."
+            )
+        if axis.path in seen_paths:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field 'scenarios.matrix' contains duplicate override path '{axis.path}'."
+            )
+        seen_names.add(axis.name)
+        seen_paths.add(axis.path)
+        axes.append(axis)
+    return tuple(axes)
+
+
+def _resolve_scenario_include(payload: Any) -> tuple[CampaignScenarioIncludeConfig, ...]:
+    if not isinstance(payload, list):
+        raise ResearchCampaignConfigError("Research campaign field 'scenarios.include' must be a list.")
+
+    scenarios: list[CampaignScenarioIncludeConfig] = []
+    seen_ids: set[str] = set()
+    for index, entry in enumerate(payload):
+        field_name = f"scenarios.include[{index}]"
+        if not isinstance(entry, Mapping):
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}' must be a mapping."
+            )
+        unknown_keys = sorted(set(entry) - _SCENARIO_INCLUDE_KEYS)
+        if unknown_keys:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}' contains unsupported keys: {unknown_keys}."
+            )
+
+        scenario_id = _normalize_scenario_id(
+            entry.get("scenario_id"),
+            field_name=f"{field_name}.scenario_id",
+        )
+        if scenario_id in seen_ids:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field 'scenarios.include' contains duplicate scenario_id '{scenario_id}'."
+            )
+        seen_ids.add(scenario_id)
+
+        raw_overrides = entry.get("overrides")
+        if not isinstance(raw_overrides, Mapping):
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}.overrides' must be a mapping."
+            )
+
+        overrides = dict(_extract_root_container(raw_overrides))
+        if "scenarios" in overrides:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}.overrides' cannot override the 'scenarios' section."
+            )
+
+        scenarios.append(
+            CampaignScenarioIncludeConfig(
+                scenario_id=scenario_id,
+                description=_normalize_optional_string(
+                    entry.get("description"),
+                    field_name=f"{field_name}.description",
+                    default=None,
+                ),
+                overrides=_canonicalize_value(overrides),
+            )
+        )
+    return tuple(scenarios)
+
+
 def _resolve_outputs(payload: Any, *, base: CampaignOutputsConfig) -> CampaignOutputsConfig:
     if payload is None:
         return base
@@ -1702,6 +1965,72 @@ def _normalize_optional_temporal_string(
 
 def _normalize_required_path_string(value: Any, *, field_name: str) -> str:
     return str(Path(_normalize_required_string(value, field_name=field_name))).replace("\\", "/")
+
+
+def _normalize_scenario_id(value: Any, *, field_name: str) -> str:
+    scenario_id = _normalize_required_string(value, field_name=field_name)
+    normalized = _slugify_identifier(scenario_id)
+    if not normalized:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field '{field_name}' must contain at least one alphanumeric character."
+        )
+    return normalized
+
+
+def _normalize_scenario_override_path(value: Any, *, field_name: str) -> str:
+    path = _normalize_required_string(value, field_name=field_name)
+    parts = [part.strip() for part in path.split(".")]
+    if any(not part for part in parts):
+        raise ResearchCampaignConfigError(
+            f"Research campaign field '{field_name}' must be a dotted path like 'comparison.top_k'."
+        )
+    if any(part == "scenarios" for part in parts):
+        raise ResearchCampaignConfigError(
+            f"Research campaign field '{field_name}' cannot target the 'scenarios' section."
+        )
+    normalized_path = ".".join(parts)
+    if normalized_path not in _supported_scenario_override_paths():
+        raise ResearchCampaignConfigError(
+            f"Research campaign field '{field_name}' must target a supported scalar campaign field."
+        )
+    return normalized_path
+
+
+def _normalize_scenario_matrix_values(value: Any, *, field_name: str) -> tuple[Any, ...]:
+    if not isinstance(value, list) or not value:
+        raise ResearchCampaignConfigError(
+            f"Research campaign field '{field_name}' must be a non-empty list."
+        )
+
+    normalized: list[Any] = []
+    seen_signatures: set[str] = set()
+    for item in value:
+        normalized_item = _normalize_scenario_matrix_value(item, field_name=field_name)
+        signature = json.dumps(_canonicalize_value(normalized_item), sort_keys=True, separators=(",", ":"))
+        if signature in seen_signatures:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}' contains duplicate values."
+            )
+        seen_signatures.add(signature)
+        normalized.append(normalized_item)
+    return tuple(normalized)
+
+
+def _normalize_scenario_matrix_value(value: Any, *, field_name: str) -> Any:
+    if isinstance(value, str):
+        normalized = value.strip()
+        if not normalized:
+            raise ResearchCampaignConfigError(
+                f"Research campaign field '{field_name}' must not contain empty strings."
+            )
+        return normalized
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, int | float):
+        return value
+    raise ResearchCampaignConfigError(
+        f"Research campaign field '{field_name}' must contain only scalar string, boolean, or numeric values."
+    )
 
 
 def _normalize_optional_path_string(
@@ -1859,6 +2188,240 @@ def _single_or_none(values: tuple[str, ...]) -> str | None:
     return values[0] if len(values) == 1 else None
 
 
+def compute_scenario_expansion_size(config: ResearchCampaignConfig) -> dict[str, Any]:
+    """Return a dictionary describing the scenario expansion dimensions and limits.
+
+    This is a lightweight read-only computation that does not materialize full
+    resolved scenario configs.  Use it in preflight checks and operator tooling
+    to inspect expansion size without triggering the full expansion.
+
+    Returned keys:
+      matrix_axis_count         - number of declared sweep axes
+      per_axis_value_counts     - list of value counts per axis in declaration order
+      matrix_combination_count  - cartesian product of per-axis value counts (0 when no matrix)
+      include_count             - number of explicit included scenarios
+      total_scenario_count      - matrix_combination_count + include_count
+      effective_max_scenarios   - the operative limit (min of hard cap and configured cap)
+      hard_max_scenarios        - the hard ceiling (_SCENARIOS_HARD_MAX)
+      configured_max_scenarios  - scenarios.max_scenarios value (None when unconfigured)
+      max_values_per_axis       - scenarios.max_values_per_axis value (None when unconfigured)
+      exceeds_limit             - True when total_scenario_count > effective_max_scenarios
+    """
+    sc = config.scenarios
+    per_axis_counts = [len(axis.values) for axis in sc.matrix]
+    matrix_count = 1
+    for n in per_axis_counts:
+        matrix_count *= n
+    if not sc.matrix:
+        matrix_count = 0
+    include_count = len(sc.include)
+    total_count = matrix_count + include_count
+    effective_max = (
+        min(_SCENARIOS_HARD_MAX, sc.max_scenarios)
+        if sc.max_scenarios is not None
+        else _SCENARIOS_HARD_MAX
+    )
+    return {
+        "matrix_axis_count": len(sc.matrix),
+        "per_axis_value_counts": per_axis_counts,
+        "matrix_combination_count": matrix_count,
+        "include_count": include_count,
+        "total_scenario_count": total_count,
+        "effective_max_scenarios": effective_max,
+        "hard_max_scenarios": _SCENARIOS_HARD_MAX,
+        "configured_max_scenarios": sc.max_scenarios,
+        "max_values_per_axis": sc.max_values_per_axis,
+        "exceeds_limit": total_count > effective_max,
+    }
+
+
+def expand_research_campaign_scenarios(
+    config: ResearchCampaignConfig,
+) -> tuple[ResolvedResearchCampaignScenario, ...]:
+    base_config = ResearchCampaignConfig.from_mapping(_config_payload_without_scenarios(config))
+    scenarios_config = config.scenarios
+    if not scenarios_config.enabled:
+        return (
+            ResolvedResearchCampaignScenario(
+                scenario_id="default",
+                description="Implicit single-scenario campaign configuration.",
+                source="default",
+                sweep_values={},
+                config=base_config,
+                fingerprint=_scenario_fingerprint(base_config),
+            ),
+        )
+
+    # Safety-net: enforce limits even when config was constructed programmatically
+    # (normal resolution via _resolve_scenarios already validated these, so this
+    # guard only fires for configs created outside the standard resolver).
+    size = compute_scenario_expansion_size(config)
+    if size["exceeds_limit"]:
+        raise ResearchCampaignConfigError(
+            f"scenarios would expand to {size['total_scenario_count']} scenarios, which exceeds the "
+            f"effective limit of {size['effective_max_scenarios']} "
+            f"(hard_max={size['hard_max_scenarios']}, "
+            f"configured_max={'none' if size['configured_max_scenarios'] is None else size['configured_max_scenarios']}). "
+            "Reduce the matrix dimensions, set scenarios.max_scenarios, or split "
+            "into multiple campaigns."
+        )
+
+    resolved: list[ResolvedResearchCampaignScenario] = []
+    seen_ids: set[str] = set()
+    matrix_overrides = _expand_scenario_matrix_overrides(scenarios_config.matrix)
+    for index, (sweep_values, override_payload) in enumerate(matrix_overrides):
+        scenario_id = _build_matrix_scenario_id(index, sweep_values)
+        if scenario_id in seen_ids:
+            raise ResearchCampaignConfigError(
+                f"Research campaign scenarios resolve duplicate scenario_id '{scenario_id}'."
+            )
+        seen_ids.add(scenario_id)
+        scenario_config = ResearchCampaignConfig.from_mapping(override_payload, base=base_config)
+        resolved.append(
+            ResolvedResearchCampaignScenario(
+                scenario_id=scenario_id,
+                description=None,
+                source="matrix",
+                sweep_values=dict(sweep_values),
+                config=scenario_config,
+                fingerprint=_scenario_fingerprint(scenario_config),
+            )
+        )
+
+    for included in scenarios_config.include:
+        if included.scenario_id in seen_ids:
+            raise ResearchCampaignConfigError(
+                f"Research campaign scenarios resolve duplicate scenario_id '{included.scenario_id}'."
+            )
+        seen_ids.add(included.scenario_id)
+        scenario_config = ResearchCampaignConfig.from_mapping(included.overrides, base=base_config)
+        resolved.append(
+            ResolvedResearchCampaignScenario(
+                scenario_id=included.scenario_id,
+                description=included.description,
+                source="include",
+                sweep_values={},
+                config=scenario_config,
+                fingerprint=_scenario_fingerprint(scenario_config),
+            )
+        )
+    return tuple(resolved)
+
+
+def build_research_campaign_scenario_catalog(config: ResearchCampaignConfig) -> dict[str, Any]:
+    base_config = ResearchCampaignConfig.from_mapping(_config_payload_without_scenarios(config))
+    scenarios = expand_research_campaign_scenarios(config)
+    expansion_size = compute_scenario_expansion_size(config)
+    return _canonicalize_value(
+        {
+            "scenario_count": len(scenarios),
+            "base_fingerprint": _scenario_fingerprint(base_config),
+            "scenarios_enabled": config.scenarios.enabled,
+            "expansion": expansion_size,
+            "scenarios": [scenario.to_dict() for scenario in scenarios],
+        }
+    )
+
+
+def _config_payload_without_scenarios(config: ResearchCampaignConfig) -> dict[str, Any]:
+    payload = dict(config.to_dict())
+    payload.pop("scenarios", None)
+    return payload
+
+
+def _expand_scenario_matrix_overrides(
+    axes: tuple[CampaignScenarioMatrixAxisConfig, ...],
+) -> tuple[tuple[dict[str, Any], dict[str, Any]], ...]:
+    if not axes:
+        return ()
+
+    combinations: list[tuple[dict[str, Any], dict[str, Any]]] = [({}, {})]
+    for axis in axes:
+        next_combinations: list[tuple[dict[str, Any], dict[str, Any]]] = []
+        for sweep_values, override_payload in combinations:
+            for value in axis.values:
+                next_sweep_values = {**sweep_values, axis.name: value}
+                next_override_payload = _merge_nested_mappings(
+                    override_payload,
+                    _nested_mapping_for_path(axis.path, value),
+                )
+                next_combinations.append((next_sweep_values, next_override_payload))
+        combinations = next_combinations
+    return tuple(combinations)
+
+
+def _nested_mapping_for_path(path: str, value: Any) -> dict[str, Any]:
+    nested: Any = value
+    for key in reversed(path.split(".")):
+        nested = {key: nested}
+    return nested
+
+
+def _merge_nested_mappings(base: Mapping[str, Any], overrides: Mapping[str, Any]) -> dict[str, Any]:
+    merged = dict(base)
+    for key, value in overrides.items():
+        if isinstance(value, Mapping) and isinstance(merged.get(key), Mapping):
+            merged[key] = _merge_nested_mappings(merged[key], value)
+        elif isinstance(value, Mapping):
+            merged[key] = _merge_nested_mappings({}, value)
+        else:
+            merged[key] = value
+    return merged
+
+
+def _build_matrix_scenario_id(index: int, sweep_values: Mapping[str, Any]) -> str:
+    parts = [
+        f"{_slugify_identifier(name)}_{_slugify_identifier(_scenario_value_label(value))}"
+        for name, value in sweep_values.items()
+    ]
+    suffix = "__".join(part for part in parts if part)
+    if suffix:
+        return f"scenario_{index:04d}_{suffix}"
+    return f"scenario_{index:04d}"
+
+
+def _scenario_value_label(value: Any) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, str):
+        return value
+    return str(value)
+
+
+def _slugify_identifier(value: str) -> str:
+    slug = "".join(character.lower() if character.isalnum() else "_" for character in value.strip())
+    while "__" in slug:
+        slug = slug.replace("__", "_")
+    return slug.strip("_")
+
+
+def _scenario_fingerprint(config: ResearchCampaignConfig) -> str:
+    payload = json.dumps(
+        _config_payload_without_scenarios(config),
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+
+
+def _supported_scenario_override_paths() -> frozenset[str]:
+    payload = _config_payload_without_scenarios(ResearchCampaignConfig.default())
+    supported: set[str] = set()
+    _collect_scalar_paths(payload, prefix=(), output=supported)
+    return frozenset(supported)
+
+
+def _collect_scalar_paths(value: Any, *, prefix: tuple[str, ...], output: set[str]) -> None:
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            _collect_scalar_paths(child, prefix=(*prefix, key), output=output)
+        return
+    if isinstance(value, list):
+        return
+    if prefix:
+        output.add(".".join(prefix))
+
+
 def _canonicalize_value(value: Any) -> Any:
     if isinstance(value, Mapping):
         return {key: _canonicalize_value(value[key]) for key in sorted(value)}
@@ -1869,8 +2432,12 @@ def _canonicalize_value(value: Any) -> Any:
 
 __all__ = [
     "RESEARCH_CAMPAIGN_CONFIG",
+    "ResolvedResearchCampaignScenario",
     "ResearchCampaignConfig",
     "ResearchCampaignConfigError",
+    "build_research_campaign_scenario_catalog",
+    "compute_scenario_expansion_size",
+    "expand_research_campaign_scenarios",
     "load_research_campaign_config",
     "resolve_research_campaign_config",
 ]

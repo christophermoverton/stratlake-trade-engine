@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 from contextlib import contextmanager
+import csv
 from dataclasses import dataclass, field
 import hashlib
 import json
@@ -18,10 +19,14 @@ from src.cli import run_alpha as run_alpha_cli
 from src.cli import run_candidate_selection as run_candidate_selection_cli
 from src.cli import run_portfolio as run_portfolio_cli
 from src.cli import run_strategy as run_strategy_cli
+from src.cli.comparison_cli import render_console_table
 from src.config.research_campaign import (
     CampaignReusePolicyConfig,
     ResearchCampaignConfig,
     ResearchCampaignConfigError,
+    build_research_campaign_scenario_catalog,
+    compute_scenario_expansion_size,
+    expand_research_campaign_scenarios,
     load_research_campaign_config,
     resolve_research_campaign_config,
 )
@@ -52,6 +57,10 @@ CAMPAIGN_CONFIG_FILENAME = "campaign_config.json"
 CAMPAIGN_CHECKPOINT_FILENAME = "checkpoint.json"
 CAMPAIGN_MANIFEST_FILENAME = "manifest.json"
 CAMPAIGN_SUMMARY_FILENAME = "summary.json"
+SCENARIO_CATALOG_FILENAME = "scenario_catalog.json"
+SCENARIO_MATRIX_CSV_FILENAME = "scenario_matrix.csv"
+SCENARIO_MATRIX_SUMMARY_FILENAME = "scenario_matrix.json"
+ORCHESTRATION_EXPANSION_PREFLIGHT_FILENAME = "expansion_preflight.json"
 
 
 @dataclass(frozen=True)
@@ -68,6 +77,13 @@ class CampaignPreflightResult:
     summary_path: Path
     summary: dict[str, Any]
     checks: tuple[CampaignPreflightCheck, ...]
+
+
+@dataclass(frozen=True)
+class ScenarioExpansionPreflightResult:
+    status: str
+    summary_path: Path
+    summary: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -281,6 +297,69 @@ class ResearchCampaignRunResult:
     review_result: Any | None
 
 
+@dataclass(frozen=True)
+class ScenarioCampaignRunResult:
+    scenario_id: str
+    description: str | None
+    source: str
+    sweep_values: dict[str, Any]
+    fingerprint: str
+    result: ResearchCampaignRunResult
+
+
+@dataclass(frozen=True)
+class ScenarioExecutionContext:
+    orchestration_run_id: str
+    orchestration_artifact_dir: Path
+    scenario_id: str
+    description: str | None
+    source: str
+    sweep_values: dict[str, Any]
+    fingerprint: str
+    scenario_artifact_dir: Path
+
+    def to_dict(self) -> dict[str, Any]:
+        scenario_root = self.orchestration_artifact_dir / "scenarios"
+        try:
+            relative_dir = self.scenario_artifact_dir.resolve().relative_to(
+                self.orchestration_artifact_dir.resolve()
+            ).as_posix()
+        except ValueError:
+            relative_dir = self.scenario_artifact_dir.as_posix()
+        return canonicalize_value(
+            {
+                "orchestration_run_id": self.orchestration_run_id,
+                "orchestration_artifact_dir": self.orchestration_artifact_dir.as_posix(),
+                "scenario_root_dir": scenario_root.as_posix(),
+                "scenario_id": self.scenario_id,
+                "description": self.description,
+                "source": self.source,
+                "sweep_values": dict(self.sweep_values),
+                "fingerprint": self.fingerprint,
+                "scenario_artifact_dir": self.scenario_artifact_dir.as_posix(),
+                "scenario_artifact_dir_relative": relative_dir,
+            }
+        )
+
+
+@dataclass(frozen=True)
+class ResearchCampaignOrchestrationResult:
+    config: ResearchCampaignConfig
+    orchestration_run_id: str
+    orchestration_artifact_dir: Path
+    scenario_catalog_path: Path
+    orchestration_manifest_path: Path
+    orchestration_summary_path: Path
+    scenario_matrix_csv_path: Path
+    scenario_matrix_summary_path: Path
+    expansion_preflight_path: Path
+    scenario_catalog: dict[str, Any]
+    orchestration_manifest: dict[str, Any]
+    orchestration_summary: dict[str, Any]
+    expansion_preflight: dict[str, Any]
+    scenario_results: tuple[ScenarioCampaignRunResult, ...]
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
@@ -305,7 +384,9 @@ def resolve_cli_config(config_path: str | Path | None = None) -> ResearchCampaig
     return resolve_research_campaign_config(loaded.to_dict())
 
 
-def run_cli(argv: Sequence[str] | None = None) -> ResearchCampaignRunResult:
+def run_cli(
+    argv: Sequence[str] | None = None,
+) -> ResearchCampaignRunResult | ResearchCampaignOrchestrationResult:
     args = parse_args(argv)
     config = resolve_cli_config(args.config)
     result = run_research_campaign(config)
@@ -313,14 +394,34 @@ def run_cli(argv: Sequence[str] | None = None) -> ResearchCampaignRunResult:
     return result
 
 
-def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRunResult:
+def run_research_campaign(
+    config: ResearchCampaignConfig,
+) -> ResearchCampaignRunResult | ResearchCampaignOrchestrationResult:
+    if config.scenarios.enabled:
+        return _run_research_campaign_orchestration(config)
+    return _run_single_research_campaign(config)
+
+
+def _run_single_research_campaign(
+    config: ResearchCampaignConfig,
+    *,
+    scenario_context: ScenarioExecutionContext | None = None,
+) -> ResearchCampaignRunResult:
     records: list[CampaignStageRecord] = []
-    campaign_run_id = _build_campaign_run_id(config)
-    campaign_artifact_dir = _campaign_artifact_dir(config, campaign_run_id=campaign_run_id)
+    campaign_run_id = _build_campaign_run_id(
+        config,
+        scenario_context=scenario_context,
+    )
+    campaign_artifact_dir = (
+        scenario_context.scenario_artifact_dir
+        if scenario_context is not None
+        else _campaign_artifact_dir(config, campaign_run_id=campaign_run_id)
+    )
     _persist_campaign_config(campaign_artifact_dir, config)
     existing_checkpoint = _load_existing_campaign_checkpoint(
         campaign_artifact_dir=campaign_artifact_dir,
         campaign_run_id=campaign_run_id,
+        scenario_context=scenario_context,
     )
     stage_input_fingerprints: dict[str, str | None] = {}
     candidate_selection_reference: CampaignArtifactReference | None = None
@@ -411,6 +512,7 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                 config=config,
                 campaign_run_id=campaign_run_id,
                 campaign_artifact_dir=campaign_artifact_dir,
+                scenario_context=scenario_context,
                 preflight_result=preflight_result,
                 stage_records=records,
                 alpha_results=alpha_results,
@@ -907,6 +1009,7 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                 config=config,
                 campaign_run_id=campaign_run_id,
                 campaign_artifact_dir=campaign_artifact_dir,
+                scenario_context=scenario_context,
                 preflight_result=preflight_result,
                 stage_records=records,
                 alpha_results=alpha_results,
@@ -941,6 +1044,7 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
                 config=config,
                 campaign_run_id=campaign_run_id,
                 campaign_artifact_dir=campaign_artifact_dir,
+                scenario_context=scenario_context,
                 preflight_result=preflight_result,
                 stage_records=records,
                 alpha_results=alpha_results,
@@ -961,6 +1065,7 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        scenario_context=scenario_context,
         preflight_result=preflight_result,
         stage_records=records,
         alpha_results=alpha_results,
@@ -1012,7 +1117,173 @@ def run_research_campaign(config: ResearchCampaignConfig) -> ResearchCampaignRun
     )
 
 
-def print_summary(result: ResearchCampaignRunResult) -> None:
+def _run_orchestration_expansion_preflight(
+    config: ResearchCampaignConfig,
+    *,
+    orchestration_artifact_dir: Path,
+) -> "ScenarioExpansionPreflightResult":
+    """Compute scenario expansion size, write expansion_preflight.json, and print summary.
+
+    This check always passes because limit violations are caught at config-resolution
+    time.  Its purpose is to give operators clear pre-execution visibility into how
+    many scenarios will run, what limits are in effect, and the per-axis breakdown.
+    """
+    size = compute_scenario_expansion_size(config)
+
+    axis_details = [
+        {
+            "name": axis.name,
+            "path": axis.path,
+            "value_count": len(axis.values),
+        }
+        for axis in config.scenarios.matrix
+    ]
+
+    summary = canonicalize_value(
+        {
+            "status": "passed",
+            "orchestration_artifact_dir": orchestration_artifact_dir.as_posix(),
+            "scenarios_enabled": config.scenarios.enabled,
+            "expansion": {
+                "matrix_axis_count": size["matrix_axis_count"],
+                "per_axis_value_counts": size["per_axis_value_counts"],
+                "matrix_combination_count": size["matrix_combination_count"],
+                "include_count": size["include_count"],
+                "total_scenario_count": size["total_scenario_count"],
+                "per_axis_details": axis_details,
+            },
+            "limits": {
+                "hard_max_scenarios": size["hard_max_scenarios"],
+                "configured_max_scenarios": size["configured_max_scenarios"],
+                "effective_max_scenarios": size["effective_max_scenarios"],
+                "max_values_per_axis": size["max_values_per_axis"],
+                "exceeds_limit": size["exceeds_limit"],
+            },
+        }
+    )
+    summary_path = orchestration_artifact_dir / ORCHESTRATION_EXPANSION_PREFLIGHT_FILENAME
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    total = size["total_scenario_count"]
+    effective_max = size["effective_max_scenarios"]
+    print(
+        f"[expansion preflight] scenarios={total} "
+        f"(matrix={size['matrix_combination_count']}, include={size['include_count']}) "
+        f"| limit={effective_max} "
+        f"(hard={size['hard_max_scenarios']}, configured={size['configured_max_scenarios'] or 'none'}) "
+        f"| axes={size['matrix_axis_count']}"
+    )
+
+    return ScenarioExpansionPreflightResult(
+        status="passed",
+        summary_path=summary_path,
+        summary=summary,
+    )
+
+
+def _run_research_campaign_orchestration(
+    config: ResearchCampaignConfig,
+) -> ResearchCampaignOrchestrationResult:
+    orchestration_run_id = _build_orchestration_run_id(config)
+    orchestration_artifact_dir = _campaign_artifact_dir(
+        config,
+        campaign_run_id=orchestration_run_id,
+    )
+    _persist_campaign_config(orchestration_artifact_dir, config)
+
+    expansion_preflight = _run_orchestration_expansion_preflight(
+        config,
+        orchestration_artifact_dir=orchestration_artifact_dir,
+    )
+    expansion_preflight_path = orchestration_artifact_dir / ORCHESTRATION_EXPANSION_PREFLIGHT_FILENAME
+
+    scenario_catalog = build_research_campaign_scenario_catalog(config)
+    scenario_catalog_path = orchestration_artifact_dir / SCENARIO_CATALOG_FILENAME
+    scenario_catalog_path.write_text(
+        json.dumps(scenario_catalog, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    scenario_results: list[ScenarioCampaignRunResult] = []
+    scenario_root_dir = orchestration_artifact_dir / "scenarios"
+    for scenario in expand_research_campaign_scenarios(config):
+        scenario_context = ScenarioExecutionContext(
+            orchestration_run_id=orchestration_run_id,
+            orchestration_artifact_dir=orchestration_artifact_dir,
+            scenario_id=scenario.scenario_id,
+            description=scenario.description,
+            source=scenario.source,
+            sweep_values=dict(scenario.sweep_values),
+            fingerprint=scenario.fingerprint,
+            scenario_artifact_dir=scenario_root_dir / scenario.scenario_id,
+        )
+        scenario_result = _run_single_research_campaign(
+            scenario.config,
+            scenario_context=scenario_context,
+        )
+        scenario_results.append(
+            ScenarioCampaignRunResult(
+                scenario_id=scenario.scenario_id,
+                description=scenario.description,
+                source=scenario.source,
+                sweep_values=dict(scenario.sweep_values),
+                fingerprint=scenario.fingerprint,
+                result=scenario_result,
+            )
+        )
+
+    manifest_payload, summary_payload = _build_orchestration_artifacts(
+        config=config,
+        orchestration_run_id=orchestration_run_id,
+        orchestration_artifact_dir=orchestration_artifact_dir,
+        scenario_catalog=scenario_catalog,
+        scenario_results=scenario_results,
+    )
+    manifest_path = orchestration_artifact_dir / CAMPAIGN_MANIFEST_FILENAME
+    summary_path = orchestration_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
+    manifest_path.write_text(
+        json.dumps(manifest_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+    summary_path.write_text(
+        json.dumps(summary_payload, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+    return ResearchCampaignOrchestrationResult(
+        config=config,
+        orchestration_run_id=orchestration_run_id,
+        orchestration_artifact_dir=orchestration_artifact_dir,
+        scenario_catalog_path=scenario_catalog_path,
+        orchestration_manifest_path=manifest_path,
+        orchestration_summary_path=summary_path,
+        scenario_matrix_csv_path=orchestration_artifact_dir / SCENARIO_MATRIX_CSV_FILENAME,
+        scenario_matrix_summary_path=orchestration_artifact_dir / SCENARIO_MATRIX_SUMMARY_FILENAME,
+        expansion_preflight_path=expansion_preflight_path,
+        scenario_catalog=scenario_catalog,
+        orchestration_manifest=manifest_payload,
+        orchestration_summary=summary_payload,
+        expansion_preflight=expansion_preflight.summary,
+        scenario_results=tuple(scenario_results),
+    )
+
+
+def print_summary(
+    result: ResearchCampaignRunResult | ResearchCampaignOrchestrationResult,
+) -> None:
+    if isinstance(result, ResearchCampaignOrchestrationResult):
+        _print_orchestration_summary(result)
+        return
+    _print_single_campaign_summary(result)
+
+
+def _print_single_campaign_summary(result: ResearchCampaignRunResult) -> None:
     stage_statuses = dict(result.campaign_summary.get("stage_statuses", {}))
     stage_counts = _stage_state_counts(stage_statuses)
     print("Research Campaign Summary")
@@ -1101,6 +1372,53 @@ def print_summary(result: ResearchCampaignRunResult) -> None:
             f"decision_log={result.campaign_milestone_decision_log_path.as_posix() if result.campaign_milestone_decision_log_path is not None else 'missing'} | "
             f"manifest={result.campaign_milestone_manifest_path.as_posix() if result.campaign_milestone_manifest_path is not None else 'missing'}"
         )
+
+
+def _print_orchestration_summary(result: ResearchCampaignOrchestrationResult) -> None:
+    scenario_status_counts = dict(result.orchestration_summary.get("scenario_status_counts", {}))
+    scenario_matrix = result.orchestration_summary.get("scenario_matrix", {})
+    print("Research Campaign Orchestration Summary")
+    print("--------------------------------------")
+    print(
+        f"Campaign: {result.orchestration_run_id} | "
+        f"status={result.orchestration_summary.get('status', 'unknown')} | "
+        f"dir={result.orchestration_artifact_dir.as_posix()}"
+    )
+    print(
+        f"Scenarios: total={len(result.scenario_results)} | "
+        + " | ".join(
+            f"{state}={count}"
+            for state, count in scenario_status_counts.items()
+            if count
+        )
+    )
+    for scenario_result in result.scenario_results:
+        scenario_summary = scenario_result.result.campaign_summary
+        print(
+            f"Scenario: {scenario_result.scenario_id} | "
+            f"status={scenario_summary.get('status', 'unknown')} | "
+            f"campaign={scenario_result.result.campaign_run_id} | "
+            f"summary={scenario_result.result.campaign_summary_path.as_posix()}"
+        )
+    leaderboard = list(scenario_matrix.get("leaderboard") or [])
+    if leaderboard:
+        print(
+            "Scenario Matrix: "
+            f"rows={len(leaderboard)} | "
+            f"ranking={scenario_matrix.get('selection_rule', 'deterministic metric ladder')}"
+        )
+        print(render_console_table(_render_scenario_matrix_table(leaderboard)))
+        print(
+            "Scenario Matrix Artifacts: "
+            f"csv={result.scenario_matrix_csv_path.as_posix()} | "
+            f"summary={result.scenario_matrix_summary_path.as_posix()}"
+        )
+    print(
+        "Orchestration Artifacts: "
+        f"catalog={result.scenario_catalog_path.as_posix()} | "
+        f"manifest={result.orchestration_manifest_path.as_posix()} | "
+        f"summary={result.orchestration_summary_path.as_posix()}"
+    )
 
 
 def main() -> None:
@@ -2281,8 +2599,25 @@ def _comparison_output_path(
     return Path(config.outputs.comparison_output_path) / stage_name
 
 
-def _build_campaign_run_id(config: ResearchCampaignConfig) -> str:
-    payload = json.dumps(config.to_dict(), sort_keys=True, separators=(",", ":"))
+def _build_campaign_run_id(
+    config: ResearchCampaignConfig,
+    *,
+    scenario_context: ScenarioExecutionContext | None = None,
+) -> str:
+    payload_inputs: dict[str, Any] = {
+        "config": config.to_dict(),
+    }
+    if scenario_context is not None:
+        payload_inputs["scenario"] = {
+            "orchestration_run_id": scenario_context.orchestration_run_id,
+            "scenario_id": scenario_context.scenario_id,
+            "fingerprint": scenario_context.fingerprint,
+        }
+    payload = json.dumps(
+        payload_inputs,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
     digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
     return f"research_campaign_{digest}"
 
@@ -2302,6 +2637,7 @@ def _load_existing_campaign_checkpoint(
     *,
     campaign_artifact_dir: Path,
     campaign_run_id: str,
+    scenario_context: ScenarioExecutionContext | None,
 ) -> dict[str, Any] | None:
     checkpoint_path = campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME
     if not checkpoint_path.exists():
@@ -2316,6 +2652,22 @@ def _load_existing_campaign_checkpoint(
         raise ValueError(f"Invalid existing campaign checkpoint {checkpoint_path.as_posix()}: {exc}") from exc
     if str(payload.get("campaign_run_id")) != campaign_run_id:
         return None
+    if scenario_context is not None:
+        checkpoint_scenario = payload.get("scenario")
+        if not isinstance(checkpoint_scenario, Mapping):
+            return None
+        if str(checkpoint_scenario.get("scenario_id") or "") != scenario_context.scenario_id:
+            return None
+        if (
+            str(checkpoint_scenario.get("orchestration_run_id") or "")
+            != scenario_context.orchestration_run_id
+        ):
+            return None
+        if str(checkpoint_scenario.get("fingerprint") or "") != scenario_context.fingerprint:
+            return None
+    else:
+        if isinstance(payload.get("scenario"), Mapping):
+            return None
     return canonicalize_value(dict(payload))
 
 
@@ -2949,6 +3301,7 @@ def _write_campaign_artifacts(
     config: ResearchCampaignConfig,
     campaign_run_id: str,
     campaign_artifact_dir: Path,
+    scenario_context: ScenarioExecutionContext | None,
     preflight_result: CampaignPreflightResult,
     stage_records: Sequence[CampaignStageRecord],
     alpha_results: Sequence[Any],
@@ -2967,6 +3320,7 @@ def _write_campaign_artifacts(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        scenario_context=scenario_context,
         preflight_result=preflight_result,
         stage_records=stage_records,
         alpha_results=alpha_results,
@@ -2985,6 +3339,7 @@ def _write_campaign_artifacts(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        scenario_context=scenario_context,
         checkpoint_payload=checkpoint_payload,
         preflight_result=preflight_result,
         stage_records=stage_records,
@@ -3003,6 +3358,7 @@ def _write_campaign_artifacts(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        scenario_context=scenario_context,
         checkpoint_payload=checkpoint_payload,
         summary_payload=summary_payload,
         milestone_outputs=None,
@@ -3025,6 +3381,7 @@ def _write_campaign_artifacts(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        scenario_context=scenario_context,
         checkpoint_payload=checkpoint_payload,
         preflight_result=preflight_result,
         stage_records=stage_records,
@@ -3043,6 +3400,7 @@ def _write_campaign_artifacts(
         config=config,
         campaign_run_id=campaign_run_id,
         campaign_artifact_dir=campaign_artifact_dir,
+        scenario_context=scenario_context,
         checkpoint_payload=checkpoint_payload,
         summary_payload=summary_payload,
         milestone_outputs=milestone_outputs,
@@ -3102,6 +3460,7 @@ def _build_campaign_checkpoint(
     config: ResearchCampaignConfig,
     campaign_run_id: str,
     campaign_artifact_dir: Path,
+    scenario_context: ScenarioExecutionContext | None,
     preflight_result: CampaignPreflightResult,
     stage_records: Sequence[CampaignStageRecord],
     alpha_results: Sequence[Any],
@@ -3139,12 +3498,16 @@ def _build_campaign_checkpoint(
         )
         stages.append(stage_payload)
         stage_input_fingerprints[stage_name] = stage_payload.get("input_fingerprint")
-    return build_campaign_checkpoint_payload(
+    checkpoint_payload = build_campaign_checkpoint_payload(
         campaign_run_id=campaign_run_id,
         status=status,
         checkpoint_path=campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME,
         stages=stages,
     )
+    checkpoint_payload["scenario"] = (
+        None if scenario_context is None else scenario_context.to_dict()
+    )
+    return canonicalize_value(checkpoint_payload)
 
 
 def _build_campaign_summary(
@@ -3152,6 +3515,7 @@ def _build_campaign_summary(
     config: ResearchCampaignConfig,
     campaign_run_id: str,
     campaign_artifact_dir: Path,
+    scenario_context: ScenarioExecutionContext | None,
     checkpoint_payload: dict[str, Any],
     preflight_result: CampaignPreflightResult,
     stage_records: Sequence[CampaignStageRecord],
@@ -3198,6 +3562,16 @@ def _build_campaign_summary(
         "review_manifest": _path_or_none(review_result, "manifest_path"),
         "review_promotion_gates": _path_or_none(review_result, "promotion_gate_path"),
     }
+    if scenario_context is not None:
+        scenario_payload = scenario_context.to_dict()
+        output_paths.update(
+            {
+                "scenario_artifact_dir": scenario_payload["scenario_artifact_dir"],
+                "scenario_artifact_dir_relative": scenario_payload["scenario_artifact_dir_relative"],
+                "scenario_root_dir": scenario_payload["scenario_root_dir"],
+                "parent_orchestration_artifact_dir": scenario_payload["orchestration_artifact_dir"],
+            }
+        )
     if isinstance(milestone_outputs, Mapping):
         output_paths.update(
             {
@@ -3350,6 +3724,7 @@ def _build_campaign_summary(
         "stage_execution": stage_execution,
         "checkpoint": checkpoint_payload,
         "stages": stages,
+        "scenario": None if scenario_context is None else scenario_context.to_dict(),
         "selected_run_ids": selected_run_ids,
         "key_metrics": key_metrics,
         "output_paths": output_paths,
@@ -3363,6 +3738,7 @@ def _build_campaign_manifest(
     config: ResearchCampaignConfig,
     campaign_run_id: str,
     campaign_artifact_dir: Path,
+    scenario_context: ScenarioExecutionContext | None,
     checkpoint_payload: dict[str, Any],
     summary_payload: dict[str, Any],
     milestone_outputs: Mapping[str, Any] | None,
@@ -3435,6 +3811,7 @@ def _build_campaign_manifest(
             },
         },
         "campaign_artifact_dir": campaign_artifact_dir.as_posix(),
+        "scenario": None if scenario_context is None else scenario_context.to_dict(),
         "checkpoint_path": CAMPAIGN_CHECKPOINT_FILENAME,
         "stage_statuses": dict(checkpoint_payload["stage_states"]),
         "stage_state_counts": _stage_state_counts(checkpoint_payload["stage_states"]),
@@ -3852,6 +4229,466 @@ def _path_or_none(obj: Any | None, attribute: str) -> str | None:
     if value is None:
         return None
     return Path(value).as_posix() if isinstance(value, Path) else str(value)
+
+
+def _build_orchestration_run_id(config: ResearchCampaignConfig) -> str:
+    payload = json.dumps(config.to_dict(), sort_keys=True, separators=(",", ":"))
+    digest = hashlib.sha256(payload.encode("utf-8")).hexdigest()[:12]
+    return f"research_campaign_orchestration_{digest}"
+
+
+def _scenario_relative_dir(scenario_id: str) -> Path:
+    return Path("scenarios") / scenario_id
+
+
+def _prefix_relative_artifact_path(prefix: Path, artifact_path: str) -> str:
+    return (prefix / artifact_path).as_posix()
+
+
+def _prefixed_artifact_metadata(
+    prefix: Path,
+    artifact_metadata: Mapping[str, Any],
+    *,
+    scenario_id: str,
+    campaign_run_id: str,
+) -> dict[str, Any]:
+    payload = canonicalize_value(dict(artifact_metadata))
+    path = payload.get("path")
+    if isinstance(path, str) and path.strip():
+        payload["path"] = _prefix_relative_artifact_path(prefix, path)
+    payload["scenario_id"] = scenario_id
+    payload["campaign_run_id"] = campaign_run_id
+    return canonicalize_value(payload)
+
+
+def _build_orchestration_artifacts(
+    *,
+    config: ResearchCampaignConfig,
+    orchestration_run_id: str,
+    orchestration_artifact_dir: Path,
+    scenario_catalog: Mapping[str, Any],
+    scenario_results: Sequence[ScenarioCampaignRunResult],
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    scenario_matrix_summary = _write_scenario_matrix_artifacts(
+        config=config,
+        orchestration_run_id=orchestration_run_id,
+        orchestration_artifact_dir=orchestration_artifact_dir,
+        scenario_results=scenario_results,
+    )
+    scenario_entries: list[dict[str, Any]] = []
+    prefixed_scenario_artifact_files: list[str] = []
+    prefixed_scenario_artifacts: dict[str, Any] = {}
+    scenario_artifact_groups: dict[str, list[str]] = {}
+    for scenario_result in scenario_results:
+        child_manifest = scenario_result.result.campaign_manifest
+        child_summary = scenario_result.result.campaign_summary
+        child_scenario = child_summary.get("scenario")
+        relative_dir = _scenario_relative_dir(scenario_result.scenario_id)
+        relative_dir_str = relative_dir.as_posix()
+        child_artifact_files = [
+            _prefix_relative_artifact_path(relative_dir, artifact_path)
+            for artifact_path in child_manifest.get("artifact_files", [])
+        ]
+        prefixed_scenario_artifact_files.extend(child_artifact_files)
+        scenario_artifact_groups[scenario_result.scenario_id] = child_artifact_files
+        for artifact_path, artifact_metadata in dict(child_manifest.get("artifacts", {})).items():
+            prefixed_path = _prefix_relative_artifact_path(relative_dir, str(artifact_path))
+            prefixed_scenario_artifacts[prefixed_path] = _prefixed_artifact_metadata(
+                relative_dir,
+                dict(artifact_metadata),
+                scenario_id=scenario_result.scenario_id,
+                campaign_run_id=scenario_result.result.campaign_run_id,
+            )
+        scenario_entries.append(
+            canonicalize_value(
+                {
+                    "scenario_id": scenario_result.scenario_id,
+                    "description": scenario_result.description,
+                    "source": scenario_result.source,
+                    "sweep_values": canonicalize_value(dict(scenario_result.sweep_values)),
+                    "fingerprint": scenario_result.fingerprint,
+                    "campaign_run_id": scenario_result.result.campaign_run_id,
+                    "status": child_summary.get("status"),
+                    "preflight_status": scenario_result.result.preflight_summary.get("status"),
+                    "campaign_artifact_dir": scenario_result.result.campaign_artifact_dir.as_posix(),
+                    "scenario_artifact_dir": scenario_result.result.campaign_artifact_dir.as_posix(),
+                    "scenario_artifact_dir_relative": relative_dir_str,
+                    "campaign_manifest_path": scenario_result.result.campaign_manifest_path.as_posix(),
+                    "campaign_manifest_path_relative": (relative_dir / CAMPAIGN_MANIFEST_FILENAME).as_posix(),
+                    "campaign_summary_path": scenario_result.result.campaign_summary_path.as_posix(),
+                    "campaign_summary_path_relative": (relative_dir / CAMPAIGN_SUMMARY_FILENAME).as_posix(),
+                    "campaign_checkpoint_path": scenario_result.result.campaign_checkpoint_path.as_posix(),
+                    "campaign_checkpoint_path_relative": (relative_dir / CAMPAIGN_CHECKPOINT_FILENAME).as_posix(),
+                    "selected_run_ids": dict(child_summary.get("selected_run_ids", {})),
+                    "final_outcomes": dict(child_summary.get("final_outcomes", {})),
+                    "scenario": child_scenario,
+                }
+            )
+        )
+    scenario_status_counts: dict[str, int] = {}
+    for entry in scenario_entries:
+        state = str(entry.get("status") or "unknown")
+        scenario_status_counts[state] = scenario_status_counts.get(state, 0) + 1
+
+    output_paths = canonicalize_value(
+        {
+            "orchestration_artifact_dir": orchestration_artifact_dir.as_posix(),
+            "campaign_config": (orchestration_artifact_dir / CAMPAIGN_CONFIG_FILENAME).as_posix(),
+            "scenario_catalog": (orchestration_artifact_dir / SCENARIO_CATALOG_FILENAME).as_posix(),
+            "orchestration_manifest": (orchestration_artifact_dir / CAMPAIGN_MANIFEST_FILENAME).as_posix(),
+            "orchestration_summary": (orchestration_artifact_dir / CAMPAIGN_SUMMARY_FILENAME).as_posix(),
+            "scenario_matrix_csv": (orchestration_artifact_dir / SCENARIO_MATRIX_CSV_FILENAME).as_posix(),
+            "scenario_matrix_summary": (orchestration_artifact_dir / SCENARIO_MATRIX_SUMMARY_FILENAME).as_posix(),
+            "scenario_root_dir": (orchestration_artifact_dir / "scenarios").as_posix(),
+            "scenario_artifact_dirs": [entry["scenario_artifact_dir"] for entry in scenario_entries],
+            "scenario_artifact_dirs_relative": [entry["scenario_artifact_dir_relative"] for entry in scenario_entries],
+            "scenario_summary_paths": [entry["campaign_summary_path"] for entry in scenario_entries],
+            "scenario_manifest_paths": [entry["campaign_manifest_path"] for entry in scenario_entries],
+        }
+    )
+    summary_payload = canonicalize_value(
+        {
+            "run_type": "research_campaign_orchestration",
+            "orchestration_run_id": orchestration_run_id,
+            "status": "completed" if scenario_entries else "unknown",
+            "scenario_count": len(scenario_entries),
+            "scenario_status_counts": dict(sorted(scenario_status_counts.items())),
+            "scenarios_enabled": config.scenarios.enabled,
+            "scenario_catalog": canonicalize_value(dict(scenario_catalog)),
+            "scenario_matrix": scenario_matrix_summary,
+            "scenarios": scenario_entries,
+            "output_paths": output_paths,
+        }
+    )
+    manifest_payload = canonicalize_value(
+        {
+            "run_type": "research_campaign_orchestration",
+            "orchestration_run_id": orchestration_run_id,
+            "status": summary_payload["status"],
+            "scenario_count": len(scenario_entries),
+            "scenario_ids": [entry["scenario_id"] for entry in scenario_entries],
+            "scenario_status_counts": dict(sorted(scenario_status_counts.items())),
+            "campaign_artifact_dir": orchestration_artifact_dir.as_posix(),
+            "artifact_files": sorted(
+                [
+                    CAMPAIGN_CONFIG_FILENAME,
+                    SCENARIO_CATALOG_FILENAME,
+                    CAMPAIGN_MANIFEST_FILENAME,
+                    CAMPAIGN_SUMMARY_FILENAME,
+                    SCENARIO_MATRIX_CSV_FILENAME,
+                    SCENARIO_MATRIX_SUMMARY_FILENAME,
+                    *prefixed_scenario_artifact_files,
+                ]
+            ),
+            "artifact_groups": canonicalize_value(
+                {
+                    "orchestration": [
+                        CAMPAIGN_CONFIG_FILENAME,
+                        SCENARIO_CATALOG_FILENAME,
+                        CAMPAIGN_MANIFEST_FILENAME,
+                        CAMPAIGN_SUMMARY_FILENAME,
+                        SCENARIO_MATRIX_CSV_FILENAME,
+                        SCENARIO_MATRIX_SUMMARY_FILENAME,
+                    ],
+                    "scenario_matrix": [
+                        SCENARIO_MATRIX_CSV_FILENAME,
+                        SCENARIO_MATRIX_SUMMARY_FILENAME,
+                    ],
+                    "scenarios": sorted(prefixed_scenario_artifact_files),
+                    **{f"scenario:{name}": paths for name, paths in sorted(scenario_artifact_groups.items())},
+                }
+            ),
+            "artifacts": {
+                CAMPAIGN_CONFIG_FILENAME: {"path": CAMPAIGN_CONFIG_FILENAME},
+                SCENARIO_CATALOG_FILENAME: {
+                    "path": SCENARIO_CATALOG_FILENAME,
+                    "scenario_count": len(scenario_entries),
+                },
+                CAMPAIGN_MANIFEST_FILENAME: {"path": CAMPAIGN_MANIFEST_FILENAME},
+                CAMPAIGN_SUMMARY_FILENAME: {
+                    "path": CAMPAIGN_SUMMARY_FILENAME,
+                    "scenario_count": len(scenario_entries),
+                },
+                SCENARIO_MATRIX_CSV_FILENAME: {
+                    "path": SCENARIO_MATRIX_CSV_FILENAME,
+                    "row_count": scenario_matrix_summary["row_count"],
+                },
+                SCENARIO_MATRIX_SUMMARY_FILENAME: {
+                    "path": SCENARIO_MATRIX_SUMMARY_FILENAME,
+                    "row_count": scenario_matrix_summary["row_count"],
+                    "ranking_metric_priority": list(scenario_matrix_summary["metric_priority"]),
+                },
+                **prefixed_scenario_artifacts,
+            },
+            "summary_path": CAMPAIGN_SUMMARY_FILENAME,
+            "scenarios": [
+                {
+                    "scenario_id": entry["scenario_id"],
+                    "campaign_run_id": entry["campaign_run_id"],
+                    "status": entry["status"],
+                    "scenario_artifact_dir": entry["scenario_artifact_dir"],
+                    "scenario_artifact_dir_relative": entry["scenario_artifact_dir_relative"],
+                    "campaign_summary_path": entry["campaign_summary_path"],
+                    "campaign_summary_path_relative": entry["campaign_summary_path_relative"],
+                    "campaign_manifest_path_relative": entry["campaign_manifest_path_relative"],
+                }
+                for entry in scenario_entries
+            ],
+        }
+    )
+    return manifest_payload, summary_payload
+
+
+_SCENARIO_RANKING_METRIC_PRIORITY: tuple[str, ...] = (
+    "portfolio_sharpe_ratio",
+    "strategy_sharpe_ratio_max",
+    "alpha_ic_ir_max",
+    "portfolio_total_return",
+    "strategy_cumulative_return_max",
+    "alpha_mean_ic_max",
+    "candidate_selected_count",
+)
+
+
+def _write_scenario_matrix_artifacts(
+    *,
+    config: ResearchCampaignConfig,
+    orchestration_run_id: str,
+    orchestration_artifact_dir: Path,
+    scenario_results: Sequence[ScenarioCampaignRunResult],
+) -> dict[str, Any]:
+    sweep_keys = _scenario_matrix_sweep_keys(config, scenario_results)
+    leaderboard = _build_scenario_matrix_rows(scenario_results, sweep_keys=sweep_keys)
+    csv_path = orchestration_artifact_dir / SCENARIO_MATRIX_CSV_FILENAME
+    json_path = orchestration_artifact_dir / SCENARIO_MATRIX_SUMMARY_FILENAME
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+
+    fieldnames = _scenario_matrix_fieldnames(sweep_keys)
+    with csv_path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames, lineterminator="\n")
+        writer.writeheader()
+        for row in leaderboard:
+            writer.writerow({key: row.get(key) for key in fieldnames})
+
+    summary = canonicalize_value(
+        {
+            "scenario_matrix_id": orchestration_run_id,
+            "orchestration_run_id": orchestration_run_id,
+            "row_count": len(leaderboard),
+            "metric_priority": list(_SCENARIO_RANKING_METRIC_PRIORITY),
+            "selection_rule": _scenario_matrix_selection_rule(),
+            "sweep_keys": sweep_keys,
+            "leaderboard": leaderboard,
+            "csv_path": csv_path.as_posix(),
+            "summary_path": json_path.as_posix(),
+        }
+    )
+    json_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+    return summary
+
+
+def _scenario_matrix_sweep_keys(
+    config: ResearchCampaignConfig,
+    scenario_results: Sequence[ScenarioCampaignRunResult],
+) -> list[str]:
+    keys: list[str] = []
+    for axis in config.scenarios.matrix:
+        name = str(axis.name)
+        if name not in keys:
+            keys.append(name)
+    for scenario_result in scenario_results:
+        for key in scenario_result.sweep_values:
+            key_text = str(key)
+            if key_text not in keys:
+                keys.append(key_text)
+    return keys
+
+
+def _build_scenario_matrix_rows(
+    scenario_results: Sequence[ScenarioCampaignRunResult],
+    *,
+    sweep_keys: Sequence[str],
+) -> list[dict[str, Any]]:
+    rows = [_scenario_matrix_row(result, sweep_keys=sweep_keys) for result in scenario_results]
+    ordered = sorted(rows, key=_scenario_matrix_sort_key)
+    ranked_rows: list[dict[str, Any]] = []
+    for index, row in enumerate(ordered, start=1):
+        ranked_rows.append(canonicalize_value({"rank": index, **row}))
+    return ranked_rows
+
+
+def _scenario_matrix_row(
+    scenario_result: ScenarioCampaignRunResult,
+    *,
+    sweep_keys: Sequence[str],
+) -> dict[str, Any]:
+    summary = scenario_result.result.campaign_summary
+    key_metrics = dict(summary.get("key_metrics") or {})
+    final_outcomes = dict(summary.get("final_outcomes") or {})
+    alpha_runs = list(key_metrics.get("alpha_runs") or [])
+    strategy_runs = list(key_metrics.get("strategy_runs") or [])
+    candidate_selection = key_metrics.get("candidate_selection") or {}
+    portfolio = key_metrics.get("portfolio") or {}
+    review = key_metrics.get("review") or {}
+
+    row = {
+        "scenario_id": scenario_result.scenario_id,
+        "description": scenario_result.description,
+        "source": scenario_result.source,
+        "status": summary.get("status"),
+        "preflight_status": scenario_result.result.preflight_summary.get("status"),
+        "campaign_run_id": scenario_result.result.campaign_run_id,
+        "campaign_summary_path": scenario_result.result.campaign_summary_path.as_posix(),
+        "fingerprint": scenario_result.fingerprint,
+        "sweep_summary": _scenario_sweep_summary(scenario_result.sweep_values, sweep_keys=sweep_keys),
+        "alpha_run_count": len(alpha_runs),
+        "strategy_run_count": len(strategy_runs),
+        "alpha_mean_ic_max": _max_metric(alpha_runs, "mean_ic"),
+        "alpha_ic_ir_max": _max_metric(alpha_runs, "ic_ir"),
+        "strategy_cumulative_return_max": _max_metric(strategy_runs, "cumulative_return"),
+        "strategy_sharpe_ratio_max": _max_metric(strategy_runs, "sharpe_ratio"),
+        "candidate_selected_count": _coerce_int(candidate_selection.get("selected_count")),
+        "portfolio_total_return": _coerce_float(portfolio.get("total_return")),
+        "portfolio_sharpe_ratio": _coerce_float(portfolio.get("sharpe_ratio")),
+        "review_entry_count": _coerce_int(review.get("entry_count")),
+        "review_promotion_status": final_outcomes.get("review_promotion_status"),
+        "review_promotion_gate_status": final_outcomes.get("review_promotion_gate_status"),
+    }
+    ranking_metric, ranking_value = _scenario_ranking_metric(row)
+    row["ranking_metric"] = ranking_metric
+    row["ranking_value"] = ranking_value
+    for key in sweep_keys:
+        row[f"sweep_{key}"] = _normalize_jsonable(scenario_result.sweep_values.get(key))
+    return canonicalize_value(row)
+
+
+def _scenario_sweep_summary(sweep_values: Mapping[str, Any], *, sweep_keys: Sequence[str]) -> str:
+    parts: list[str] = []
+    for key in sweep_keys:
+        if key not in sweep_values:
+            continue
+        value = _normalize_jsonable(sweep_values.get(key))
+        parts.append(f"{key}={value}")
+    return " | ".join(parts)
+
+
+def _max_metric(rows: Sequence[Mapping[str, Any]], key: str) -> float | None:
+    values = [_coerce_float(row.get(key)) for row in rows]
+    filtered = [value for value in values if value is not None]
+    return None if not filtered else max(filtered)
+
+
+def _scenario_ranking_metric(row: Mapping[str, Any]) -> tuple[str | None, float | int | None]:
+    for metric_name in _SCENARIO_RANKING_METRIC_PRIORITY:
+        value = row.get(metric_name)
+        if value is None:
+            continue
+        return metric_name, value
+    return None, None
+
+
+def _scenario_matrix_sort_key(row: Mapping[str, Any]) -> tuple[Any, ...]:
+    components: list[Any] = []
+    for metric_name in _SCENARIO_RANKING_METRIC_PRIORITY:
+        value = row.get(metric_name)
+        if value is None:
+            components.extend((1, 0.0))
+        else:
+            components.extend((0, -float(value)))
+    components.extend((str(row.get("scenario_id") or ""), str(row.get("campaign_run_id") or "")))
+    return tuple(components)
+
+
+def _scenario_matrix_selection_rule() -> str:
+    metric_rule = " desc, ".join(_SCENARIO_RANKING_METRIC_PRIORITY)
+    return f"{metric_rule} desc, then scenario_id asc"
+
+
+def _scenario_matrix_fieldnames(sweep_keys: Sequence[str]) -> list[str]:
+    return [
+        "rank",
+        "scenario_id",
+        "description",
+        "source",
+        "status",
+        "preflight_status",
+        *(f"sweep_{key}" for key in sweep_keys),
+        "sweep_summary",
+        "ranking_metric",
+        "ranking_value",
+        "alpha_run_count",
+        "strategy_run_count",
+        "alpha_mean_ic_max",
+        "alpha_ic_ir_max",
+        "strategy_cumulative_return_max",
+        "strategy_sharpe_ratio_max",
+        "candidate_selected_count",
+        "portfolio_total_return",
+        "portfolio_sharpe_ratio",
+        "review_entry_count",
+        "review_promotion_status",
+        "review_promotion_gate_status",
+        "campaign_run_id",
+        "campaign_summary_path",
+        "fingerprint",
+    ]
+
+
+def _render_scenario_matrix_table(leaderboard: Sequence[Mapping[str, Any]]) -> str:
+    columns = [
+        ("rank", "rank"),
+        ("scenario_id", "scenario"),
+        ("sweep_summary", "sweep"),
+        ("ranking_metric", "metric"),
+        ("ranking_value", "value"),
+        ("portfolio_sharpe_ratio", "portfolio_sharpe"),
+        ("strategy_sharpe_ratio_max", "strategy_sharpe"),
+        ("alpha_ic_ir_max", "alpha_ic_ir"),
+        ("candidate_selected_count", "selected"),
+        ("status", "status"),
+    ]
+    rows = []
+    for entry in leaderboard:
+        rows.append(
+            {
+                "rank": str(entry.get("rank") or ""),
+                "scenario_id": str(entry.get("scenario_id") or ""),
+                "sweep_summary": str(entry.get("sweep_summary") or ""),
+                "ranking_metric": str(entry.get("ranking_metric") or "n/a"),
+                "ranking_value": _format_scenario_metric(entry.get("ranking_value")),
+                "portfolio_sharpe_ratio": _format_scenario_metric(entry.get("portfolio_sharpe_ratio")),
+                "strategy_sharpe_ratio_max": _format_scenario_metric(entry.get("strategy_sharpe_ratio_max")),
+                "alpha_ic_ir_max": _format_scenario_metric(entry.get("alpha_ic_ir_max")),
+                "candidate_selected_count": _format_scenario_metric(entry.get("candidate_selected_count")),
+                "status": str(entry.get("status") or ""),
+            }
+        )
+
+    widths: dict[str, int] = {}
+    for key, label in columns:
+        widths[key] = max([len(label), *(len(row[key]) for row in rows)] or [len(label)])
+
+    header = "  ".join(label.ljust(widths[key]) for key, label in columns)
+    divider = "  ".join("-" * widths[key] for key, _label in columns)
+    body = [
+        "  ".join(row[key].ljust(widths[key]) for key, _label in columns)
+        for row in rows
+    ]
+    return "\n".join([header, divider, *body]) if body else "\n".join([header, divider])
+
+
+def _format_scenario_metric(value: Any) -> str:
+    if value is None:
+        return ""
+    if isinstance(value, int) and not isinstance(value, bool):
+        return str(value)
+    if isinstance(value, float):
+        return f"{value:.6f}"
+    return str(value)
 
 
 def _mapping_value(obj: Any | None, attribute: str) -> dict[str, Any] | None:

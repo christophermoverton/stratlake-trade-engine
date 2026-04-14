@@ -9,6 +9,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.config.research_campaign import (
     ResearchCampaignConfigError,
+    build_research_campaign_scenario_catalog,
+    expand_research_campaign_scenarios,
     load_research_campaign_config,
     resolve_research_campaign_config,
 )
@@ -30,6 +32,9 @@ def test_resolve_research_campaign_config_loads_defaults() -> None:
     assert config.outputs.alpha_artifacts_root == "artifacts/alpha"
     assert config.outputs.campaign_artifacts_root == "artifacts/research_campaigns"
     assert config.reuse_policy.enable_checkpoint_reuse is True
+    assert config.scenarios.enabled is False
+    assert config.scenarios.matrix == ()
+    assert config.scenarios.include == ()
     assert config.reuse_policy.reuse_prior_stages == (
         "preflight",
         "research",
@@ -99,6 +104,7 @@ research_campaign:
     assert config.milestone_reporting.output.include_markdown_report is False
     assert config.milestone_reporting.output.decision_log_render_formats == ("text",)
     assert config.milestone_reporting.summary.include_stage_counts is False
+    assert config.scenarios.enabled is False
 
 
 def test_resolve_research_campaign_config_applies_precedence_and_normalization(
@@ -168,6 +174,132 @@ research_campaign:
     assert config.milestone_reporting.sections.open_questions is False
 
 
+def test_expand_research_campaign_scenarios_supports_matrix_and_explicit_includes() -> None:
+    config = resolve_research_campaign_config(
+        {
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+            },
+            "targets": {
+                "alpha_names": ["ml_alpha_q1"],
+                "portfolio_names": ["candidate_portfolio"],
+            },
+            "scenarios": {
+                "enabled": True,
+                "matrix": [
+                    {
+                        "name": "timeframe",
+                        "path": "dataset_selection.timeframe",
+                        "values": ["1D", "4H"],
+                    },
+                    {
+                        "name": "top_k",
+                        "path": "comparison.top_k",
+                        "values": [5, 10],
+                    },
+                ],
+                "include": [
+                    {
+                        "scenario_id": "sleeve_review",
+                        "description": "Use sleeve ranking for the review-heavy pass.",
+                        "overrides": {
+                            "comparison": {"alpha_view": "sleeve"},
+                            "review": {"filters": {"run_types": ["alpha_evaluation"]}},
+                        },
+                    }
+                ],
+            },
+        }
+    )
+
+    scenarios = expand_research_campaign_scenarios(config)
+
+    assert [scenario.scenario_id for scenario in scenarios] == [
+        "scenario_0000_timeframe_1d__top_k_5",
+        "scenario_0001_timeframe_1d__top_k_10",
+        "scenario_0002_timeframe_4h__top_k_5",
+        "scenario_0003_timeframe_4h__top_k_10",
+        "sleeve_review",
+    ]
+    assert scenarios[0].source == "matrix"
+    assert scenarios[0].sweep_values == {"timeframe": "1D", "top_k": 5}
+    assert scenarios[0].config.dataset_selection.timeframe == "1D"
+    assert scenarios[3].config.dataset_selection.timeframe == "4H"
+    assert scenarios[3].config.comparison.top_k == 10
+    assert scenarios[4].source == "include"
+    assert scenarios[4].description == "Use sleeve ranking for the review-heavy pass."
+    assert scenarios[4].config.comparison.alpha_view == "sleeve"
+    assert scenarios[4].config.review.filters.run_types == ["alpha_evaluation"]
+    assert all(len(scenario.fingerprint) == 16 for scenario in scenarios)
+    assert scenarios[0].to_dict()["effective_config"]["dataset_selection"]["timeframe"] == "1D"
+
+
+def test_build_research_campaign_scenario_catalog_emits_stable_effective_snapshots() -> None:
+    config = resolve_research_campaign_config(
+        {
+            "dataset_selection": {
+                "dataset": "features_daily",
+                "timeframe": "1D",
+                "evaluation_horizon": 5,
+            },
+            "targets": {
+                "alpha_names": ["ml_alpha_q1"],
+            },
+            "scenarios": {
+                "enabled": True,
+                "matrix": [
+                    {
+                        "name": "timeframe",
+                        "path": "dataset_selection.timeframe",
+                        "values": ["1D", "4H"],
+                    }
+                ],
+                "include": [
+                    {
+                        "scenario_id": "review_only",
+                        "overrides": {
+                            "comparison": {"alpha_view": "sleeve"},
+                        },
+                    }
+                ],
+            },
+        }
+    )
+
+    catalog = build_research_campaign_scenario_catalog(config)
+
+    assert catalog["scenario_count"] == 3
+    assert catalog["scenarios_enabled"] is True
+    assert len(catalog["base_fingerprint"]) == 16
+    assert [scenario["scenario_id"] for scenario in catalog["scenarios"]] == [
+        "scenario_0000_timeframe_1d",
+        "scenario_0001_timeframe_4h",
+        "review_only",
+    ]
+    assert catalog["scenarios"][0]["effective_config"]["dataset_selection"]["timeframe"] == "1D"
+    assert catalog["scenarios"][1]["effective_config"]["dataset_selection"]["timeframe"] == "4H"
+    assert catalog["scenarios"][2]["effective_config"]["comparison"]["alpha_view"] == "sleeve"
+
+
+def test_expand_research_campaign_scenarios_returns_implicit_default_when_disabled() -> None:
+    config = resolve_research_campaign_config(
+        {
+            "dataset_selection": {"dataset": "features_daily"},
+            "comparison": {"enabled": True},
+        }
+    )
+
+    scenarios = expand_research_campaign_scenarios(config)
+
+    assert len(scenarios) == 1
+    assert scenarios[0].scenario_id == "default"
+    assert scenarios[0].source == "default"
+    assert scenarios[0].config.scenarios.enabled is False
+    assert scenarios[0].config.comparison.enabled is True
+
+
 def test_resolve_research_campaign_config_validates_fields_explicitly() -> None:
     with pytest.raises(ResearchCampaignConfigError, match="unsupported keys"):
         resolve_research_campaign_config({"research_campaign": {"mystery": {}}})
@@ -200,6 +332,121 @@ def test_resolve_research_campaign_config_validates_fields_explicitly() -> None:
     ):
         resolve_research_campaign_config(
             {"milestone_reporting": {"output": {"decision_log_render_formats": ["html"]}}}
+        )
+
+    with pytest.raises(ResearchCampaignConfigError, match="scenarios.matrix"):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "matrix": [
+                        {"name": "timeframe", "path": "dataset_selection.timeframe", "values": ["1D"]},
+                        {"name": "timeframe", "path": "comparison.top_k", "values": [5]},
+                    ]
+                }
+            }
+        )
+
+    with pytest.raises(ResearchCampaignConfigError, match="duplicate scenario_id"):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "include": [
+                        {"scenario_id": "review-pass", "overrides": {"comparison": {"enabled": True}}},
+                        {"scenario_id": "review pass", "overrides": {"portfolio": {"enabled": True}}},
+                    ],
+                }
+            }
+        )
+
+    with pytest.raises(ResearchCampaignConfigError, match="must define at least one matrix axis"):
+        resolve_research_campaign_config({"scenarios": {"enabled": True}})
+
+    with pytest.raises(ResearchCampaignConfigError, match="cannot target the 'scenarios' section"):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "matrix": [
+                        {"name": "bad", "path": "scenarios.enabled", "values": [True]},
+                    ],
+                }
+            }
+        )
+
+    with pytest.raises(ResearchCampaignConfigError, match="cannot override the 'scenarios' section"):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "include": [
+                        {
+                            "scenario_id": "bad-include",
+                            "overrides": {"scenarios": {"enabled": False}},
+                        }
+                    ],
+                }
+            }
+        )
+
+    with pytest.raises(
+        ResearchCampaignConfigError,
+        match=r"scenarios\.include\[0\]' contains unsupported keys",
+    ):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "matrix": [
+                        {"name": "timeframe", "path": "dataset_selection.timeframe", "values": ["1D"]},
+                    ],
+                    "include": [
+                        {
+                            "scenario_id": "bad-include",
+                            "override": {"comparison": {"enabled": True}},
+                            "overrides": {"comparison": {"enabled": True}},
+                        }
+                    ],
+                }
+            }
+        )
+
+    with pytest.raises(
+        ResearchCampaignConfigError,
+        match=r"scenarios\.include\[0\]\.overrides' must be a mapping",
+    ):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "matrix": [
+                        {"name": "timeframe", "path": "dataset_selection.timeframe", "values": ["1D"]},
+                    ],
+                    "include": [
+                        {
+                            "scenario_id": "bad-overrides-type",
+                            "overrides": ["comparison.enabled=true"],
+                        }
+                    ],
+                }
+            }
+        )
+
+    with pytest.raises(ResearchCampaignConfigError, match="duplicate scenario_id"):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "matrix": [{"name": "timeframe", "path": "dataset_selection.timeframe", "values": ["1D"]}],
+                    "include": [
+                        {
+                            "scenario_id": "scenario_0000_timeframe_1d",
+                            "overrides": {"comparison": {"enabled": True}},
+                        }
+                    ],
+                }
+            }
         )
 
 

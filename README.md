@@ -8,6 +8,28 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
+## Milestone 19 Summary
+
+Milestone 19 builds on the sweep expansion and campaign orchestration layers
+already in place and documents the full scenario-sweep workflow end to end.
+
+The repository now includes:
+
+* deterministic scenario sweeps from one campaign spec through `matrix` and
+  `include` expansion
+* sweep guardrails through `max_scenarios`, `max_values_per_axis`, and hard-cap
+  enforcement
+* orchestration preflight sizing output in `expansion_preflight.json`
+* orchestration-level scenario catalog and comparison outputs via
+  `scenario_catalog.json`, `scenario_matrix.csv`, and `scenario_matrix.json`
+* deterministic cross-scenario ranking with explicit metric-priority tie-breaks
+* scenario-partitioned campaign artifacts under
+  `artifacts/research_campaigns/<orchestration_run_id>/scenarios/<scenario_id>/`
+* documented scenario checkpoint and reuse semantics, including scenario-aware
+  provenance for deterministic rerun behavior
+* a committed real-world sweep case study with reproducible artifacts and
+  leaderboard interpretation guidance
+
 ## Milestone 18 Summary
 
 Milestone 18 keeps the campaign-orchestration and resume/reuse layers
@@ -72,6 +94,13 @@ Start with:
 * [docs/examples/candidate_selection_portfolio_case_study.py](docs/examples/candidate_selection_portfolio_case_study.py)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
+* [docs/milestone_19_scenario_sweeps.md](docs/milestone_19_scenario_sweeps.md)
+* [docs/examples/real_world_scenario_sweep_case_study.md](docs/examples/real_world_scenario_sweep_case_study.md)
+* [docs/examples/real_world_scenario_sweep_case_study.py](docs/examples/real_world_scenario_sweep_case_study.py)
+* [docs/examples/real_data_scenario_sweep_case_study.md](docs/examples/real_data_scenario_sweep_case_study.md)
+* [docs/examples/real_data_scenario_sweep_case_study.py](docs/examples/real_data_scenario_sweep_case_study.py)
+* [docs/examples/real_data_full_scenario_sweep_case_study.md](docs/examples/real_data_full_scenario_sweep_case_study.md)
+* [docs/examples/real_data_full_scenario_sweep_case_study.py](docs/examples/real_data_full_scenario_sweep_case_study.py)
 * [docs/milestone_17_resume_workflow.md](docs/milestone_17_resume_workflow.md)
 * [docs/milestone_18_milestone_review_workflow.md](docs/milestone_18_milestone_review_workflow.md)
 * [docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md)
@@ -115,6 +144,11 @@ The repository currently supports:
   candidate-selection, portfolio, review, and output-path settings
 * campaign-level orchestration through
   `python -m src.cli.run_research_campaign --config ...`
+* deterministic scenario expansion from one sweep-enabled campaign spec into
+  stable concrete scenario IDs plus effective config snapshots for tooling and
+  review
+* orchestration-level scenario matrix outputs (`scenario_matrix.csv` and
+  `scenario_matrix.json`) with deterministic ranking and sweep-key columns
 * campaign preflight validation with persisted `preflight_summary.json` reports
   before expensive research execution starts
 * operator-facing `reuse_policy` controls for explicit checkpoint reuse,

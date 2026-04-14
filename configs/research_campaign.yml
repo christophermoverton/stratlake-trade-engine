@@ -148,3 +148,8 @@ research_campaign:
     portfolio_artifacts_root: artifacts/portfolios
     comparison_output_path:
     review_output_path:
+
+  scenarios:
+    enabled: false
+    matrix: []
+    include: []

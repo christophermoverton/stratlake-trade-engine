@@ -390,6 +390,49 @@ def test_resolve_research_campaign_config_validates_fields_explicitly() -> None:
             }
         )
 
+    with pytest.raises(
+        ResearchCampaignConfigError,
+        match=r"scenarios\.include\[0\]' contains unsupported keys",
+    ):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "matrix": [
+                        {"name": "timeframe", "path": "dataset_selection.timeframe", "values": ["1D"]},
+                    ],
+                    "include": [
+                        {
+                            "scenario_id": "bad-include",
+                            "override": {"comparison": {"enabled": True}},
+                            "overrides": {"comparison": {"enabled": True}},
+                        }
+                    ],
+                }
+            }
+        )
+
+    with pytest.raises(
+        ResearchCampaignConfigError,
+        match=r"scenarios\.include\[0\]\.overrides' must be a mapping",
+    ):
+        resolve_research_campaign_config(
+            {
+                "scenarios": {
+                    "enabled": True,
+                    "matrix": [
+                        {"name": "timeframe", "path": "dataset_selection.timeframe", "values": ["1D"]},
+                    ],
+                    "include": [
+                        {
+                            "scenario_id": "bad-overrides-type",
+                            "overrides": ["comparison.enabled=true"],
+                        }
+                    ],
+                }
+            }
+        )
+
     with pytest.raises(ResearchCampaignConfigError, match="duplicate scenario_id"):
         resolve_research_campaign_config(
             {

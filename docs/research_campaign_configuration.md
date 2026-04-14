@@ -100,6 +100,22 @@ Supported fields:
   * `overrides`: normal campaign override mapping using the same root sections
     as the main campaign spec
 
+Two additional rate-limiting fields are available to keep sweep campaigns
+operationally safe:
+
+* `max_scenarios` *(optional positive integer)*: maximum total number of
+  scenarios that the expansion is allowed to produce, combining the matrix
+  cartesian product and the explicit `include` list.  When omitted, the hard
+  ceiling `_SCENARIOS_HARD_MAX` (1000) applies.  Set this to a project-specific
+  threshold to prevent accidental combinatorial explosions.
+* `max_values_per_axis` *(optional positive integer)*: maximum number of
+  values allowed per individual matrix axis.  Validation is applied at
+  config-resolution time; each axis that exceeds this limit is reported by name
+  in the error message.
+
+The effective scenario limit is always `min(hard_max, configured_max)`.  The
+hard maximum cannot be raised via config — it is enforced in the resolver.
+
 Example:
 
 ```yaml
@@ -112,6 +128,8 @@ research_campaign:
     alpha_names: [ml_alpha_q1]
   scenarios:
     enabled: true
+    max_scenarios: 20
+    max_values_per_axis: 5
     matrix:
       - name: timeframe
         path: dataset_selection.timeframe
@@ -143,6 +161,28 @@ JSON-serializable deterministic payload containing:
 * the ordered concrete scenario list
 * each scenario's `scenario_id`, `source`, `sweep_values`, fingerprint, and
   normalized effective config snapshot
+* an `expansion` summary block (see below)
+
+Use `compute_scenario_expansion_size(config)` when you want the lightweight
+expansion-size dictionary without materializing any resolved scenario
+configs.  This is useful in tooling and preflight checks.  The returned
+dictionary has these keys:
+
+| key | description |
+|---|---|
+| `matrix_axis_count` | number of declared matrix axes |
+| `per_axis_value_counts` | list of value counts in axis declaration order |
+| `matrix_combination_count` | cartesian product of per-axis value counts (0 for no matrix) |
+| `include_count` | number of explicit `include` scenarios |
+| `total_scenario_count` | `matrix_combination_count + include_count` |
+| `effective_max_scenarios` | operative limit (min of hard cap and configured cap) |
+| `hard_max_scenarios` | non-overridable hard ceiling (1000) |
+| `configured_max_scenarios` | `scenarios.max_scenarios` value or `None` |
+| `max_values_per_axis` | `scenarios.max_values_per_axis` value or `None` |
+| `exceeds_limit` | `True` when `total_scenario_count > effective_max_scenarios` |
+
+The same expansion summary block is embedded in the `scenario_catalog.json`
+artifact under the key `expansion`.
 
 Expansion rules:
 
@@ -156,6 +196,8 @@ Expansion rules:
   campaign config, then applies the explicit override mapping
 * every expanded scenario is re-resolved through the same campaign resolver, so
   inheritance and validation behave exactly like a standalone campaign config
+* limit violations are raised as `ResearchCampaignConfigError` at
+  config-resolution time, before any execution begins
 
 ## Scenario Identity
 
@@ -185,6 +227,56 @@ future orchestration code that needs durable per-scenario artifact partitioning.
 * included `overrides` cannot override the `scenarios` section
 * included `overrides` must be valid campaign override mappings using the same
   schema as the main campaign config
+* `max_values_per_axis` is checked per axis at config-resolution time — the
+  axis name is included in the error message
+* `max_scenarios` is checked against the full expansion count at
+  config-resolution time — the total, effective limit, hard cap, and
+  configured value are all included in the error message
+* the absolute hard ceiling (1000) is enforced even when `max_scenarios` is
+  not set
+
+## Sweep Expansion Preflight
+
+When `scenarios.enabled` is `true`, the orchestration writes an
+**`expansion_preflight.json`** file to the orchestration artifact directory
+before any scenarios run.  This file records:
+
+```json
+{
+  "status": "passed",
+  "scenarios_enabled": true,
+  "expansion": {
+    "matrix_axis_count": 2,
+    "per_axis_value_counts": [2, 2],
+    "matrix_combination_count": 4,
+    "include_count": 1,
+    "total_scenario_count": 5,
+    "per_axis_details": [
+      {"name": "timeframe", "path": "dataset_selection.timeframe", "value_count": 2},
+      {"name": "top_k", "path": "comparison.top_k", "value_count": 2}
+    ]
+  },
+  "limits": {
+    "hard_max_scenarios": 1000,
+    "configured_max_scenarios": 20,
+    "effective_max_scenarios": 20,
+    "max_values_per_axis": 5,
+    "exceeds_limit": false
+  }
+}
+```
+
+The orchestration also prints a one-line expansion summary to stdout before
+the scenario loop starts:
+
+```
+[expansion preflight] scenarios=5 (matrix=4, include=1) | limit=20 (hard=1000, configured=20) | axes=2
+```
+
+The status is always `"passed"` at orchestration time because limit violations
+are caught earlier in `_resolve_scenarios`.  The file is still useful for
+automation that inspects the orchestration artifact directory to confirm the
+intended expansion size.
 
 ## Reuse Policy
 
@@ -230,6 +322,10 @@ Each campaign persists:
   `milestone_reporting.enabled` stays `true`
 
 under `outputs.campaign_artifacts_root/<campaign_run_id>/`.
+
+Sweep-enabled campaigns additionally write `expansion_preflight.json` to the
+orchestration artifact directory (see the **Sweep Expansion Preflight**
+section above).
 
 If preflight fails, the runner exits before expensive execution starts and the
 written `preflight_summary.json` records the failing checks. The campaign-level

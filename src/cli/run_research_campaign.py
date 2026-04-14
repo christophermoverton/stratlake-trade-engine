@@ -25,6 +25,7 @@ from src.config.research_campaign import (
     ResearchCampaignConfig,
     ResearchCampaignConfigError,
     build_research_campaign_scenario_catalog,
+    compute_scenario_expansion_size,
     expand_research_campaign_scenarios,
     load_research_campaign_config,
     resolve_research_campaign_config,
@@ -59,6 +60,7 @@ CAMPAIGN_SUMMARY_FILENAME = "summary.json"
 SCENARIO_CATALOG_FILENAME = "scenario_catalog.json"
 SCENARIO_MATRIX_CSV_FILENAME = "scenario_matrix.csv"
 SCENARIO_MATRIX_SUMMARY_FILENAME = "scenario_matrix.json"
+ORCHESTRATION_EXPANSION_PREFLIGHT_FILENAME = "expansion_preflight.json"
 
 
 @dataclass(frozen=True)
@@ -75,6 +77,13 @@ class CampaignPreflightResult:
     summary_path: Path
     summary: dict[str, Any]
     checks: tuple[CampaignPreflightCheck, ...]
+
+
+@dataclass(frozen=True)
+class ScenarioExpansionPreflightResult:
+    status: str
+    summary_path: Path
+    summary: dict[str, Any]
 
 
 @dataclass(frozen=True)
@@ -343,9 +352,11 @@ class ResearchCampaignOrchestrationResult:
     orchestration_summary_path: Path
     scenario_matrix_csv_path: Path
     scenario_matrix_summary_path: Path
+    expansion_preflight_path: Path
     scenario_catalog: dict[str, Any]
     orchestration_manifest: dict[str, Any]
     orchestration_summary: dict[str, Any]
+    expansion_preflight: dict[str, Any]
     scenario_results: tuple[ScenarioCampaignRunResult, ...]
 
 
@@ -1102,6 +1113,74 @@ def _run_single_research_campaign(
     )
 
 
+def _run_orchestration_expansion_preflight(
+    config: ResearchCampaignConfig,
+    *,
+    orchestration_artifact_dir: Path,
+) -> "ScenarioExpansionPreflightResult":
+    """Compute scenario expansion size, write expansion_preflight.json, and print summary.
+
+    This check always passes because limit violations are caught at config-resolution
+    time.  Its purpose is to give operators clear pre-execution visibility into how
+    many scenarios will run, what limits are in effect, and the per-axis breakdown.
+    """
+    size = compute_scenario_expansion_size(config)
+
+    axis_details = [
+        {
+            "name": axis.name,
+            "path": axis.path,
+            "value_count": len(axis.values),
+        }
+        for axis in config.scenarios.matrix
+    ]
+
+    summary = canonicalize_value(
+        {
+            "status": "passed",
+            "orchestration_artifact_dir": orchestration_artifact_dir.as_posix(),
+            "scenarios_enabled": config.scenarios.enabled,
+            "expansion": {
+                "matrix_axis_count": size["matrix_axis_count"],
+                "per_axis_value_counts": size["per_axis_value_counts"],
+                "matrix_combination_count": size["matrix_combination_count"],
+                "include_count": size["include_count"],
+                "total_scenario_count": size["total_scenario_count"],
+                "per_axis_details": axis_details,
+            },
+            "limits": {
+                "hard_max_scenarios": size["hard_max_scenarios"],
+                "configured_max_scenarios": size["configured_max_scenarios"],
+                "effective_max_scenarios": size["effective_max_scenarios"],
+                "max_values_per_axis": size["max_values_per_axis"],
+                "exceeds_limit": size["exceeds_limit"],
+            },
+        }
+    )
+    summary_path = orchestration_artifact_dir / ORCHESTRATION_EXPANSION_PREFLIGHT_FILENAME
+    summary_path.write_text(
+        json.dumps(summary, indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )
+
+    total = size["total_scenario_count"]
+    effective_max = size["effective_max_scenarios"]
+    print(
+        f"[expansion preflight] scenarios={total} "
+        f"(matrix={size['matrix_combination_count']}, include={size['include_count']}) "
+        f"| limit={effective_max} "
+        f"(hard={size['hard_max_scenarios']}, configured={size['configured_max_scenarios'] or 'none'}) "
+        f"| axes={size['matrix_axis_count']}"
+    )
+
+    return ScenarioExpansionPreflightResult(
+        status="passed",
+        summary_path=summary_path,
+        summary=summary,
+    )
+
+
 def _run_research_campaign_orchestration(
     config: ResearchCampaignConfig,
 ) -> ResearchCampaignOrchestrationResult:
@@ -1111,6 +1190,13 @@ def _run_research_campaign_orchestration(
         campaign_run_id=orchestration_run_id,
     )
     _persist_campaign_config(orchestration_artifact_dir, config)
+
+    expansion_preflight = _run_orchestration_expansion_preflight(
+        config,
+        orchestration_artifact_dir=orchestration_artifact_dir,
+    )
+    expansion_preflight_path = orchestration_artifact_dir / ORCHESTRATION_EXPANSION_PREFLIGHT_FILENAME
+
     scenario_catalog = build_research_campaign_scenario_catalog(config)
     scenario_catalog_path = orchestration_artifact_dir / SCENARIO_CATALOG_FILENAME
     scenario_catalog_path.write_text(
@@ -1175,9 +1261,11 @@ def _run_research_campaign_orchestration(
         orchestration_summary_path=summary_path,
         scenario_matrix_csv_path=orchestration_artifact_dir / SCENARIO_MATRIX_CSV_FILENAME,
         scenario_matrix_summary_path=orchestration_artifact_dir / SCENARIO_MATRIX_SUMMARY_FILENAME,
+        expansion_preflight_path=expansion_preflight_path,
         scenario_catalog=scenario_catalog,
         orchestration_manifest=manifest_payload,
         orchestration_summary=summary_payload,
+        expansion_preflight=expansion_preflight.summary,
         scenario_results=tuple(scenario_results),
     )
 

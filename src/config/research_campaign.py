@@ -147,8 +147,9 @@ _OUTPUT_KEYS = frozenset(
         "review_output_path",
     }
 )
-_SCENARIOS_KEYS = frozenset({"enabled", "matrix", "include"})
+_SCENARIOS_KEYS = frozenset({"enabled", "matrix", "include", "max_scenarios", "max_values_per_axis"})
 _SCENARIO_MATRIX_KEYS = frozenset({"name", "path", "values"})
+_SCENARIOS_HARD_MAX = 1000
 _SCENARIO_INCLUDE_KEYS = frozenset({"scenario_id", "description", "overrides"})
 _MILESTONE_REPORTING_KEYS = frozenset({"enabled", "decision_categories", "output", "sections", "summary"})
 _MILESTONE_REPORTING_OUTPUT_KEYS = frozenset({"include_markdown_report", "decision_log_render_formats"})
@@ -554,12 +555,16 @@ class CampaignScenariosConfig:
     enabled: bool
     matrix: tuple[CampaignScenarioMatrixAxisConfig, ...]
     include: tuple[CampaignScenarioIncludeConfig, ...]
+    max_scenarios: int | None
+    max_values_per_axis: int | None
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "enabled": self.enabled,
             "matrix": [axis.to_dict() for axis in self.matrix],
             "include": [scenario.to_dict() for scenario in self.include],
+            "max_scenarios": self.max_scenarios,
+            "max_values_per_axis": self.max_values_per_axis,
         }
 
 
@@ -734,6 +739,8 @@ class ResearchCampaignConfig:
                 enabled=False,
                 matrix=(),
                 include=(),
+                max_scenarios=None,
+                max_values_per_axis=None,
             ),
         )
 
@@ -1717,12 +1724,58 @@ def _resolve_scenarios(payload: Any, *, base: CampaignScenariosConfig) -> Campai
     matrix = base.matrix if raw_matrix is None else _resolve_scenario_matrix(raw_matrix)
     raw_include = payload.get("include")
     include = base.include if raw_include is None else _resolve_scenario_include(raw_include)
+    max_scenarios = _resolve_optional_positive_int(
+        payload.get("max_scenarios"),
+        field_name="scenarios.max_scenarios",
+        default=base.max_scenarios,
+    )
+    max_values_per_axis = _resolve_optional_positive_int(
+        payload.get("max_values_per_axis"),
+        field_name="scenarios.max_values_per_axis",
+        default=base.max_values_per_axis,
+    )
 
     if enabled and not matrix and not include:
         raise ResearchCampaignConfigError(
             "Research campaign field 'scenarios' must define at least one matrix axis or included scenario when enabled."
         )
-    return CampaignScenariosConfig(enabled=enabled, matrix=matrix, include=include)
+
+    if max_values_per_axis is not None:
+        for axis in matrix:
+            if len(axis.values) > max_values_per_axis:
+                raise ResearchCampaignConfigError(
+                    f"scenarios.matrix axis '{axis.name}' has {len(axis.values)} values, "
+                    f"which exceeds scenarios.max_values_per_axis ({max_values_per_axis}). "
+                    "Reduce the number of values for this axis or raise the limit."
+                )
+
+    if enabled:
+        matrix_count = 1
+        for axis in matrix:
+            matrix_count *= len(axis.values)
+        total_count = (matrix_count if matrix else 0) + len(include)
+        effective_max = (
+            min(_SCENARIOS_HARD_MAX, max_scenarios)
+            if max_scenarios is not None
+            else _SCENARIOS_HARD_MAX
+        )
+        if total_count > effective_max:
+            raise ResearchCampaignConfigError(
+                f"scenarios would expand to {total_count} scenarios, which exceeds the "
+                f"effective limit of {effective_max} "
+                f"(hard_max={_SCENARIOS_HARD_MAX}, "
+                f"configured_max={'none' if max_scenarios is None else max_scenarios}). "
+                "Reduce the matrix dimensions, set scenarios.max_scenarios, or split "
+                "into multiple campaigns."
+            )
+
+    return CampaignScenariosConfig(
+        enabled=enabled,
+        matrix=matrix,
+        include=include,
+        max_scenarios=max_scenarios,
+        max_values_per_axis=max_values_per_axis,
+    )
 
 
 def _resolve_scenario_matrix(payload: Any) -> tuple[CampaignScenarioMatrixAxisConfig, ...]:
@@ -2135,6 +2188,53 @@ def _single_or_none(values: tuple[str, ...]) -> str | None:
     return values[0] if len(values) == 1 else None
 
 
+def compute_scenario_expansion_size(config: ResearchCampaignConfig) -> dict[str, Any]:
+    """Return a dictionary describing the scenario expansion dimensions and limits.
+
+    This is a lightweight read-only computation that does not materialize full
+    resolved scenario configs.  Use it in preflight checks and operator tooling
+    to inspect expansion size without triggering the full expansion.
+
+    Returned keys:
+      matrix_axis_count         - number of declared sweep axes
+      per_axis_value_counts     - list of value counts per axis in declaration order
+      matrix_combination_count  - cartesian product of per-axis value counts (0 when no matrix)
+      include_count             - number of explicit included scenarios
+      total_scenario_count      - matrix_combination_count + include_count
+      effective_max_scenarios   - the operative limit (min of hard cap and configured cap)
+      hard_max_scenarios        - the hard ceiling (_SCENARIOS_HARD_MAX)
+      configured_max_scenarios  - scenarios.max_scenarios value (None when unconfigured)
+      max_values_per_axis       - scenarios.max_values_per_axis value (None when unconfigured)
+      exceeds_limit             - True when total_scenario_count > effective_max_scenarios
+    """
+    sc = config.scenarios
+    per_axis_counts = [len(axis.values) for axis in sc.matrix]
+    matrix_count = 1
+    for n in per_axis_counts:
+        matrix_count *= n
+    if not sc.matrix:
+        matrix_count = 0
+    include_count = len(sc.include)
+    total_count = matrix_count + include_count
+    effective_max = (
+        min(_SCENARIOS_HARD_MAX, sc.max_scenarios)
+        if sc.max_scenarios is not None
+        else _SCENARIOS_HARD_MAX
+    )
+    return {
+        "matrix_axis_count": len(sc.matrix),
+        "per_axis_value_counts": per_axis_counts,
+        "matrix_combination_count": matrix_count,
+        "include_count": include_count,
+        "total_scenario_count": total_count,
+        "effective_max_scenarios": effective_max,
+        "hard_max_scenarios": _SCENARIOS_HARD_MAX,
+        "configured_max_scenarios": sc.max_scenarios,
+        "max_values_per_axis": sc.max_values_per_axis,
+        "exceeds_limit": total_count > effective_max,
+    }
+
+
 def expand_research_campaign_scenarios(
     config: ResearchCampaignConfig,
 ) -> tuple[ResolvedResearchCampaignScenario, ...]:
@@ -2150,6 +2250,20 @@ def expand_research_campaign_scenarios(
                 config=base_config,
                 fingerprint=_scenario_fingerprint(base_config),
             ),
+        )
+
+    # Safety-net: enforce limits even when config was constructed programmatically
+    # (normal resolution via _resolve_scenarios already validated these, so this
+    # guard only fires for configs created outside the standard resolver).
+    size = compute_scenario_expansion_size(config)
+    if size["exceeds_limit"]:
+        raise ResearchCampaignConfigError(
+            f"scenarios would expand to {size['total_scenario_count']} scenarios, which exceeds the "
+            f"effective limit of {size['effective_max_scenarios']} "
+            f"(hard_max={size['hard_max_scenarios']}, "
+            f"configured_max={'none' if size['configured_max_scenarios'] is None else size['configured_max_scenarios']}). "
+            "Reduce the matrix dimensions, set scenarios.max_scenarios, or split "
+            "into multiple campaigns."
         )
 
     resolved: list[ResolvedResearchCampaignScenario] = []
@@ -2197,11 +2311,13 @@ def expand_research_campaign_scenarios(
 def build_research_campaign_scenario_catalog(config: ResearchCampaignConfig) -> dict[str, Any]:
     base_config = ResearchCampaignConfig.from_mapping(_config_payload_without_scenarios(config))
     scenarios = expand_research_campaign_scenarios(config)
+    expansion_size = compute_scenario_expansion_size(config)
     return _canonicalize_value(
         {
             "scenario_count": len(scenarios),
             "base_fingerprint": _scenario_fingerprint(base_config),
             "scenarios_enabled": config.scenarios.enabled,
+            "expansion": expansion_size,
             "scenarios": [scenario.to_dict() for scenario in scenarios],
         }
     )
@@ -2320,6 +2436,7 @@ __all__ = [
     "ResearchCampaignConfig",
     "ResearchCampaignConfigError",
     "build_research_campaign_scenario_catalog",
+    "compute_scenario_expansion_size",
     "expand_research_campaign_scenarios",
     "load_research_campaign_config",
     "resolve_research_campaign_config",

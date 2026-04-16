@@ -277,23 +277,70 @@ def run_cli(argv=None):
         ],
     }
     assert lineage == {
-        "pipeline_name": "artifact_pipeline",
         "pipeline_run_id": result.pipeline_run_id,
-        "status": "completed",
-        "steps": [
+        "run_type": "pipeline_lineage",
+        "schema_version": 1,
+        "edges": [
             {
-                "depends_on": [],
-                "module": module_name,
-                "step_artifact_dir": prepare_dir.as_posix(),
-                "step_id": "prepare",
-                "step_manifest_path": (prepare_dir / "manifest.json").as_posix(),
+                "from": "step:evaluate",
+                "to": f"artifact:{evaluate_dir.as_posix()}",
+                "type": "produces",
             },
             {
-                "depends_on": ["prepare"],
-                "module": module_name,
-                "step_artifact_dir": evaluate_dir.as_posix(),
-                "step_id": "evaluate",
-                "step_manifest_path": (evaluate_dir / "manifest.json").as_posix(),
+                "from": "step:prepare",
+                "to": f"artifact:{prepare_dir.as_posix()}",
+                "type": "produces",
+            },
+            {
+                "from": "step:prepare",
+                "to": "step:evaluate",
+                "type": "depends_on",
+            },
+        ],
+        "nodes": [
+            {
+                "id": f"artifact:{evaluate_dir.as_posix()}",
+                "metadata": {
+                    "manifest_path": (evaluate_dir / "manifest.json").as_posix(),
+                    "path": evaluate_dir.as_posix(),
+                },
+                "type": "artifact",
+            },
+            {
+                "id": f"artifact:{prepare_dir.as_posix()}",
+                "metadata": {
+                    "manifest_path": (prepare_dir / "manifest.json").as_posix(),
+                    "path": prepare_dir.as_posix(),
+                },
+                "type": "artifact",
+            },
+            {
+                "id": "step:evaluate",
+                "metadata": {
+                    "module": module_name,
+                    "status": "completed",
+                },
+                "outputs": {
+                    "argv": ["--stage", "evaluate"],
+                    "artifact_dir": evaluate_dir.as_posix(),
+                    "manifest_path": (evaluate_dir / "manifest.json").as_posix(),
+                    "stage": "evaluate",
+                },
+                "type": "step",
+            },
+            {
+                "id": "step:prepare",
+                "metadata": {
+                    "module": module_name,
+                    "status": "completed",
+                },
+                "outputs": {
+                    "argv": ["--stage", "prepare"],
+                    "artifact_dir": prepare_dir.as_posix(),
+                    "manifest_path": (prepare_dir / "manifest.json").as_posix(),
+                    "stage": "prepare",
+                },
+                "type": "step",
             },
         ],
     }
@@ -431,6 +478,7 @@ def run_cli(argv=None):
 
     pipeline_dir = tmp_path / "artifacts" / "pipelines" / PipelineRunner(spec).pipeline_run_id()
     metrics = json.loads((pipeline_dir / "pipeline_metrics.json").read_text(encoding="utf-8"))
+    lineage = json.loads((pipeline_dir / "lineage.json").read_text(encoding="utf-8"))
 
     assert metrics == {
         "duration_seconds": 6.0,
@@ -473,6 +521,52 @@ def run_cli(argv=None):
                 "started_at_unix": None,
                 "status": "skipped",
                 "step_id": "report",
+            },
+        ],
+    }
+    assert lineage == {
+        "pipeline_run_id": PipelineRunner(spec).pipeline_run_id(),
+        "run_type": "pipeline_lineage",
+        "schema_version": 1,
+        "edges": [
+            {
+                "from": "step:prepare",
+                "to": "step:train",
+                "type": "depends_on",
+            },
+            {
+                "from": "step:train",
+                "to": "step:report",
+                "type": "depends_on",
+            },
+        ],
+        "nodes": [
+            {
+                "id": "step:prepare",
+                "metadata": {
+                    "module": module_name,
+                    "status": "completed",
+                },
+                "outputs": {
+                    "argv": ["--ok"],
+                },
+                "type": "step",
+            },
+            {
+                "id": "step:report",
+                "metadata": {
+                    "module": module_name,
+                    "status": "skipped",
+                },
+                "type": "step",
+            },
+            {
+                "id": "step:train",
+                "metadata": {
+                    "module": module_name,
+                    "status": "failed",
+                },
+                "type": "step",
             },
         ],
     }
@@ -525,6 +619,71 @@ def run_cli(argv=None):
     metrics = json.loads(result.pipeline_metrics_path.read_text(encoding="utf-8"))
 
     assert metrics["row_counts"] == {"only": 3}
+
+
+def test_pipeline_runner_builds_dataset_nodes_when_parameters_include_datasets(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module_name = "pipeline_dataset_module"
+    module_path = tmp_path / f"{module_name}.py"
+    module_path.write_text(
+        """
+def run_cli(argv=None):
+    return {"argv": list(argv or [])}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path.as_posix())
+    monkeypatch.setattr(
+        "src.pipeline.pipeline_runner.time.time",
+        _time_sequence(500.0, 501.0, 502.0, 503.0, 504.0, 505.0),
+    )
+    sys.modules.pop(module_name, None)
+
+    spec = PipelineSpec.from_mapping(
+        {
+            "id": "dataset_pipeline",
+            "parameters": {
+                "datasets": {
+                    "prices": {
+                        "consumers": ["prepare"],
+                    }
+                }
+            },
+            "steps": [
+                {
+                    "id": "prepare",
+                    "adapter": "python_module",
+                    "module": module_name,
+                    "argv": ["--step", "prepare"],
+                },
+                {
+                    "id": "train",
+                    "depends_on": ["prepare"],
+                    "adapter": "python_module",
+                    "module": module_name,
+                    "argv": ["--step", "train"],
+                },
+            ],
+        }
+    )
+
+    result = PipelineRunner(spec).run()
+    lineage = json.loads(result.lineage_path.read_text(encoding="utf-8"))
+
+    assert lineage["nodes"][0] == {
+        "id": "dataset:prices",
+        "metadata": {"name": "prices"},
+        "type": "dataset",
+    }
+    assert {
+        "from": "dataset:prices",
+        "to": "step:prepare",
+        "type": "depends_on",
+    } in lineage["edges"]
 
 
 def test_run_pipeline_cli_loads_yaml_config(capsys: pytest.CaptureFixture[str]) -> None:

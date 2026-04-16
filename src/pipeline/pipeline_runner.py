@@ -43,6 +43,7 @@ class PipelineSpec:
 
     pipeline_id: str
     steps: tuple[PipelineStepSpec, ...]
+    parameters: dict[str, Any] | None = None
 
     @classmethod
     def from_yaml(cls, path: str | Path) -> "PipelineSpec":
@@ -81,13 +82,20 @@ class PipelineSpec:
 
         steps = tuple(_parse_step(raw_step) for raw_step in raw_steps)
         _validate_steps(steps)
-        return cls(pipeline_id=pipeline_id, steps=steps)
+        raw_parameters = payload.get("parameters")
+        parameters: dict[str, Any] | None = None
+        if raw_parameters is not None:
+            if not isinstance(raw_parameters, dict):
+                raise ValueError("Pipeline spec parameters must be a mapping when provided.")
+            parameters = canonicalize_value(dict(raw_parameters))
+        return cls(pipeline_id=pipeline_id, steps=steps, parameters=parameters)
 
     def to_payload(self) -> dict[str, Any]:
         return canonicalize_value(
             {
                 "id": self.pipeline_id,
                 "steps": [step.to_payload() for step in self.steps],
+                "parameters": self.parameters,
             }
         )
 
@@ -431,30 +439,147 @@ def _build_pipeline_metrics_payload(
 
 def _build_pipeline_lineage_payload(result: PipelineRunResult) -> dict[str, Any]:
     step_results_by_id = {step_result.step_id: step_result for step_result in result.step_results}
-    steps: list[dict[str, Any]] = []
+    step_status_by_id = _build_lineage_step_statuses(result)
+
+    nodes_by_id: dict[str, dict[str, Any]] = {}
+    edges: list[dict[str, str]] = []
+
+    dataset_nodes, dataset_edges = _build_dataset_lineage_nodes(result.spec)
+    for node in dataset_nodes:
+        nodes_by_id[node["id"]] = node
+    edges.extend(dataset_edges)
+
     for step in result.spec.steps:
-        references = _extract_step_artifact_references(
-            None if step.id not in step_results_by_id else step_results_by_id[step.id].result
-        )
-        steps.append(
+        step_result = step_results_by_id.get(step.id)
+        normalized_outputs = _normalize_step_outputs(None if step_result is None else step_result.result)
+        step_node = {
+            "id": f"step:{step.id}",
+            "type": "step",
+            "metadata": canonicalize_value(
+                {
+                    "module": step.module,
+                    "status": step_status_by_id.get(step.id, "completed" if step_result is not None else "skipped"),
+                }
+            ),
+        }
+        if normalized_outputs != {}:
+            step_node["outputs"] = normalized_outputs
+        nodes_by_id[step_node["id"]] = canonicalize_value(step_node)
+
+        for dependency_step_id in step.depends_on:
+            edges.append(
+                {
+                    "from": f"step:{dependency_step_id}",
+                    "to": f"step:{step.id}",
+                    "type": "depends_on",
+                }
+            )
+
+        references = _extract_step_artifact_references(None if step_result is None else step_result.result)
+        artifact_dir = references["step_artifact_dir"]
+        if artifact_dir is not None:
+            artifact_node_id = f"artifact:{artifact_dir}"
+            nodes_by_id[artifact_node_id] = canonicalize_value(
+                {
+                    "id": artifact_node_id,
+                    "type": "artifact",
+                    "metadata": {
+                        "path": artifact_dir,
+                        "manifest_path": references["step_manifest_path"],
+                    },
+                }
+            )
+            edges.append(
+                {
+                    "from": f"step:{step.id}",
+                    "to": artifact_node_id,
+                    "type": "produces",
+                }
+            )
+
+    nodes = [nodes_by_id[node_id] for node_id in sorted(nodes_by_id)]
+    ordered_edges = sorted(
+        (canonicalize_value(edge) for edge in edges),
+        key=lambda item: (str(item["from"]), str(item["to"]), str(item["type"])),
+    )
+    return canonicalize_value(
+        {
+            "run_type": "pipeline_lineage",
+            "schema_version": 1,
+            "pipeline_run_id": result.pipeline_run_id,
+            "nodes": nodes,
+            "edges": ordered_edges,
+        }
+    )
+
+
+def _build_lineage_step_statuses(result: PipelineRunResult) -> dict[str, str]:
+    statuses = {
+        step_result.step_id: _status_from_step_result(step_result.result)
+        for step_result in result.step_results
+    }
+    if result.status != "failed":
+        return statuses
+
+    completed_count = len(result.step_results)
+    if completed_count < len(result.execution_order):
+        failed_step_id = result.execution_order[completed_count]
+        statuses[failed_step_id] = "failed"
+        for step_id in result.execution_order[completed_count + 1:]:
+            statuses[step_id] = "skipped"
+    return statuses
+
+
+def _build_dataset_lineage_nodes(spec: PipelineSpec) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
+    parameters = spec.parameters if isinstance(spec.parameters, Mapping) else {}
+    datasets = parameters.get("datasets")
+    if not isinstance(datasets, Mapping):
+        return [], []
+
+    step_ids = {step.id for step in spec.steps}
+    nodes: list[dict[str, Any]] = []
+    edges: list[dict[str, str]] = []
+    for dataset_name in sorted(str(name).strip() for name in datasets if str(name).strip()):
+        dataset_node_id = f"dataset:{dataset_name}"
+        nodes.append(
             canonicalize_value(
                 {
-                    "step_id": step.id,
-                    "depends_on": list(step.depends_on),
-                    "module": step.module,
-                    "step_artifact_dir": references["step_artifact_dir"],
-                    "step_manifest_path": references["step_manifest_path"],
+                    "id": dataset_node_id,
+                    "type": "dataset",
+                    "metadata": {"name": dataset_name},
                 }
             )
         )
-    return canonicalize_value(
-        {
-            "pipeline_run_id": result.pipeline_run_id,
-            "pipeline_name": result.pipeline_id,
-            "status": result.status,
-            "steps": steps,
-        }
-    )
+        consumer_step_ids = _dataset_consumer_step_ids(datasets[dataset_name], step_ids=step_ids)
+        for step_id in consumer_step_ids:
+            edges.append(
+                {
+                    "from": dataset_node_id,
+                    "to": f"step:{step_id}",
+                    "type": "depends_on",
+                }
+            )
+    return nodes, edges
+
+
+def _dataset_consumer_step_ids(value: Any, *, step_ids: set[str]) -> tuple[str, ...]:
+    if isinstance(value, str):
+        candidates = [value]
+    elif isinstance(value, Sequence) and not isinstance(value, str | bytes):
+        candidates = [str(item) for item in value]
+    elif isinstance(value, Mapping):
+        consumers = value.get("consumers", value.get("steps", value.get("step_ids")))
+        if isinstance(consumers, str):
+            candidates = [consumers]
+        elif isinstance(consumers, Sequence) and not isinstance(consumers, str | bytes):
+            candidates = [str(item) for item in consumers]
+        else:
+            candidates = []
+    else:
+        candidates = []
+
+    normalized = sorted({candidate.strip() for candidate in candidates if candidate.strip() in step_ids})
+    return tuple(normalized)
 
 
 def _normalize_step_outputs(value: Any) -> Any:

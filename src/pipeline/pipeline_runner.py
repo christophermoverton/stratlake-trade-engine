@@ -2,10 +2,11 @@ from __future__ import annotations
 
 from collections import deque
 from dataclasses import dataclass
+import json
 import hashlib
 import importlib
 from pathlib import Path
-from typing import Any, Sequence
+from typing import Any, Mapping, Sequence
 
 import yaml
 
@@ -106,9 +107,14 @@ class PipelineRunResult:
 
     pipeline_id: str
     pipeline_run_id: str
+    status: str
     execution_order: tuple[str, ...]
     spec: PipelineSpec
     step_results: tuple[PipelineStepResult, ...]
+    artifact_dir: Path
+    manifest_path: Path
+    pipeline_metrics_path: Path
+    lineage_path: Path
 
 
 class PipelineRunner:
@@ -128,6 +134,9 @@ class PipelineRunner:
         }
         digest = hashlib.sha256(serialize_canonical_json(payload).encode("utf-8")).hexdigest()[:12]
         return f"{_sanitize_name_component(self._spec.pipeline_id)}_pipeline_{digest}"
+
+    def artifact_dir(self) -> Path:
+        return (Path.cwd() / "artifacts" / "pipelines" / self.pipeline_run_id()).resolve()
 
     def execution_order(self) -> tuple[str, ...]:
         declaration_index = {step.id: index for index, step in enumerate(self._spec.steps)}
@@ -162,32 +171,54 @@ class PipelineRunner:
         return tuple(ordered)
 
     def run(self) -> PipelineRunResult:
+        pipeline_run_id = self.pipeline_run_id()
+        artifact_dir = self.artifact_dir()
         ordered_ids = self.execution_order()
         step_by_id = {step.id: step for step in self._spec.steps}
         step_results: list[PipelineStepResult] = []
+        status_by_step_id: dict[str, str] = {step_id: "pending" for step_id in ordered_ids}
+        failure: BaseException | None = None
+
         for step_id in ordered_ids:
             step = step_by_id[step_id]
-            module = importlib.import_module(step.module)
-            run_cli = getattr(module, "run_cli", None)
-            if not callable(run_cli):
-                raise ValueError(f"Pipeline step module '{step.module}' must expose callable run_cli(argv).")
-            result = run_cli(list(step.argv))
-            step_results.append(
-                PipelineStepResult(
-                    step_id=step.id,
-                    module=step.module,
-                    argv=step.argv,
-                    depends_on=step.depends_on,
-                    result=result,
+            try:
+                module = importlib.import_module(step.module)
+                run_cli = getattr(module, "run_cli", None)
+                if not callable(run_cli):
+                    raise ValueError(f"Pipeline step module '{step.module}' must expose callable run_cli(argv).")
+                result = run_cli(list(step.argv))
+                step_results.append(
+                    PipelineStepResult(
+                        step_id=step.id,
+                        module=step.module,
+                        argv=step.argv,
+                        depends_on=step.depends_on,
+                        result=result,
+                    )
                 )
-            )
-        return PipelineRunResult(
+                status_by_step_id[step.id] = "completed"
+            except BaseException as exc:
+                failure = exc
+                status_by_step_id[step.id] = "failed"
+                break
+
+        status = "failed" if failure is not None else "completed"
+        result = PipelineRunResult(
             pipeline_id=self._spec.pipeline_id,
-            pipeline_run_id=self.pipeline_run_id(),
+            pipeline_run_id=pipeline_run_id,
+            status=status,
             execution_order=ordered_ids,
             spec=self._spec,
             step_results=tuple(step_results),
+            artifact_dir=artifact_dir,
+            manifest_path=artifact_dir / "manifest.json",
+            pipeline_metrics_path=artifact_dir / "pipeline_metrics.json",
+            lineage_path=artifact_dir / "lineage.json",
         )
+        _write_pipeline_artifacts(result, status_by_step_id=status_by_step_id)
+        if failure is not None:
+            raise failure
+        return result
 
 
 def _parse_step(payload: Any) -> PipelineStepSpec:
@@ -252,3 +283,174 @@ def _sanitize_name_component(name: str) -> str:
     cleaned = "".join(char if char.isalnum() else "_" for char in name.strip().lower())
     normalized = "_".join(part for part in cleaned.split("_") if part)
     return normalized or "pipeline"
+
+
+def _write_pipeline_artifacts(
+    result: PipelineRunResult,
+    *,
+    status_by_step_id: Mapping[str, str],
+) -> None:
+    result.artifact_dir.mkdir(parents=True, exist_ok=True)
+    manifest_payload = _build_pipeline_manifest_payload(result, status_by_step_id=status_by_step_id)
+    metrics_payload = _build_pipeline_metrics_payload(result)
+    lineage_payload = _build_pipeline_lineage_payload(result)
+    _write_json(result.manifest_path, manifest_payload)
+    _write_json(result.pipeline_metrics_path, metrics_payload)
+    _write_json(result.lineage_path, lineage_payload)
+
+
+def _build_pipeline_manifest_payload(
+    result: PipelineRunResult,
+    *,
+    status_by_step_id: Mapping[str, str],
+) -> dict[str, Any]:
+    step_results_by_id = {step_result.step_id: step_result for step_result in result.step_results}
+    steps_payload: list[dict[str, Any]] = []
+    for step_id in result.execution_order:
+        step_spec = next(step for step in result.spec.steps if step.id == step_id)
+        step_result = step_results_by_id.get(step_id)
+        normalized_outputs = _normalize_step_outputs(None if step_result is None else step_result.result)
+        references = _extract_step_artifact_references(None if step_result is None else step_result.result)
+        steps_payload.append(
+            canonicalize_value(
+                {
+                    "step_id": step_id,
+                    "status": status_by_step_id[step_id],
+                    "outputs": normalized_outputs,
+                    "step_artifact_dir": references["step_artifact_dir"],
+                    "step_manifest_path": references["step_manifest_path"],
+                    "module": step_spec.module,
+                    "depends_on": list(step_spec.depends_on),
+                }
+            )
+        )
+
+    return canonicalize_value(
+        {
+            "pipeline_run_id": result.pipeline_run_id,
+            "pipeline_name": result.pipeline_id,
+            "status": result.status,
+            "steps": steps_payload,
+        }
+    )
+
+
+def _build_pipeline_metrics_payload(result: PipelineRunResult) -> dict[str, Any]:
+    return canonicalize_value(
+        {
+            "pipeline_run_id": result.pipeline_run_id,
+            "pipeline_name": result.pipeline_id,
+            "status": result.status,
+            "metrics": {},
+            "step_count": len(result.spec.steps),
+            "completed_step_count": sum(1 for step in result.step_results),
+        }
+    )
+
+
+def _build_pipeline_lineage_payload(result: PipelineRunResult) -> dict[str, Any]:
+    step_results_by_id = {step_result.step_id: step_result for step_result in result.step_results}
+    steps: list[dict[str, Any]] = []
+    for step in result.spec.steps:
+        references = _extract_step_artifact_references(
+            None if step.id not in step_results_by_id else step_results_by_id[step.id].result
+        )
+        steps.append(
+            canonicalize_value(
+                {
+                    "step_id": step.id,
+                    "depends_on": list(step.depends_on),
+                    "module": step.module,
+                    "step_artifact_dir": references["step_artifact_dir"],
+                    "step_manifest_path": references["step_manifest_path"],
+                }
+            )
+        )
+    return canonicalize_value(
+        {
+            "pipeline_run_id": result.pipeline_run_id,
+            "pipeline_name": result.pipeline_id,
+            "status": result.status,
+            "steps": steps,
+        }
+    )
+
+
+def _normalize_step_outputs(value: Any) -> Any:
+    if value is None:
+        return {}
+    if isinstance(value, Mapping):
+        return canonicalize_value(dict(value))
+    if isinstance(value, tuple | list):
+        return canonicalize_value(list(value))
+    if isinstance(value, str | int | float | bool | Path):
+        return canonicalize_value(value)
+    if hasattr(value, "__dict__"):
+        return canonicalize_value(
+            {
+                key: attribute
+                for key, attribute in vars(value).items()
+                if not key.startswith("_")
+            }
+        )
+    return canonicalize_value({"repr": repr(value)})
+
+
+def _extract_step_artifact_references(value: Any) -> dict[str, str | None]:
+    mapping = _result_mapping(value)
+    artifact_dir = _extract_path_value(
+        mapping,
+        keys=("artifact_dir", "step_artifact_dir", "output_dir", "campaign_artifact_dir", "orchestration_artifact_dir"),
+    )
+    manifest_path = _extract_path_value(
+        mapping,
+        keys=("manifest_json", "manifest_path", "step_manifest_path", "campaign_manifest_path", "orchestration_manifest_path"),
+    )
+
+    output_paths = mapping.get("output_paths")
+    if manifest_path is None and isinstance(output_paths, Mapping):
+        manifest_path = _extract_path_value(output_paths, keys=("manifest_json", "manifest_path"))
+
+    if artifact_dir is None and manifest_path is not None:
+        artifact_dir = str(Path(manifest_path).parent.as_posix())
+
+    return canonicalize_value(
+        {
+            "step_artifact_dir": artifact_dir,
+            "step_manifest_path": manifest_path,
+        }
+    )
+
+
+def _result_mapping(value: Any) -> dict[str, Any]:
+    if value is None:
+        return {}
+    if isinstance(value, Mapping):
+        return dict(value)
+    if hasattr(value, "__dict__"):
+        return {
+            key: attribute
+            for key, attribute in vars(value).items()
+            if not key.startswith("_")
+        }
+    return {}
+
+
+def _extract_path_value(mapping: Mapping[str, Any], *, keys: Sequence[str]) -> str | None:
+    for key in keys:
+        candidate = mapping.get(key)
+        if isinstance(candidate, Path):
+            return candidate.as_posix()
+        if isinstance(candidate, str):
+            normalized = candidate.strip()
+            if normalized:
+                return Path(normalized).as_posix()
+    return None
+
+
+def _write_json(path: Path, payload: Any) -> None:
+    path.write_text(
+        json.dumps(canonicalize_value(payload), indent=2, sort_keys=True),
+        encoding="utf-8",
+        newline="\n",
+    )

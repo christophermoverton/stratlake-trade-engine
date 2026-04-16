@@ -3,6 +3,8 @@ from __future__ import annotations
 from collections import deque
 import csv
 from dataclasses import dataclass
+from copy import deepcopy
+import inspect
 import json
 import hashlib
 import importlib
@@ -148,6 +150,7 @@ class PipelineRunResult:
     manifest_path: Path
     pipeline_metrics_path: Path
     lineage_path: Path
+    state_path: Path
 
 
 class PipelineRunner:
@@ -208,6 +211,7 @@ class PipelineRunner:
         artifact_dir = self.artifact_dir()
         ordered_ids = self.execution_order()
         step_by_id = {step.id: step for step in self._spec.steps}
+        pipeline_state = _load_pipeline_state(self._spec)
         step_results: list[PipelineStepResult] = []
         step_metrics_by_id: dict[str, PipelineStepMetrics] = {
             step_id: PipelineStepMetrics(
@@ -227,12 +231,19 @@ class PipelineRunner:
             step_started_at = _timestamp_now()
             try:
                 module = importlib.import_module(step.module)
-                run_cli = getattr(module, "run_cli", None)
-                if not callable(run_cli):
-                    raise ValueError(f"Pipeline step module '{step.module}' must expose callable run_cli(argv).")
-                result = run_cli(list(step.argv))
+                result = _invoke_step(
+                    module,
+                    step=step,
+                    pipeline_id=self._spec.pipeline_id,
+                    pipeline_run_id=pipeline_run_id,
+                    pipeline_state=pipeline_state,
+                )
                 step_ended_at = _timestamp_now()
                 step_status = _status_from_step_result(result)
+                pipeline_state = _merge_pipeline_state(
+                    pipeline_state,
+                    _extract_state_updates(result, step_id=step.id),
+                )
                 step_results.append(
                     PipelineStepResult(
                         step_id=step.id,
@@ -274,12 +285,14 @@ class PipelineRunner:
             manifest_path=artifact_dir / "manifest.json",
             pipeline_metrics_path=artifact_dir / "pipeline_metrics.json",
             lineage_path=artifact_dir / "lineage.json",
+            state_path=artifact_dir / "state.json",
         )
         _write_pipeline_artifacts(
             result,
             pipeline_started_at=pipeline_started_at,
             pipeline_ended_at=pipeline_ended_at,
             step_metrics_by_id=step_metrics_by_id,
+            pipeline_state=pipeline_state,
         )
         if failure is not None:
             raise failure
@@ -356,6 +369,7 @@ def _write_pipeline_artifacts(
     pipeline_started_at: float,
     pipeline_ended_at: float,
     step_metrics_by_id: Mapping[str, PipelineStepMetrics],
+    pipeline_state: Mapping[str, Any],
 ) -> None:
     manifest_payload = _build_pipeline_manifest_payload(result, step_metrics_by_id=step_metrics_by_id)
     metrics_payload = _build_pipeline_metrics_payload(
@@ -365,6 +379,7 @@ def _write_pipeline_artifacts(
         step_metrics_by_id=step_metrics_by_id,
     )
     lineage_payload = _build_pipeline_lineage_payload(result)
+    state_payload = _build_pipeline_state_payload(result, pipeline_state=pipeline_state)
     _validate_pipeline_artifacts(
         manifest_payload=manifest_payload,
         metrics_payload=metrics_payload,
@@ -374,6 +389,7 @@ def _write_pipeline_artifacts(
     _write_json(result.manifest_path, manifest_payload)
     _write_json(result.pipeline_metrics_path, metrics_payload)
     _write_json(result.lineage_path, lineage_payload)
+    _write_json(result.state_path, state_payload)
 
 
 def _build_pipeline_manifest_payload(
@@ -521,6 +537,20 @@ def _build_pipeline_lineage_payload(result: PipelineRunResult) -> dict[str, Any]
     )
 
 
+def _build_pipeline_state_payload(
+    result: PipelineRunResult,
+    *,
+    pipeline_state: Mapping[str, Any],
+) -> dict[str, Any]:
+    return canonicalize_value(
+        {
+            "schema_version": 1,
+            "pipeline_run_id": result.pipeline_run_id,
+            "state": dict(pipeline_state),
+        }
+    )
+
+
 def _build_lineage_step_statuses(result: PipelineRunResult) -> dict[str, str]:
     statuses = {
         step_result.step_id: _status_from_step_result(step_result.result)
@@ -594,7 +624,7 @@ def _normalize_step_outputs(value: Any) -> Any:
     if value is None:
         return {}
     if isinstance(value, Mapping):
-        return canonicalize_value(dict(value))
+        return canonicalize_value({key: item for key, item in dict(value).items() if key != "state_updates"})
     if isinstance(value, tuple | list):
         return canonicalize_value(list(value))
     if isinstance(value, str | int | float | bool | Path):
@@ -604,10 +634,145 @@ def _normalize_step_outputs(value: Any) -> Any:
             {
                 key: attribute
                 for key, attribute in vars(value).items()
-                if not key.startswith("_")
+                if not key.startswith("_") and key != "state_updates"
             }
         )
     return canonicalize_value({"repr": repr(value)})
+
+
+def _invoke_step(
+    module: Any,
+    *,
+    step: PipelineStepSpec,
+    pipeline_id: str,
+    pipeline_run_id: str,
+    pipeline_state: Mapping[str, Any],
+) -> Any:
+    run_cli = getattr(module, "run_cli", None)
+    if not callable(run_cli):
+        raise ValueError(f"Pipeline step module '{step.module}' must expose callable run_cli(argv).")
+
+    try:
+        signature = inspect.signature(run_cli)
+    except (TypeError, ValueError):
+        signature = None
+
+    step_state = _copy_pipeline_state(pipeline_state)
+    step_context = canonicalize_value(
+        {
+            "pipeline_id": pipeline_id,
+            "pipeline_run_id": pipeline_run_id,
+            "step_id": step.id,
+            "step_depends_on": list(step.depends_on),
+        }
+    )
+    kwargs: dict[str, Any] = {}
+    if _callable_accepts_keyword(signature, "state"):
+        kwargs["state"] = step_state
+    if _callable_accepts_keyword(signature, "pipeline_context"):
+        kwargs["pipeline_context"] = step_context
+    return run_cli(list(step.argv), **kwargs)
+
+
+def _callable_accepts_keyword(signature: inspect.Signature | None, name: str) -> bool:
+    if signature is None:
+        return False
+    parameters = signature.parameters
+    if name in parameters:
+        return True
+    return any(parameter.kind == inspect.Parameter.VAR_KEYWORD for parameter in parameters.values())
+
+
+def _load_pipeline_state(spec: PipelineSpec) -> dict[str, Any]:
+    state_config = _pipeline_state_config(spec)
+    state_path = _resolve_prior_state_path(state_config)
+    if state_path is None or not state_path.exists():
+        return {}
+
+    try:
+        payload = json.loads(state_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Pipeline prior state file '{state_path}' contains invalid JSON.") from exc
+
+    if not isinstance(payload, Mapping):
+        raise ValueError(f"Pipeline prior state file '{state_path}' must contain a JSON object.")
+
+    if "state" in payload:
+        raw_state = payload.get("state")
+        if not isinstance(raw_state, Mapping):
+            raise ValueError(f"Pipeline prior state file '{state_path}' must include object field 'state'.")
+    else:
+        raw_state = payload
+
+    return _normalize_pipeline_state(raw_state, field_name=f"pipeline prior state '{state_path}'")
+
+
+def _pipeline_state_config(spec: PipelineSpec) -> Mapping[str, Any]:
+    parameters = spec.parameters if isinstance(spec.parameters, Mapping) else {}
+    state_config = parameters.get("state")
+    if state_config is None:
+        return {}
+    if not isinstance(state_config, Mapping):
+        raise ValueError("Pipeline spec parameters.state must be a mapping when provided.")
+    return dict(state_config)
+
+
+def _resolve_prior_state_path(state_config: Mapping[str, Any]) -> Path | None:
+    explicit_path = state_config.get("path", state_config.get("state_path"))
+    if explicit_path is not None:
+        return _coerce_state_path(explicit_path, field_name="parameters.state.path")
+
+    previous_run_id = state_config.get("previous_pipeline_run_id", state_config.get("previous_run_id"))
+    if previous_run_id is None:
+        return None
+    if not isinstance(previous_run_id, str) or not previous_run_id.strip():
+        raise ValueError("Pipeline spec parameters.state.previous_pipeline_run_id must be a non-empty string.")
+    return (Path.cwd() / "artifacts" / "pipelines" / previous_run_id.strip() / "state.json").resolve()
+
+
+def _coerce_state_path(value: Any, *, field_name: str) -> Path:
+    if isinstance(value, Path):
+        return value.resolve()
+    if isinstance(value, str) and value.strip():
+        return Path(value.strip()).resolve()
+    raise ValueError(f"{field_name} must be a non-empty path string.")
+
+
+def _copy_pipeline_state(state: Mapping[str, Any]) -> dict[str, Any]:
+    return _normalize_pipeline_state(deepcopy(dict(state)), field_name="pipeline state")
+
+
+def _extract_state_updates(value: Any, *, step_id: str) -> dict[str, Any]:
+    mapping = _result_mapping(value)
+    updates = mapping.get("state_updates")
+    if updates is None:
+        return {}
+    if not isinstance(updates, Mapping):
+        raise ValueError(f"Pipeline step '{step_id}' returned non-object state_updates.")
+    return _normalize_pipeline_state(updates, field_name=f"pipeline step '{step_id}' state_updates")
+
+
+def _merge_pipeline_state(current_state: Mapping[str, Any], state_updates: Mapping[str, Any]) -> dict[str, Any]:
+    if not state_updates:
+        return _copy_pipeline_state(current_state)
+    merged = dict(current_state)
+    for key, value in state_updates.items():
+        merged[str(key)] = value
+    return _normalize_pipeline_state(merged, field_name="pipeline state")
+
+
+def _normalize_pipeline_state(value: Mapping[str, Any], *, field_name: str) -> dict[str, Any]:
+    canonical = canonicalize_value(dict(value))
+    if not isinstance(canonical, dict):
+        raise ValueError(f"{field_name} must serialize to a JSON object.")
+    try:
+        serialized = json.dumps(canonical, sort_keys=True)
+    except TypeError as exc:
+        raise ValueError(f"{field_name} must be JSON-serializable.") from exc
+    normalized = json.loads(serialized)
+    if not isinstance(normalized, dict):
+        raise ValueError(f"{field_name} must serialize to a JSON object.")
+    return normalized
 
 
 def _status_from_step_result(value: Any) -> str:

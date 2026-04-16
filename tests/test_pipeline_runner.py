@@ -196,15 +196,18 @@ def run_cli(argv=None):
     assert result.manifest_path == pipeline_dir / "manifest.json"
     assert result.pipeline_metrics_path == pipeline_dir / "pipeline_metrics.json"
     assert result.lineage_path == pipeline_dir / "lineage.json"
+    assert result.state_path == pipeline_dir / "state.json"
     assert pipeline_dir.exists()
     assert result.manifest_path.exists()
     assert result.pipeline_metrics_path.exists()
     assert result.lineage_path.exists()
+    assert result.state_path.exists()
     assert not (tmp_path / "artifacts" / "research_campaigns").exists()
 
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     metrics = json.loads(result.pipeline_metrics_path.read_text(encoding="utf-8"))
     lineage = json.loads(result.lineage_path.read_text(encoding="utf-8"))
+    state_payload = json.loads(result.state_path.read_text(encoding="utf-8"))
 
     assert manifest == {
         "pipeline_name": "artifact_pipeline",
@@ -347,6 +350,11 @@ def run_cli(argv=None):
             },
         ],
     }
+    assert state_payload == {
+        "pipeline_run_id": result.pipeline_run_id,
+        "schema_version": 1,
+        "state": {},
+    }
 
 
 def test_pipeline_runner_artifacts_are_deterministic_across_repeated_runs(
@@ -405,6 +413,7 @@ def run_cli(argv=None):
         "manifest": first.manifest_path.read_text(encoding="utf-8"),
         "metrics": first.pipeline_metrics_path.read_text(encoding="utf-8"),
         "lineage": first.lineage_path.read_text(encoding="utf-8"),
+        "state": first.state_path.read_text(encoding="utf-8"),
     }
 
     monkeypatch.setattr(
@@ -416,6 +425,7 @@ def run_cli(argv=None):
         "manifest": second.manifest_path.read_text(encoding="utf-8"),
         "metrics": second.pipeline_metrics_path.read_text(encoding="utf-8"),
         "lineage": second.lineage_path.read_text(encoding="utf-8"),
+        "state": second.state_path.read_text(encoding="utf-8"),
     }
 
     assert first.pipeline_run_id == second.pipeline_run_id
@@ -482,6 +492,7 @@ def run_cli(argv=None):
     pipeline_dir = tmp_path / "artifacts" / "pipelines" / PipelineRunner(spec).pipeline_run_id()
     metrics = json.loads((pipeline_dir / "pipeline_metrics.json").read_text(encoding="utf-8"))
     lineage = json.loads((pipeline_dir / "lineage.json").read_text(encoding="utf-8"))
+    state_payload = json.loads((pipeline_dir / "state.json").read_text(encoding="utf-8"))
 
     assert metrics == {
         "duration_seconds": 6.0,
@@ -572,6 +583,278 @@ def run_cli(argv=None):
                 "type": "step",
             },
         ],
+    }
+    assert state_payload == {
+        "pipeline_run_id": PipelineRunner(spec).pipeline_run_id(),
+        "schema_version": 1,
+        "state": {},
+    }
+
+
+def test_pipeline_runner_injects_immutable_state_and_merges_updates_deterministically(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module_name = "pipeline_state_module"
+    module_path = tmp_path / f"{module_name}.py"
+    module_path.write_text(
+        """
+from copy import deepcopy
+
+
+SEEN_STATES = []
+
+
+def run_cli(argv=None, *, state=None, pipeline_context=None):
+    args = list(argv or [])
+    stage = args[1]
+    observed = deepcopy(state or {})
+    SEEN_STATES.append(
+        {
+            "stage": stage,
+            "state": deepcopy(observed),
+            "pipeline_context": dict(pipeline_context or {}),
+        }
+    )
+    observed["mutated_in_step"] = stage
+    if stage == "prepare":
+        return {
+            "stage": stage,
+            "state_updates": {
+                "nested": {"value": "prepare"},
+                "watermark_end": "2025-01-10",
+            },
+        }
+    return {
+        "stage": stage,
+        "state_updates": {
+            "nested": {"value": "train"},
+        },
+    }
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path.as_posix())
+    monkeypatch.setattr(
+        "src.pipeline.pipeline_runner.time.time",
+        _time_sequence(700.0, 701.0, 702.0, 703.0, 704.0, 705.0),
+    )
+    sys.modules.pop(module_name, None)
+
+    spec = PipelineSpec.from_mapping(
+        {
+            "id": "state_pipeline",
+            "steps": [
+                {
+                    "id": "prepare",
+                    "adapter": "python_module",
+                    "module": module_name,
+                    "argv": ["--stage", "prepare"],
+                },
+                {
+                    "id": "train",
+                    "depends_on": ["prepare"],
+                    "adapter": "python_module",
+                    "module": module_name,
+                    "argv": ["--stage", "train"],
+                },
+            ],
+        }
+    )
+
+    result = PipelineRunner(spec).run()
+    state_payload = json.loads(result.state_path.read_text(encoding="utf-8"))
+    module = sys.modules[module_name]
+
+    assert module.SEEN_STATES == [
+        {
+            "stage": "prepare",
+            "state": {},
+            "pipeline_context": {
+                "pipeline_id": "state_pipeline",
+                "pipeline_run_id": result.pipeline_run_id,
+                "step_depends_on": [],
+                "step_id": "prepare",
+            },
+        },
+        {
+            "stage": "train",
+            "state": {
+                "nested": {"value": "prepare"},
+                "watermark_end": "2025-01-10",
+            },
+            "pipeline_context": {
+                "pipeline_id": "state_pipeline",
+                "pipeline_run_id": result.pipeline_run_id,
+                "step_depends_on": ["prepare"],
+                "step_id": "train",
+            },
+        },
+    ]
+    assert state_payload == {
+        "pipeline_run_id": result.pipeline_run_id,
+        "schema_version": 1,
+        "state": {
+            "nested": {"value": "train"},
+            "watermark_end": "2025-01-10",
+        },
+    }
+
+
+def test_pipeline_runner_loads_prior_state_from_previous_pipeline_run(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module_name = "pipeline_prior_state_module"
+    module_path = tmp_path / f"{module_name}.py"
+    module_path.write_text(
+        """
+SEEN_STATES = []
+
+
+def run_cli(argv=None, *, state=None):
+    SEEN_STATES.append(dict(state or {}))
+    return {"state_updates": {"watermark_end": "2025-01-10"}}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    previous_run_id = "prior_pipeline_run"
+    previous_state_path = tmp_path / "artifacts" / "pipelines" / previous_run_id / "state.json"
+    previous_state_path.parent.mkdir(parents=True)
+    previous_state_path.write_text(
+        json.dumps(
+            {
+                "schema_version": 1,
+                "pipeline_run_id": previous_run_id,
+                "state": {
+                    "nested": {"value": "old"},
+                    "watermark_start": "2025-01-01",
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path.as_posix())
+    monkeypatch.setattr(
+        "src.pipeline.pipeline_runner.time.time",
+        _time_sequence(710.0, 711.0, 712.0, 713.0),
+    )
+    sys.modules.pop(module_name, None)
+
+    spec = PipelineSpec.from_mapping(
+        {
+            "id": "load_prior_state_pipeline",
+            "parameters": {
+                "state": {
+                    "previous_pipeline_run_id": previous_run_id,
+                }
+            },
+            "steps": [
+                {
+                    "id": "only",
+                    "adapter": "python_module",
+                    "module": module_name,
+                    "argv": [],
+                }
+            ],
+        }
+    )
+
+    result = PipelineRunner(spec).run()
+    state_payload = json.loads(result.state_path.read_text(encoding="utf-8"))
+    module = sys.modules[module_name]
+
+    assert module.SEEN_STATES == [
+        {
+            "nested": {"value": "old"},
+            "watermark_start": "2025-01-01",
+        }
+    ]
+    assert state_payload == {
+        "pipeline_run_id": result.pipeline_run_id,
+        "schema_version": 1,
+        "state": {
+            "nested": {"value": "old"},
+            "watermark_end": "2025-01-10",
+            "watermark_start": "2025-01-01",
+        },
+    }
+
+
+def test_pipeline_runner_does_not_apply_failed_step_state_updates(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module_name = "pipeline_failed_state_module"
+    module_path = tmp_path / f"{module_name}.py"
+    module_path.write_text(
+        """
+def run_cli(argv=None, *, state=None):
+    args = list(argv or [])
+    stage = args[1]
+    if stage == "prepare":
+        return {"state_updates": {"watermark_end": "2025-01-10"}}
+    raise RuntimeError("boom")
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path.as_posix())
+    monkeypatch.setattr(
+        "src.pipeline.pipeline_runner.time.time",
+        _time_sequence(720.0, 721.0, 722.0, 723.0, 724.0, 725.0),
+    )
+    sys.modules.pop(module_name, None)
+
+    spec = PipelineSpec.from_mapping(
+        {
+            "id": "failed_state_pipeline",
+            "steps": [
+                {
+                    "id": "prepare",
+                    "adapter": "python_module",
+                    "module": module_name,
+                    "argv": ["--stage", "prepare"],
+                },
+                {
+                    "id": "train",
+                    "depends_on": ["prepare"],
+                    "adapter": "python_module",
+                    "module": module_name,
+                    "argv": ["--stage", "train"],
+                },
+            ],
+        }
+    )
+
+    with pytest.raises(RuntimeError, match="boom"):
+        PipelineRunner(spec).run()
+
+    state_payload = json.loads(
+        (
+            tmp_path
+            / "artifacts"
+            / "pipelines"
+            / PipelineRunner(spec).pipeline_run_id()
+            / "state.json"
+        ).read_text(encoding="utf-8")
+    )
+
+    assert state_payload == {
+        "pipeline_run_id": PipelineRunner(spec).pipeline_run_id(),
+        "schema_version": 1,
+        "state": {
+            "watermark_end": "2025-01-10",
+        },
     }
 
 

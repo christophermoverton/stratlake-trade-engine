@@ -6,6 +6,7 @@ import sys
 
 import pytest
 
+from src.contracts.validate import ContractValidationError, validate_json
 from src.cli.run_pipeline import load_pipeline_spec, run_cli
 from src.pipeline.pipeline_runner import PipelineRunner, PipelineSpec
 
@@ -208,6 +209,8 @@ def run_cli(argv=None):
     assert manifest == {
         "pipeline_name": "artifact_pipeline",
         "pipeline_run_id": result.pipeline_run_id,
+        "run_type": "pipeline_manifest",
+        "schema_version": 1,
         "status": "completed",
         "steps": [
             {
@@ -684,6 +687,206 @@ def run_cli(argv=None):
         "to": "step:prepare",
         "type": "depends_on",
     } in lineage["edges"]
+
+
+def test_validate_json_accepts_valid_pipeline_artifacts(tmp_path: Path) -> None:
+    contracts_dir = Path.cwd() / "contracts"
+    manifest_payload = {
+        "pipeline_name": "artifact_pipeline",
+        "pipeline_run_id": "artifact_pipeline_pipeline_123456789abc",
+        "run_type": "pipeline_manifest",
+        "schema_version": 1,
+        "status": "completed",
+        "steps": [
+            {
+                "depends_on": [],
+                "module": "src.pipeline.testing",
+                "outputs": {"stage": "prepare"},
+                "status": "completed",
+                "step_artifact_dir": "artifacts/pipelines/run/prepare",
+                "step_id": "prepare",
+                "step_manifest_path": "artifacts/pipelines/run/prepare/manifest.json",
+            }
+        ],
+    }
+    metrics_payload = {
+        "duration_seconds": 1.5,
+        "ended_at_unix": 101.5,
+        "pipeline_name": "artifact_pipeline",
+        "pipeline_run_id": "artifact_pipeline_pipeline_123456789abc",
+        "run_type": "pipeline_metrics",
+        "schema_version": 1,
+        "started_at_unix": 100.0,
+        "status": "completed",
+        "status_counts": {"completed": 1, "failed": 0, "reused": 0, "skipped": 0},
+        "step_durations_seconds": {"prepare": 1.5},
+        "steps": [
+            {
+                "duration_seconds": 1.5,
+                "ended_at_unix": 101.5,
+                "started_at_unix": 100.0,
+                "status": "completed",
+                "step_id": "prepare",
+            }
+        ],
+    }
+    lineage_payload = {
+        "pipeline_run_id": "artifact_pipeline_pipeline_123456789abc",
+        "run_type": "pipeline_lineage",
+        "schema_version": 1,
+        "edges": [
+            {"from": "step:prepare", "to": "artifact:artifacts/pipelines/run/prepare", "type": "produces"}
+        ],
+        "nodes": [
+            {
+                "id": "artifact:artifacts/pipelines/run/prepare",
+                "metadata": {
+                    "manifest_path": "artifacts/pipelines/run/prepare/manifest.json",
+                    "path": "artifacts/pipelines/run/prepare",
+                },
+                "type": "artifact",
+            },
+            {
+                "id": "step:prepare",
+                "metadata": {"module": "src.pipeline.testing", "status": "completed"},
+                "outputs": {"stage": "prepare"},
+                "type": "step",
+            },
+        ],
+    }
+
+    validate_json(manifest_payload, contracts_dir / "pipeline_manifest.schema.json")
+    validate_json(metrics_payload, contracts_dir / "pipeline_metrics.schema.json")
+    validate_json(lineage_payload, contracts_dir / "lineage.schema.json")
+
+
+@pytest.mark.parametrize(
+    ("schema_name", "payload", "expected_message"),
+    [
+        (
+            "pipeline_manifest.schema.json",
+            {
+                "pipeline_name": "artifact_pipeline",
+                "pipeline_run_id": "artifact_pipeline_pipeline_123456789abc",
+                "run_type": "pipeline_manifest",
+                "schema_version": 1,
+                "status": "completed",
+            },
+            "JSON contract validation failed for 'pipeline_manifest.schema.json' at '$': 'steps' is a required property",
+        ),
+        (
+            "pipeline_metrics.schema.json",
+            {
+                "duration_seconds": "1.5",
+                "ended_at_unix": 101.5,
+                "pipeline_name": "artifact_pipeline",
+                "pipeline_run_id": "artifact_pipeline_pipeline_123456789abc",
+                "run_type": "pipeline_metrics",
+                "schema_version": 1,
+                "started_at_unix": 100.0,
+                "status": "completed",
+                "status_counts": {"completed": 1, "failed": 0, "reused": 0, "skipped": 0},
+                "step_durations_seconds": {"prepare": 1.5},
+                "steps": [],
+            },
+            "JSON contract validation failed for 'pipeline_metrics.schema.json' at '$.duration_seconds': '1.5' is not of type 'number'",
+        ),
+        (
+            "pipeline_metrics.schema.json",
+            {
+                "duration_seconds": 1.5,
+                "ended_at_unix": 101.5,
+                "pipeline_name": "artifact_pipeline",
+                "pipeline_run_id": "artifact_pipeline_pipeline_123456789abc",
+                "run_type": "pipeline_metrics",
+                "schema_version": 1,
+                "started_at_unix": 100.0,
+                "status": "unexpected",
+                "status_counts": {"completed": 1, "failed": 0, "reused": 0, "skipped": 0},
+                "step_durations_seconds": {"prepare": 1.5},
+                "steps": [],
+            },
+            "JSON contract validation failed for 'pipeline_metrics.schema.json' at '$.status': 'unexpected' is not one of ['completed', 'failed']",
+        ),
+        (
+            "lineage.schema.json",
+            {
+                "pipeline_run_id": "artifact_pipeline_pipeline_123456789abc",
+                "run_type": "pipeline_lineage",
+                "schema_version": 1,
+            },
+            "JSON contract validation failed for 'lineage.schema.json' at '$': 'edges' is a required property",
+        ),
+    ],
+)
+def test_validate_json_rejects_invalid_pipeline_artifacts(
+    schema_name: str,
+    payload: dict[str, object],
+    expected_message: str,
+) -> None:
+    schema_path = Path.cwd() / "contracts" / schema_name
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        validate_json(payload, schema_path)
+
+    assert str(exc_info.value) == expected_message
+
+
+def test_pipeline_runner_fails_fast_before_writing_invalid_artifacts(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    module_name = "pipeline_invalid_contract_module"
+    module_path = tmp_path / f"{module_name}.py"
+    module_path.write_text(
+        """
+def run_cli(argv=None):
+    return {"argv": list(argv or [])}
+""".strip(),
+        encoding="utf-8",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.syspath_prepend(tmp_path.as_posix())
+    monkeypatch.setattr(
+        "src.pipeline.pipeline_runner.time.time",
+        _time_sequence(600.0, 601.0, 602.0, 603.0),
+    )
+    monkeypatch.setattr(
+        "src.pipeline.pipeline_runner._build_pipeline_lineage_payload",
+        lambda result: {
+            "pipeline_run_id": result.pipeline_run_id,
+            "run_type": "pipeline_lineage",
+            "schema_version": 1,
+            "nodes": [],
+        },
+    )
+    sys.modules.pop(module_name, None)
+
+    spec = PipelineSpec.from_mapping(
+        {
+            "id": "invalid_pipeline",
+            "steps": [
+                {
+                    "id": "only",
+                    "adapter": "python_module",
+                    "module": module_name,
+                    "argv": [],
+                }
+            ],
+        }
+    )
+
+    with pytest.raises(ContractValidationError) as exc_info:
+        PipelineRunner(spec).run()
+
+    pipeline_dir = tmp_path / "artifacts" / "pipelines" / PipelineRunner(spec).pipeline_run_id()
+
+    assert (
+        str(exc_info.value)
+        == "JSON contract validation failed for 'lineage.schema.json' at '$': 'edges' is a required property"
+    )
+    assert not pipeline_dir.exists()
 
 
 def test_run_pipeline_cli_loads_yaml_config(capsys: pytest.CaptureFixture[str]) -> None:

@@ -1,0 +1,118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pipeline Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "pipeline_name",
+    "pipeline_run_id",
+    "run_type",
+    "schema_version",
+    "status",
+    "steps"
+  ],
+  "properties": {
+    "pipeline_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pipeline_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "run_type": {
+      "type": "string",
+      "enum": ["pipeline_manifest"]
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "failed"]
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/manifestStep"
+      }
+    }
+  },
+  "$defs": {
+    "jsonValue": {
+      "anyOf": [
+        {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/jsonValue"
+          }
+        },
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "manifestStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "depends_on",
+        "module",
+        "outputs",
+        "status",
+        "step_artifact_dir",
+        "step_id",
+        "step_manifest_path"
+      ],
+      "properties": {
+        "depends_on": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "module": {
+          "type": "string",
+          "minLength": 1
+        },
+        "outputs": {
+          "$ref": "#/$defs/jsonValue"
+        },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "failed", "skipped", "reused"]
+        },
+        "step_artifact_dir": {
+          "type": ["string", "null"],
+          "minLength": 1
+        },
+        "step_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "step_manifest_path": {
+          "type": ["string", "null"],
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

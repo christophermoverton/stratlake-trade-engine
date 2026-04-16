@@ -9,6 +9,7 @@ dependencies = [
     "pandas",
     "matplotlib",
     "duckdb",
+    "jsonschema",
     "pyarrow",
     "python-dotenv",
     "pyyaml",

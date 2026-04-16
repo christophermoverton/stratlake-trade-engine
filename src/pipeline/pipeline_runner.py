@@ -12,6 +12,7 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
+from src.contracts.validate import validate_json
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 
@@ -356,7 +357,6 @@ def _write_pipeline_artifacts(
     pipeline_ended_at: float,
     step_metrics_by_id: Mapping[str, PipelineStepMetrics],
 ) -> None:
-    result.artifact_dir.mkdir(parents=True, exist_ok=True)
     manifest_payload = _build_pipeline_manifest_payload(result, step_metrics_by_id=step_metrics_by_id)
     metrics_payload = _build_pipeline_metrics_payload(
         result,
@@ -365,6 +365,12 @@ def _write_pipeline_artifacts(
         step_metrics_by_id=step_metrics_by_id,
     )
     lineage_payload = _build_pipeline_lineage_payload(result)
+    _validate_pipeline_artifacts(
+        manifest_payload=manifest_payload,
+        metrics_payload=metrics_payload,
+        lineage_payload=lineage_payload,
+    )
+    result.artifact_dir.mkdir(parents=True, exist_ok=True)
     _write_json(result.manifest_path, manifest_payload)
     _write_json(result.pipeline_metrics_path, metrics_payload)
     _write_json(result.lineage_path, lineage_payload)
@@ -401,6 +407,8 @@ def _build_pipeline_manifest_payload(
         {
             "pipeline_run_id": result.pipeline_run_id,
             "pipeline_name": result.pipeline_id,
+            "run_type": "pipeline_manifest",
+            "schema_version": 1,
             "status": result.status,
             "steps": steps_payload,
         }
@@ -754,3 +762,15 @@ def _write_json(path: Path, payload: Any) -> None:
         encoding="utf-8",
         newline="\n",
     )
+
+
+def _validate_pipeline_artifacts(
+    *,
+    manifest_payload: dict[str, Any],
+    metrics_payload: dict[str, Any],
+    lineage_payload: dict[str, Any],
+) -> None:
+    contracts_dir = Path(__file__).resolve().parents[2] / "contracts"
+    validate_json(manifest_payload, contracts_dir / "pipeline_manifest.schema.json")
+    validate_json(metrics_payload, contracts_dir / "pipeline_metrics.schema.json")
+    validate_json(lineage_payload, contracts_dir / "lineage.schema.json")

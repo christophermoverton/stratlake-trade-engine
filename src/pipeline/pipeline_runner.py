@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 from collections import deque
+import csv
 from dataclasses import dataclass
 import json
 import hashlib
 import importlib
 from pathlib import Path
+import time
 from typing import Any, Mapping, Sequence
 
 import yaml
@@ -102,6 +104,28 @@ class PipelineStepResult:
 
 
 @dataclass(frozen=True)
+class PipelineStepMetrics:
+    """Deterministic timing and status metrics for one pipeline step."""
+
+    step_id: str
+    started_at_unix: float | None
+    ended_at_unix: float | None
+    duration_seconds: float
+    status: str
+
+    def to_payload(self) -> dict[str, Any]:
+        return canonicalize_value(
+            {
+                "step_id": self.step_id,
+                "started_at_unix": self.started_at_unix,
+                "ended_at_unix": self.ended_at_unix,
+                "duration_seconds": self.duration_seconds,
+                "status": self.status,
+            }
+        )
+
+
+@dataclass(frozen=True)
 class PipelineRunResult:
     """Structured result returned from one pipeline CLI run."""
 
@@ -176,17 +200,30 @@ class PipelineRunner:
         ordered_ids = self.execution_order()
         step_by_id = {step.id: step for step in self._spec.steps}
         step_results: list[PipelineStepResult] = []
-        status_by_step_id: dict[str, str] = {step_id: "pending" for step_id in ordered_ids}
+        step_metrics_by_id: dict[str, PipelineStepMetrics] = {
+            step_id: PipelineStepMetrics(
+                step_id=step_id,
+                started_at_unix=None,
+                ended_at_unix=None,
+                duration_seconds=0.0,
+                status="skipped",
+            )
+            for step_id in ordered_ids
+        }
         failure: BaseException | None = None
+        pipeline_started_at = _timestamp_now()
 
         for step_id in ordered_ids:
             step = step_by_id[step_id]
+            step_started_at = _timestamp_now()
             try:
                 module = importlib.import_module(step.module)
                 run_cli = getattr(module, "run_cli", None)
                 if not callable(run_cli):
                     raise ValueError(f"Pipeline step module '{step.module}' must expose callable run_cli(argv).")
                 result = run_cli(list(step.argv))
+                step_ended_at = _timestamp_now()
+                step_status = _status_from_step_result(result)
                 step_results.append(
                     PipelineStepResult(
                         step_id=step.id,
@@ -196,13 +233,27 @@ class PipelineRunner:
                         result=result,
                     )
                 )
-                status_by_step_id[step.id] = "completed"
+                step_metrics_by_id[step.id] = PipelineStepMetrics(
+                    step_id=step.id,
+                    started_at_unix=step_started_at,
+                    ended_at_unix=step_ended_at,
+                    duration_seconds=_duration_seconds(step_started_at, step_ended_at),
+                    status=step_status,
+                )
             except BaseException as exc:
                 failure = exc
-                status_by_step_id[step.id] = "failed"
+                step_ended_at = _timestamp_now()
+                step_metrics_by_id[step.id] = PipelineStepMetrics(
+                    step_id=step.id,
+                    started_at_unix=step_started_at,
+                    ended_at_unix=step_ended_at,
+                    duration_seconds=_duration_seconds(step_started_at, step_ended_at),
+                    status="failed",
+                )
                 break
 
         status = "failed" if failure is not None else "completed"
+        pipeline_ended_at = _timestamp_now()
         result = PipelineRunResult(
             pipeline_id=self._spec.pipeline_id,
             pipeline_run_id=pipeline_run_id,
@@ -215,7 +266,12 @@ class PipelineRunner:
             pipeline_metrics_path=artifact_dir / "pipeline_metrics.json",
             lineage_path=artifact_dir / "lineage.json",
         )
-        _write_pipeline_artifacts(result, status_by_step_id=status_by_step_id)
+        _write_pipeline_artifacts(
+            result,
+            pipeline_started_at=pipeline_started_at,
+            pipeline_ended_at=pipeline_ended_at,
+            step_metrics_by_id=step_metrics_by_id,
+        )
         if failure is not None:
             raise failure
         return result
@@ -288,11 +344,18 @@ def _sanitize_name_component(name: str) -> str:
 def _write_pipeline_artifacts(
     result: PipelineRunResult,
     *,
-    status_by_step_id: Mapping[str, str],
+    pipeline_started_at: float,
+    pipeline_ended_at: float,
+    step_metrics_by_id: Mapping[str, PipelineStepMetrics],
 ) -> None:
     result.artifact_dir.mkdir(parents=True, exist_ok=True)
-    manifest_payload = _build_pipeline_manifest_payload(result, status_by_step_id=status_by_step_id)
-    metrics_payload = _build_pipeline_metrics_payload(result)
+    manifest_payload = _build_pipeline_manifest_payload(result, step_metrics_by_id=step_metrics_by_id)
+    metrics_payload = _build_pipeline_metrics_payload(
+        result,
+        pipeline_started_at=pipeline_started_at,
+        pipeline_ended_at=pipeline_ended_at,
+        step_metrics_by_id=step_metrics_by_id,
+    )
     lineage_payload = _build_pipeline_lineage_payload(result)
     _write_json(result.manifest_path, manifest_payload)
     _write_json(result.pipeline_metrics_path, metrics_payload)
@@ -302,20 +365,21 @@ def _write_pipeline_artifacts(
 def _build_pipeline_manifest_payload(
     result: PipelineRunResult,
     *,
-    status_by_step_id: Mapping[str, str],
+    step_metrics_by_id: Mapping[str, PipelineStepMetrics],
 ) -> dict[str, Any]:
     step_results_by_id = {step_result.step_id: step_result for step_result in result.step_results}
     steps_payload: list[dict[str, Any]] = []
     for step_id in result.execution_order:
         step_spec = next(step for step in result.spec.steps if step.id == step_id)
         step_result = step_results_by_id.get(step_id)
+        step_metrics = step_metrics_by_id[step_id]
         normalized_outputs = _normalize_step_outputs(None if step_result is None else step_result.result)
         references = _extract_step_artifact_references(None if step_result is None else step_result.result)
         steps_payload.append(
             canonicalize_value(
                 {
                     "step_id": step_id,
-                    "status": status_by_step_id[step_id],
+                    "status": step_metrics.status,
                     "outputs": normalized_outputs,
                     "step_artifact_dir": references["step_artifact_dir"],
                     "step_manifest_path": references["step_manifest_path"],
@@ -335,17 +399,34 @@ def _build_pipeline_manifest_payload(
     )
 
 
-def _build_pipeline_metrics_payload(result: PipelineRunResult) -> dict[str, Any]:
-    return canonicalize_value(
-        {
-            "pipeline_run_id": result.pipeline_run_id,
-            "pipeline_name": result.pipeline_id,
-            "status": result.status,
-            "metrics": {},
-            "step_count": len(result.spec.steps),
-            "completed_step_count": sum(1 for step in result.step_results),
-        }
-    )
+def _build_pipeline_metrics_payload(
+    result: PipelineRunResult,
+    *,
+    pipeline_started_at: float,
+    pipeline_ended_at: float,
+    step_metrics_by_id: Mapping[str, PipelineStepMetrics],
+) -> dict[str, Any]:
+    ordered_step_metrics = [step_metrics_by_id[step_id] for step_id in result.execution_order]
+    row_counts = _build_row_counts(result)
+    payload = {
+        "run_type": "pipeline_metrics",
+        "schema_version": 1,
+        "pipeline_run_id": result.pipeline_run_id,
+        "pipeline_name": result.pipeline_id,
+        "status": result.status,
+        "started_at_unix": pipeline_started_at,
+        "ended_at_unix": pipeline_ended_at,
+        "duration_seconds": _duration_seconds(pipeline_started_at, pipeline_ended_at),
+        "steps": [step_metrics.to_payload() for step_metrics in ordered_step_metrics],
+        "step_durations_seconds": {
+            step_metrics.step_id: step_metrics.duration_seconds
+            for step_metrics in ordered_step_metrics
+        },
+        "status_counts": _status_counts(ordered_step_metrics),
+    }
+    if row_counts:
+        payload["row_counts"] = row_counts
+    return canonicalize_value(payload)
 
 
 def _build_pipeline_lineage_payload(result: PipelineRunResult) -> dict[str, Any]:
@@ -394,6 +475,100 @@ def _normalize_step_outputs(value: Any) -> Any:
             }
         )
     return canonicalize_value({"repr": repr(value)})
+
+
+def _status_from_step_result(value: Any) -> str:
+    mapping = _result_mapping(value)
+    status = mapping.get("status")
+    if isinstance(status, str):
+        normalized = status.strip().lower()
+        if normalized in {"completed", "skipped", "reused"}:
+            return normalized
+    return "completed"
+
+
+def _build_row_counts(result: PipelineRunResult) -> dict[str, int]:
+    row_counts: dict[str, int] = {}
+    for step_result in result.step_results:
+        row_count = _infer_row_count(step_result.result)
+        if row_count is not None:
+            row_counts[step_result.step_id] = row_count
+    return canonicalize_value(row_counts)
+
+
+def _infer_row_count(value: Any) -> int | None:
+    direct_row_count = _direct_row_count(value)
+    if direct_row_count is not None:
+        return direct_row_count
+
+    if isinstance(value, Mapping):
+        return _sum_row_counts(value.values())
+    if isinstance(value, (list, tuple)):
+        return _sum_row_counts(value)
+    if hasattr(value, "__dict__"):
+        return _sum_row_counts(
+            attribute
+            for key, attribute in vars(value).items()
+            if not key.startswith("_")
+        )
+    return None
+
+
+def _sum_row_counts(values: Sequence[Any] | Any) -> int | None:
+    total = 0
+    found = False
+    for item in values:
+        item_row_count = _infer_row_count(item)
+        if item_row_count is not None:
+            total += item_row_count
+            found = True
+    if found:
+        return total
+    return None
+
+
+def _direct_row_count(value: Any) -> int | None:
+    csv_row_count = _csv_row_count(value)
+    if csv_row_count is not None:
+        return csv_row_count
+
+    shape = getattr(value, "shape", None)
+    if isinstance(shape, tuple) and shape and isinstance(shape[0], int):
+        return int(shape[0])
+    return None
+
+
+def _csv_row_count(value: Any) -> int | None:
+    candidate: Path | None = None
+    if isinstance(value, Path):
+        candidate = value
+    elif isinstance(value, str):
+        stripped = value.strip()
+        if stripped:
+            candidate = Path(stripped)
+    if candidate is None or candidate.suffix.lower() != ".csv" or not candidate.exists():
+        return None
+
+    with candidate.open("r", encoding="utf-8", newline="") as file_obj:
+        row_total = sum(1 for _ in csv.reader(file_obj))
+    return max(row_total - 1, 0)
+
+
+def _status_counts(step_metrics: Sequence[PipelineStepMetrics]) -> dict[str, int]:
+    counts = {status: 0 for status in ("completed", "failed", "skipped", "reused")}
+    for step_metric in step_metrics:
+        counts[step_metric.status] += 1
+    return counts
+
+
+def _timestamp_now() -> float:
+    return round(time.time(), 6)
+
+
+def _duration_seconds(started_at_unix: float | None, ended_at_unix: float | None) -> float:
+    if started_at_unix is None or ended_at_unix is None:
+        return 0.0
+    return round(max(0.0, ended_at_unix - started_at_unix), 6)
 
 
 def _extract_step_artifact_references(value: Any) -> dict[str, str | None]:

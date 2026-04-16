@@ -18,6 +18,7 @@ from src.research.candidate_selection.loader import CandidateSelectionError
 from src.research.candidate_selection.registry import candidate_selection_registry_path
 from src.research.registry import load_registry
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
+from src.pipeline.cli_adapter import build_pipeline_cli_result
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ALPHA_ARTIFACTS_ROOT = Path("artifacts") / "alpha"
@@ -574,7 +575,12 @@ def _result_from_existing_artifact_dir(
     )
 
 
-def run_cli(argv: Sequence[str] | None = None) -> CandidateSelectionRunResult:
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    state: Mapping[str, Any] | None = None,
+    pipeline_context: Mapping[str, Any] | None = None,
+) -> CandidateSelectionRunResult | dict[str, Any]:
     """Execute candidate selection CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
@@ -683,6 +689,31 @@ def run_cli(argv: Sequence[str] | None = None) -> CandidateSelectionRunResult:
             **{**candidate_result.__dict__, "review_artifacts": review_result}
         )
 
+    if pipeline_context is not None:
+        return build_pipeline_cli_result(
+            identifier=candidate_result.run_id,
+            name="candidate_selection",
+            artifact_dir=candidate_result.artifact_dir,
+            manifest_path=candidate_result.manifest_json,
+            output_paths={
+                "selected_candidates_csv": candidate_result.selected_csv,
+                "rejected_candidates_csv": candidate_result.rejected_csv,
+                "selection_summary_json": candidate_result.summary_json,
+                "allocation_weights_csv": candidate_result.allocation_csv,
+            },
+            extra={
+                "primary_metric": candidate_result.primary_metric,
+                "selected_count": candidate_result.selected_count,
+                "eligible_count": candidate_result.eligible_count,
+                "rejected_count": candidate_result.rejected_count,
+                "stage_execution": dict(candidate_result.stage_execution),
+            },
+            state_updates={
+                "candidate_selection_artifact_dir": candidate_result.artifact_dir.as_posix(),
+                "candidate_selection_manifest_path": candidate_result.manifest_json.as_posix(),
+                "candidate_selection_run_id": candidate_result.run_id,
+            },
+        )
     return candidate_result
 
 

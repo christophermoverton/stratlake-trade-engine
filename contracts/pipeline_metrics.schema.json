@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Pipeline Metrics",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "duration_seconds",
+    "ended_at_unix",
+    "pipeline_name",
+    "pipeline_run_id",
+    "run_type",
+    "schema_version",
+    "started_at_unix",
+    "status",
+    "status_counts",
+    "step_durations_seconds",
+    "steps"
+  ],
+  "properties": {
+    "duration_seconds": {
+      "type": "number",
+      "minimum": 0
+    },
+    "ended_at_unix": {
+      "type": "number"
+    },
+    "pipeline_name": {
+      "type": "string",
+      "minLength": 1
+    },
+    "pipeline_run_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "row_counts": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "integer",
+        "minimum": 0
+      }
+    },
+    "run_type": {
+      "type": "string",
+      "enum": ["pipeline_metrics"]
+    },
+    "schema_version": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "started_at_unix": {
+      "type": "number"
+    },
+    "status": {
+      "type": "string",
+      "enum": ["completed", "failed"]
+    },
+    "status_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["completed", "failed", "reused", "skipped"],
+      "properties": {
+        "completed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "failed": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reused": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "skipped": {
+          "type": "integer",
+          "minimum": 0
+        }
+      }
+    },
+    "step_durations_seconds": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "number",
+        "minimum": 0
+      }
+    },
+    "steps": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/metricStep"
+      }
+    }
+  },
+  "$defs": {
+    "metricStep": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "duration_seconds",
+        "ended_at_unix",
+        "started_at_unix",
+        "status",
+        "step_id"
+      ],
+      "properties": {
+        "duration_seconds": {
+          "type": "number",
+          "minimum": 0
+        },
+        "ended_at_unix": {
+          "type": ["number", "null"]
+        },
+        "started_at_unix": {
+          "type": ["number", "null"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["completed", "failed", "skipped", "reused"]
+        },
+        "step_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    }
+  }
+}

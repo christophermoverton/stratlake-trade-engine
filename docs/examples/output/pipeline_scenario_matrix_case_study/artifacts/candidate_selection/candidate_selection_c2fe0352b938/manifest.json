@@ -1,0 +1,314 @@
+{
+  "allocated_candidates": 3,
+  "allocation_applied": true,
+  "allocation_constraints": {
+    "max_weight_per_candidate": null,
+    "min_candidate_count": 1,
+    "min_weight_threshold": null,
+    "rounding_decimals": 12,
+    "weight_sum_tolerance": 1e-12
+  },
+  "allocation_method": "equal_weight",
+  "allocation_summary": {
+    "allocated_candidates": 3,
+    "allocation_enabled": true,
+    "allocation_method": "equal_weight",
+    "concentration_hhi": 0.33333333333333337,
+    "constraint_adjusted_candidates": 0,
+    "weight_max": 0.333333333334,
+    "weight_min": 0.333333333333,
+    "weight_sum": 1.0
+  },
+  "allocation_weights_csv": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938/allocation_weights.csv",
+  "artifact_dir": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938",
+  "artifact_files": [
+    "allocation_weights.csv",
+    "candidate_universe.csv",
+    "correlation_matrix.csv",
+    "eligibility_filter_results.csv",
+    "manifest.json",
+    "rejected_candidates.csv",
+    "selected_candidates.csv",
+    "selection_summary.json"
+  ],
+  "artifact_groups": {
+    "allocation": [
+      "allocation_weights.csv",
+      "selected_candidates.csv"
+    ],
+    "core": [
+      "allocation_weights.csv",
+      "candidate_universe.csv",
+      "correlation_matrix.csv",
+      "eligibility_filter_results.csv",
+      "manifest.json",
+      "rejected_candidates.csv",
+      "selected_candidates.csv",
+      "selection_summary.json"
+    ],
+    "eligibility": [
+      "eligibility_filter_results.csv"
+    ],
+    "redundancy": [
+      "correlation_matrix.csv",
+      "rejected_candidates.csv"
+    ]
+  },
+  "artifact_path": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938",
+  "artifacts": {
+    "allocation_weights.csv": {
+      "columns": [
+        "candidate_id",
+        "alpha_name",
+        "sleeve_run_id",
+        "allocation_weight",
+        "allocation_method",
+        "pre_constraint_weight",
+        "constraint_adjusted_flag"
+      ],
+      "path": "allocation_weights.csv",
+      "required_columns_validated": true,
+      "rows": 3
+    },
+    "candidate_universe.csv": {
+      "columns": [
+        "selection_rank",
+        "candidate_id",
+        "alpha_name",
+        "alpha_run_id",
+        "sleeve_run_id",
+        "mapping_name",
+        "dataset",
+        "timeframe",
+        "evaluation_horizon",
+        "mean_ic",
+        "ic_ir",
+        "mean_rank_ic",
+        "rank_ic_ir",
+        "n_periods",
+        "sharpe_ratio",
+        "annualized_return",
+        "total_return",
+        "max_drawdown",
+        "average_turnover",
+        "promotion_status",
+        "review_status",
+        "artifact_path"
+      ],
+      "path": "candidate_universe.csv",
+      "required_columns_validated": true,
+      "rows": 3
+    },
+    "correlation_matrix.csv": {
+      "columns": [
+        "candidate_id"
+      ],
+      "path": "correlation_matrix.csv",
+      "required_columns_validated": true,
+      "rows": 0
+    },
+    "eligibility_filter_results.csv": {
+      "columns": [
+        "candidate_id",
+        "alpha_name",
+        "sleeve_run_id",
+        "dataset",
+        "timeframe",
+        "evaluation_horizon",
+        "is_eligible",
+        "failed_checks",
+        "mean_ic",
+        "mean_rank_ic",
+        "ic_ir",
+        "rank_ic_ir",
+        "history_length",
+        "threshold_min_mean_ic",
+        "threshold_min_mean_rank_ic",
+        "threshold_min_ic_ir",
+        "threshold_min_rank_ic_ir",
+        "threshold_min_history_length"
+      ],
+      "path": "eligibility_filter_results.csv",
+      "required_columns_validated": true,
+      "rows": 3
+    },
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "rejected_candidates.csv": {
+      "columns": [
+        "selection_rank",
+        "candidate_id",
+        "alpha_name",
+        "alpha_run_id",
+        "sleeve_run_id",
+        "mapping_name",
+        "dataset",
+        "timeframe",
+        "evaluation_horizon",
+        "mean_ic",
+        "ic_ir",
+        "mean_rank_ic",
+        "rank_ic_ir",
+        "n_periods",
+        "sharpe_ratio",
+        "annualized_return",
+        "total_return",
+        "max_drawdown",
+        "average_turnover",
+        "promotion_status",
+        "review_status",
+        "artifact_path",
+        "rejected_stage",
+        "rejection_reason",
+        "failed_checks",
+        "rejected_against_candidate_id",
+        "observed_correlation",
+        "configured_max_correlation",
+        "overlap_observations"
+      ],
+      "path": "rejected_candidates.csv",
+      "required_columns_validated": true,
+      "rows": 0
+    },
+    "selected_candidates.csv": {
+      "columns": [
+        "selection_rank",
+        "candidate_id",
+        "alpha_name",
+        "alpha_run_id",
+        "sleeve_run_id",
+        "mapping_name",
+        "dataset",
+        "timeframe",
+        "evaluation_horizon",
+        "mean_ic",
+        "ic_ir",
+        "mean_rank_ic",
+        "rank_ic_ir",
+        "n_periods",
+        "sharpe_ratio",
+        "annualized_return",
+        "total_return",
+        "max_drawdown",
+        "average_turnover",
+        "promotion_status",
+        "review_status",
+        "artifact_path",
+        "allocation_weight",
+        "allocation_method",
+        "pre_constraint_weight",
+        "constraint_adjusted_flag"
+      ],
+      "path": "selected_candidates.csv",
+      "required_columns_validated": true,
+      "rows": 3
+    },
+    "selection_summary.json": {
+      "path": "selection_summary.json"
+    }
+  },
+  "candidate_statistics": {
+    "eligible_candidates": 3,
+    "rejected_by_stage": {
+      "eligibility": 0,
+      "redundancy": 0
+    },
+    "rejected_candidates": 0,
+    "selected_candidates": 3,
+    "total_candidates": 3
+  },
+  "candidate_universe_csv": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938/candidate_universe.csv",
+  "config_snapshot": {
+    "allocation_constraints": {
+      "max_weight_per_candidate": null,
+      "min_candidate_count": 1,
+      "min_weight_threshold": null,
+      "rounding_decimals": 12,
+      "weight_sum_tolerance": 1e-12
+    },
+    "eligibility_thresholds": {
+      "min_history_length": null,
+      "min_ic_ir": null,
+      "min_mean_ic": null,
+      "min_mean_rank_ic": null,
+      "min_rank_ic_ir": null,
+      "require_ic_ir": false,
+      "require_mean_ic": false
+    },
+    "filters": {
+      "alpha_name": null,
+      "dataset": "features_daily",
+      "evaluation_horizon": 5,
+      "mapping_name": "top_bottom_quantile_q20",
+      "timeframe": "1D"
+    },
+    "primary_metric": "ic_ir",
+    "redundancy_thresholds": {
+      "max_pairwise_correlation": null,
+      "min_overlap_observations": 10
+    }
+  },
+  "correlation_matrix_csv": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938/correlation_matrix.csv",
+  "eligibility_filter_results_csv": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938/eligibility_filter_results.csv",
+  "files_written": 8,
+  "provenance": {
+    "dataset": "features_daily",
+    "evaluation_horizon": 5,
+    "mapping_names": [
+      "top_bottom_quantile_q20"
+    ],
+    "stage_execution": {
+      "allocation": true,
+      "eligibility": true,
+      "redundancy": true,
+      "universe": true
+    },
+    "timeframe": "1D",
+    "upstream": {
+      "alpha_artifact_paths": [
+        "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/alpha/ml_cross_sectional_lgbm_2026_q1_alpha_eval_f3eec87f23a6",
+        "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/alpha/ml_cross_sectional_xgb_2026_q1_alpha_eval_4d1d270521e2",
+        "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/alpha/rank_composite_momentum_2026_q1_alpha_eval_3256df8cbd0a"
+      ],
+      "alpha_run_ids": [
+        "ml_cross_sectional_lgbm_2026_q1_alpha_eval_f3eec87f23a6",
+        "ml_cross_sectional_xgb_2026_q1_alpha_eval_4d1d270521e2",
+        "rank_composite_momentum_2026_q1_alpha_eval_3256df8cbd0a"
+      ]
+    }
+  },
+  "rejected_candidates_csv": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938/rejected_candidates.csv",
+  "row_counts": {
+    "allocation_weights": 3,
+    "candidate_universe": 3,
+    "correlation_matrix": 0,
+    "eligibility_filter_results": 3,
+    "rejected_candidates": 0,
+    "selected_candidates": 3
+  },
+  "run_id": "candidate_selection_c2fe0352b938",
+  "run_type": "candidate_selection",
+  "schema_version": 1,
+  "selected_candidates_csv": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938/selected_candidates.csv",
+  "selection_summary_json": "docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection/candidate_selection_c2fe0352b938/selection_summary.json",
+  "stage_execution": {
+    "allocation": true,
+    "eligibility": true,
+    "redundancy": true,
+    "universe": true
+  },
+  "summary_path": "selection_summary.json",
+  "timestamp": "2006-11-14T12:32:15Z",
+  "validation": {
+    "checks": [
+      "allocation_weight_constraints",
+      "candidate_id_uniqueness",
+      "candidate_set_alignment",
+      "rejection_stage_semantics",
+      "required_columns",
+      "selected_rejected_partition"
+    ],
+    "passed": true
+  }
+}

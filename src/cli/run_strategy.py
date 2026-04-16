@@ -29,6 +29,7 @@ from src.research.sanity import SanityCheckError, validate_strategy_backtest_san
 from src.research.strategies import build_strategy
 from src.research.strategy_qa import generate_strategy_qa_summary
 from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment
+from src.pipeline.cli_adapter import build_pipeline_cli_result
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 STRATEGIES_CONFIG = REPO_ROOT / "configs" / "strategies.yml"
@@ -380,7 +381,12 @@ def _format_decimal(value: Any) -> str:
     return f"{float(value):.2f}"
 
 
-def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwardRunResult | RobustnessRunResult:
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    state: dict[str, Any] | None = None,
+    pipeline_context: dict[str, Any] | None = None,
+) -> StrategyRunResult | WalkForwardRunResult | RobustnessRunResult | dict[str, Any]:
     """Execute the strategy runner CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
@@ -439,6 +445,33 @@ def run_cli(argv: Sequence[str] | None = None) -> StrategyRunResult | WalkForwar
             simulation_config=None if args.simulation is None else load_simulation_config(Path(args.simulation)).to_dict(),
         )
     print_summary(result)
+    if pipeline_context is not None:
+        artifact_dir = getattr(result, "experiment_dir", None)
+        metrics = getattr(result, "metrics", None)
+        output_paths = {}
+        if artifact_dir is not None:
+            output_paths = {
+                "manifest_json": Path(artifact_dir) / "manifest.json",
+                "metrics_json": Path(artifact_dir) / "metrics.json",
+                "qa_summary_json": Path(artifact_dir) / "qa_summary.json",
+                "equity_curve_csv": Path(artifact_dir) / "equity_curve.csv",
+            }
+        return build_pipeline_cli_result(
+            identifier=str(getattr(result, "run_id", strategy_name)),
+            name=str(getattr(result, "strategy_name", strategy_name)),
+            artifact_dir=artifact_dir,
+            manifest_path=(
+                None
+                if artifact_dir is None
+                else Path(artifact_dir) / "manifest.json"
+            ),
+            output_paths=output_paths,
+            metrics=(metrics if isinstance(metrics, dict) else None),
+            extra={
+                "strategy_name": str(getattr(result, "strategy_name", strategy_name)),
+                "result_type": result.__class__.__name__,
+            },
+        )
     return result
 
 

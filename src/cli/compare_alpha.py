@@ -17,6 +17,7 @@ from src.research.alpha_eval import (
     compare_alpha_evaluation_runs,
     render_alpha_leaderboard_table,
 )
+from src.pipeline.cli_adapter import build_pipeline_cli_result
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -84,7 +85,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
-def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationComparisonResult:
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    state: dict[str, object] | None = None,
+    pipeline_context: dict[str, object] | None = None,
+) -> AlphaEvaluationComparisonResult | dict[str, object]:
     """Execute the alpha comparison CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
@@ -122,6 +128,22 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationComparisonResul
             ("filters", result.filters),
         ),
     )
+    if pipeline_context is not None:
+        return build_pipeline_cli_result(
+            identifier=result.comparison_id,
+            name="alpha_comparison",
+            artifact_dir=result.csv_path.parent,
+            output_paths={
+                "leaderboard_csv": result.csv_path,
+                "summary_json": result.json_path,
+            },
+            extra={
+                "comparison_id": result.comparison_id,
+                "metric": result.metric,
+                "view": result.view,
+                "row_count": int(len(result.leaderboard)),
+            },
+        )
     return result
 
 

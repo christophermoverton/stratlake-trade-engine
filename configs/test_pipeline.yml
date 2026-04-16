@@ -1,0 +1,16 @@
+id: test_pipeline
+steps:
+  - id: prepare
+    adapter: python_module
+    module: src.pipeline.testing
+    argv:
+      - --stage
+      - prepare
+  - id: evaluate
+    depends_on:
+      - prepare
+    adapter: python_module
+    module: src.pipeline.testing
+    argv:
+      - --stage
+      - evaluate

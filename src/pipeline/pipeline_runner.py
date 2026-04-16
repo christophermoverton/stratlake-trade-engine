@@ -15,6 +15,7 @@ from typing import Any, Mapping, Sequence
 import yaml
 
 from src.contracts.validate import validate_json
+from src.pipeline.registry import register_pipeline_run
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 
@@ -293,6 +294,12 @@ class PipelineRunner:
             pipeline_ended_at=pipeline_ended_at,
             step_metrics_by_id=step_metrics_by_id,
             pipeline_state=pipeline_state,
+        )
+        register_pipeline_run(
+            pipeline_run_id=result.pipeline_run_id,
+            pipeline_name=result.pipeline_id,
+            status=result.status,
+            artifact_dir=result.artifact_dir,
         )
         if failure is not None:
             raise failure

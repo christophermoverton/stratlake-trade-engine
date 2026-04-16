@@ -8,7 +8,13 @@ import pytest
 
 from src.contracts.validate import ContractValidationError, validate_json
 from src.cli.run_pipeline import load_pipeline_spec, run_cli
+from src.pipeline.registry import (
+    build_pipeline_registry_entry,
+    pipeline_registry_path,
+    register_pipeline_run,
+)
 from src.pipeline.pipeline_runner import PipelineRunner, PipelineSpec
+from src.research.registry import RegistryError
 
 
 def _time_sequence(*values: float):
@@ -355,6 +361,12 @@ def run_cli(argv=None):
         "schema_version": 1,
         "state": {},
     }
+    assert json.loads(pipeline_registry_path(tmp_path).read_text(encoding="utf-8")) == {
+        "artifact_dir": f"artifacts/pipelines/{result.pipeline_run_id}",
+        "pipeline_name": "artifact_pipeline",
+        "pipeline_run_id": result.pipeline_run_id,
+        "status": "completed",
+    }
 
 
 def test_pipeline_runner_artifacts_are_deterministic_across_repeated_runs(
@@ -414,6 +426,7 @@ def run_cli(argv=None):
         "metrics": first.pipeline_metrics_path.read_text(encoding="utf-8"),
         "lineage": first.lineage_path.read_text(encoding="utf-8"),
         "state": first.state_path.read_text(encoding="utf-8"),
+        "registry": pipeline_registry_path(tmp_path).read_text(encoding="utf-8"),
     }
 
     monkeypatch.setattr(
@@ -426,6 +439,7 @@ def run_cli(argv=None):
         "metrics": second.pipeline_metrics_path.read_text(encoding="utf-8"),
         "lineage": second.lineage_path.read_text(encoding="utf-8"),
         "state": second.state_path.read_text(encoding="utf-8"),
+        "registry": pipeline_registry_path(tmp_path).read_text(encoding="utf-8"),
     }
 
     assert first.pipeline_run_id == second.pipeline_run_id
@@ -493,6 +507,7 @@ def run_cli(argv=None):
     metrics = json.loads((pipeline_dir / "pipeline_metrics.json").read_text(encoding="utf-8"))
     lineage = json.loads((pipeline_dir / "lineage.json").read_text(encoding="utf-8"))
     state_payload = json.loads((pipeline_dir / "state.json").read_text(encoding="utf-8"))
+    registry_entry = json.loads(pipeline_registry_path(tmp_path).read_text(encoding="utf-8"))
 
     assert metrics == {
         "duration_seconds": 6.0,
@@ -589,6 +604,127 @@ def run_cli(argv=None):
         "schema_version": 1,
         "state": {},
     }
+    assert registry_entry == {
+        "artifact_dir": f"artifacts/pipelines/{PipelineRunner(spec).pipeline_run_id()}",
+        "pipeline_name": "failure_pipeline",
+        "pipeline_run_id": PipelineRunner(spec).pipeline_run_id(),
+        "status": "failed",
+    }
+
+
+def test_register_pipeline_run_creates_registry_when_missing(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    entry = register_pipeline_run(
+        pipeline_run_id="demo_pipeline_pipeline_123456789abc",
+        pipeline_name="demo_pipeline",
+        status="completed",
+        artifact_dir=tmp_path / "artifacts" / "pipelines" / "demo_pipeline_pipeline_123456789abc",
+    )
+
+    registry_path = pipeline_registry_path(tmp_path)
+
+    assert registry_path.exists()
+    assert registry_path.read_text(encoding="utf-8") == (
+        '{"artifact_dir":"artifacts/pipelines/demo_pipeline_pipeline_123456789abc",'
+        '"pipeline_name":"demo_pipeline","pipeline_run_id":"demo_pipeline_pipeline_123456789abc",'
+        '"status":"completed"}\n'
+    )
+    assert entry == {
+        "artifact_dir": "artifacts/pipelines/demo_pipeline_pipeline_123456789abc",
+        "pipeline_name": "demo_pipeline",
+        "pipeline_run_id": "demo_pipeline_pipeline_123456789abc",
+        "status": "completed",
+    }
+
+
+def test_register_pipeline_run_appends_new_entries_in_sequence(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    register_pipeline_run(
+        pipeline_run_id="alpha_pipeline_pipeline_111111111111",
+        pipeline_name="alpha_pipeline",
+        status="completed",
+        artifact_dir=tmp_path / "artifacts" / "pipelines" / "alpha_pipeline_pipeline_111111111111",
+    )
+    register_pipeline_run(
+        pipeline_run_id="beta_pipeline_pipeline_222222222222",
+        pipeline_name="beta_pipeline",
+        status="failed",
+        artifact_dir=tmp_path / "artifacts" / "pipelines" / "beta_pipeline_pipeline_222222222222",
+    )
+
+    lines = pipeline_registry_path(tmp_path).read_text(encoding="utf-8").splitlines()
+
+    assert [json.loads(line)["pipeline_run_id"] for line in lines] == [
+        "alpha_pipeline_pipeline_111111111111",
+        "beta_pipeline_pipeline_222222222222",
+    ]
+
+
+def test_register_pipeline_run_skips_identical_duplicate_run_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    payload = {
+        "pipeline_run_id": "stable_pipeline_pipeline_abcdef123456",
+        "pipeline_name": "stable_pipeline",
+        "status": "completed",
+        "artifact_dir": tmp_path / "artifacts" / "pipelines" / "stable_pipeline_pipeline_abcdef123456",
+    }
+
+    register_pipeline_run(**payload)
+    register_pipeline_run(**payload)
+
+    assert pipeline_registry_path(tmp_path).read_text(encoding="utf-8").splitlines() == [
+        '{"artifact_dir":"artifacts/pipelines/stable_pipeline_pipeline_abcdef123456","pipeline_name":"stable_pipeline","pipeline_run_id":"stable_pipeline_pipeline_abcdef123456","status":"completed"}'
+    ]
+
+
+def test_register_pipeline_run_rejects_conflicting_duplicate_run_id(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+
+    register_pipeline_run(
+        pipeline_run_id="stable_pipeline_pipeline_abcdef123456",
+        pipeline_name="stable_pipeline",
+        status="completed",
+        artifact_dir=tmp_path / "artifacts" / "pipelines" / "stable_pipeline_pipeline_abcdef123456",
+    )
+
+    with pytest.raises(
+        RegistryError,
+        match="conflicting entry for pipeline_run_id 'stable_pipeline_pipeline_abcdef123456'",
+    ):
+        register_pipeline_run(
+            pipeline_run_id="stable_pipeline_pipeline_abcdef123456",
+            pipeline_name="stable_pipeline",
+            status="failed",
+            artifact_dir=tmp_path / "artifacts" / "pipelines" / "stable_pipeline_pipeline_abcdef123456",
+        )
+
+
+def test_build_pipeline_registry_entry_is_deterministic_for_equivalent_paths(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    absolute_entry = build_pipeline_registry_entry(
+        pipeline_run_id="stable_pipeline_pipeline_abcdef123456",
+        pipeline_name="stable_pipeline",
+        status="completed",
+        artifact_dir=(tmp_path / "artifacts" / "pipelines" / "stable_pipeline_pipeline_abcdef123456").resolve(),
+    )
+    relative_entry = build_pipeline_registry_entry(
+        pipeline_run_id="stable_pipeline_pipeline_abcdef123456",
+        pipeline_name="stable_pipeline",
+        status="completed",
+        artifact_dir=Path("artifacts") / "pipelines" / "stable_pipeline_pipeline_abcdef123456",
+    )
+
+    assert absolute_entry == relative_entry
 
 
 def test_pipeline_runner_injects_immutable_state_and_merges_updates_deterministically(

@@ -17,6 +17,7 @@ from src.research.compare import (
     compare_strategies,
     render_leaderboard_table,
 )
+from src.pipeline.cli_adapter import build_pipeline_cli_result
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -76,7 +77,12 @@ def parse_strategy_names(raw_values: Sequence[str]) -> list[str]:
     return parse_csv_or_space_separated(raw_values) or []
 
 
-def run_cli(argv: Sequence[str] | None = None) -> ComparisonResult:
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    state: dict[str, object] | None = None,
+    pipeline_context: dict[str, object] | None = None,
+) -> ComparisonResult | dict[str, object]:
     """Execute the comparison CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
@@ -106,6 +112,23 @@ def run_cli(argv: Sequence[str] | None = None) -> ComparisonResult:
             ("plot_count", len(result.plot_paths)),
         ),
     )
+    if pipeline_context is not None:
+        return build_pipeline_cli_result(
+            identifier=result.comparison_id,
+            name="strategy_comparison",
+            artifact_dir=result.csv_path.parent,
+            output_paths={
+                "leaderboard_csv": result.csv_path,
+                "summary_json": result.json_path,
+            },
+            extra={
+                "comparison_id": result.comparison_id,
+                "metric": result.metric,
+                "evaluation_mode": result.evaluation_mode,
+                "selection_mode": result.selection_mode,
+                "row_count": int(len(result.leaderboard)),
+            },
+        )
     return result
 
 

@@ -27,6 +27,7 @@ from src.research.alpha_eval import (
 )
 from src.research.promotion import load_promotion_gate_config
 from src.research.registry import RegistryError
+from src.pipeline.cli_adapter import build_pipeline_cli_result
 
 SUPPORTED_RUN_MODES = ("evaluate", "full")
 FULL_RUN_SCAFFOLD_FILE = "alpha_run_scaffold.json"
@@ -196,7 +197,12 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
     return resolved
 
 
-def run_cli(argv: Sequence[str] | None = None) -> AlphaRunResult:
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    state: dict[str, Any] | None = None,
+    pipeline_context: dict[str, Any] | None = None,
+) -> AlphaRunResult | dict[str, Any]:
     """Execute the first-class built-in alpha runner."""
 
     args = parse_args(argv)
@@ -245,6 +251,31 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaRunResult:
         resolved_config=dict(evaluation_result.resolved_config),
     )
     print_summary(result)
+    if pipeline_context is not None:
+        manifest_path = result.artifact_dir / "manifest.json"
+        output_paths = {
+            "scaffold_path": result.scaffold_path,
+            "alpha_metrics_json": result.artifact_dir / "alpha_metrics.json",
+            "predictions_parquet": result.artifact_dir / "predictions.parquet",
+            "signals_parquet": result.artifact_dir / "signals.parquet",
+            "sleeve_metrics_json": result.artifact_dir / "sleeve_metrics.json",
+        }
+        return build_pipeline_cli_result(
+            identifier=result.run_id,
+            name=result.alpha_name,
+            artifact_dir=result.artifact_dir,
+            manifest_path=(manifest_path if manifest_path.exists() else None),
+            output_paths=output_paths,
+            metrics={
+                "mean_ic": float(result.evaluation.evaluation_result.summary["mean_ic"]),
+                "ic_ir": float(result.evaluation.evaluation_result.summary["ic_ir"]),
+                "n_periods": int(result.evaluation.evaluation_result.summary["n_periods"]),
+            },
+            extra={
+                "alpha_name": result.alpha_name,
+                "mode": result.mode,
+            },
+        )
     return result
 
 

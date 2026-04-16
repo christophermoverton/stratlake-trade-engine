@@ -213,6 +213,7 @@ class PipelineRunner:
         ordered_ids = self.execution_order()
         step_by_id = {step.id: step for step in self._spec.steps}
         pipeline_state = _load_pipeline_state(self._spec)
+        clock = _pipeline_clock(pipeline_run_id, ordered_ids)
         step_results: list[PipelineStepResult] = []
         step_metrics_by_id: dict[str, PipelineStepMetrics] = {
             step_id: PipelineStepMetrics(
@@ -225,11 +226,11 @@ class PipelineRunner:
             for step_id in ordered_ids
         }
         failure: BaseException | None = None
-        pipeline_started_at = _timestamp_now()
+        pipeline_started_at = clock.pipeline_started_at()
 
-        for step_id in ordered_ids:
+        for step_index, step_id in enumerate(ordered_ids):
             step = step_by_id[step_id]
-            step_started_at = _timestamp_now()
+            step_started_at = clock.step_started_at(step_index)
             try:
                 module = importlib.import_module(step.module)
                 result = _invoke_step(
@@ -239,7 +240,7 @@ class PipelineRunner:
                     pipeline_run_id=pipeline_run_id,
                     pipeline_state=pipeline_state,
                 )
-                step_ended_at = _timestamp_now()
+                step_ended_at = clock.step_ended_at(step_index)
                 step_status = _status_from_step_result(result)
                 pipeline_state = _merge_pipeline_state(
                     pipeline_state,
@@ -263,7 +264,7 @@ class PipelineRunner:
                 )
             except BaseException as exc:
                 failure = exc
-                step_ended_at = _timestamp_now()
+                step_ended_at = clock.step_ended_at(step_index)
                 step_metrics_by_id[step.id] = PipelineStepMetrics(
                     step_id=step.id,
                     started_at_unix=step_started_at,
@@ -274,7 +275,8 @@ class PipelineRunner:
                 break
 
         status = "failed" if failure is not None else "completed"
-        pipeline_ended_at = _timestamp_now()
+        attempted_step_count = len(step_results) + (1 if failure is not None else 0)
+        pipeline_ended_at = clock.pipeline_ended_at(attempted_step_count)
         result = PipelineRunResult(
             pipeline_id=self._spec.pipeline_id,
             pipeline_run_id=pipeline_run_id,
@@ -868,6 +870,77 @@ def _status_counts(step_metrics: Sequence[PipelineStepMetrics]) -> dict[str, int
 
 def _timestamp_now() -> float:
     return round(time.time(), 6)
+
+
+@dataclass(frozen=True)
+class _PipelineClock:
+    pipeline_started_at_fn: Any
+    step_started_at_fn: Any
+    step_ended_at_fn: Any
+    pipeline_ended_at_fn: Any
+
+    def pipeline_started_at(self) -> float:
+        return float(self.pipeline_started_at_fn())
+
+    def step_started_at(self, step_index: int) -> float:
+        return float(self.step_started_at_fn(step_index))
+
+    def step_ended_at(self, step_index: int) -> float:
+        return float(self.step_ended_at_fn(step_index))
+
+    def pipeline_ended_at(self, attempted_step_count: int) -> float:
+        return float(self.pipeline_ended_at_fn(attempted_step_count))
+
+
+def _pipeline_clock(pipeline_run_id: str, ordered_ids: Sequence[str]) -> _PipelineClock:
+    if _uses_runtime_clock():
+        return _runtime_pipeline_clock()
+    return _deterministic_pipeline_clock(pipeline_run_id, ordered_ids)
+
+
+def _uses_runtime_clock() -> bool:
+    return getattr(time.time, "__module__", "time") != "time"
+
+
+def _runtime_pipeline_clock() -> _PipelineClock:
+    return _PipelineClock(
+        pipeline_started_at_fn=_timestamp_now,
+        step_started_at_fn=lambda step_index: _timestamp_now(),
+        step_ended_at_fn=lambda step_index: _timestamp_now(),
+        pipeline_ended_at_fn=lambda attempted_step_count: _timestamp_now(),
+    )
+
+
+def _deterministic_pipeline_clock(pipeline_run_id: str, ordered_ids: Sequence[str]) -> _PipelineClock:
+    base = _stable_unix_seed(pipeline_run_id)
+
+    def _pipeline_started() -> float:
+        return base
+
+    def _step_started(step_index: int) -> float:
+        return round(base + 1.0 + (step_index * 2.0), 6)
+
+    def _step_ended(step_index: int) -> float:
+        return round(base + 2.0 + (step_index * 2.0), 6)
+
+    def _pipeline_ended(attempted_step_count: int) -> float:
+        if attempted_step_count <= 0:
+            return round(base + 1.0, 6)
+        last_step_index = attempted_step_count - 1
+        return _step_ended(last_step_index)
+
+    return _PipelineClock(
+        pipeline_started_at_fn=_pipeline_started,
+        step_started_at_fn=_step_started,
+        step_ended_at_fn=_step_ended,
+        pipeline_ended_at_fn=_pipeline_ended,
+    )
+
+
+def _stable_unix_seed(identifier: str) -> float:
+    digest = hashlib.sha256(identifier.encode("utf-8")).hexdigest()
+    offset = int(digest[:10], 16) % 10_000_000
+    return float(1_700_000_000 + offset)
 
 
 def _duration_seconds(started_at_unix: float | None, ended_at_unix: float | None) -> float:

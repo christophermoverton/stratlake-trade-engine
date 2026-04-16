@@ -1,0 +1,148 @@
+id: scenario_matrix_pipeline
+parameters:
+  datasets:
+    features_daily:
+      consumers:
+        - alpha_rank_composite
+        - alpha_xgb
+        - alpha_lgbm
+        - strategy_momentum
+        - strategy_mean_reversion
+steps:
+  - id: alpha_rank_composite
+    adapter: python_module
+    module: src.cli.run_alpha
+    argv:
+      - --config
+      - configs/alphas_2026_q1.yml
+      - --alpha-name
+      - rank_composite_momentum_2026_q1
+      - --mode
+      - full
+      - --artifacts-root
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/alpha
+  - id: alpha_xgb
+    adapter: python_module
+    module: src.cli.run_alpha
+    argv:
+      - --config
+      - configs/alphas_2026_q1.yml
+      - --alpha-name
+      - ml_cross_sectional_xgb_2026_q1
+      - --mode
+      - full
+      - --artifacts-root
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/alpha
+  - id: alpha_lgbm
+    adapter: python_module
+    module: src.cli.run_alpha
+    argv:
+      - --config
+      - configs/alphas_2026_q1.yml
+      - --alpha-name
+      - ml_cross_sectional_lgbm_2026_q1
+      - --mode
+      - full
+      - --artifacts-root
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/alpha
+  - id: strategy_momentum
+    adapter: python_module
+    module: src.cli.run_strategy
+    argv:
+      - --strategy
+      - momentum_v1
+      - --start
+      - "2026-01-01"
+      - --end
+      - "2026-04-03"
+  - id: strategy_mean_reversion
+    adapter: python_module
+    module: src.cli.run_strategy
+    argv:
+      - --strategy
+      - mean_reversion_v1_safe_2026_q1
+      - --start
+      - "2026-01-01"
+      - --end
+      - "2026-04-03"
+  - id: compare_alpha
+    depends_on:
+      - alpha_rank_composite
+      - alpha_xgb
+      - alpha_lgbm
+    adapter: python_module
+    module: src.cli.compare_alpha
+    argv:
+      - --from-registry
+      - --view
+      - combined
+      - --metric
+      - ic_ir
+      - --sleeve-metric
+      - sharpe_ratio
+      - --dataset
+      - features_daily
+      - --timeframe
+      - 1D
+      - --evaluation-horizon
+      - "5"
+      - --mapping-name
+      - top_bottom_quantile_q20
+      - --artifacts-root
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/alpha
+      - --output-path
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/comparisons/alpha
+  - id: compare_strategies
+    depends_on:
+      - strategy_momentum
+      - strategy_mean_reversion
+    adapter: python_module
+    module: src.cli.compare_strategies
+    argv:
+      - --strategies
+      - momentum_v1
+      - mean_reversion_v1_safe_2026_q1
+      - --start
+      - "2026-01-01"
+      - --end
+      - "2026-04-03"
+      - --metric
+      - sharpe_ratio
+      - --output-path
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/comparisons/strategy
+  - id: candidate_selection
+    depends_on:
+      - compare_alpha
+    adapter: python_module
+    module: src.cli.run_candidate_selection
+    argv:
+      - --artifacts-root
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/alpha
+      - --dataset
+      - features_daily
+      - --timeframe
+      - 1D
+      - --evaluation-horizon
+      - "5"
+      - --mapping-name
+      - top_bottom_quantile_q20
+      - --metric
+      - ic_ir
+      - --max-candidates
+      - "3"
+      - --allocation-method
+      - equal_weight
+      - --output-path
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/candidate_selection
+  - id: construct_portfolio
+    depends_on:
+      - candidate_selection
+    adapter: python_module
+    module: src.cli.run_portfolio
+    argv:
+      - --portfolio-name
+      - scenario_matrix_pipeline_portfolio
+      - --timeframe
+      - 1D
+      - --output-dir
+      - docs/examples/output/pipeline_scenario_matrix_case_study/artifacts/portfolios

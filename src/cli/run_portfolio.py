@@ -49,6 +49,7 @@ from src.research.registry import (
 from src.research.simulation import SimulationRunResult, run_return_simulation, write_simulation_artifacts
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.sanity import validate_portfolio_output_sanity
+from src.pipeline.cli_adapter import build_pipeline_cli_result
 
 DEFAULT_PORTFOLIO_ARTIFACTS_ROOT = Path("artifacts") / "portfolios"
 SUPPORTED_TIMEFRAMES = ("1D", "1Min")
@@ -272,10 +273,16 @@ def parse_run_ids(raw_values: Sequence[str] | None) -> list[str]:
     return run_ids
 
 
-def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | PortfolioWalkForwardRunResult:
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    state: Mapping[str, Any] | None = None,
+    pipeline_context: Mapping[str, Any] | None = None,
+) -> PortfolioRunResult | PortfolioWalkForwardRunResult | dict[str, Any]:
     """Execute the portfolio runner CLI flow from parsed command-line arguments."""
 
-    args = parse_args(argv)
+    effective_argv = _pipeline_argv(argv, state=state)
+    args = parse_args(effective_argv)
     timeframe = _normalize_timeframe(args.timeframe)
     execution_override = _execution_override_from_args(args)
     cli_overrides = _milestone_11_overrides_from_args(args)
@@ -468,7 +475,43 @@ def run_cli(argv: Sequence[str] | None = None) -> PortfolioRunResult | Portfolio
             simulation_result=simulation_result,
         )
     print_summary(result)
+    if pipeline_context is not None:
+        artifact_dir = result.experiment_dir
+        return build_pipeline_cli_result(
+            identifier=result.run_id,
+            name=result.portfolio_name,
+            artifact_dir=artifact_dir,
+            manifest_path=artifact_dir / "manifest.json",
+            output_paths={
+                "metrics_json": artifact_dir / "metrics.json",
+                "portfolio_returns_csv": artifact_dir / "portfolio_returns.csv",
+                "portfolio_equity_curve_csv": artifact_dir / "portfolio_equity_curve.csv",
+                "weights_csv": artifact_dir / "weights.csv",
+                "qa_summary_json": artifact_dir / "qa_summary.json",
+            },
+            metrics=dict(result.metrics),
+            extra={
+                "allocator_name": result.allocator_name,
+                "component_count": int(result.component_count),
+                "timeframe": result.timeframe,
+            },
+        )
     return result
+
+
+def _pipeline_argv(
+    argv: Sequence[str] | None,
+    *,
+    state: Mapping[str, Any] | None,
+) -> list[str]:
+    effective = list(argv or [])
+    if any(value == "--from-candidate-selection" for value in effective):
+        return effective
+    candidate_dir = None if state is None else state.get("candidate_selection_artifact_dir")
+    if not isinstance(candidate_dir, str) or not candidate_dir.strip():
+        return effective
+    effective.extend(["--from-candidate-selection", candidate_dir.strip()])
+    return effective
 
 
 def print_summary(result: PortfolioRunResult | PortfolioWalkForwardRunResult) -> None:

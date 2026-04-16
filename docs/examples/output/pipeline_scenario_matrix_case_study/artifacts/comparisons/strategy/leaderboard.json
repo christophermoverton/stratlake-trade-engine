@@ -1,0 +1,52 @@
+{
+  "comparison_id": "fresh_single_sharpe_ratio_9e56d66d5946",
+  "evaluation_mode": "single",
+  "leaderboard": [
+    {
+      "annualized_return": 0.0514406550026929,
+      "annualized_volatility": 0.023543770572488257,
+      "cumulative_return": 0.012619278552030488,
+      "evaluation_mode": "single",
+      "exposure_pct": 7.238095238095238,
+      "hit_rate": 0.6356589147286822,
+      "max_drawdown": 0.0030868087286415324,
+      "profit_factor": 1.6455726462146707,
+      "rank": 1,
+      "selected_metric_name": "sharpe_ratio",
+      "selected_metric_value": 2.1423087665736507,
+      "sharpe_ratio": 2.1423087665736507,
+      "strategy_name": "mean_reversion_v1_safe_2026_q1",
+      "total_return": 0.012619278552030488,
+      "turnover": 0.08095238095238096,
+      "volatility": 0.001483118139513446,
+      "win_rate": 0.3492063492063492
+    },
+    {
+      "annualized_return": -0.12571560037990626,
+      "annualized_volatility": 0.0676153728634812,
+      "cumulative_return": -0.03302959509446268,
+      "evaluation_mode": "single",
+      "exposure_pct": 68.25396825396825,
+      "hit_rate": 0.40115163147792704,
+      "max_drawdown": 0.046762674076148314,
+      "profit_factor": 0.7926311723851132,
+      "rank": 2,
+      "selected_metric_name": "sharpe_ratio",
+      "selected_metric_value": -1.953038423613883,
+      "sharpe_ratio": -1.953038423613883,
+      "strategy_name": "momentum_v1",
+      "total_return": -0.03302959509446268,
+      "turnover": 0.31555555555555553,
+      "volatility": 0.004259368128611345,
+      "win_rate": 0.3492063492063492
+    }
+  ],
+  "metric": "sharpe_ratio",
+  "plot_paths": {
+    "equity_comparison": "plots/equity_comparison.png",
+    "metric_comparison": "plots/metric_comparison_sharpe_ratio.png"
+  },
+  "selection_mode": "fresh",
+  "selection_rule": "freshly executed run per strategy",
+  "skipped_plots": {}
+}

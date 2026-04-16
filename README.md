@@ -30,6 +30,34 @@ The repository now includes:
 * a committed real-world sweep case study with reproducible artifacts and
   leaderboard interpretation guidance
 
+## Milestone 20 Summary
+
+Milestone 20 adds a deterministic YAML-driven pipeline runner and a lightweight
+data platform orchestration layer for composing existing CLI modules into one
+artifact-driven workflow.
+
+The repository now includes:
+
+* YAML pipeline execution through `python -m src.cli.run_pipeline --config <spec>`
+* deterministic pipeline artifacts under `artifacts/pipelines/<pipeline_run_id>/`
+* pipeline registry tracking via `artifacts/pipelines/registry.jsonl`
+* explicit step dependency ordering, state passing, manifest, lineage, and
+  timing metrics for reproducible pipeline workflows
+* a scenario-matrix pipeline case study in
+  `docs/examples/pipeline_scenario_matrix_case_study.md`
+* a committed pipeline spec at `configs/pipelines/scenario_matrix_pipeline.yml`
+
+Run a pipeline with:
+
+```powershell
+python -m src.cli.run_pipeline --config configs/pipelines/scenario_matrix_pipeline.yml
+```
+
+For details, see:
+
+* [docs/milestone_20_data_platform_orchestration.md](docs/milestone_20_data_platform_orchestration.md)
+* [docs/examples/pipeline_scenario_matrix_case_study.md](docs/examples/pipeline_scenario_matrix_case_study.md)
+
 ## Milestone 18 Summary
 
 Milestone 18 keeps the campaign-orchestration and resume/reuse layers
@@ -95,6 +123,8 @@ Start with:
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
 * [docs/milestone_19_scenario_sweeps.md](docs/milestone_19_scenario_sweeps.md)
+* [docs/milestone_20_data_platform_orchestration.md](docs/milestone_20_data_platform_orchestration.md)
+* [docs/examples/pipeline_scenario_matrix_case_study.md](docs/examples/pipeline_scenario_matrix_case_study.md)
 * [docs/examples/real_world_scenario_sweep_case_study.md](docs/examples/real_world_scenario_sweep_case_study.md)
 * [docs/examples/real_world_scenario_sweep_case_study.py](docs/examples/real_world_scenario_sweep_case_study.py)
 * [docs/examples/real_data_scenario_sweep_case_study.md](docs/examples/real_data_scenario_sweep_case_study.md)

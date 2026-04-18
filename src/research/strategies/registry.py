@@ -8,6 +8,14 @@ from src.research.strategy_base import BaseStrategy
 
 from src.research.strategies.baselines import BuyAndHoldStrategy, SMACrossoverStrategy, SeededRandomStrategy
 from src.research.strategies.builtins import MeanReversionStrategy, MomentumStrategy
+from src.research.strategies.archetypes import (
+    TimeSeriesMomentumStrategy,
+    CrossSectionMomentumStrategy,
+    MeanReversionStrategy as MeanReversionArchetype,
+    BreakoutStrategy,
+    PairsTradingStrategy,
+    ResidualMomentumStrategy,
+)
 
 StrategyBuilder = Callable[[dict[str, Any]], BaseStrategy]
 
@@ -41,6 +49,45 @@ def _build_seeded_random(parameters: dict[str, Any]) -> BaseStrategy:
     return SeededRandomStrategy(seed=int(parameters["seed"]))
 
 
+def _build_time_series_momentum(parameters: dict[str, Any]) -> BaseStrategy:
+    return TimeSeriesMomentumStrategy(
+        lookback_short=int(parameters["lookback_short"]),
+        lookback_long=int(parameters["lookback_long"]),
+    )
+
+
+def _build_cross_section_momentum(parameters: dict[str, Any]) -> BaseStrategy:
+    return CrossSectionMomentumStrategy(
+        lookback_days=int(parameters.get("lookback_days", 1)),
+    )
+
+
+def _build_mean_reversion_archetype(parameters: dict[str, Any]) -> BaseStrategy:
+    return MeanReversionArchetype(
+        lookback=int(parameters["lookback"]),
+        threshold=float(parameters["threshold"]),
+    )
+
+
+def _build_breakout(parameters: dict[str, Any]) -> BaseStrategy:
+    return BreakoutStrategy(
+        lookback=int(parameters.get("lookback", 20)),
+    )
+
+
+def _build_pairs_trading(parameters: dict[str, Any]) -> BaseStrategy:
+    return PairsTradingStrategy(
+        lookback=int(parameters.get("lookback", 63)),
+        threshold=float(parameters.get("threshold", 2.0)),
+    )
+
+
+def _build_residual_momentum(parameters: dict[str, Any]) -> BaseStrategy:
+    return ResidualMomentumStrategy(
+        lookback_days=int(parameters.get("lookback_days", 20)),
+    )
+
+
 STRATEGY_BUILDERS: dict[str, StrategyBuilder] = {
     "momentum_v1": _build_momentum,
     "mean_reversion_v1": _build_mean_reversion,
@@ -48,6 +95,13 @@ STRATEGY_BUILDERS: dict[str, StrategyBuilder] = {
     "buy_and_hold_v1": _build_buy_and_hold,
     "sma_crossover_v1": _build_sma_crossover,
     "seeded_random_v1": _build_seeded_random,
+    # New archetype strategies
+    "time_series_momentum": _build_time_series_momentum,
+    "cross_section_momentum": _build_cross_section_momentum,
+    "mean_reversion": _build_mean_reversion_archetype,
+    "breakout": _build_breakout,
+    "pairs_trading": _build_pairs_trading,
+    "residual_momentum": _build_residual_momentum,
 }
 
 

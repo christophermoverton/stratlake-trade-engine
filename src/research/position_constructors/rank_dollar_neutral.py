@@ -6,9 +6,11 @@ import pandas as pd
 
 from src.research.position_constructors.base import (
     PositionConstructor,
+    apply_directional_position_controls,
     finalize_positions,
     require_float,
     signal_values,
+    validate_asymmetry_parameters,
 )
 from src.research.signal_semantics import Signal
 
@@ -20,6 +22,9 @@ class RankDollarNeutralPositionConstructor(PositionConstructor):
         normalized_params = {} if params is None else dict(params)
         self._gross_long = require_float(normalized_params, name="gross_long", non_negative=True)
         self._gross_short = require_float(normalized_params, name="gross_short", non_negative=True)
+        validation = validate_asymmetry_parameters(normalized_params, "rank_dollar_neutral")
+        if not validation["valid"]:
+            raise ValueError(validation["error_message"])
         super().__init__(constructor_id="rank_dollar_neutral", params=normalized_params, version=version)
 
     def construct(self, signal: Signal) -> pd.DataFrame:
@@ -39,7 +44,16 @@ class RankDollarNeutralPositionConstructor(PositionConstructor):
 
             positions.loc[positive.index] = (positive / long_denominator) * self._gross_long
             positions.loc[negative.index] = -(negative.abs() / short_denominator) * self._gross_short
-        return finalize_positions(signal, positions)
+        positions, diagnostics = apply_directional_position_controls(
+            signal,
+            positions,
+            self.params,
+            constructor_id=self.constructor_id,
+        )
+        frame = finalize_positions(signal, positions)
+        if diagnostics["enabled"]:
+            frame.attrs["directional_controls"] = diagnostics
+        return frame
 
 
 __all__ = ["RankDollarNeutralPositionConstructor"]

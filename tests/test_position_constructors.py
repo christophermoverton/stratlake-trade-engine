@@ -109,6 +109,53 @@ def test_softmax_long_only_equal_scores_split_gross_exposure_evenly() -> None:
     assert positions["position"].tolist() == pytest.approx([1.0 / 3.0] * 3)
 
 
+def test_position_constructor_applies_directional_asymmetry_controls() -> None:
+    signal = create_signal(
+        pd.DataFrame(
+            {
+                "symbol": ["AAA", "BBB", "CCC", "DDD"],
+                "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z"] * 4, utc=True),
+                "signal": [3.0, 2.0, -2.0, -1.0],
+            }
+        ).sort_values(["symbol", "ts_utc"], kind="stable"),
+        signal_type="signed_zscore",
+    )
+    constructor = resolve_constructor(
+        "zscore_clip_scale",
+        {
+            "clip": 3.0,
+            "gross_exposure": 1.0,
+            "max_long_positions": 1,
+            "short_availability": {"CCC": False, "DDD": True},
+            "short_availability_policy": "exclude",
+        },
+    )
+
+    positions = constructor.construct(signal)
+
+    assert positions["position"].tolist() == pytest.approx([0.375, 0.0, 0.0, -0.125])
+    assert positions.attrs["directional_controls"]["enabled"] is True
+
+
+def test_identity_constructor_accepts_only_asymmetry_params() -> None:
+    constructor = resolve_constructor("identity_weights", {"exclude_short": True})
+    signal = create_signal(
+        pd.DataFrame(
+            {
+                "symbol": ["AAA", "BBB"],
+                "ts_utc": pd.to_datetime(["2025-01-01T00:00:00Z"] * 2, utc=True),
+                "target_weight": [0.25, -0.25],
+            }
+        ).sort_values(["symbol", "ts_utc"], kind="stable"),
+        signal_type="target_weight",
+        value_column="target_weight",
+    )
+
+    positions = constructor.construct(signal)
+
+    assert positions["position"].tolist() == pytest.approx([0.25, 0.0])
+
+
 def test_zscore_clip_scale_clips_and_normalizes_gross_exposure() -> None:
     signal = create_signal(
         pd.DataFrame(

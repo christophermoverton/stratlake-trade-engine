@@ -63,9 +63,10 @@ def _definition_from_payload(payload: Mapping[str, Any]) -> PositionConstructorD
                 f"Position constructor {constructor_id!r} parameter {name!r} must define an object schema."
             )
         parameter_type = schema.get("type")
-        if parameter_type not in {"float"}:
+        if parameter_type not in {"bool", "float", "int", "object", "string"}:
             raise PositionConstructorError(
-                f"Position constructor {constructor_id!r} parameter {name!r} must declare supported type 'float'."
+                "Position constructor "
+                f"{constructor_id!r} parameter {name!r} must declare one of ['bool', 'float', 'int', 'object', 'string']."
             )
         normalized_parameters[str(name)] = canonicalize_value(dict(schema))
     return PositionConstructorDefinition(
@@ -163,7 +164,11 @@ def _validate_constructor_params(
     params: Mapping[str, Any],
 ) -> dict[str, Any]:
     normalized_params = canonicalize_value(dict(params))
-    missing = [name for name in definition.parameters if name not in normalized_params]
+    missing = [
+        name
+        for name, schema in definition.parameters.items()
+        if schema.get("required", True) and name not in normalized_params
+    ]
     if missing:
         formatted = ", ".join(sorted(missing))
         raise PositionConstructorError(
@@ -177,6 +182,11 @@ def _validate_constructor_params(
         )
     for name, value in normalized_params.items():
         parameter_type = definition.parameters[name].get("type")
+        if parameter_type == "bool":
+            if not isinstance(value, bool):
+                raise PositionConstructorError(
+                    f"Position constructor {definition.constructor_id!r} parameter {name!r} must be boolean."
+                )
         if parameter_type == "float":
             try:
                 float(value)
@@ -184,6 +194,29 @@ def _validate_constructor_params(
                 raise PositionConstructorError(
                     f"Position constructor {definition.constructor_id!r} parameter {name!r} must be numeric."
                 ) from exc
+        if parameter_type == "int":
+            if isinstance(value, bool):
+                raise PositionConstructorError(
+                    f"Position constructor {definition.constructor_id!r} parameter {name!r} must be an integer."
+                )
+            try:
+                converted = int(value)
+            except (TypeError, ValueError) as exc:
+                raise PositionConstructorError(
+                    f"Position constructor {definition.constructor_id!r} parameter {name!r} must be an integer."
+                ) from exc
+            if converted != value and not (isinstance(value, float) and value.is_integer()):
+                raise PositionConstructorError(
+                    f"Position constructor {definition.constructor_id!r} parameter {name!r} must be an integer."
+                )
+        if parameter_type == "object" and not isinstance(value, Mapping):
+            raise PositionConstructorError(
+                f"Position constructor {definition.constructor_id!r} parameter {name!r} must be an object mapping."
+            )
+        if parameter_type == "string" and not isinstance(value, str):
+            raise PositionConstructorError(
+                f"Position constructor {definition.constructor_id!r} parameter {name!r} must be a string."
+            )
     return normalized_params
 
 

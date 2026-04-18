@@ -43,6 +43,10 @@ class SignalTypeDefinition:
     executable: bool = False
     required_columns: tuple[str, ...] = _STRUCTURAL_COLUMNS
     cross_sectional: bool = False
+    # Directional asymmetry metadata (M21.3 extension)
+    directional_asymmetry_allowed: bool = False  # Can this signal support asymmetric long/short?
+    long_short_preference: str = "balanced"  # {balanced, long_favored, short_favored}
+    asymmetry_validation_rules: dict[str, Any] | None = None  # Additional validation for asymmetry use
 
 
 @dataclass(frozen=True)
@@ -796,6 +800,73 @@ def spread_to_zscore(
     )
 
 
+def validate_directional_asymmetry_compatibility(
+    signal_definition: SignalTypeDefinition,
+    constructor_id: str,
+    *,
+    asymmetry_config: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """
+    Validate that a signal type is compatible with directional asymmetry and constructor.
+    
+    Args:
+        signal_definition: The signal type definition
+        constructor_id: Position constructor ID
+        asymmetry_config: Optional asymmetry configuration to validate against
+    
+    Returns:
+        Dictionary with validation status and details
+    """
+    result: dict[str, Any] = {
+        "valid": True,
+        "signal_type": signal_definition.signal_type_id,
+        "constructor_id": constructor_id,
+        "issues": [],
+        "warnings": [],
+    }
+    
+    # Check if signal supports asymmetry
+    if not signal_definition.directional_asymmetry_allowed:
+        result["warnings"].append(
+            f"Signal type {signal_definition.signal_type_id!r} does not explicitly support directional asymmetry. "
+            "Use with caution."
+        )
+    
+    # Check if signal is directional
+    if not signal_definition.directional:
+        result["warnings"].append(
+            f"Signal type {signal_definition.signal_type_id!r} is not directional. "
+            "Asymmetry features may not be meaningful."
+        )
+    
+    # Check constructor compatibility
+    if constructor_id not in signal_definition.compatible_position_constructors:
+        result["valid"] = False
+        result["issues"].append(
+            f"Constructor {constructor_id!r} not in compatible list for {signal_definition.signal_type_id!r}: "
+            f"{signal_definition.compatible_position_constructors}"
+        )
+    
+    # Validate asymmetry-specific rules if provided
+    if asymmetry_config is not None and signal_definition.asymmetry_validation_rules:
+        for rule_name, rule_value in signal_definition.asymmetry_validation_rules.items():
+            if rule_name in asymmetry_config:
+                configured_value = asymmetry_config[rule_name]
+                if isinstance(rule_value, dict) and "range" in rule_value:
+                    min_val, max_val = rule_value["range"]
+                    if not (min_val <= configured_value <= max_val):
+                        result["valid"] = False
+                        result["issues"].append(
+                            f"Asymmetry parameter {rule_name!r}={configured_value} outside "
+                            f"allowed range [{min_val}, {max_val}] for signal {signal_definition.signal_type_id!r}"
+                        )
+    
+    if result["issues"]:
+        result["error_message"] = "; ".join(result["issues"])
+    
+    return result
+
+
 __all__ = [
     "DEFAULT_SIGNAL_SCHEMA_VERSION",
     "DEFAULT_SIGNAL_TYPES_REGISTRY",
@@ -814,6 +885,7 @@ __all__ = [
     "percentile_to_quantile_bucket",
     "rank_to_percentile",
     "resolve_signal_type_definition",
+    "validate_directional_asymmetry_compatibility",
     "score_to_binary_long_only",
     "score_to_cross_section_rank",
     "score_to_signed_zscore",

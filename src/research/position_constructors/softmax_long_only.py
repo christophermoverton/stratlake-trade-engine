@@ -7,9 +7,11 @@ import pandas as pd
 
 from src.research.position_constructors.base import (
     PositionConstructor,
+    apply_directional_position_controls,
     finalize_positions,
     require_float,
     signal_values,
+    validate_asymmetry_parameters,
 )
 from src.research.signal_semantics import Signal
 
@@ -21,6 +23,9 @@ class SoftmaxLongOnlyPositionConstructor(PositionConstructor):
         normalized_params = {} if params is None else dict(params)
         self._gross_exposure = require_float(normalized_params, name="gross_exposure", non_negative=True)
         self._temperature = require_float(normalized_params, name="temperature", positive=True)
+        validation = validate_asymmetry_parameters(normalized_params, "softmax_long_only")
+        if not validation["valid"]:
+            raise ValueError(validation["error_message"])
         super().__init__(constructor_id="softmax_long_only", params=normalized_params, version=version)
 
     def construct(self, signal: Signal) -> pd.DataFrame:
@@ -35,7 +40,16 @@ class SoftmaxLongOnlyPositionConstructor(PositionConstructor):
             if denominator == 0.0:
                 continue
             positions.loc[group.index] = (weights / denominator) * self._gross_exposure
-        return finalize_positions(signal, positions)
+        positions, diagnostics = apply_directional_position_controls(
+            signal,
+            positions,
+            self.params,
+            constructor_id=self.constructor_id,
+        )
+        frame = finalize_positions(signal, positions)
+        if diagnostics["enabled"]:
+            frame.attrs["directional_controls"] = diagnostics
+        return frame
 
 
 __all__ = ["SoftmaxLongOnlyPositionConstructor"]

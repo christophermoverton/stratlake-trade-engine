@@ -60,6 +60,18 @@ def validate_portfolio_return_consistency(
             *required_columns["weight_columns"],
         ],
     )
+    if "portfolio_long_turnover" in normalized.columns and "portfolio_short_turnover" in normalized.columns:
+        turnover_match = (
+            normalized["portfolio_turnover"]
+            - normalized["portfolio_long_turnover"]
+            - normalized["portfolio_short_turnover"]
+        ).abs() > tolerance
+        if turnover_match.any():
+            failing_index = normalized.index[turnover_match][0]
+            raise PortfolioQAError(
+                "Portfolio QA failed: portfolio_turnover must equal portfolio_long_turnover + portfolio_short_turnover "
+                f"at row index {failing_index}."
+            )
 
     weight_frame = _weight_frame(normalized)
     resolved_validation = _resolve_effective_validation_config(
@@ -109,19 +121,49 @@ def validate_portfolio_return_consistency(
             index=normalized.index,
             dtype="float64",
         ) if "portfolio_slippage_cost" in normalized.columns else pd.Series(0.0, index=normalized.index, dtype="float64")
+        short_borrow_cost = pd.Series(
+            normalized["portfolio_short_borrow_cost"].to_numpy(dtype="float64", copy=True),
+            index=normalized.index,
+            dtype="float64",
+        ) if "portfolio_short_borrow_cost" in normalized.columns else pd.Series(0.0, index=normalized.index, dtype="float64")
         friction_match = (
             normalized["portfolio_execution_friction"]
             - transaction_cost
             - fixed_fee
             - slippage_cost
+            - short_borrow_cost
         ).abs() > tolerance
         if friction_match.any():
             failing_index = normalized.index[friction_match][0]
             raise PortfolioQAError(
                 "Portfolio QA failed: portfolio_execution_friction must equal "
-                "portfolio_transaction_cost + portfolio_fixed_fee + portfolio_slippage_cost "
+                "portfolio_transaction_cost + portfolio_fixed_fee + portfolio_slippage_cost + portfolio_short_borrow_cost "
                 f"at row index {failing_index}."
             )
+        if "portfolio_long_transaction_cost" in normalized.columns and "portfolio_short_transaction_cost" in normalized.columns:
+            directional_transaction_match = (
+                normalized["portfolio_transaction_cost"]
+                - normalized["portfolio_long_transaction_cost"]
+                - normalized["portfolio_short_transaction_cost"]
+            ).abs() > tolerance
+            if directional_transaction_match.any():
+                failing_index = normalized.index[directional_transaction_match][0]
+                raise PortfolioQAError(
+                    "Portfolio QA failed: portfolio_transaction_cost must equal the sum of long and short transaction costs "
+                    f"at row index {failing_index}."
+                )
+        if "portfolio_long_slippage_cost" in normalized.columns and "portfolio_short_slippage_cost" in normalized.columns:
+            directional_slippage_match = (
+                normalized["portfolio_slippage_cost"]
+                - normalized["portfolio_long_slippage_cost"]
+                - normalized["portfolio_short_slippage_cost"]
+            ).abs() > tolerance
+            if directional_slippage_match.any():
+                failing_index = normalized.index[directional_slippage_match][0]
+                raise PortfolioQAError(
+                    "Portfolio QA failed: portfolio_slippage_cost must equal the sum of long and short slippage costs "
+                    f"at row index {failing_index}."
+                )
     if "portfolio_transaction_cost" in normalized.columns:
         recomputed_returns = recomputed_returns - pd.Series(
             normalized["portfolio_transaction_cost"].to_numpy(dtype="float64", copy=True),
@@ -137,6 +179,12 @@ def validate_portfolio_return_consistency(
     if "portfolio_slippage_cost" in normalized.columns:
         recomputed_returns = recomputed_returns - pd.Series(
             normalized["portfolio_slippage_cost"].to_numpy(dtype="float64", copy=True),
+            index=normalized.index,
+            dtype="float64",
+        )
+    if "portfolio_short_borrow_cost" in normalized.columns:
+        recomputed_returns = recomputed_returns - pd.Series(
+            normalized["portfolio_short_borrow_cost"].to_numpy(dtype="float64", copy=True),
             index=normalized.index,
             dtype="float64",
         )
@@ -632,9 +680,17 @@ def _portfolio_returns_artifact_frame(portfolio_df: pd.DataFrame) -> pd.DataFram
             "portfolio_weight_change",
             "portfolio_abs_weight_change",
             "portfolio_turnover",
+            "portfolio_long_turnover",
+            "portfolio_short_turnover",
+            "portfolio_short_exposure",
             "portfolio_rebalance_event",
             "portfolio_transaction_cost",
+            "portfolio_long_transaction_cost",
+            "portfolio_short_transaction_cost",
             "portfolio_slippage_cost",
+            "portfolio_long_slippage_cost",
+            "portfolio_short_slippage_cost",
+            "portfolio_short_borrow_cost",
             "portfolio_execution_friction",
             "net_portfolio_return",
         )

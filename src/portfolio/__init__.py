@@ -31,13 +31,15 @@ from .loaders import (
     load_strategy_run_returns,
     load_strategy_runs_returns,
 )
-from .metrics import compute_portfolio_metrics
+from .metrics import compute_portfolio_metrics, compute_long_short_directional_metrics
 from .optimizer import (
+    DirectionalPortfolioConstraints,
     PortfolioOptimizationError,
     PortfolioOptimizerConfig,
     SUPPORTED_PORTFOLIO_OPTIMIZERS,
     optimize_portfolio,
     resolve_portfolio_optimizer_config,
+    validate_directional_constraints,
 )
 from .risk import (
     PortfolioRiskConfig,
@@ -80,6 +82,7 @@ __all__ = [
     "BaseAllocator",
     "EqualWeightAllocator",
     "OptimizerAllocator",
+    "DirectionalPortfolioConstraints",
     "PortfolioOptimizationError",
     "PortfolioOptimizerConfig",
     "PortfolioRiskConfig",
@@ -95,6 +98,7 @@ __all__ = [
     "load_portfolio_component_runs_returns",
     "build_aligned_return_matrix",
     "compute_portfolio_metrics",
+    "compute_long_short_directional_metrics",
     "optimize_portfolio",
     "compute_portfolio_returns",
     "compute_portfolio_equity_curve",
@@ -115,6 +119,7 @@ __all__ = [
     "resolve_portfolio_validation_config",
     "resolve_portfolio_optimizer_config",
     "SUPPORTED_PORTFOLIO_OPTIMIZERS",
+    "validate_directional_constraints",
     "resolve_portfolio_risk_config",
     "resolve_portfolio_volatility_targeting_config",
     "apply_volatility_targeting",

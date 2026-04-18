@@ -140,3 +140,34 @@ def test_optimizer_allocator_uses_training_window_for_application_weights() -> N
     assert portfolio_output.attrs["portfolio_constructor"]["optimizer"]["config"]["method"] == "max_sharpe"
     for strategy_name, weight_value in expected.weights.items():
         assert portfolio_output[f"weight__{strategy_name}"].iloc[0] == pytest.approx(weight_value)
+
+
+def test_resolve_portfolio_optimizer_config_parses_directional_constraints() -> None:
+    config = resolve_portfolio_optimizer_config(
+        {
+            "method": "equal_weight",
+            "directional_constraints": {
+                "max_long_positions": 2,
+                "max_short_positions": 1,
+                "max_gross_exposure": 1.5,
+                "short_availability_policy": "exclude",
+            },
+        }
+    )
+
+    assert config.directional_constraints is not None
+    assert config.directional_constraints.max_long_positions == 2
+    assert config.directional_constraints.max_short_positions == 1
+
+
+def test_optimize_portfolio_enforces_directional_constraints() -> None:
+    with pytest.raises(ValueError, match="directional constraints"):
+        optimize_portfolio(
+            _returns(),
+            {
+                "method": "equal_weight",
+                "directional_constraints": {
+                    "max_long_positions": 0,
+                },
+            },
+        )

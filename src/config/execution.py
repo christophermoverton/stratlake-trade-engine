@@ -25,6 +25,11 @@ class ExecutionConfig:
     slippage_model: str = "constant"
     slippage_turnover_scale: float = 1.0
     slippage_volatility_scale: float = 1.0
+    # Directional cost controls (optional - enable asymmetric long/short costs)
+    long_transaction_cost_bps: float | None = None
+    short_transaction_cost_bps: float | None = None
+    short_slippage_multiplier: float = 1.0
+    short_borrow_cost_bps: float = 0.0
 
     @property
     def friction_bps(self) -> float:
@@ -42,8 +47,37 @@ class ExecutionConfig:
                 self.transaction_cost_bps > 0.0
                 or self.slippage_bps > 0.0
                 or self.fixed_fee > 0.0
+                or (self.long_transaction_cost_bps is not None and self.long_transaction_cost_bps > 0.0)
+                or (self.short_transaction_cost_bps is not None and self.short_transaction_cost_bps > 0.0)
+                or self.short_borrow_cost_bps > 0.0
             )
         )
+
+    @property
+    def has_directional_asymmetry(self) -> bool:
+        """True if directional cost asymmetry is configured."""
+        return bool(
+            self.long_transaction_cost_bps is not None
+            or self.short_transaction_cost_bps is not None
+            or self.short_slippage_multiplier != 1.0
+            or self.short_borrow_cost_bps > 0.0
+        )
+
+    def get_long_transaction_cost_bps(self) -> float:
+        """Get effective long transaction cost (uses directional if set, falls back to symmetric)."""
+        if self.long_transaction_cost_bps is not None:
+            return self.long_transaction_cost_bps
+        return self.transaction_cost_bps
+
+    def get_short_transaction_cost_bps(self) -> float:
+        """Get effective short transaction cost (uses directional if set, falls back to symmetric)."""
+        if self.short_transaction_cost_bps is not None:
+            return self.short_transaction_cost_bps
+        return self.transaction_cost_bps
+
+    def get_short_slippage_bps(self) -> float:
+        """Get effective short slippage (applies multiplier to base slippage)."""
+        return self.slippage_bps * self.short_slippage_multiplier
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -56,6 +90,10 @@ class ExecutionConfig:
             "slippage_model": self.slippage_model,
             "slippage_turnover_scale": self.slippage_turnover_scale,
             "slippage_volatility_scale": self.slippage_volatility_scale,
+            "long_transaction_cost_bps": self.long_transaction_cost_bps,
+            "short_transaction_cost_bps": self.short_transaction_cost_bps,
+            "short_slippage_multiplier": self.short_slippage_multiplier,
+            "short_borrow_cost_bps": self.short_borrow_cost_bps,
         }
 
     @classmethod
@@ -70,6 +108,10 @@ class ExecutionConfig:
             slippage_model="constant",
             slippage_turnover_scale=1.0,
             slippage_volatility_scale=1.0,
+            long_transaction_cost_bps=None,
+            short_transaction_cost_bps=None,
+            short_slippage_multiplier=1.0,
+            short_borrow_cost_bps=0.0,
         )
 
     @classmethod
@@ -125,6 +167,24 @@ class ExecutionConfig:
             field_name="slippage_volatility_scale",
         )
 
+        # Directional cost controls (optional)
+        long_transaction_cost_bps = _coerce_optional_non_negative_float(
+            payload.get("long_transaction_cost_bps", seed.long_transaction_cost_bps),
+            field_name="long_transaction_cost_bps",
+        )
+        short_transaction_cost_bps = _coerce_optional_non_negative_float(
+            payload.get("short_transaction_cost_bps", seed.short_transaction_cost_bps),
+            field_name="short_transaction_cost_bps",
+        )
+        short_slippage_multiplier = _coerce_non_negative_float(
+            payload.get("short_slippage_multiplier", seed.short_slippage_multiplier),
+            field_name="short_slippage_multiplier",
+        )
+        short_borrow_cost_bps = _coerce_non_negative_float(
+            payload.get("short_borrow_cost_bps", seed.short_borrow_cost_bps),
+            field_name="short_borrow_cost_bps",
+        )
+
         enabled_value = payload.get("enabled")
         if enabled_value is None:
             enabled = bool(
@@ -132,6 +192,9 @@ class ExecutionConfig:
                 or transaction_cost_bps > 0.0
                 or slippage_bps > 0.0
                 or fixed_fee > 0.0
+                or (long_transaction_cost_bps is not None and long_transaction_cost_bps > 0.0)
+                or (short_transaction_cost_bps is not None and short_transaction_cost_bps > 0.0)
+                or short_borrow_cost_bps > 0.0
             )
         elif isinstance(enabled_value, bool):
             enabled = enabled_value
@@ -148,6 +211,10 @@ class ExecutionConfig:
             slippage_model=slippage_model,
             slippage_turnover_scale=slippage_turnover_scale,
             slippage_volatility_scale=slippage_volatility_scale,
+            long_transaction_cost_bps=long_transaction_cost_bps,
+            short_transaction_cost_bps=short_transaction_cost_bps,
+            short_slippage_multiplier=short_slippage_multiplier,
+            short_borrow_cost_bps=short_borrow_cost_bps,
         )
 
 
@@ -200,6 +267,21 @@ def _coerce_non_negative_float(value: Any, *, field_name: str) -> float:
         numeric = float(value)
     except (TypeError, ValueError) as exc:
         raise ValueError(f"Execution configuration field '{field_name}' must be a non-negative number.") from exc
+    if numeric < 0.0:
+        raise ValueError(f"Execution configuration field '{field_name}' must be non-negative.")
+    return numeric
+
+
+def _coerce_optional_non_negative_float(value: Any, *, field_name: str) -> float | None:
+    """Coerce optional float field (None or non-negative number)."""
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise ValueError(f"Execution configuration field '{field_name}' must be None or a non-negative number.")
+    try:
+        numeric = float(value)
+    except (TypeError, ValueError) as exc:
+        raise ValueError(f"Execution configuration field '{field_name}' must be None or a non-negative number.") from exc
     if numeric < 0.0:
         raise ValueError(f"Execution configuration field '{field_name}' must be non-negative.")
     return numeric

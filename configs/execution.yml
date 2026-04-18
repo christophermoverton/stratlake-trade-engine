@@ -3,3 +3,8 @@ execution:
   execution_delay: 1
   transaction_cost_bps: 0.0
   slippage_bps: 0.0
+  # Directional cost controls (optional - uncomment to enable)
+  # long_transaction_cost_bps: 3.0          # Separate cost for long positions, falls back to transaction_cost_bps if not set
+  # short_transaction_cost_bps: 5.0         # Separate cost for short positions, falls back to transaction_cost_bps if not set
+  # short_slippage_multiplier: 1.25         # Slippage multiplier for shorts (applied to slippage_bps)
+  # short_borrow_cost_bps: 25.0             # Borrow cost specific to short positions

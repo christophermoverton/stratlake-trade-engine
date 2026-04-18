@@ -261,6 +261,7 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     assert manifest_payload["execution"]["summary"]["total_fixed_fee"] == pytest.approx(
         metrics_payload["total_fixed_fee"]
     )
+    assert manifest_payload["execution"]["directional_summary"]["total_short_borrow_cost"] is None
     assert manifest_payload["simulation"] == {
         "artifact_path": None,
         "enabled": False,

@@ -37,41 +37,94 @@ def apply_portfolio_execution_model(
     )
     weight_change = compute_weight_change_frame(weights_wide)
     validate_weight_change_frame(weight_change)
+    directional_weight_change = _directional_weight_change_frame(weights_wide)
 
     changed_sleeve_count = weights_wide.diff().fillna(weights_wide).abs().gt(0.0).sum(axis=1).astype("int64")
     turnover = weight_change["portfolio_turnover"].astype("float64")
     rebalance_event = weight_change["portfolio_rebalance_event"].astype("int64")
     volatility_proxy = _volatility_proxy(returns_wide, weights_wide)
+    long_volatility_proxy = _volatility_proxy(returns_wide, weights_wide.clip(lower=0.0))
+    short_volatility_proxy = _volatility_proxy(returns_wide, weights_wide.clip(upper=0.0).abs())
 
-    proportional_cost = _bps_cost(turnover, execution_config.transaction_cost_bps, enabled=execution_config.enabled)
+    long_transaction_cost = _bps_cost(
+        directional_weight_change["portfolio_long_turnover"],
+        execution_config.get_long_transaction_cost_bps(),
+        enabled=execution_config.enabled,
+    )
+    short_transaction_cost = _bps_cost(
+        directional_weight_change["portfolio_short_turnover"],
+        execution_config.get_short_transaction_cost_bps(),
+        enabled=execution_config.enabled,
+    )
+    proportional_cost = (long_transaction_cost + short_transaction_cost).astype("float64")
     fixed_fee = _fixed_fee_cost(
         rebalance_event=rebalance_event,
         fixed_fee=execution_config.fixed_fee,
         fixed_fee_model=execution_config.fixed_fee_model,
         enabled=execution_config.enabled,
     )
-    slippage_cost = _slippage_cost(
-        turnover=turnover,
-        volatility_proxy=volatility_proxy,
-        config=execution_config,
+    if execution_config.has_directional_asymmetry:
+        long_slippage_cost = _slippage_cost(
+            turnover=directional_weight_change["portfolio_long_turnover"],
+            volatility_proxy=long_volatility_proxy,
+            config=execution_config,
+            slippage_bps=execution_config.slippage_bps,
+        )
+        short_slippage_cost = _slippage_cost(
+            turnover=directional_weight_change["portfolio_short_turnover"],
+            volatility_proxy=short_volatility_proxy,
+            config=execution_config,
+            slippage_bps=execution_config.get_short_slippage_bps(),
+        )
+        slippage_cost = (long_slippage_cost + short_slippage_cost).astype("float64")
+    else:
+        slippage_cost = _slippage_cost(
+            turnover=turnover,
+            volatility_proxy=volatility_proxy,
+            config=execution_config,
+            slippage_bps=execution_config.slippage_bps,
+        )
+        long_share = _directional_share(
+            directional_weight_change["portfolio_long_turnover"],
+            directional_weight_change["portfolio_short_turnover"],
+        )
+        long_slippage_cost = (slippage_cost * long_share).astype("float64")
+        short_slippage_cost = (slippage_cost - long_slippage_cost).astype("float64")
+    short_borrow_cost = _bps_cost(
+        directional_weight_change["portfolio_short_exposure"],
+        execution_config.short_borrow_cost_bps,
+        enabled=execution_config.enabled,
     )
-    execution_friction = (proportional_cost + fixed_fee + slippage_cost).astype("float64")
+    execution_friction = (proportional_cost + fixed_fee + slippage_cost + short_borrow_cost).astype("float64")
 
-    frame = pd.DataFrame(
-        {
-            "portfolio_weight_change": weight_change["portfolio_weight_change"].astype("float64"),
-            "portfolio_abs_weight_change": weight_change["portfolio_abs_weight_change"].astype("float64"),
-            "portfolio_turnover": turnover,
-            "portfolio_rebalance_event": rebalance_event,
-            "portfolio_changed_sleeve_count": changed_sleeve_count,
-            "portfolio_transaction_cost": proportional_cost,
-            "portfolio_fixed_fee": fixed_fee,
-            "portfolio_slippage_proxy": volatility_proxy,
-            "portfolio_slippage_cost": slippage_cost,
-            "portfolio_execution_friction": execution_friction,
-        },
-        index=returns_wide.index,
-    )
+    frame_payload: dict[str, pd.Series] = {
+        "portfolio_weight_change": weight_change["portfolio_weight_change"].astype("float64"),
+        "portfolio_abs_weight_change": weight_change["portfolio_abs_weight_change"].astype("float64"),
+        "portfolio_turnover": turnover,
+        "portfolio_rebalance_event": rebalance_event,
+        "portfolio_changed_sleeve_count": changed_sleeve_count,
+        "portfolio_transaction_cost": proportional_cost,
+        "portfolio_fixed_fee": fixed_fee,
+        "portfolio_slippage_proxy": volatility_proxy,
+        "portfolio_slippage_cost": slippage_cost,
+        "portfolio_execution_friction": execution_friction,
+    }
+    if execution_config.has_directional_asymmetry:
+        frame_payload.update(
+            {
+                "portfolio_long_turnover": directional_weight_change["portfolio_long_turnover"],
+                "portfolio_short_turnover": directional_weight_change["portfolio_short_turnover"],
+                "portfolio_short_exposure": directional_weight_change["portfolio_short_exposure"],
+                "portfolio_long_transaction_cost": long_transaction_cost,
+                "portfolio_short_transaction_cost": short_transaction_cost,
+                "portfolio_long_slippage_proxy": long_volatility_proxy,
+                "portfolio_short_slippage_proxy": short_volatility_proxy,
+                "portfolio_long_slippage_cost": long_slippage_cost,
+                "portfolio_short_slippage_cost": short_slippage_cost,
+                "portfolio_short_borrow_cost": short_borrow_cost,
+            }
+        )
+    frame = pd.DataFrame(frame_payload, index=returns_wide.index)
     if not pd.notna(frame.to_numpy(dtype="float64")).all():
         raise PortfolioExecutionError("Portfolio execution accounting produced non-finite outputs.")
 
@@ -80,6 +133,8 @@ def apply_portfolio_execution_model(
         "transaction_cost_model": {
             "basis": "portfolio_turnover",
             "rate_bps": float(execution_config.transaction_cost_bps),
+            "long_rate_bps": float(execution_config.get_long_transaction_cost_bps()),
+            "short_rate_bps": float(execution_config.get_short_transaction_cost_bps()),
         },
         "fixed_fee_model": {
             "amount": float(execution_config.fixed_fee),
@@ -89,17 +144,30 @@ def apply_portfolio_execution_model(
         "slippage_model": {
             "method": str(execution_config.slippage_model),
             "rate_bps": float(execution_config.slippage_bps),
+            "short_rate_bps": float(execution_config.get_short_slippage_bps()),
             "turnover_scale": float(execution_config.slippage_turnover_scale),
             "volatility_scale": float(execution_config.slippage_volatility_scale),
             "proxy": _slippage_proxy_name(execution_config.slippage_model),
         },
+        "directional_asymmetry": {
+            "enabled": bool(execution_config.has_directional_asymmetry),
+            "short_borrow_cost_bps": float(execution_config.short_borrow_cost_bps),
+        },
         "totals": {
             "total_turnover": float(turnover.sum()),
+            "total_long_turnover": float(directional_weight_change["portfolio_long_turnover"].sum()),
+            "total_short_turnover": float(directional_weight_change["portfolio_short_turnover"].sum()),
+            "average_short_exposure": float(directional_weight_change["portfolio_short_exposure"].mean()),
             "rebalance_count": int(rebalance_event.sum()),
             "changed_sleeve_events": int(changed_sleeve_count.sum()),
             "total_transaction_cost": float(proportional_cost.sum()),
+            "total_long_transaction_cost": float(long_transaction_cost.sum()),
+            "total_short_transaction_cost": float(short_transaction_cost.sum()),
             "total_fixed_fee": float(fixed_fee.sum()),
             "total_slippage_cost": float(slippage_cost.sum()),
+            "total_long_slippage_cost": float(long_slippage_cost.sum()),
+            "total_short_slippage_cost": float(short_slippage_cost.sum()),
+            "total_short_borrow_cost": float(short_borrow_cost.sum()),
             "total_execution_friction": float(execution_friction.sum()),
         },
     }
@@ -159,11 +227,12 @@ def _slippage_cost(
     turnover: pd.Series,
     volatility_proxy: pd.Series,
     config: ExecutionConfig,
+    slippage_bps: float,
 ) -> pd.Series:
-    if not config.enabled or config.slippage_bps == 0.0:
+    if not config.enabled or slippage_bps == 0.0:
         return pd.Series(0.0, index=turnover.index, dtype="float64")
 
-    base_cost = turnover * (float(config.slippage_bps) / 10_000.0)
+    base_cost = turnover * (float(slippage_bps) / 10_000.0)
     if config.slippage_model == "constant":
         return base_cost.astype("float64")
     if config.slippage_model == "turnover_scaled":
@@ -180,6 +249,29 @@ def _volatility_proxy(returns_wide: pd.DataFrame, weights_wide: pd.DataFrame) ->
     if not pd.notna(proxy).all():
         raise PortfolioExecutionError("Portfolio slippage volatility proxy must be finite.")
     return proxy
+
+
+def _directional_weight_change_frame(weights_wide: pd.DataFrame) -> pd.DataFrame:
+    delta = weights_wide.diff().fillna(weights_wide).astype("float64")
+    long_turnover = delta.clip(lower=0.0).sum(axis=1).astype("float64")
+    short_turnover = delta.clip(upper=0.0).abs().sum(axis=1).astype("float64")
+    short_exposure = weights_wide.clip(upper=0.0).abs().sum(axis=1).astype("float64")
+    return pd.DataFrame(
+        {
+            "portfolio_long_turnover": long_turnover,
+            "portfolio_short_turnover": short_turnover,
+            "portfolio_short_exposure": short_exposure,
+        },
+        index=weights_wide.index,
+    )
+
+
+def _directional_share(primary: pd.Series, secondary: pd.Series) -> pd.Series:
+    total = (primary + secondary).astype("float64")
+    share = pd.Series(0.0, index=primary.index, dtype="float64")
+    non_zero = total > 0.0
+    share.loc[non_zero] = (primary.loc[non_zero] / total.loc[non_zero]).astype("float64")
+    return share
 
 
 def _slippage_proxy_name(slippage_model: str) -> str | None:

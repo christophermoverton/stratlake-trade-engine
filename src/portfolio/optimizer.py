@@ -45,9 +45,11 @@ class PortfolioOptimizerConfig:
     covariance_ridge: float = _DEFAULT_COVARIANCE_RIDGE
     max_iterations: int = _DEFAULT_MAX_ITERATIONS
     tolerance: float = _DEFAULT_TOLERANCE
+    # Directional long/short constraints (optional)
+    directional_constraints: "DirectionalPortfolioConstraints | None" = None
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "method": self.method,
             "long_only": self.long_only,
             "target_weight_sum": self.target_weight_sum,
@@ -62,6 +64,9 @@ class PortfolioOptimizerConfig:
             "max_iterations": self.max_iterations,
             "tolerance": self.tolerance,
         }
+        if self.directional_constraints is not None:
+            payload["directional_constraints"] = self.directional_constraints.to_dict()
+        return payload
 
 
 @dataclass(frozen=True)
@@ -72,6 +77,265 @@ class PortfolioOptimizationResult:
     diagnostics: dict[str, Any]
     config: PortfolioOptimizerConfig
 
+
+@dataclass(frozen=True)
+class DirectionalPortfolioConstraints:
+    """Deterministic long/short exposure and position constraints."""
+
+    # Long-side constraints
+    max_long_weight_sum: float | None = None  # max total long exposure (e.g., 0.60)
+    min_long_positions: int | None = None  # min required long positions
+    max_long_positions: int | None = None  # max allowed long positions
+    max_long_position_size: float | None = None  # max weight per long position
+
+    # Short-side constraints
+    max_short_weight_sum: float | None = None  # max total short exposure (e.g., 0.40)
+    min_short_positions: int | None = None  # min required short positions
+    max_short_positions: int | None = None  # max allowed short positions
+    max_short_position_size: float | None = None  # max weight per short position
+
+    # Aggregate constraints
+    max_gross_exposure: float | None = None  # total long + abs(short) (e.g., 1.20)
+    min_net_exposure: float | None = None  # min allowed long - abs(short) (e.g., 0.20)
+    max_net_exposure: float | None = None  # max allowed long - abs(short) (e.g., 1.00)
+
+    # Short availability
+    hard_to_borrow_penalty_bps: float = 0.0  # additional cost for hard-to-borrow shorts
+    short_availability_policy: str = "exclude"  # {exclude, cap, penalty}
+
+    def to_dict(self) -> dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            "max_long_weight_sum": self.max_long_weight_sum,
+            "min_long_positions": self.min_long_positions,
+            "max_long_positions": self.max_long_positions,
+            "max_long_position_size": self.max_long_position_size,
+            "max_short_weight_sum": self.max_short_weight_sum,
+            "min_short_positions": self.min_short_positions,
+            "max_short_positions": self.max_short_positions,
+            "max_short_position_size": self.max_short_position_size,
+            "max_gross_exposure": self.max_gross_exposure,
+            "min_net_exposure": self.min_net_exposure,
+            "max_net_exposure": self.max_net_exposure,
+            "hard_to_borrow_penalty_bps": self.hard_to_borrow_penalty_bps,
+            "short_availability_policy": self.short_availability_policy,
+        }
+
+    @classmethod
+    def default(cls) -> "DirectionalPortfolioConstraints":
+        """Return unconstrained default."""
+        return cls()
+
+    def has_constraints(self) -> bool:
+        """True if any directional constraints are set."""
+        return any([
+            self.max_long_weight_sum is not None,
+            self.min_long_positions is not None,
+            self.max_long_positions is not None,
+            self.max_long_position_size is not None,
+            self.max_short_weight_sum is not None,
+            self.min_short_positions is not None,
+            self.max_short_positions is not None,
+            self.max_short_position_size is not None,
+            self.max_gross_exposure is not None,
+            self.min_net_exposure is not None,
+            self.max_net_exposure is not None,
+            self.hard_to_borrow_penalty_bps > 0.0,
+            self.short_availability_policy != "exclude",
+        ])
+
+
+def validate_directional_constraints(
+    weights: pd.Series,
+    constraints: DirectionalPortfolioConstraints,
+    *,
+    tolerance: float = 1e-8,
+) -> dict[str, Any]:
+    """
+    Validate portfolio weights against directional constraints.
+    
+    Returns:
+        Dictionary with validation results and metrics
+    """
+    results: dict[str, Any] = {
+        "valid": True,
+        "violations": [],
+        "metrics": {},
+    }
+
+    if not constraints.has_constraints():
+        results["metrics"]["has_directional_constraints"] = False
+        return results
+
+    results["metrics"]["has_directional_constraints"] = True
+
+    # Separate long and short weights
+    long_weights = weights.clip(lower=0.0)
+    short_weights = weights.clip(upper=0.0).abs()
+
+    long_weight_sum = float(long_weights.sum())
+    short_weight_sum = float(short_weights.sum())
+    gross_exposure = long_weight_sum + short_weight_sum
+    net_exposure = long_weight_sum - short_weight_sum
+
+    # Count positions
+    long_positions = int((long_weights > tolerance).sum())
+    short_positions = int((short_weights > tolerance).sum())
+
+    # Store metrics
+    results["metrics"]["long_weight_sum"] = long_weight_sum
+    results["metrics"]["short_weight_sum"] = short_weight_sum
+    results["metrics"]["gross_exposure"] = gross_exposure
+    results["metrics"]["net_exposure"] = net_exposure
+    results["metrics"]["long_positions"] = long_positions
+    results["metrics"]["short_positions"] = short_positions
+
+    # Check long constraints
+    if constraints.max_long_weight_sum is not None and long_weight_sum > constraints.max_long_weight_sum + tolerance:
+        results["violations"].append(
+            f"Long weight sum {long_weight_sum:.4f} exceeds max {constraints.max_long_weight_sum:.4f}"
+        )
+        results["valid"] = False
+
+    if constraints.min_long_positions is not None and long_positions < constraints.min_long_positions:
+        results["violations"].append(
+            f"Long positions {long_positions} less than minimum {constraints.min_long_positions}"
+        )
+        results["valid"] = False
+
+    if constraints.max_long_positions is not None and long_positions > constraints.max_long_positions:
+        results["violations"].append(
+            f"Long positions {long_positions} exceeds maximum {constraints.max_long_positions}"
+        )
+        results["valid"] = False
+
+    if constraints.max_long_position_size is not None:
+        max_long_weight = float(long_weights.max())
+        if max_long_weight > constraints.max_long_position_size + tolerance:
+            results["violations"].append(
+                f"Max long position size {max_long_weight:.4f} exceeds limit {constraints.max_long_position_size:.4f}"
+            )
+            results["valid"] = False
+
+    # Check short constraints
+    if constraints.max_short_weight_sum is not None and short_weight_sum > constraints.max_short_weight_sum + tolerance:
+        results["violations"].append(
+            f"Short weight sum {short_weight_sum:.4f} exceeds max {constraints.max_short_weight_sum:.4f}"
+        )
+        results["valid"] = False
+
+    if constraints.min_short_positions is not None and short_positions < constraints.min_short_positions:
+        results["violations"].append(
+            f"Short positions {short_positions} less than minimum {constraints.min_short_positions}"
+        )
+        results["valid"] = False
+
+    if constraints.max_short_positions is not None and short_positions > constraints.max_short_positions:
+        results["violations"].append(
+            f"Short positions {short_positions} exceeds maximum {constraints.max_short_positions}"
+        )
+        results["valid"] = False
+
+    if constraints.max_short_position_size is not None:
+        max_short_weight = float(short_weights.max())
+        if max_short_weight > constraints.max_short_position_size + tolerance:
+            results["violations"].append(
+                f"Max short position size {max_short_weight:.4f} exceeds limit {constraints.max_short_position_size:.4f}"
+            )
+            results["valid"] = False
+
+    # Check aggregate constraints
+    if constraints.max_gross_exposure is not None and gross_exposure > constraints.max_gross_exposure + tolerance:
+        results["violations"].append(
+            f"Gross exposure {gross_exposure:.4f} exceeds maximum {constraints.max_gross_exposure:.4f}"
+        )
+        results["valid"] = False
+
+    if constraints.min_net_exposure is not None and net_exposure < constraints.min_net_exposure - tolerance:
+        results["violations"].append(
+            f"Net exposure {net_exposure:.4f} below minimum {constraints.min_net_exposure:.4f}"
+        )
+        results["valid"] = False
+
+    if constraints.max_net_exposure is not None and net_exposure > constraints.max_net_exposure + tolerance:
+        results["violations"].append(
+            f"Net exposure {net_exposure:.4f} exceeds maximum {constraints.max_net_exposure:.4f}"
+        )
+        results["valid"] = False
+
+    if not results["valid"]:
+        results["error_message"] = "; ".join(results["violations"])
+
+    return results
+
+
+def resolve_directional_constraints_config(
+    payload: dict[str, Any] | DirectionalPortfolioConstraints | None,
+) -> DirectionalPortfolioConstraints | None:
+    if payload is None:
+        return None
+    if isinstance(payload, DirectionalPortfolioConstraints):
+        return payload
+    if not isinstance(payload, dict):
+        raise PortfolioOptimizationError("optimizer.directional_constraints must be a dictionary when provided.")
+
+    policy = payload.get("short_availability_policy", "exclude")
+    if policy not in {"exclude", "cap", "penalty"}:
+        raise PortfolioOptimizationError(
+            "optimizer.directional_constraints.short_availability_policy must be one of ['exclude', 'cap', 'penalty']."
+        )
+
+    return DirectionalPortfolioConstraints(
+        max_long_weight_sum=_coerce_optional_non_negative_float(
+            payload.get("max_long_weight_sum"),
+            field_name="optimizer.directional_constraints.max_long_weight_sum",
+        ),
+        min_long_positions=_coerce_optional_non_negative_int(
+            payload.get("min_long_positions"),
+            field_name="optimizer.directional_constraints.min_long_positions",
+        ),
+        max_long_positions=_coerce_optional_non_negative_int(
+            payload.get("max_long_positions"),
+            field_name="optimizer.directional_constraints.max_long_positions",
+        ),
+        max_long_position_size=_coerce_optional_non_negative_float(
+            payload.get("max_long_position_size"),
+            field_name="optimizer.directional_constraints.max_long_position_size",
+        ),
+        max_short_weight_sum=_coerce_optional_non_negative_float(
+            payload.get("max_short_weight_sum"),
+            field_name="optimizer.directional_constraints.max_short_weight_sum",
+        ),
+        min_short_positions=_coerce_optional_non_negative_int(
+            payload.get("min_short_positions"),
+            field_name="optimizer.directional_constraints.min_short_positions",
+        ),
+        max_short_positions=_coerce_optional_non_negative_int(
+            payload.get("max_short_positions"),
+            field_name="optimizer.directional_constraints.max_short_positions",
+        ),
+        max_short_position_size=_coerce_optional_non_negative_float(
+            payload.get("max_short_position_size"),
+            field_name="optimizer.directional_constraints.max_short_position_size",
+        ),
+        max_gross_exposure=_coerce_optional_non_negative_float(
+            payload.get("max_gross_exposure"),
+            field_name="optimizer.directional_constraints.max_gross_exposure",
+        ),
+        min_net_exposure=_coerce_optional_float(
+            payload.get("min_net_exposure"),
+            field_name="optimizer.directional_constraints.min_net_exposure",
+        ),
+        max_net_exposure=_coerce_optional_float(
+            payload.get("max_net_exposure"),
+            field_name="optimizer.directional_constraints.max_net_exposure",
+        ),
+        hard_to_borrow_penalty_bps=_coerce_non_negative_float(
+            payload.get("hard_to_borrow_penalty_bps", 0.0),
+            field_name="optimizer.directional_constraints.hard_to_borrow_penalty_bps",
+        ),
+        short_availability_policy=str(policy),
+    )
 
 def resolve_portfolio_optimizer_config(
     payload: PortfolioOptimizerConfig | dict[str, Any] | None,
@@ -126,17 +390,24 @@ def resolve_portfolio_optimizer_config(
         payload.get("tolerance", _DEFAULT_TOLERANCE),
         field_name="optimizer.tolerance",
     )
+    directional_constraints = resolve_directional_constraints_config(payload.get("directional_constraints"))
 
-    if not long_only:
-        raise PortfolioOptimizationError(
-            "portfolio optimizer currently supports only long_only=True allocations."
-        )
     if target_weight_sum <= 0.0:
         raise PortfolioOptimizationError("portfolio optimizer field 'target_weight_sum' must be positive.")
-    if leverage_ceiling + tolerance < target_weight_sum:
-        raise PortfolioOptimizationError(
-            "portfolio optimizer field 'leverage_ceiling' must be >= 'target_weight_sum' for long-only allocations."
-        )
+    
+    # Validate constraints based on long_only mode
+    if long_only:
+        if leverage_ceiling + tolerance < target_weight_sum:
+            raise PortfolioOptimizationError(
+                "portfolio optimizer field 'leverage_ceiling' must be >= 'target_weight_sum' for long-only allocations."
+            )
+    else:
+        # For long/short: leverage_ceiling applies to gross exposure (long + abs(short))
+        if leverage_ceiling <= 0.0:
+            raise PortfolioOptimizationError(
+                "portfolio optimizer field 'leverage_ceiling' must be positive for long/short allocations."
+            )
+    
     if min_weight is not None and min_weight < 0.0:
         raise PortfolioOptimizationError(
             "portfolio optimizer field 'min_weight' must be >= 0 for long-only allocations."
@@ -172,6 +443,7 @@ def resolve_portfolio_optimizer_config(
         covariance_ridge=covariance_ridge,
         max_iterations=max_iterations,
         tolerance=tolerance,
+        directional_constraints=directional_constraints,
     )
 
 
@@ -190,6 +462,7 @@ def optimizer_validation_overrides(config: PortfolioOptimizerConfig) -> dict[str
         "max_leverage": float(config.leverage_ceiling),
         "min_single_sleeve_weight": min_weight,
         "max_single_sleeve_weight": effective_max_weight,
+        "directional_constraints": None if config.directional_constraints is None else config.directional_constraints.to_dict(),
     }
 
 
@@ -257,6 +530,14 @@ def optimize_portfolio(
         weights = _apply_turnover_constraint(weights, previous_weights, config=config)
 
     _validate_weight_vector(weights, config=config, lower_bounds=lower_bounds, upper_bounds=upper_bounds)
+    directional_validation = None
+    if config.directional_constraints is not None:
+        directional_validation = validate_directional_constraints(weights, config.directional_constraints)
+        if not directional_validation["valid"]:
+            raise PortfolioOptimizationError(
+                "Optimized weights violate directional constraints: "
+                f"{directional_validation['error_message']}"
+            )
 
     realized_return = float(np.dot(expected_returns.to_numpy(dtype="float64"), weights.to_numpy(dtype="float64")))
     variance = float(weights.to_numpy(dtype="float64") @ covariance.to_numpy(dtype="float64") @ weights.to_numpy(dtype="float64"))
@@ -283,6 +564,7 @@ def optimize_portfolio(
         "min_single_weight": float(weights.min()),
         "turnover_vs_previous": None if previous_weights is None else float((weights - _normalize_previous_weights(previous_weights, weights.index)).abs().sum()),
         "strategy_order": weights.index.tolist(),
+        "directional_constraints": directional_validation,
     }
     return PortfolioOptimizationResult(weights=weights, diagnostics=diagnostics, config=config)
 
@@ -366,6 +648,22 @@ def _coerce_optional_non_negative_float(value: Any, *, field_name: str) -> float
     return _coerce_non_negative_float(value, field_name=field_name)
 
 
+def _coerce_optional_non_negative_int(value: Any, *, field_name: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        raise PortfolioOptimizationError(f"{field_name} must be a non-negative integer when provided.")
+    try:
+        normalized = int(value)
+    except (TypeError, ValueError) as exc:
+        raise PortfolioOptimizationError(f"{field_name} must be a non-negative integer when provided.") from exc
+    if normalized < 0:
+        raise PortfolioOptimizationError(f"{field_name} must be a non-negative integer when provided.")
+    if normalized != value and not (isinstance(value, float) and value.is_integer()):
+        raise PortfolioOptimizationError(f"{field_name} must be a non-negative integer when provided.")
+    return normalized
+
+
 def _effective_max_weight(*, max_weight: float | None, max_single_weight: float | None, target_weight_sum: float) -> float:
     candidates = [target_weight_sum]
     if max_weight is not None:
@@ -415,7 +713,13 @@ def _bound_vectors(
     *,
     strategy_count: int,
 ) -> tuple[np.ndarray, np.ndarray]:
-    lower_value = 0.0 if config.min_weight is None else float(config.min_weight)
+    # For long_only: lower bound is 0.0, for long/short: lower bound is negative (unbounded)
+    if config.long_only:
+        lower_value = 0.0 if config.min_weight is None else float(config.min_weight)
+    else:
+        # For long/short, allow negative weights
+        lower_value = -10.0 if config.min_weight is None else float(config.min_weight)  # -10.0 as practical unbounded
+    
     upper_value = _effective_max_weight(
         max_weight=config.max_weight,
         max_single_weight=config.max_single_weight,

@@ -260,12 +260,22 @@ def _portfolio_returns_frame(portfolio_output: pd.DataFrame) -> pd.DataFrame:
             "portfolio_weight_change",
             "portfolio_abs_weight_change",
             "portfolio_turnover",
+            "portfolio_long_turnover",
+            "portfolio_short_turnover",
+            "portfolio_short_exposure",
             "portfolio_rebalance_event",
             "portfolio_changed_sleeve_count",
             "portfolio_transaction_cost",
+            "portfolio_long_transaction_cost",
+            "portfolio_short_transaction_cost",
             "portfolio_fixed_fee",
             "portfolio_slippage_proxy",
+            "portfolio_long_slippage_proxy",
+            "portfolio_short_slippage_proxy",
             "portfolio_slippage_cost",
+            "portfolio_long_slippage_cost",
+            "portfolio_short_slippage_cost",
+            "portfolio_short_borrow_cost",
             "portfolio_execution_friction",
             "net_portfolio_return",
         )
@@ -499,9 +509,24 @@ def _optimizer_manifest_metadata(
         )
 
     method = optimizer_config.get("method")
+    directional_constraints = (
+        optimizer_config.get("directional_constraints")
+        if isinstance(optimizer_config.get("directional_constraints"), dict)
+        else None
+    )
+    directional_validation = (
+        diagnostics.get("directional_constraints")
+        if isinstance(diagnostics.get("directional_constraints"), dict)
+        else None
+    )
     return {
         "config": optimizer_config or None,
         "constraint_summary": {
+            **(
+                {"directional_constraints": directional_constraints}
+                if directional_constraints is not None
+                else {}
+            ),
             "full_investment": optimizer_config.get("full_investment"),
             "leverage_ceiling": optimizer_config.get("leverage_ceiling"),
             "long_only": optimizer_config.get("long_only"),
@@ -514,6 +539,7 @@ def _optimizer_manifest_metadata(
         "diagnostics": diagnostics or None,
         "diagnostic_summary": {
             "converged": diagnostics.get("converged"),
+            "directional_constraints_valid": directional_validation.get("valid") if directional_validation else None,
             "gross_exposure": diagnostics.get("gross_exposure", metrics.get("max_leverage")),
             "iterations": diagnostics.get("iterations"),
             "max_single_weight": diagnostics.get("max_single_weight", metrics.get("max_single_weight")),
@@ -614,15 +640,27 @@ def _execution_manifest_metadata(
     execution_config = config.get("execution") if isinstance(config.get("execution"), dict) else {}
     return {
         "config": _normalize_mapping(dict(execution_config), owner="execution.config") if execution_config else {},
+        "directional_summary": {
+            "long_total_return": metrics.get("long_total_return"),
+            "short_total_return": metrics.get("short_total_return"),
+            "long_return_contribution_pct": metrics.get("long_return_contribution_pct"),
+            "short_return_contribution_pct": metrics.get("short_return_contribution_pct"),
+            "total_short_borrow_cost": metrics.get("total_short_borrow_cost"),
+        },
         "summary": {
             "gross_total_return": metrics.get("gross_total_return"),
             "net_total_return": metrics.get("net_total_return", metrics.get("total_return")),
             "execution_drag_total_return": metrics.get("execution_drag_total_return"),
             "total_transaction_cost": metrics.get("total_transaction_cost"),
+            "total_long_transaction_cost": metrics.get("total_long_transaction_cost"),
+            "total_short_transaction_cost": metrics.get("total_short_transaction_cost"),
             "total_fixed_fee": metrics.get("total_fixed_fee"),
             "total_slippage_cost": metrics.get("total_slippage_cost"),
+            "total_short_borrow_cost": metrics.get("total_short_borrow_cost"),
             "total_execution_friction": metrics.get("total_execution_friction"),
             "turnover": metrics.get("turnover"),
+            "long_turnover": metrics.get("average_long_turnover"),
+            "short_turnover": metrics.get("average_short_turnover"),
             "rebalance_count": metrics.get("rebalance_count"),
         },
         "model_summary": normalized_execution_summary or None,

@@ -76,3 +76,33 @@ def test_apply_portfolio_execution_model_rejects_non_finite_inputs() -> None:
 
     with pytest.raises(PortfolioExecutionError, match="finite aligned returns"):
         apply_portfolio_execution_model(returns, _weights(), ExecutionConfig.default())
+
+
+def test_apply_portfolio_execution_model_tracks_directional_costs() -> None:
+    weights = pd.DataFrame(
+        {
+            "alpha": [0.5, -0.5, 0.0],
+            "beta": [0.5, 1.5, 1.0],
+        },
+        index=_returns().index,
+        dtype="float64",
+    )
+    config = ExecutionConfig(
+        enabled=True,
+        execution_delay=1,
+        transaction_cost_bps=10.0,
+        slippage_bps=5.0,
+        long_transaction_cost_bps=5.0,
+        short_transaction_cost_bps=20.0,
+        short_slippage_multiplier=2.0,
+        short_borrow_cost_bps=10.0,
+    )
+
+    result = apply_portfolio_execution_model(_returns(), weights, config)
+
+    assert result.frame["portfolio_long_turnover"].tolist() == pytest.approx([1.0, 1.0, 0.5])
+    assert result.frame["portfolio_short_turnover"].tolist() == pytest.approx([0.0, 1.0, 0.5])
+    assert result.frame["portfolio_transaction_cost"].tolist() == pytest.approx([0.0005, 0.0025, 0.00125])
+    assert result.frame["portfolio_short_borrow_cost"].tolist() == pytest.approx([0.0, 0.0005, 0.0])
+    assert result.frame["portfolio_execution_friction"].tolist() == pytest.approx([0.001, 0.0045, 0.002])
+    assert result.summary["directional_asymmetry"]["enabled"] is True

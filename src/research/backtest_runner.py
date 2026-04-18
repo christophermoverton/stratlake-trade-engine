@@ -261,8 +261,35 @@ def run_backtest(
     )
     validate_position_change_frame(position_change_frame)
     gross_strategy_return = (executed_signal * result[return_column]).astype("float64")
-    transaction_cost = _execution_cost(position_change_frame["delta_position"], config.transaction_cost_bps, enabled=config.enabled)
-    slippage_cost = _execution_cost(position_change_frame["delta_position"], config.slippage_bps, enabled=config.enabled)
+    
+    # Apply execution costs (directional if configured, otherwise symmetric)
+    if config.has_directional_asymmetry:
+        long_cost, short_cost, total_cost = _execution_cost_directional(
+            position_change_frame["position"],
+            position_change_frame["delta_position"],
+            config,
+        )
+        transaction_cost = _execution_cost(
+            position_change_frame["delta_position"], 
+            config.transaction_cost_bps, 
+            enabled=False  # transaction cost already in directional costs
+        )
+        slippage_cost = _execution_cost(
+            position_change_frame["delta_position"], 
+            config.slippage_bps, 
+            enabled=False  # slippage already in directional costs
+        )
+        result["long_execution_cost"] = long_cost
+        result["short_execution_cost"] = short_cost
+        result["transaction_cost"] = transaction_cost  # zero placeholder
+        result["slippage_cost"] = slippage_cost  # zero placeholder
+    else:
+        transaction_cost = _execution_cost(position_change_frame["delta_position"], config.transaction_cost_bps, enabled=config.enabled)
+        slippage_cost = _execution_cost(position_change_frame["delta_position"], config.slippage_bps, enabled=config.enabled)
+        result["transaction_cost"] = transaction_cost
+        result["slippage_cost"] = slippage_cost
+        result["long_execution_cost"] = pd.Series(0.0, index=result.index, dtype="float64")
+        result["short_execution_cost"] = pd.Series(0.0, index=result.index, dtype="float64")
 
     result["constructed_position"] = constructed_position
     result["executed_signal"] = executed_signal
@@ -272,9 +299,7 @@ def run_backtest(
     result["turnover"] = position_change_frame["turnover"]
     result["trade_event"] = position_change_frame["trade_event"]
     result["gross_strategy_return"] = gross_strategy_return
-    result["transaction_cost"] = transaction_cost
-    result["slippage_cost"] = slippage_cost
-    result["execution_friction"] = (transaction_cost + slippage_cost).astype("float64")
+    result["execution_friction"] = (result["transaction_cost"] + result["slippage_cost"] + result["long_execution_cost"] + result["short_execution_cost"]).astype("float64")
     result["net_strategy_return"] = (
         gross_strategy_return - result["execution_friction"]
     ).astype("float64")
@@ -290,3 +315,50 @@ def _execution_cost(delta_position: pd.Series, bps: float, *, enabled: bool) -> 
     if not enabled or bps == 0.0:
         return pd.Series(0.0, index=delta_position.index, dtype="float64")
     return (delta_position.abs() * (float(bps) / 10_000.0)).astype("float64")
+
+
+def _execution_cost_directional(
+    position: pd.Series,
+    delta_position: pd.Series,
+    config: ExecutionConfig,
+) -> tuple[pd.Series, pd.Series, pd.Series]:
+    """
+    Apply directional execution costs (asymmetric long/short friction).
+    
+    Returns:
+        (long_cost, short_cost, total_cost) tuple of Series
+    """
+    if not config.enabled:
+        zero_series = pd.Series(0.0, index=delta_position.index, dtype="float64")
+        return zero_series, zero_series, zero_series
+
+    # Separate long and short delta positions
+    long_delta = delta_position.clip(lower=0.0)  # positive deltas (increases in any position)
+    short_delta = delta_position.clip(upper=0.0).abs()  # absolute value of negative deltas
+
+    # Get effective costs (falls back to symmetric if directional not set)
+    long_transaction_cost_bps = config.get_long_transaction_cost_bps()
+    short_transaction_cost_bps = config.get_short_transaction_cost_bps()
+    
+    # Transaction costs (applied to position deltas)
+    long_transaction_cost = (long_delta * (float(long_transaction_cost_bps) / 10_000.0)).astype("float64")
+    short_transaction_cost = (short_delta * (float(short_transaction_cost_bps) / 10_000.0)).astype("float64")
+
+    # Slippage (applied to absolute position deltas, with separate multiplier for shorts)
+    abs_delta = delta_position.abs()
+    long_slippage_cost = (long_delta * (float(config.slippage_bps) / 10_000.0)).astype("float64")
+    short_slippage_bps = config.get_short_slippage_bps()
+    short_slippage_cost = (short_delta * (float(short_slippage_bps) / 10_000.0)).astype("float64")
+
+    # Borrow cost (applied only when short position size is positive)
+    short_borrow_cost = pd.Series(0.0, index=position.index, dtype="float64")
+    if config.short_borrow_cost_bps > 0.0:
+        short_position_sizes = position.clip(upper=0.0).abs()
+        short_borrow_cost = (short_position_sizes * (float(config.short_borrow_cost_bps) / 10_000.0)).astype("float64")
+
+    # Combine costs by side
+    long_cost = long_transaction_cost + long_slippage_cost
+    short_cost = short_transaction_cost + short_slippage_cost + short_borrow_cost
+    total_cost = long_cost + short_cost
+
+    return long_cost, short_cost, total_cost

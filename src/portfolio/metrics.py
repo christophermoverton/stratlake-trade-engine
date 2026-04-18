@@ -64,8 +64,12 @@ def compute_portfolio_metrics(
     weight_change = None if weight_frame is None else compute_weight_change_frame(weight_frame)
     trade_count = 0 if weight_change is None else int(weight_change["portfolio_rebalance_event"].sum())
     transaction_cost = _optional_numeric_series(normalized, "portfolio_transaction_cost")
+    long_transaction_cost = _optional_numeric_series(normalized, "portfolio_long_transaction_cost")
+    short_transaction_cost = _optional_numeric_series(normalized, "portfolio_short_transaction_cost")
     fixed_fee = _optional_numeric_series(normalized, "portfolio_fixed_fee")
     slippage_cost = _optional_numeric_series(normalized, "portfolio_slippage_cost")
+    long_slippage_cost = _optional_numeric_series(normalized, "portfolio_long_slippage_cost")
+    short_slippage_cost = _optional_numeric_series(normalized, "portfolio_short_slippage_cost")
     execution_friction = _optional_numeric_series(normalized, "portfolio_execution_friction")
     weight_diagnostics = (
         summarize_weight_diagnostics(weight_frame)
@@ -123,7 +127,7 @@ def compute_portfolio_metrics(
         else None
     )
 
-    return {
+    metrics = {
         "cumulative_return": total,
         "gross_cumulative_return": gross_total,
         "total_return": total,
@@ -195,6 +199,17 @@ def compute_portfolio_metrics(
         "sanity_status": research_sanity_status,
         "sanity_strict_mode": research_sanity_strict_mode,
     }
+    if "portfolio_long_turnover" in normalized.columns or "portfolio_short_turnover" in normalized.columns:
+        metrics["average_long_turnover"] = _average_optional_series(normalized, "portfolio_long_turnover")
+        metrics["average_short_turnover"] = _average_optional_series(normalized, "portfolio_short_turnover")
+        metrics["total_long_transaction_cost"] = float(long_transaction_cost.sum())
+        metrics["total_short_transaction_cost"] = float(short_transaction_cost.sum())
+        metrics["total_long_slippage_cost"] = float(long_slippage_cost.sum())
+        metrics["total_short_slippage_cost"] = float(short_slippage_cost.sum())
+        metrics["total_short_borrow_cost"] = float(_optional_numeric_series(normalized, "portfolio_short_borrow_cost").sum())
+        if weight_frame is not None:
+            metrics.update(compute_long_short_directional_metrics(_strategy_return_frame(normalized), weight_frame))
+    return metrics
 
 
 def _validate_portfolio_metrics_input(
@@ -252,6 +267,13 @@ def _extract_weight_frame(portfolio_output: pd.DataFrame) -> pd.DataFrame | None
     return weights.astype("float64")
 
 
+def _strategy_return_frame(portfolio_output: pd.DataFrame) -> pd.DataFrame:
+    return_columns = [column for column in portfolio_output.columns if column.startswith("strategy_return__")]
+    returns = portfolio_output.loc[:, return_columns].copy()
+    returns.columns = [column.removeprefix("strategy_return__") for column in return_columns]
+    return returns.astype("float64")
+
+
 def _portfolio_turnover(weight_frame: pd.DataFrame | None) -> float | None:
     if weight_frame is None:
         return None
@@ -277,10 +299,98 @@ def _optional_numeric_series(portfolio_output: pd.DataFrame, column: str) -> pd.
     return pd.to_numeric(portfolio_output[column], errors="coerce").fillna(0.0).astype("float64")
 
 
+def _average_optional_series(portfolio_output: pd.DataFrame, column: str) -> float:
+    return float(_optional_numeric_series(portfolio_output, column).mean())
+
+
 def _optional_float(value: object) -> float | None:
     if value is None:
         return None
     return float(value)
 
 
-__all__ = ["compute_portfolio_metrics"]
+def compute_long_short_directional_metrics(
+    strategy_returns: pd.DataFrame,
+    positions: pd.DataFrame,
+) -> dict[str, float | None]:
+    """
+    Compute long/short directional diagnostic metrics from strategy returns and positions.
+    
+    Args:
+        strategy_returns: DataFrame with strategy returns (one column per strategy)
+        positions: DataFrame with strategy positions (one column per strategy), can be negative for shorts
+    
+    Returns:
+        Dictionary with long/short decomposed metrics:
+        - long_total_return, short_total_return
+        - long_volatility, short_volatility
+        - long_hit_rate, short_hit_rate
+        - long_avg_position_size, short_avg_position_size
+    """
+    metrics: dict[str, float | None] = {}
+    
+    try:
+        # Validate inputs
+        if strategy_returns.empty or positions.empty:
+            return metrics
+        
+        if not strategy_returns.columns.equals(positions.columns):
+            return metrics
+        
+        # Separate long and short positions by strategy
+        long_positions = positions.clip(lower=0.0)
+        short_positions = positions.clip(upper=0.0).abs()
+        
+        # Compute long-side returns: long_position * strategy_return
+        long_returns = (long_positions * strategy_returns).sum(axis=1)
+        short_returns = (short_positions * strategy_returns).sum(axis=1)
+        
+        # Long metrics
+        if (long_positions > 0.0).any().any():
+            metrics["long_total_return"] = float(total_return(long_returns))
+            long_vol = volatility(long_returns)
+            metrics["long_volatility"] = float(long_vol) if long_vol is not None else None
+            long_hr = hit_rate(long_returns)
+            metrics["long_hit_rate"] = float(long_hr) if long_hr is not None else None
+            metrics["long_avg_position_size"] = float(long_positions.sum().mean())
+        else:
+            metrics["long_total_return"] = 0.0
+            metrics["long_volatility"] = None
+            metrics["long_hit_rate"] = None
+            metrics["long_avg_position_size"] = 0.0
+        
+        # Short metrics
+        if (short_positions > 0.0).any().any():
+            metrics["short_total_return"] = float(total_return(short_returns))
+            short_vol = volatility(short_returns)
+            metrics["short_volatility"] = float(short_vol) if short_vol is not None else None
+            short_hr = hit_rate(short_returns)
+            metrics["short_hit_rate"] = float(short_hr) if short_hr is not None else None
+            metrics["short_avg_position_size"] = float(short_positions.sum().mean())
+        else:
+            metrics["short_total_return"] = 0.0
+            metrics["short_volatility"] = None
+            metrics["short_hit_rate"] = None
+            metrics["short_avg_position_size"] = 0.0
+        
+        # Contribution metrics
+        total_ret = total_return(long_returns + short_returns)
+        if total_ret != 0.0:
+            metrics["long_return_contribution_pct"] = (
+                float(total_return(long_returns) / total_ret * 100.0) if total_ret != 0.0 else 0.0
+            )
+            metrics["short_return_contribution_pct"] = (
+                float(total_return(short_returns) / total_ret * 100.0) if total_ret != 0.0 else 0.0
+            )
+        else:
+            metrics["long_return_contribution_pct"] = 0.0
+            metrics["short_return_contribution_pct"] = 0.0
+        
+    except (ValueError, TypeError, KeyError):
+        # If computation fails, return empty metrics
+        pass
+    
+    return metrics
+
+
+__all__ = ["compute_portfolio_metrics", "compute_long_short_directional_metrics"]

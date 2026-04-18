@@ -10,6 +10,7 @@ from typing import Any, Sequence
 from src.cli.run_alpha_evaluation import (
     AlphaEvaluationRunResult,
     _format_run_failure,
+    _inherit_compatible_position_constructor,
     DEFAULT_ARTIFACTS_ROOT,
     load_ticker_file,
     run_resolved_config,
@@ -25,6 +26,7 @@ from src.research.alpha_eval import (
     register_alpha_evaluation_run,
     write_alpha_sleeve_artifacts,
 )
+from src.research.position_constructors import normalize_position_constructor_config
 from src.research.promotion import load_promotion_gate_config
 from src.research.registry import RegistryError
 from src.pipeline.cli_adapter import build_pipeline_cli_result
@@ -163,7 +165,14 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
             resolved[key] = value
     if mode == "full" and signal_mapping is None:
         signal_mapping = dict(DEFAULT_FULL_RUN_SIGNAL_MAPPING)
+    position_constructor = normalize_position_constructor_config(resolved.get("position_constructor"))
+    if position_constructor is not None:
+        resolved["position_constructor"] = position_constructor
     if signal_mapping is not None:
+        signal_mapping = _inherit_compatible_position_constructor(
+            signal_mapping,
+            position_constructor=position_constructor,
+        )
         resolved["signal_mapping"] = signal_mapping
 
     dataset = str(resolved.get("dataset", "")).strip()
@@ -218,6 +227,7 @@ def run_cli(
             dataset=evaluation_result.loaded_frame,
             price_column=_optional_string(resolved_config.get("price_column")),
             realized_return_column=_optional_string(resolved_config.get("realized_return_column")),
+            position_constructor=resolved_config.get("position_constructor"),
             alpha_name=str(resolved_config["alpha_name"]),
             run_id=evaluation_result.run_id,
         )

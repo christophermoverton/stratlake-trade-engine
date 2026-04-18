@@ -69,6 +69,9 @@ def build_alpha_evaluation_registry_entry(
         review=manifest_payload.get("review") if isinstance(manifest_payload.get("review"), Mapping) else None,
         promotion_gate_summary=promotion_gate_summary,
     )
+    constructor_params = manifest_payload.get("constructor_params", {})
+    if not isinstance(constructor_params, Mapping):
+        constructor_params = {}
 
     return {
         "run_id": normalized_run_id,
@@ -118,6 +121,8 @@ def build_alpha_evaluation_registry_entry(
         "artifact_files": list(manifest_payload.get("artifact_files", [])),
         "signal_type": manifest_payload.get("signal_type"),
         "signal_version": manifest_payload.get("signal_version"),
+        "constructor_id": manifest_payload.get("constructor_id"),
+        "constructor_params": canonicalize_value(dict(constructor_params)),
         "signal_semantics_path": (
             resolved_artifact_dir.joinpath(str(manifest_payload["signal_semantics_path"])).as_posix()
             if manifest_payload.get("signal_semantics_path") is not None

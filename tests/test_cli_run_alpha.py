@@ -141,7 +141,12 @@ def test_run_cli_full_mode_writes_deterministic_scaffold_artifact(
     assert payload["run_id"] == first.run_id
     assert payload["status"] == "completed"
     assert payload["next_stage"] is None
-    assert payload["signal_mapping"]["config"]["policy"] == "rank_long_short"
+    assert payload["signal_mapping"]["config"]["policy"] == "zscore_continuous"
+    assert payload["signal_mapping"]["config"]["position_constructor_name"] == "zscore_clip_scale"
+    assert payload["signal_mapping"]["config"]["position_constructor_params"] == {
+        "clip": 3.0,
+        "gross_exposure": 1.0,
+    }
     assert payload["sleeve"]["sleeve_returns_path"] == "sleeve_returns.csv"
     assert payload["sleeve"]["sleeve_equity_curve_path"] == "sleeve_equity_curve.csv"
     assert payload["sleeve"]["sleeve_metrics_path"] == "sleeve_metrics.json"

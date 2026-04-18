@@ -58,6 +58,8 @@ def test_load_signal_type_registry_exposes_canonical_definitions() -> None:
     }.issubset(set(registry))
     assert registry["prediction_score"].executable is False
     assert registry["signed_zscore"].executable is True
+    assert "rank_dollar_neutral" in registry["cross_section_rank"].compatible_position_constructors
+    assert "zscore_clip_scale" in registry["signed_zscore"].compatible_position_constructors
 
 
 def test_validate_signal_frame_rejects_duplicate_keys() -> None:
@@ -125,5 +127,5 @@ def test_ensure_signal_type_compatible_rejects_non_executable_signal() -> None:
     with pytest.raises(SignalSemanticsError, match="not compatible"):
         ensure_signal_type_compatible(
             "prediction_score",
-            position_constructor="backtest_numeric_exposure",
+            position_constructor="identity_weights",
         )

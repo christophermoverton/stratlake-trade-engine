@@ -9,6 +9,10 @@ from typing import Any
 import pandas as pd
 
 from src.config.execution import ExecutionConfig
+from src.research.position_constructors import (
+    normalize_position_constructor_config,
+    position_constructor_metadata_payload,
+)
 from src.research.backtest_runner import run_backtest
 from src.research.metrics import compute_performance_metrics
 from src.research.signal_semantics import attach_signal_metadata, extract_signal_metadata
@@ -42,12 +46,13 @@ def generate_alpha_sleeve(
     execution_config: ExecutionConfig | None = None,
     price_column: str | None = None,
     realized_return_column: str | None = None,
+    position_constructor: dict[str, Any] | None = None,
     alpha_name: str | None = None,
     run_id: str | None = None,
 ) -> AlphaSleeveResult:
     """Convert mapped alpha exposures into one backtestable sleeve return stream."""
 
-    resolved_signals = _validate_signals(signals)
+    resolved_signals = _validate_signals(signals, position_constructor=position_constructor)
     prepared_dataset, return_column_name, return_source = _prepare_dataset_returns(
         dataset,
         price_column=price_column,
@@ -64,6 +69,7 @@ def generate_alpha_sleeve(
         alpha_name=alpha_name,
         run_id=run_id,
     )
+    backtest_signal_semantics = backtest_results.attrs.get("backtest_signal_semantics", {})
     return AlphaSleeveResult(
         signals=resolved_signals.reset_index(drop=True),
         backtest_results=backtest_results.reset_index(drop=True),
@@ -78,6 +84,8 @@ def generate_alpha_sleeve(
             "signal_row_count": int(len(resolved_signals)),
             "symbol_count": int(resolved_signals["symbol"].astype("string").nunique()),
             "timestamp_count": int(pd.to_datetime(resolved_signals["ts_utc"], utc=True, errors="coerce").nunique()),
+            "constructor_id": backtest_signal_semantics.get("constructor_id"),
+            "constructor_params": dict(backtest_signal_semantics.get("constructor_params", {})),
         },
     )
 
@@ -148,6 +156,10 @@ def augment_alpha_manifest_with_sleeve(
     payload["sleeve_returns_path"] = _SLEEVE_RETURNS_FILENAME
     payload["sleeve_equity_curve_path"] = _SLEEVE_EQUITY_CURVE_FILENAME
     payload["sleeve_metrics_path"] = _SLEEVE_METRICS_FILENAME
+    payload["constructor_id"] = sleeve_result.metadata.get("constructor_id")
+    payload["constructor_params"] = _normalize_json_value(
+        sleeve_result.metadata.get("constructor_params", {})
+    )
     payload["sleeve"] = _normalize_mapping(
         {
             "enabled": True,
@@ -156,6 +168,8 @@ def augment_alpha_manifest_with_sleeve(
                 "sleeve_equity_curve": _SLEEVE_EQUITY_CURVE_FILENAME,
                 "sleeve_metrics": _SLEEVE_METRICS_FILENAME,
             },
+            "constructor_id": sleeve_result.metadata.get("constructor_id"),
+            "constructor_params": sleeve_result.metadata.get("constructor_params", {}),
             "metric_summary": sleeve_result.metrics,
             "row_count": int(len(sleeve_result.sleeve_returns)),
             "timestamp_count": int(len(sleeve_result.sleeve_equity_curve)),
@@ -194,7 +208,11 @@ def augment_alpha_manifest_with_sleeve(
     return normalized
 
 
-def _validate_signals(signals: pd.DataFrame) -> pd.DataFrame:
+def _validate_signals(
+    signals: pd.DataFrame,
+    *,
+    position_constructor: dict[str, Any] | None,
+) -> pd.DataFrame:
     metadata = extract_signal_metadata(signals)
     required_columns = ("symbol", "ts_utc", "signal")
     missing = [column for column in required_columns if column not in signals.columns]
@@ -213,6 +231,15 @@ def _validate_signals(signals: pd.DataFrame) -> pd.DataFrame:
     normalized = normalized.sort_values(sort_columns, kind="stable").reset_index(drop=True)
     if normalized.duplicated(subset=[column for column in ("symbol", "ts_utc", "timeframe") if column in normalized.columns]).any():
         raise AlphaSleeveError("Sleeve generation requires duplicate-free mapped signal keys.")
+    constructor_config = normalize_position_constructor_config(position_constructor)
+    if constructor_config is not None:
+        metadata = dict(metadata or {})
+        metadata.update(
+            position_constructor_metadata_payload(
+                name=str(constructor_config["name"]),
+                params=dict(constructor_config["params"]),
+            )
+        )
     if metadata is not None:
         attach_signal_metadata(normalized, metadata)
     return normalized
@@ -312,7 +339,7 @@ def _aggregate_sleeve_returns(backtest_results: pd.DataFrame) -> pd.DataFrame:
     grouped = (
         frame.groupby(time_column, sort=False, as_index=False)
         .agg(
-            **{column: (column, "mean") for column in numeric_columns},
+            **{column: (column, "sum") for column in numeric_columns},
             active_symbol_count=("symbol", "nunique"),
         )
     )
@@ -379,6 +406,8 @@ def _build_sleeve_metrics(
             "active_symbol_count_mean": float(pd.to_numeric(sleeve_returns.get("active_symbol_count"), errors="coerce").mean())
             if "active_symbol_count" in sleeve_returns.columns
             else None,
+            "constructor_id": backtest_results.attrs.get("backtest_signal_semantics", {}).get("constructor_id"),
+            "constructor_params": backtest_results.attrs.get("backtest_signal_semantics", {}).get("constructor_params", {}),
         }
     )
     return _normalize_mapping(metrics)

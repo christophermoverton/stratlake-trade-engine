@@ -514,10 +514,6 @@ def test_builtin_alpha_full_reruns_produce_stable_artifacts_and_registry_entries
     argv = [
         "--alpha-name",
         "cs_linear_ret_1d",
-        "--signal-policy",
-        "top_bottom_quantile",
-        "--signal-quantile",
-        "0.34",
         "--start",
         "2025-01-01",
         "--end",

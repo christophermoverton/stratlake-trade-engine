@@ -7,9 +7,14 @@ from typing import Any, Literal
 import pandas as pd
 
 from src.research.alpha.cross_section import validate_cross_section_input
+from src.research.position_constructors import (
+    normalize_position_constructor_config,
+    position_constructor_metadata_payload,
+)
 from src.research.signal_semantics import (
     Signal,
     create_signal,
+    ensure_signal_type_compatible,
     score_to_binary_long_only,
     score_to_cross_section_rank,
     score_to_signed_zscore,
@@ -52,6 +57,8 @@ class AlphaSignalMappingConfig:
     quantile: float | None = None
     signal_type: str | None = None
     signal_params: dict[str, Any] = field(default_factory=dict)
+    position_constructor_name: str | None = None
+    position_constructor_params: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -82,9 +89,25 @@ def map_alpha_predictions_to_signals(
         value_column=resolved_config.prediction_column,
         parameters={"min_cross_section_size": 2},
         source={"layer": "alpha", "component": "prediction_mapping"},
-        metadata={"mapping_policy": resolved_config.policy},
+        metadata={
+            "mapping_policy": resolved_config.policy,
+            **(
+                {}
+                if resolved_config.position_constructor_name is None
+                else position_constructor_metadata_payload(
+                    name=resolved_config.position_constructor_name,
+                    params=resolved_config.position_constructor_params,
+                )
+            ),
+        },
     )
     typed_signal = _map_typed_prediction_signal(prediction_signal, config=resolved_config)
+    if resolved_config.position_constructor_name is not None:
+        ensure_signal_type_compatible(
+            typed_signal.signal_type,
+            position_constructor=resolved_config.position_constructor_name,
+            version=typed_signal.version,
+        )
     output = typed_signal.data.copy(deep=True)
     output.attrs = dict(typed_signal.data.attrs)
 
@@ -121,8 +144,23 @@ def resolve_signal_mapping_config(
             quantile=config.get("quantile"),
             signal_type=None if config.get("signal_type") is None else str(config.get("signal_type")),
             signal_params={} if not isinstance(config.get("signal_params"), dict) else dict(config["signal_params"]),
+            position_constructor_name=None,
+            position_constructor_params={},
             metadata={} if not isinstance(config.get("metadata"), dict) else dict(config["metadata"]),
         )
+        constructor_config = normalize_position_constructor_config(config.get("position_constructor"))
+        if constructor_config is not None:
+            resolved = AlphaSignalMappingConfig(
+                policy=resolved.policy,
+                prediction_column=resolved.prediction_column,
+                output_column=resolved.output_column,
+                quantile=resolved.quantile,
+                signal_type=resolved.signal_type,
+                signal_params=resolved.signal_params,
+                position_constructor_name=str(constructor_config["name"]),
+                position_constructor_params=dict(constructor_config["params"]),
+                metadata=resolved.metadata,
+            )
     else:
         raise TypeError("Signal mapping config must be an AlphaSignalMappingConfig or dictionary.")
 
@@ -156,6 +194,8 @@ def resolve_signal_mapping_config(
         quantile=quantile,
         signal_type=signal_type,
         signal_params=signal_params,
+        position_constructor_name=resolved.position_constructor_name,
+        position_constructor_params=dict(resolved.position_constructor_params),
         metadata=dict(resolved.metadata),
     )
 

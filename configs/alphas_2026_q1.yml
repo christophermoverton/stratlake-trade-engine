@@ -23,6 +23,11 @@ rank_composite_momentum_2026_q1:
     metadata:
       name: top_bottom_quantile_q20
       case_study: q1_2026_real_features_daily
+    position_constructor:
+      name: top_bottom_equal_weight
+      params:
+        gross_long: 0.5
+        gross_short: 0.5
   defaults:
     price_column: close
     min_cross_section_size: 25
@@ -70,6 +75,11 @@ ml_cross_sectional_xgb_2026_q1:
     metadata:
       name: top_bottom_quantile_q20
       case_study: q1_2026_ml_xgb_features_daily
+    position_constructor:
+      name: top_bottom_equal_weight
+      params:
+        gross_long: 0.5
+        gross_short: 0.5
   defaults:
     price_column: close
     min_cross_section_size: 25
@@ -114,6 +124,11 @@ ml_cross_sectional_lgbm_2026_q1:
     metadata:
       name: top_bottom_quantile_q20
       case_study: q1_2026_ml_lgbm_features_daily
+    position_constructor:
+      name: top_bottom_equal_weight
+      params:
+        gross_long: 0.5
+        gross_short: 0.5
   defaults:
     price_column: close
     min_cross_section_size: 25
@@ -151,6 +166,11 @@ ml_cross_sectional_elastic_net_2026_q1:
     metadata:
       name: top_bottom_quantile_q20
       case_study: q1_2026_ml_elastic_net_features_daily
+    position_constructor:
+      name: top_bottom_equal_weight
+      params:
+        gross_long: 0.5
+        gross_short: 0.5
   defaults:
     price_column: close
     min_cross_section_size: 25

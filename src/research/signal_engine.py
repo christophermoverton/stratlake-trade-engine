@@ -7,7 +7,8 @@ import pandas as pd
 from src.research.consistency import validate_features_to_signals_consistency
 from src.research.input_validation import STRATEGY_INPUT_MIN_ROWS, validate_strategy_input
 from src.research.integrity import validate_research_integrity
-from src.research.signal_semantics import create_signal
+from src.research.position_constructors import position_constructor_metadata_payload
+from src.research.signal_semantics import create_signal, ensure_signal_type_compatible
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_base import BaseStrategy
 from src.research.strategies._helpers import resolve_return_column
@@ -48,6 +49,13 @@ def generate_signals(df: pd.DataFrame, strategy: BaseStrategy) -> pd.DataFrame:
 
     result = df.copy()
     result["signal"] = signals.rename("signal")
+    constructor_name = getattr(strategy, "position_constructor_name", None)
+    constructor_params = dict(getattr(strategy, "position_constructor_params", {}))
+    constructor_metadata = (
+        {}
+        if constructor_name is None
+        else position_constructor_metadata_payload(name=str(constructor_name), params=constructor_params)
+    )
     typed_signal = create_signal(
         result,
         signal_type=str(getattr(strategy, "signal_type", "target_weight")),
@@ -61,8 +69,15 @@ def generate_signals(df: pd.DataFrame, strategy: BaseStrategy) -> pd.DataFrame:
         },
         metadata={
             "signal_origin": "strategy.generate_signals",
+            **constructor_metadata,
         },
     )
+    if constructor_name is not None:
+        ensure_signal_type_compatible(
+            typed_signal.signal_type,
+            position_constructor=str(constructor_name),
+            version=typed_signal.version,
+        )
     result = typed_signal.data
     diagnostics = compute_signal_diagnostics(result["signal"], result)
     result.attrs["signal_diagnostics"] = diagnostics

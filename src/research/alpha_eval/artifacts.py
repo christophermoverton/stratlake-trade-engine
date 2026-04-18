@@ -238,6 +238,14 @@ def _signal_mapping_payload(
                 "metadata": dict(config.metadata),
                 "output_column": config.output_column,
                 "policy": config.policy,
+                "position_constructor": (
+                    None
+                    if config.position_constructor_name is None
+                    else {
+                        "name": config.position_constructor_name,
+                        "params": dict(config.position_constructor_params),
+                    }
+                ),
                 "prediction_column": config.prediction_column,
                 "quantile": config.quantile,
                 "signal_params": dict(config.signal_params),
@@ -313,6 +321,14 @@ def _training_summary_payload(
                 else {
                     "output_columns": list(signal_mapping_result.metadata.get("output_columns", [])),
                     "policy": signal_mapping_result.config.policy,
+                    "position_constructor": (
+                        None
+                        if signal_mapping_result.config.position_constructor_name is None
+                        else {
+                            "name": signal_mapping_result.config.position_constructor_name,
+                            "params": dict(signal_mapping_result.config.position_constructor_params),
+                        }
+                    ),
                     "prediction_column": signal_mapping_result.config.prediction_column,
                     "quantile": signal_mapping_result.config.quantile,
                     "row_count": signal_mapping_result.row_count,
@@ -513,6 +529,12 @@ def _build_manifest(
         "predictions_path": _PREDICTIONS_FILENAME,
         "qa_summary": qa_summary_payload,
         "qa_summary_path": _QA_SUMMARY_FILENAME,
+        "constructor_id": (
+            None if signal_semantics_payload is None else signal_semantics_payload.get("constructor_id")
+        ),
+        "constructor_params": (
+            {} if signal_semantics_payload is None else signal_semantics_payload.get("constructor_params", {})
+        ),
         "signal_mapping_path": None if signal_mapping_payload is None else _SIGNAL_MAPPING_FILENAME,
         "signal_semantics_path": None if signal_semantics_payload is None else _SIGNAL_SEMANTICS_FILENAME,
         "signal_type": None if signal_semantics_payload is None else signal_semantics_payload.get("signal_type"),
@@ -584,6 +606,8 @@ def _augment_parent_manifest(
         ),
         "signal_type": manifest.get("signal_type"),
         "signal_version": manifest.get("signal_version"),
+        "constructor_id": manifest.get("constructor_id"),
+        "constructor_params": manifest.get("constructor_params"),
         "summary": {
             key: metrics_payload.get(key)
             for key in (

@@ -142,17 +142,55 @@ def test_full_alpha_workflow_persists_sleeves_loads_portfolio_and_integrates_wit
     _write_features_daily_alpha_dataset(tmp_path)
     portfolio_root = tmp_path / "artifacts" / "portfolios"
     portfolio_config_path = tmp_path / "portfolio.yml"
+    alpha_catalog_path = tmp_path / "alphas_full.yml"
+    alpha_catalog_path.write_text(
+        yaml.safe_dump(
+            {
+                "cs_linear_ret_1d_top_bottom": {
+                    "alpha_name": "cs_linear_ret_1d_top_bottom",
+                    "dataset": "features_daily",
+                    "target_column": "target_ret_1d",
+                    "feature_columns": [
+                        "feature_ret_1d",
+                        "feature_ret_5d",
+                        "feature_ret_20d",
+                    ],
+                    "model_type": "cross_sectional_linear",
+                    "model_params": {
+                        "fit_intercept": True,
+                    },
+                    "alpha_horizon": 1,
+                    "defaults": {
+                        "price_column": "close",
+                        "min_cross_section_size": 2,
+                        "signal_mapping": {
+                            "policy": "top_bottom_quantile",
+                            "quantile": 0.34,
+                            "metadata": {"name": "top_q34"},
+                            "position_constructor": {
+                                "name": "top_bottom_equal_weight",
+                                "params": {
+                                    "gross_long": 0.5,
+                                    "gross_short": 0.5,
+                                },
+                            },
+                        },
+                    },
+                }
+            },
+            sort_keys=False,
+        ),
+        encoding="utf-8",
+    )
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr("src.cli.run_portfolio.DEFAULT_PORTFOLIO_ARTIFACTS_ROOT", portfolio_root)
 
     alpha_result = run_alpha_cli(
         [
+            "--config",
+            str(alpha_catalog_path),
             "--alpha-name",
-            "cs_linear_ret_1d",
-            "--signal-policy",
-            "top_bottom_quantile",
-            "--signal-quantile",
-            "0.34",
+            "cs_linear_ret_1d_top_bottom",
             "--start",
             "2025-01-01",
             "--end",
@@ -196,7 +234,7 @@ def test_full_alpha_workflow_persists_sleeves_loads_portfolio_and_integrates_wit
     assert isinstance(portfolio_result, PortfolioRunResult)
     assert [component["artifact_type"] for component in portfolio_result.components] == ["alpha_sleeve"]
     assert portfolio_result.components[0]["run_id"] == alpha_result.run_id
-    assert portfolio_result.components[0]["strategy_name"] == "cs_linear_ret_1d"
+    assert portfolio_result.components[0]["strategy_name"] == "cs_linear_ret_1d_top_bottom"
 
     review = compare_research_runs(
         run_types=["alpha_evaluation", "portfolio"],
@@ -209,7 +247,7 @@ def test_full_alpha_workflow_persists_sleeves_loads_portfolio_and_integrates_wit
     alpha_entry = next(entry for entry in review.entries if entry.run_id == alpha_result.run_id)
     portfolio_entry = next(entry for entry in review.entries if entry.run_id == portfolio_result.run_id)
 
-    assert alpha_entry.mapping_name == "top_bottom_quantile[q=0.34]"
+    assert alpha_entry.mapping_name == "top_q34"
     assert alpha_entry.sleeve_metric_name == "sharpe_ratio"
     assert alpha_entry.linked_portfolio_count == 1
     assert alpha_entry.linked_portfolio_names == "alpha_sleeve_portfolio"
@@ -217,7 +255,7 @@ def test_full_alpha_workflow_persists_sleeves_loads_portfolio_and_integrates_wit
 
     review_payload = json.loads(review.json_path.read_text(encoding="utf-8"))
     alpha_row = next(row for row in review_payload["entries"] if row["run_id"] == alpha_result.run_id)
-    assert alpha_row["mapping_name"] == "top_bottom_quantile[q=0.34]"
+    assert alpha_row["mapping_name"] == "top_q34"
     assert alpha_row["linked_portfolio_count"] == 1
     assert alpha_row["linked_portfolio_names"] == "alpha_sleeve_portfolio"
 
@@ -264,6 +302,8 @@ def test_run_alpha_accepts_custom_catalog_path_with_custom_alpha_name(
             str(custom_catalog_path),
             "--alpha-name",
             "custom_rank_alpha",
+            "--mode",
+            "evaluate",
             "--start",
             "2025-01-01",
             "--end",

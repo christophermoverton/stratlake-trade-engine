@@ -20,6 +20,11 @@ cs_linear_ret_1d:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    position_constructor:
+      name: zscore_clip_scale
+      params:
+        clip: 3.0
+        gross_exposure: 1.0
     signal_mapping:
       policy: zscore_continuous
       signal_type: signed_zscore
@@ -41,6 +46,11 @@ cs_linear_ret_5d:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    position_constructor:
+      name: zscore_clip_scale
+      params:
+        clip: 3.0
+        gross_exposure: 1.0
     signal_mapping:
       policy: zscore_continuous
       signal_type: signed_zscore
@@ -65,6 +75,11 @@ ridge_ret_5d:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    position_constructor:
+      name: zscore_clip_scale
+      params:
+        clip: 3.0
+        gross_exposure: 1.0
     signal_mapping:
       policy: zscore_continuous
       signal_type: signed_zscore
@@ -93,6 +108,11 @@ elastic_net_ret_5d:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    position_constructor:
+      name: zscore_clip_scale
+      params:
+        clip: 3.0
+        gross_exposure: 1.0
     signal_mapping:
       policy: zscore_continuous
       signal_type: signed_zscore
@@ -115,6 +135,11 @@ rank_composite_momentum:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    position_constructor:
+      name: zscore_clip_scale
+      params:
+        clip: 3.0
+        gross_exposure: 1.0
     signal_mapping:
       policy: zscore_continuous
       signal_type: signed_zscore

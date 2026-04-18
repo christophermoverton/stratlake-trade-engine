@@ -20,6 +20,8 @@ class BaseStrategy(ABC):
     requires_return_column: bool = False
     signal_type: str = "target_weight"
     signal_params: dict[str, object] = {}
+    position_constructor_name: str | None = "identity_weights"
+    position_constructor_params: dict[str, object] = {}
 
     @abstractmethod
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:

@@ -15,6 +15,7 @@ import yaml
 
 import src.research.alpha.registry as alpha_registry
 from src.data.load_features import load_features
+from src.research.position_constructors import normalize_position_constructor_config
 from src.research.alpha import (
     AlphaPredictionError,
     AlphaTrainingError,
@@ -42,6 +43,7 @@ from src.research.alpha_eval import (
 )
 from src.research.promotion import load_promotion_gate_config
 from src.research.registry import RegistryError, canonicalize_value, serialize_canonical_json
+from src.research.signal_semantics import SignalSemanticsError, ensure_signal_type_compatible
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ARTIFACTS_ROOT = Path(os.getenv("ARTIFACTS_ROOT", "artifacts")) / "alpha"
@@ -310,6 +312,9 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
             resolved[key] = value
     if signal_mapping is not None:
         resolved["signal_mapping"] = signal_mapping
+    position_constructor = normalize_position_constructor_config(resolved.get("position_constructor"))
+    if position_constructor is not None:
+        resolved["position_constructor"] = position_constructor
 
     resolved = resolve_alpha_config(resolved)
     if resolved.get("alpha_name") is not None and resolved.get("alpha_model") is None:
@@ -344,9 +349,41 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         signal_mapping_payload = resolved["signal_mapping"]
         if not isinstance(signal_mapping_payload, dict):
             raise ValueError("signal_mapping must resolve to a dictionary when provided.")
+        if position_constructor is None:
+            position_constructor = normalize_position_constructor_config(resolved.get("position_constructor"))
+        signal_mapping_payload = _inherit_compatible_position_constructor(
+            signal_mapping_payload,
+            position_constructor=position_constructor,
+        )
         resolved["signal_mapping"] = _serialize_signal_mapping(resolve_signal_mapping_config(signal_mapping_payload))
 
     return resolved
+
+
+def _inherit_compatible_position_constructor(
+    signal_mapping_payload: dict[str, Any],
+    *,
+    position_constructor: dict[str, Any] | None,
+) -> dict[str, Any]:
+    normalized_payload = dict(signal_mapping_payload)
+    explicit_constructor = normalize_position_constructor_config(normalized_payload.get("position_constructor"))
+    if explicit_constructor is not None:
+        normalized_payload["position_constructor"] = explicit_constructor
+        return normalized_payload
+    if position_constructor is None:
+        return normalized_payload
+
+    preview_config = resolve_signal_mapping_config(normalized_payload)
+    try:
+        ensure_signal_type_compatible(
+            preview_config.signal_type,
+            position_constructor=str(position_constructor["name"]),
+        )
+    except SignalSemanticsError:
+        return normalized_payload
+
+    normalized_payload["position_constructor"] = position_constructor
+    return normalized_payload
 
 
 def load_ticker_file(path: str | Path) -> list[str]:
@@ -547,6 +584,14 @@ def _serialize_signal_mapping(config: Any) -> dict[str, Any]:
         "quantile": config.quantile,
         "signal_type": config.signal_type,
         "signal_params": dict(config.signal_params),
+        "position_constructor": (
+            None
+            if config.position_constructor_name is None
+            else {
+                "name": config.position_constructor_name,
+                "params": dict(config.position_constructor_params),
+            }
+        ),
         "metadata": dict(config.metadata),
     }
 

@@ -9,6 +9,9 @@ momentum_v1:
   dataset: features_daily
   signal_type: ternary_quantile
   signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
   parameters:
     lookback_short: 5
     lookback_long: 20
@@ -17,6 +20,9 @@ mean_reversion_v1:
   dataset: features_daily
   signal_type: ternary_quantile
   signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
   parameters:
     lookback: 20
     threshold: 1.0
@@ -25,6 +31,9 @@ mean_reversion_v1_safe_2026_q1:
   dataset: features_daily
   signal_type: ternary_quantile
   signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
   parameters:
     lookback: 20
     threshold: 2.0
@@ -33,12 +42,18 @@ buy_and_hold_v1:
   dataset: features_daily
   signal_type: binary_signal
   signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
   parameters: {}
 
 sma_crossover_v1:
   dataset: features_daily
   signal_type: binary_signal
   signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
   parameters:
     fast_window: 5
     slow_window: 20
@@ -47,5 +62,8 @@ seeded_random_v1:
   dataset: features_daily
   signal_type: binary_signal
   signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
   parameters:
     seed: 7

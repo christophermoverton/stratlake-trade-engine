@@ -5,11 +5,16 @@ import pandas as pd
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.research.consistency import validate_signals_to_backtest_consistency
 from src.research.integrity import validate_research_integrity
+from src.research.position_constructors import (
+    PositionConstructorError,
+    extract_position_constructor_config,
+    resolve_constructor,
+)
 from src.research.signal_semantics import (
+    Signal,
     SignalSemanticsError,
     attach_signal_metadata,
     ensure_signal_type_compatible,
-    executable_position_constructor_name,
     extract_signal_metadata,
     legacy_signal_type_from_values,
     validate_signal_frame,
@@ -80,36 +85,18 @@ def _validate_signal_semantics(df: pd.DataFrame) -> dict[str, object]:
                     "timestamp_normalization": "UTC",
                     "transformation_history": [],
                     "compatibility_mode": "legacy_inferred",
+                    "constructor_id": "backtest_numeric_exposure",
+                    "constructor_params": {},
                 },
             )
             return {
                 "signal_type": inferred_type,
                 "version": "1.0.0",
                 "validated_row_count": int(len(validated)),
+                "constructor_id": "backtest_numeric_exposure",
+                "constructor_params": {},
+                "compatibility_mode": "legacy_inferred",
             }
-
-        signal_type = str(metadata.get("signal_type", "")).strip()
-        version = str(metadata.get("version", "")).strip()
-        parameters = metadata.get("parameters", {})
-        if not isinstance(parameters, dict):
-            parameters = {}
-        validate_signal_frame(
-            df,
-            signal_type=signal_type,
-            value_column=str(metadata.get("value_column", "signal")),
-            version=version,
-            parameters=parameters,
-        )
-        ensure_signal_type_compatible(
-            signal_type,
-            position_constructor=executable_position_constructor_name(),
-            version=version,
-        )
-        return {
-            "signal_type": signal_type,
-            "version": version,
-            "validated_row_count": int(len(df)),
-        }
     except (SignalSemanticsError, ValueError) as exc:
         message = str(exc)
         if "numeric column 'signal'" in message or "parse string" in message or "NaN values" in message or "finite numeric values" in message:
@@ -119,6 +106,78 @@ def _validate_signal_semantics(df: pd.DataFrame) -> dict[str, object]:
         if "sorted deterministically by ['symbol', 'ts_utc']" in message:
             raise ValueError("Backtest input must be sorted by (symbol, ts_utc).") from exc
         raise
+
+
+def _managed_signal_semantics(signal_object: Signal) -> dict[str, object]:
+    constructor_config = extract_position_constructor_config(signal_object.metadata)
+    if constructor_config is None:
+        raise ValueError("Managed signals must declare a position constructor before backtest execution.")
+    return {
+        "signal_type": signal_object.signal_type,
+        "version": signal_object.version,
+        "validated_row_count": int(len(signal_object.data)),
+        "constructor_id": str(constructor_config["name"]),
+        "constructor_params": dict(constructor_config["params"]),
+        "compatibility_mode": "managed",
+    }
+
+
+def _resolve_managed_signal(df: pd.DataFrame) -> Signal | None:
+    metadata = extract_signal_metadata(df)
+    if metadata is None:
+        return None
+
+    signal_type = str(metadata.get("signal_type", "")).strip()
+    version = str(metadata.get("version", "")).strip()
+    parameters = metadata.get("parameters", {})
+    if not isinstance(parameters, dict):
+        parameters = {}
+    value_column = str(metadata.get("value_column", "signal"))
+    constructor_config = extract_position_constructor_config(metadata)
+    if constructor_config is None:
+        raise ValueError(
+            "Managed backtest inputs must declare position constructor metadata "
+            "with constructor_id and constructor_params."
+        )
+
+    validated = validate_signal_frame(
+        df,
+        signal_type=signal_type,
+        value_column=value_column,
+        version=version,
+        parameters=parameters,
+    )
+    ensure_signal_type_compatible(
+        signal_type,
+        position_constructor=str(constructor_config["name"]),
+        version=version,
+    )
+    attach_signal_metadata(validated, metadata)
+    return Signal(
+        signal_type=signal_type,
+        version=version,
+        data=validated,
+        value_column=value_column,
+        metadata=dict(metadata),
+    )
+
+
+def _construct_positions(signal: Signal) -> pd.Series:
+    constructor_config = extract_position_constructor_config(signal.metadata)
+    if constructor_config is None:
+        raise ValueError("Managed signals must declare a position constructor before backtest execution.")
+    try:
+        constructor = resolve_constructor(
+            str(constructor_config["name"]),
+            dict(constructor_config["params"]),
+        )
+        constructed = constructor.construct(signal)
+    except PositionConstructorError as exc:
+        raise ValueError(f"Backtest position construction failed: {exc}") from exc
+
+    if not constructed.index.equals(signal.data.index):
+        raise ValueError("Constructed positions must preserve the input signal index.")
+    return pd.to_numeric(constructed["position"], errors="raise").astype("float64")
 
 
 def _compute_executed_signal(
@@ -162,7 +221,12 @@ def run_backtest(
 
     if "signal" not in df.columns:
         raise ValueError("Backtest input must include a 'signal' column.")
-    signal_semantics = _validate_signal_semantics(df)
+    managed_signal = _resolve_managed_signal(df)
+    signal_semantics = (
+        _managed_signal_semantics(managed_signal)
+        if managed_signal is not None
+        else _validate_signal_semantics(df)
+    )
 
     return_column = _resolve_return_column(df)
     _validate_return_column(df, return_column)
@@ -173,14 +237,19 @@ def run_backtest(
     result.attrs = dict(df.attrs)
     result[return_column] = pd.to_numeric(result[return_column], errors="coerce").fillna(0.0).astype("float64")
     result["signal"] = _validate_backtest_signal_column(result)
+    constructed_position = (
+        _construct_positions(managed_signal)
+        if managed_signal is not None
+        else result["signal"].astype("float64")
+    )
     executed_signal = _compute_executed_signal(
         result,
-        result["signal"],
+        constructed_position,
         execution_delay=config.execution_delay,
     )
     validate_research_integrity(
         result,
-        result["signal"],
+        constructed_position,
         positions=executed_signal,
         execution_delay=config.execution_delay,
         allow_continuous_signals=True,
@@ -195,6 +264,7 @@ def run_backtest(
     transaction_cost = _execution_cost(position_change_frame["delta_position"], config.transaction_cost_bps, enabled=config.enabled)
     slippage_cost = _execution_cost(position_change_frame["delta_position"], config.slippage_bps, enabled=config.enabled)
 
+    result["constructed_position"] = constructed_position
     result["executed_signal"] = executed_signal
     result["position"] = position_change_frame["position"]
     result["delta_position"] = position_change_frame["delta_position"]

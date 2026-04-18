@@ -63,11 +63,12 @@ def test_generate_alpha_sleeve_builds_expected_return_stream() -> None:
     )
 
     assert result.sleeve_returns["ts_utc"].tolist() == ["2025-01-01T00:00:00Z", "2025-01-02T00:00:00Z"]
-    assert result.sleeve_returns["sleeve_return"].tolist() == pytest.approx([0.0, -0.023333333333333334])
-    assert result.sleeve_equity_curve["sleeve_equity_curve"].tolist() == pytest.approx([1.0, 0.9766666666666667])
+    assert result.sleeve_returns["sleeve_return"].tolist() == pytest.approx([0.0, -0.07])
+    assert result.sleeve_equity_curve["sleeve_equity_curve"].tolist() == pytest.approx([1.0, 0.93])
     assert result.metrics["alpha_name"] == "demo_alpha"
     assert result.metrics["run_id"] == "demo_run"
     assert result.metrics["return_source"] == "realized_return_column:feature_ret_1d"
+    assert result.metrics["constructor_id"] == "backtest_numeric_exposure"
 
 
 def test_write_alpha_sleeve_artifacts_is_deterministic_and_updates_manifest(tmp_path: Path) -> None:
@@ -119,6 +120,7 @@ def test_write_alpha_sleeve_artifacts_is_deterministic_and_updates_manifest(tmp_
     pdt.assert_frame_equal(returns_frame, result.sleeve_returns, check_dtype=False)
     pdt.assert_frame_equal(equity_frame, result.sleeve_equity_curve, check_dtype=False)
     assert metrics_payload == result.metrics
+    assert manifest_payload["constructor_id"] == "backtest_numeric_exposure"
     assert manifest_payload["artifact_paths"]["sleeve_returns"] == "sleeve_returns.csv"
     assert manifest_payload["artifact_paths"]["sleeve_equity_curve"] == "sleeve_equity_curve.csv"
     assert manifest_payload["artifact_paths"]["sleeve_metrics"] == "sleeve_metrics.json"

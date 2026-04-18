@@ -220,6 +220,19 @@ def _drop_none_values(payload: dict[str, Any] | None) -> dict[str, Any] | None:
     return {key: value for key, value in payload.items() if value is not None}
 
 
+def _constructor_payload(signal_semantics: dict[str, Any] | None) -> tuple[str | None, dict[str, Any]]:
+    if signal_semantics is None:
+        return None, {}
+    constructor_id = signal_semantics.get("constructor_id")
+    constructor_params = signal_semantics.get("constructor_params", {})
+    if not isinstance(constructor_params, dict):
+        constructor_params = {}
+    return (
+        None if constructor_id is None else str(constructor_id),
+        dict(constructor_params),
+    )
+
+
 def _build_registry_entry(
     experiment_dir: Path,
     strategy_name: str,
@@ -239,6 +252,7 @@ def _build_registry_entry(
         promotion_gate_summary=None if promotion_evaluation is None else promotion_evaluation.summary(),
     )
     signal_semantics = _signal_semantics_payload(results_df)
+    constructor_id, constructor_params = _constructor_payload(signal_semantics)
     return {
         "run_id": run_id,
         "timestamp": _utc_timestamp_from_run_id(run_id),
@@ -253,6 +267,8 @@ def _build_registry_entry(
         "metrics_summary": _metrics_summary(metrics_summary),
         "signal_type": None if signal_semantics is None else signal_semantics.get("signal_type"),
         "signal_version": None if signal_semantics is None else signal_semantics.get("version"),
+        "constructor_id": constructor_id,
+        "constructor_params": constructor_params,
         "signal_semantics": signal_semantics,
         "promotion_status": None if promotion_evaluation is None else promotion_evaluation.promotion_status,
         "review_status": review_metadata["status"],
@@ -770,6 +786,7 @@ def _build_manifest(
         for path in experiment_dir.rglob("*")
         if path.is_file() and path.name != "manifest.json"
     )
+    constructor_id, constructor_params = _constructor_payload(signal_semantics)
     return {
         "run_id": experiment_dir.name,
         "timestamp": _utc_timestamp_from_run_id(experiment_dir.name),
@@ -781,6 +798,8 @@ def _build_manifest(
         "signal_semantics_path": _SIGNAL_SEMANTICS_FILENAME if _SIGNAL_SEMANTICS_FILENAME in artifact_files else None,
         "signal_type": None if signal_semantics is None else signal_semantics.get("signal_type"),
         "signal_version": None if signal_semantics is None else signal_semantics.get("version"),
+        "constructor_id": constructor_id,
+        "constructor_params": constructor_params,
         "signal_semantics": signal_semantics,
         "split_count": split_count,
         "primary_metric": "sharpe_ratio",

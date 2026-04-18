@@ -16,6 +16,8 @@ class BuyAndHoldStrategy(BaseStrategy):
     required_input_columns = ()
     requires_return_column = True
     signal_type = "binary_signal"
+    position_constructor_name = "identity_weights"
+    position_constructor_params = {}
 
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         signals = pd.Series(0, index=df.index, dtype="int64")
@@ -39,6 +41,8 @@ class SMACrossoverStrategy(BaseStrategy):
     required_input_columns = ()
     requires_return_column = True
     signal_type = "binary_signal"
+    position_constructor_name = "identity_weights"
+    position_constructor_params = {}
 
     def __init__(self, *, fast_window: int, slow_window: int) -> None:
         if fast_window <= 0 or slow_window <= 0:
@@ -75,6 +79,8 @@ class SeededRandomStrategy(BaseStrategy):
     required_input_columns = ()
     requires_return_column = True
     signal_type = "binary_signal"
+    position_constructor_name = "identity_weights"
+    position_constructor_params = {}
 
     def __init__(self, *, seed: int) -> None:
         self.seed = int(seed)

@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from src.research.position_constructors import normalize_position_constructor_config
 from src.research.strategy_base import BaseStrategy
 
 from src.research.strategies.baselines import BuyAndHoldStrategy, SMACrossoverStrategy, SeededRandomStrategy
@@ -79,4 +80,8 @@ def build_strategy(strategy_name: str, config: dict[str, Any]) -> BaseStrategy:
     if not isinstance(signal_params, dict):
         raise ValueError(f"Strategy '{strategy_name}' signal_params must be a dictionary when provided.")
     strategy.signal_params = dict(signal_params)
+    position_constructor = normalize_position_constructor_config(config.get("position_constructor"))
+    if position_constructor is not None:
+        strategy.position_constructor_name = str(position_constructor["name"])
+        strategy.position_constructor_params = dict(position_constructor["params"])
     return strategy

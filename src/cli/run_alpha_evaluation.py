@@ -545,6 +545,8 @@ def _serialize_signal_mapping(config: Any) -> dict[str, Any]:
         "prediction_column": config.prediction_column,
         "output_column": config.output_column,
         "quantile": config.quantile,
+        "signal_type": config.signal_type,
+        "signal_params": dict(config.signal_params),
         "metadata": dict(config.metadata),
     }
 

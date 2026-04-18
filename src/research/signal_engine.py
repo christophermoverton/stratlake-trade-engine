@@ -7,6 +7,7 @@ import pandas as pd
 from src.research.consistency import validate_features_to_signals_consistency
 from src.research.input_validation import STRATEGY_INPUT_MIN_ROWS, validate_strategy_input
 from src.research.integrity import validate_research_integrity
+from src.research.signal_semantics import create_signal
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_base import BaseStrategy
 from src.research.strategies._helpers import resolve_return_column
@@ -47,6 +48,22 @@ def generate_signals(df: pd.DataFrame, strategy: BaseStrategy) -> pd.DataFrame:
 
     result = df.copy()
     result["signal"] = signals.rename("signal")
+    typed_signal = create_signal(
+        result,
+        signal_type=str(getattr(strategy, "signal_type", "target_weight")),
+        value_column="signal",
+        parameters=dict(getattr(strategy, "signal_params", {})),
+        source={
+            "layer": "strategy",
+            "strategy_name": strategy.name,
+            "strategy_class": strategy.__class__.__name__,
+            "dataset": strategy.dataset,
+        },
+        metadata={
+            "signal_origin": "strategy.generate_signals",
+        },
+    )
+    result = typed_signal.data
     diagnostics = compute_signal_diagnostics(result["signal"], result)
     result.attrs["signal_diagnostics"] = diagnostics
     result.attrs["input_validation"] = dict(df.attrs.get("input_validation", {}))

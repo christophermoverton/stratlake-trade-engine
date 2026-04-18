@@ -6,7 +6,15 @@ from typing import Any, Literal
 
 import pandas as pd
 
-from src.research.alpha.cross_section import iter_cross_sections, validate_cross_section_input
+from src.research.alpha.cross_section import validate_cross_section_input
+from src.research.signal_semantics import (
+    Signal,
+    create_signal,
+    score_to_binary_long_only,
+    score_to_cross_section_rank,
+    score_to_signed_zscore,
+    score_to_ternary_long_short,
+)
 
 SignalMappingPolicy = Literal[
     "rank_long_short",
@@ -22,6 +30,12 @@ _SUPPORTED_POLICIES: tuple[str, ...] = (
     "long_only_top_quantile",
 )
 _OPTIONAL_STRUCTURAL_COLUMNS: tuple[str, ...] = ("timeframe",)
+_POLICY_TO_SIGNAL_TYPE: dict[str, str] = {
+    "rank_long_short": "cross_section_rank",
+    "zscore_continuous": "signed_zscore",
+    "top_bottom_quantile": "ternary_quantile",
+    "long_only_top_quantile": "binary_signal",
+}
 
 
 class AlphaSignalMappingError(ValueError):
@@ -36,6 +50,8 @@ class AlphaSignalMappingConfig:
     prediction_column: str = "prediction_score"
     output_column: str = "signal"
     quantile: float | None = None
+    signal_type: str | None = None
+    signal_params: dict[str, Any] = field(default_factory=dict)
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -48,6 +64,7 @@ class AlphaSignalMappingResult:
     symbol_count: int
     timestamp_count: int
     signals: pd.DataFrame
+    signal: Signal | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
 
 
@@ -59,19 +76,17 @@ def map_alpha_predictions_to_signals(
 
     resolved_config = resolve_signal_mapping_config(config)
     validated = _validate_signal_mapping_input(df, prediction_column=resolved_config.prediction_column)
-
-    signal_values = pd.Series(index=validated.index, dtype="float64")
-    for _, cross_section in iter_cross_sections(validated, columns=[resolved_config.prediction_column, *[
-        column for column in _OPTIONAL_STRUCTURAL_COLUMNS if column in validated.columns
-    ]]):
-        signal_values.loc[cross_section.index] = _map_one_cross_section(cross_section, config=resolved_config)
-
-    output_columns = ["symbol", "ts_utc"]
-    output_columns.extend(column for column in _OPTIONAL_STRUCTURAL_COLUMNS if column in validated.columns)
-    output = validated.loc[:, output_columns].copy(deep=True)
-    output[resolved_config.prediction_column] = validated[resolved_config.prediction_column].astype("float64")
-    output[resolved_config.output_column] = signal_values.astype("float64")
-    output.attrs = {}
+    prediction_signal = create_signal(
+        validated.loc[:, _signal_input_columns(validated, prediction_column=resolved_config.prediction_column)].copy(deep=True),
+        signal_type="prediction_score",
+        value_column=resolved_config.prediction_column,
+        parameters={"min_cross_section_size": 2},
+        source={"layer": "alpha", "component": "prediction_mapping"},
+        metadata={"mapping_policy": resolved_config.policy},
+    )
+    typed_signal = _map_typed_prediction_signal(prediction_signal, config=resolved_config)
+    output = typed_signal.data.copy(deep=True)
+    output.attrs = dict(typed_signal.data.attrs)
 
     return AlphaSignalMappingResult(
         config=resolved_config,
@@ -79,11 +94,14 @@ def map_alpha_predictions_to_signals(
         symbol_count=int(output["symbol"].astype("string").nunique()),
         timestamp_count=int(output["ts_utc"].nunique()),
         signals=output,
+        signal=typed_signal,
         metadata={
             "cross_section_key": "ts_utc",
             "input_columns": list(validated.columns),
             "output_columns": list(output.columns),
             "tie_breaker": "prediction_score then symbol ascending",
+            "signal_type": typed_signal.signal_type,
+            "signal_version": typed_signal.version,
         },
     )
 
@@ -101,6 +119,8 @@ def resolve_signal_mapping_config(
             prediction_column=str(config.get("prediction_column", "prediction_score")),
             output_column=str(config.get("output_column", "signal")),
             quantile=config.get("quantile"),
+            signal_type=None if config.get("signal_type") is None else str(config.get("signal_type")),
+            signal_params={} if not isinstance(config.get("signal_params"), dict) else dict(config["signal_params"]),
             metadata={} if not isinstance(config.get("metadata"), dict) else dict(config["metadata"]),
         )
     else:
@@ -120,11 +140,22 @@ def resolve_signal_mapping_config(
         raise AlphaSignalMappingError("output_column must not overwrite structural columns.")
 
     quantile = _validate_quantile(policy=resolved.policy, quantile=resolved.quantile)
+    signal_type = resolved.signal_type or _POLICY_TO_SIGNAL_TYPE[resolved.policy]
+    if signal_type != _POLICY_TO_SIGNAL_TYPE[resolved.policy]:
+        raise AlphaSignalMappingError(
+            f"Policy {resolved.policy!r} must declare signal_type {_POLICY_TO_SIGNAL_TYPE[resolved.policy]!r}, "
+            f"received {signal_type!r}."
+        )
+    signal_params = dict(resolved.signal_params)
+    if quantile is not None:
+        signal_params.setdefault("quantile", quantile)
     return AlphaSignalMappingConfig(
         policy=resolved.policy,
         prediction_column=prediction_column,
         output_column=output_column,
         quantile=quantile,
+        signal_type=signal_type,
+        signal_params=signal_params,
         metadata=dict(resolved.metadata),
     )
 
@@ -175,90 +206,36 @@ def _validate_quantile(*, policy: str, quantile: float | None) -> float | None:
     return normalized
 
 
-def _map_one_cross_section(
-    cross_section: pd.DataFrame,
+def _signal_input_columns(df: pd.DataFrame, *, prediction_column: str) -> list[str]:
+    columns = ["symbol", "ts_utc"]
+    columns.extend(column for column in _OPTIONAL_STRUCTURAL_COLUMNS if column in df.columns)
+    columns.append(prediction_column)
+    return columns
+
+
+def _map_typed_prediction_signal(
+    signal: Signal,
     *,
     config: AlphaSignalMappingConfig,
-) -> pd.Series:
-    values = pd.to_numeric(cross_section[config.prediction_column], errors="raise").astype("float64")
+) -> Signal:
     if config.policy == "rank_long_short":
-        return _rank_long_short(values, symbols=cross_section["symbol"])
+        return score_to_cross_section_rank(signal, output_column=config.output_column)
     if config.policy == "zscore_continuous":
-        return _zscore_continuous(values)
+        clip = config.signal_params.get("clip")
+        return score_to_signed_zscore(signal, output_column=config.output_column, clip=clip)
     if config.policy == "top_bottom_quantile":
-        return _top_bottom_quantile(values, symbols=cross_section["symbol"], quantile=float(config.quantile))
+        return score_to_ternary_long_short(
+            signal,
+            output_column=config.output_column,
+            quantile=float(config.quantile),
+        )
     if config.policy == "long_only_top_quantile":
-        return _long_only_top_quantile(values, symbols=cross_section["symbol"], quantile=float(config.quantile))
+        return score_to_binary_long_only(
+            signal,
+            output_column=config.output_column,
+            quantile=float(config.quantile),
+        )
     raise AlphaSignalMappingError(f"Unsupported signal mapping policy {config.policy!r}.")
-
-
-def _rank_long_short(values: pd.Series, *, symbols: pd.Series) -> pd.Series:
-    count = int(values.shape[0])
-    if count <= 1:
-        return pd.Series(0.0, index=values.index, dtype="float64")
-
-    ordered = _ordered_index(values, symbols=symbols, ascending_scores=False)
-    signals = pd.Series(index=values.index, dtype="float64")
-    denominator = float(count - 1)
-    for rank_position, row_index in enumerate(ordered, start=1):
-        signals.loc[row_index] = 1.0 - (2.0 * float(rank_position - 1) / denominator)
-    return signals.astype("float64")
-
-
-def _zscore_continuous(values: pd.Series) -> pd.Series:
-    count = int(values.shape[0])
-    if count <= 1:
-        return pd.Series(0.0, index=values.index, dtype="float64")
-    mean_value = float(values.mean())
-    std_value = float(values.std(ddof=0))
-    if std_value == 0.0:
-        return pd.Series(0.0, index=values.index, dtype="float64")
-    return ((values - mean_value) / std_value).astype("float64")
-
-
-def _top_bottom_quantile(values: pd.Series, *, symbols: pd.Series, quantile: float) -> pd.Series:
-    count = int(values.shape[0])
-    if count <= 1:
-        return pd.Series(0.0, index=values.index, dtype="float64")
-
-    selected_count = min(max(int(math.ceil(float(count) * quantile)), 1), count // 2)
-    signals = pd.Series(0.0, index=values.index, dtype="float64")
-    if selected_count == 0:
-        return signals
-
-    top_rows = _ordered_index(values, symbols=symbols, ascending_scores=False)[:selected_count]
-    bottom_rows = _ordered_index(values, symbols=symbols, ascending_scores=True)[:selected_count]
-    signals.loc[top_rows] = 1.0
-    signals.loc[bottom_rows] = -1.0
-    return signals.astype("float64")
-
-
-def _long_only_top_quantile(values: pd.Series, *, symbols: pd.Series, quantile: float) -> pd.Series:
-    count = int(values.shape[0])
-    if count == 0:
-        return pd.Series(dtype="float64", index=values.index)
-
-    selected_count = min(max(int(math.ceil(float(count) * quantile)), 1), count)
-    signals = pd.Series(0.0, index=values.index, dtype="float64")
-    top_rows = _ordered_index(values, symbols=symbols, ascending_scores=False)[:selected_count]
-    signals.loc[top_rows] = 1.0
-    return signals.astype("float64")
-
-
-def _ordered_index(values: pd.Series, *, symbols: pd.Series, ascending_scores: bool) -> list[Any]:
-    order_frame = pd.DataFrame(
-        {
-            "_index": values.index,
-            "_prediction_score": values.astype("float64"),
-            "_symbol": symbols.astype("string"),
-        }
-    )
-    ordered = order_frame.sort_values(
-        ["_prediction_score", "_symbol"],
-        ascending=[ascending_scores, True],
-        kind="stable",
-    )
-    return ordered["_index"].tolist()
 
 
 __all__ = [

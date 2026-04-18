@@ -18,6 +18,8 @@ class BaseStrategy(ABC):
     dataset: str
     required_input_columns: tuple[str, ...] = ()
     requires_return_column: bool = False
+    signal_type: str = "target_weight"
+    signal_params: dict[str, object] = {}
 
     @abstractmethod
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:

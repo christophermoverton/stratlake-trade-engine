@@ -29,6 +29,7 @@ from src.research.registry import (
     serialize_canonical_json,
     upsert_registry_entry,
 )
+from src.research.signal_semantics import extract_signal_metadata
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_qa import generate_strategy_qa_summary
 
@@ -84,6 +85,7 @@ _SIGNAL_PRIORITY_COLUMNS = (
     "execution_friction",
     "net_strategy_return",
 )
+_SIGNAL_SEMANTICS_FILENAME = "signal_semantics.json"
 _SPLIT_METADATA_COLUMNS = (
     "split_id",
     "mode",
@@ -236,6 +238,7 @@ def _build_registry_entry(
         promotion_status=None if promotion_evaluation is None else promotion_evaluation.promotion_status,
         promotion_gate_summary=None if promotion_evaluation is None else promotion_evaluation.summary(),
     )
+    signal_semantics = _signal_semantics_payload(results_df)
     return {
         "run_id": run_id,
         "timestamp": _utc_timestamp_from_run_id(run_id),
@@ -248,6 +251,9 @@ def _build_registry_entry(
         "data_range": _resolve_data_range(results_df, config, evaluation_mode=evaluation_mode),
         "timeframe": _infer_timeframe(results_df, config),
         "metrics_summary": _metrics_summary(metrics_summary),
+        "signal_type": None if signal_semantics is None else signal_semantics.get("signal_type"),
+        "signal_version": None if signal_semantics is None else signal_semantics.get("version"),
+        "signal_semantics": signal_semantics,
         "promotion_status": None if promotion_evaluation is None else promotion_evaluation.promotion_status,
         "review_status": review_metadata["status"],
         "review_metadata": review_metadata,
@@ -607,6 +613,8 @@ def _write_run_outputs(
     _write_json(output_dir / "metrics.json", dict(payloads["metrics"]))
     _write_json(output_dir / "signal_diagnostics.json", dict(payloads["signal_diagnostics"]))
     _write_json(output_dir / "qa_summary.json", dict(payloads["qa_summary"]))
+    if payloads.get("signal_semantics") is not None:
+        _write_json(output_dir / _SIGNAL_SEMANTICS_FILENAME, dict(payloads["signal_semantics"]))
     write_promotion_gate_artifact(output_dir, payloads.get("promotion_evaluation"))
 
     written = [
@@ -617,6 +625,8 @@ def _write_run_outputs(
         "signal_diagnostics.json",
         "qa_summary.json",
     ]
+    if payloads.get("signal_semantics") is not None:
+        written.append(_SIGNAL_SEMANTICS_FILENAME)
     if payloads.get("promotion_evaluation") is not None:
         written.append(DEFAULT_PROMOTION_ARTIFACT_FILENAME)
     if split_metadata is None:
@@ -658,6 +668,7 @@ def _prepare_run_outputs(
     equity_curve_frame = _equity_curve_frame(annotated_results_df)
     trades_frame = _trades_frame(annotated_results_df)
     signal_diagnostics = _signal_diagnostics_payload(annotated_results_df)
+    signal_semantics = _signal_semantics_payload(annotated_results_df)
     qa_summary = generate_strategy_qa_summary(
         annotated_results_df,
         annotated_results_df["signal"] if "signal" in annotated_results_df.columns else pd.Series(dtype="float64"),
@@ -700,6 +711,7 @@ def _prepare_run_outputs(
         "trades_frame": trades_frame,
         "metrics": dict(metrics),
         "signal_diagnostics": dict(signal_diagnostics),
+        "signal_semantics": None if signal_semantics is None else dict(signal_semantics),
         "qa_summary": dict(qa_summary),
         "promotion_evaluation": promotion_evaluation,
     }
@@ -712,6 +724,13 @@ def _signal_diagnostics_payload(results_df: pd.DataFrame) -> dict[str, Any]:
     if "signal" not in results_df.columns:
         return compute_signal_diagnostics(pd.Series(dtype="float64"), results_df)
     return compute_signal_diagnostics(results_df["signal"], results_df)
+
+
+def _signal_semantics_payload(results_df: pd.DataFrame) -> dict[str, Any] | None:
+    payload = extract_signal_metadata(results_df)
+    if payload is None:
+        return None
+    return dict(payload)
 
 
 def _manifest_metric_summary(metrics: dict[str, Any]) -> dict[str, Any]:
@@ -742,6 +761,7 @@ def _build_manifest(
     evaluation_mode: str,
     config: dict[str, Any],
     metrics: dict[str, Any],
+    signal_semantics: dict[str, Any] | None,
     split_count: int | None,
     promotion_evaluation: Any | None = None,
 ) -> dict[str, Any]:
@@ -758,6 +778,10 @@ def _build_manifest(
         "evaluation_config_path": config.get("evaluation_config_path"),
         "strict_mode": config.get("strict_mode"),
         "artifact_files": artifact_files,
+        "signal_semantics_path": _SIGNAL_SEMANTICS_FILENAME if _SIGNAL_SEMANTICS_FILENAME in artifact_files else None,
+        "signal_type": None if signal_semantics is None else signal_semantics.get("signal_type"),
+        "signal_version": None if signal_semantics is None else signal_semantics.get("version"),
+        "signal_semantics": signal_semantics,
         "split_count": split_count,
         "primary_metric": "sharpe_ratio",
         "metric_summary": _manifest_metric_summary(metrics),
@@ -774,6 +798,7 @@ def _write_manifest(
     config: dict[str, Any],
     metrics: dict[str, Any],
     *,
+    signal_semantics: dict[str, Any] | None,
     split_count: int | None,
     promotion_evaluation: Any | None = None,
 ) -> None:
@@ -785,6 +810,7 @@ def _write_manifest(
             evaluation_mode=evaluation_mode,
             config=config,
             metrics=metrics,
+            signal_semantics=signal_semantics,
             split_count=split_count,
             promotion_evaluation=promotion_evaluation,
         ),
@@ -817,6 +843,7 @@ def save_experiment_outputs(
         "single",
         config,
         metrics,
+        signal_semantics=payloads.get("signal_semantics"),
         split_count=None,
         promotion_evaluation=payloads.get("promotion_evaluation"),
     )
@@ -906,6 +933,7 @@ def save_walk_forward_experiment(
         "walk_forward",
         config,
         aggregate_summary,
+        signal_semantics=aggregate_payloads.get("signal_semantics"),
         split_count=len(split_results),
         promotion_evaluation=aggregate_payloads.get("promotion_evaluation"),
     )
@@ -1041,6 +1069,7 @@ def save_experiment(
         "single",
         config,
         metrics,
+        signal_semantics=payloads.get("signal_semantics"),
         split_count=None,
         promotion_evaluation=payloads.get("promotion_evaluation"),
     )

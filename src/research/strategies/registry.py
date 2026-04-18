@@ -68,4 +68,15 @@ def build_strategy(strategy_name: str, config: dict[str, Any]) -> BaseStrategy:
         raise ValueError(f"Strategy '{strategy_name}' must define a non-empty dataset name.")
 
     strategy.dataset = dataset
+    signal_type = config.get("signal_type")
+    if signal_type is not None:
+        if not isinstance(signal_type, str) or not signal_type.strip():
+            raise ValueError(f"Strategy '{strategy_name}' signal_type must be a non-empty string when provided.")
+        strategy.signal_type = signal_type.strip()
+    signal_params = config.get("signal_params", {})
+    if signal_params is None:
+        signal_params = {}
+    if not isinstance(signal_params, dict):
+        raise ValueError(f"Strategy '{strategy_name}' signal_params must be a dictionary when provided.")
+    strategy.signal_params = dict(signal_params)
     return strategy

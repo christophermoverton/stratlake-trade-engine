@@ -17,6 +17,7 @@ from src.research.promotion import (
     evaluate_promotion_gates,
     write_promotion_gate_artifact,
 )
+from src.research.signal_semantics import extract_signal_metadata
 
 DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT = Path("artifacts") / "alpha"
 _IC_TIMESERIES_FILENAME = "ic_timeseries.csv"
@@ -24,6 +25,7 @@ _ALPHA_METRICS_FILENAME = "alpha_metrics.json"
 _PREDICTIONS_FILENAME = "predictions.parquet"
 _SIGNALS_FILENAME = "signals.parquet"
 _SIGNAL_MAPPING_FILENAME = "signal_mapping.json"
+_SIGNAL_SEMANTICS_FILENAME = "signal_semantics.json"
 _TRAINING_SUMMARY_FILENAME = "training_summary.json"
 _COEFFICIENTS_FILENAME = "coefficients.json"
 _CROSS_SECTION_DIAGNOSTICS_FILENAME = "cross_section_diagnostics.json"
@@ -69,6 +71,7 @@ def write_alpha_evaluation_artifacts(
         signal_mapping_result.signals if signal_mapping_result is not None else None
     )
     signal_mapping_payload = _signal_mapping_payload(signal_mapping_result=signal_mapping_result)
+    signal_semantics_payload = _signal_semantics_payload(signal_mapping_result=signal_mapping_result)
     training_summary_payload = _training_summary_payload(
         trained_model=trained_model,
         prediction_result=prediction_result,
@@ -109,6 +112,8 @@ def write_alpha_evaluation_artifacts(
     if signal_mapping_result is not None:
         _write_parquet(resolved_output_dir / _SIGNALS_FILENAME, signals_frame)
         _write_json(resolved_output_dir / _SIGNAL_MAPPING_FILENAME, signal_mapping_payload)
+    if signal_semantics_payload is not None:
+        _write_json(resolved_output_dir / _SIGNAL_SEMANTICS_FILENAME, signal_semantics_payload)
     _write_json(resolved_output_dir / _TRAINING_SUMMARY_FILENAME, training_summary_payload)
     _write_json(resolved_output_dir / _COEFFICIENTS_FILENAME, coefficients_payload)
     _write_json(
@@ -127,6 +132,7 @@ def write_alpha_evaluation_artifacts(
         cross_section_diagnostics_payload=cross_section_diagnostics_payload,
         qa_summary_payload=qa_summary_payload,
         signal_mapping_payload=signal_mapping_payload,
+        signal_semantics_payload=signal_semantics_payload,
         run_id=run_id,
         alpha_name=alpha_name,
         promotion_evaluation=promotion_evaluation,
@@ -234,14 +240,32 @@ def _signal_mapping_payload(
                 "policy": config.policy,
                 "prediction_column": config.prediction_column,
                 "quantile": config.quantile,
+                "signal_params": dict(config.signal_params),
+                "signal_type": config.signal_type,
             },
             "cross_section_key": signal_mapping_result.metadata.get("cross_section_key"),
             "row_count": signal_mapping_result.row_count,
+            "signal_type": signal_mapping_result.metadata.get("signal_type"),
+            "signal_version": signal_mapping_result.metadata.get("signal_version"),
             "symbol_count": signal_mapping_result.symbol_count,
             "timestamp_count": signal_mapping_result.timestamp_count,
             "tie_breaker": signal_mapping_result.metadata.get("tie_breaker"),
         }
     )
+
+
+def _signal_semantics_payload(
+    *,
+    signal_mapping_result: AlphaSignalMappingResult | None,
+) -> dict[str, Any] | None:
+    if signal_mapping_result is None:
+        return None
+    if signal_mapping_result.signal is not None:
+        return _normalize_mapping(dict(signal_mapping_result.signal.metadata))
+    payload = extract_signal_metadata(signal_mapping_result.signals)
+    if payload is None:
+        return None
+    return _normalize_mapping(dict(payload))
 
 
 def _training_summary_payload(
@@ -293,6 +317,9 @@ def _training_summary_payload(
                     "quantile": signal_mapping_result.config.quantile,
                     "row_count": signal_mapping_result.row_count,
                     "signal_column": signal_mapping_result.config.output_column,
+                    "signal_params": dict(signal_mapping_result.config.signal_params),
+                    "signal_type": signal_mapping_result.config.signal_type,
+                    "signal_version": signal_mapping_result.metadata.get("signal_version"),
                     "timestamp_count": signal_mapping_result.timestamp_count,
                 }
             ),
@@ -406,6 +433,7 @@ def _build_manifest(
     cross_section_diagnostics_payload: dict[str, Any],
     qa_summary_payload: dict[str, Any],
     signal_mapping_payload: dict[str, Any] | None,
+    signal_semantics_payload: dict[str, Any] | None,
     run_id: str | None,
     alpha_name: str | None,
     promotion_evaluation: Any,
@@ -425,7 +453,11 @@ def _build_manifest(
             _MANIFEST_FILENAME,
             _PREDICTIONS_FILENAME,
             _QA_SUMMARY_FILENAME,
-            *([_SIGNALS_FILENAME, _SIGNAL_MAPPING_FILENAME] if signal_mapping_payload is not None else []),
+            *(
+                [_SIGNALS_FILENAME, _SIGNAL_MAPPING_FILENAME, _SIGNAL_SEMANTICS_FILENAME]
+                if signal_mapping_payload is not None
+                else []
+            ),
             _TRAINING_SUMMARY_FILENAME,
             *(
                 [DEFAULT_PROMOTION_ARTIFACT_FILENAME]
@@ -447,6 +479,7 @@ def _build_manifest(
             **(
                 {
                     "signal_mapping": _SIGNAL_MAPPING_FILENAME,
+                    "signal_semantics": _SIGNAL_SEMANTICS_FILENAME,
                     "signals": _SIGNALS_FILENAME,
                 }
                 if signal_mapping_payload is not None
@@ -481,6 +514,10 @@ def _build_manifest(
         "qa_summary": qa_summary_payload,
         "qa_summary_path": _QA_SUMMARY_FILENAME,
         "signal_mapping_path": None if signal_mapping_payload is None else _SIGNAL_MAPPING_FILENAME,
+        "signal_semantics_path": None if signal_semantics_payload is None else _SIGNAL_SEMANTICS_FILENAME,
+        "signal_type": None if signal_semantics_payload is None else signal_semantics_payload.get("signal_type"),
+        "signal_version": None if signal_semantics_payload is None else signal_semantics_payload.get("version"),
+        "signal_semantics": signal_semantics_payload,
         "signals_path": None if signal_mapping_payload is None else _SIGNALS_FILENAME,
         "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
         "row_count": result.row_count,
@@ -535,11 +572,18 @@ def _augment_parent_manifest(
             if _SIGNAL_MAPPING_FILENAME in manifest.get("artifact_files", [])
             else None
         ),
+        "signal_semantics_path": (
+            Path(artifact_dir_name, _SIGNAL_SEMANTICS_FILENAME).as_posix()
+            if _SIGNAL_SEMANTICS_FILENAME in manifest.get("artifact_files", [])
+            else None
+        ),
         "signals_path": (
             Path(artifact_dir_name, _SIGNALS_FILENAME).as_posix()
             if _SIGNALS_FILENAME in manifest.get("artifact_files", [])
             else None
         ),
+        "signal_type": manifest.get("signal_type"),
+        "signal_version": manifest.get("signal_version"),
         "summary": {
             key: metrics_payload.get(key)
             for key in (

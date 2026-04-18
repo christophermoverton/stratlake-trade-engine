@@ -5,6 +5,15 @@ import pandas as pd
 from src.config.execution import ExecutionConfig, resolve_execution_config
 from src.research.consistency import validate_signals_to_backtest_consistency
 from src.research.integrity import validate_research_integrity
+from src.research.signal_semantics import (
+    SignalSemanticsError,
+    attach_signal_metadata,
+    ensure_signal_type_compatible,
+    executable_position_constructor_name,
+    extract_signal_metadata,
+    legacy_signal_type_from_values,
+    validate_signal_frame,
+)
 from src.research.turnover import compute_position_change_frame, validate_position_change_frame
 
 RETURN_COLUMN_CANDIDATES: tuple[str, ...] = (
@@ -54,6 +63,64 @@ def _validate_backtest_signal_column(df: pd.DataFrame) -> pd.Series:
     return normalized_signal.astype("float64")
 
 
+def _validate_signal_semantics(df: pd.DataFrame) -> dict[str, object]:
+    try:
+        metadata = extract_signal_metadata(df)
+        if metadata is None:
+            inferred_type = legacy_signal_type_from_values(df["signal"])
+            validated = validate_signal_frame(df, signal_type=inferred_type, value_column="signal")
+            attach_signal_metadata(
+                df,
+                {
+                    "signal_type": inferred_type,
+                    "version": "1.0.0",
+                    "value_column": "signal",
+                    "parameters": {},
+                    "source": {"layer": "legacy_backtest_input"},
+                    "timestamp_normalization": "UTC",
+                    "transformation_history": [],
+                    "compatibility_mode": "legacy_inferred",
+                },
+            )
+            return {
+                "signal_type": inferred_type,
+                "version": "1.0.0",
+                "validated_row_count": int(len(validated)),
+            }
+
+        signal_type = str(metadata.get("signal_type", "")).strip()
+        version = str(metadata.get("version", "")).strip()
+        parameters = metadata.get("parameters", {})
+        if not isinstance(parameters, dict):
+            parameters = {}
+        validate_signal_frame(
+            df,
+            signal_type=signal_type,
+            value_column=str(metadata.get("value_column", "signal")),
+            version=version,
+            parameters=parameters,
+        )
+        ensure_signal_type_compatible(
+            signal_type,
+            position_constructor=executable_position_constructor_name(),
+            version=version,
+        )
+        return {
+            "signal_type": signal_type,
+            "version": version,
+            "validated_row_count": int(len(df)),
+        }
+    except (SignalSemanticsError, ValueError) as exc:
+        message = str(exc)
+        if "numeric column 'signal'" in message or "parse string" in message or "NaN values" in message or "finite numeric values" in message:
+            raise ValueError(
+                "Backtest input contains invalid 'signal' values. Signals must be finite numeric exposures."
+            ) from exc
+        if "sorted deterministically by ['symbol', 'ts_utc']" in message:
+            raise ValueError("Backtest input must be sorted by (symbol, ts_utc).") from exc
+        raise
+
+
 def _compute_executed_signal(
     df: pd.DataFrame,
     signal: pd.Series,
@@ -95,6 +162,7 @@ def run_backtest(
 
     if "signal" not in df.columns:
         raise ValueError("Backtest input must include a 'signal' column.")
+    signal_semantics = _validate_signal_semantics(df)
 
     return_column = _resolve_return_column(df)
     _validate_return_column(df, return_column)
@@ -102,6 +170,7 @@ def run_backtest(
     config = execution_config or resolve_execution_config()
 
     result = df.copy()
+    result.attrs = dict(df.attrs)
     result[return_column] = pd.to_numeric(result[return_column], errors="coerce").fillna(0.0).astype("float64")
     result["signal"] = _validate_backtest_signal_column(result)
     executed_signal = _compute_executed_signal(
@@ -142,6 +211,7 @@ def run_backtest(
     result["strategy_return"] = result["net_strategy_return"]
     result["equity_curve"] = (1.0 + result["strategy_return"]).cumprod()
     result.attrs["execution_config"] = config.to_dict()
+    result.attrs["backtest_signal_semantics"] = signal_semantics
     validate_signals_to_backtest_consistency(df, result, return_column=return_column)
     return result
 

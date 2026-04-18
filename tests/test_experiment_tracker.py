@@ -9,6 +9,7 @@ import pytest
 from src.research import experiment_tracker
 from src.research.experiment_tracker import save_experiment, save_walk_forward_experiment
 from src.research.metrics import compute_performance_metrics
+from src.research.signal_semantics import attach_signal_metadata
 
 
 def _metrics() -> dict[str, float | None]:
@@ -426,3 +427,33 @@ def test_save_experiment_writes_aggregated_strategy_equity_for_multi_symbol_runs
 
     assert equity_curve_df["strategy_return"].tolist() == pytest.approx([0.03, 0.01, 0.03, 0.01])
     assert equity_curve_df["equity"].tolist() == pytest.approx([1.03, 1.0403, 1.03, 1.0403])
+
+
+def test_save_experiment_persists_signal_semantics_when_present(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    results_df = _experiment_results()
+    attach_signal_metadata(
+        results_df,
+        {
+            "signal_type": "binary_signal",
+            "version": "1.0.0",
+            "value_column": "signal",
+            "parameters": {},
+            "source": {"layer": "strategy", "strategy_name": "mean_reversion"},
+            "timestamp_normalization": "UTC",
+            "transformation_history": [],
+        },
+    )
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    experiment_dir = save_experiment("mean_reversion", results_df, _metrics(), {"strategy_name": "mean_reversion"})
+
+    payload = json.loads((experiment_dir / "signal_semantics.json").read_text(encoding="utf-8"))
+    manifest = json.loads((experiment_dir / "manifest.json").read_text(encoding="utf-8"))
+
+    assert payload["signal_type"] == "binary_signal"
+    assert manifest["signal_type"] == "binary_signal"
+    assert manifest["signal_semantics_path"] == "signal_semantics.json"
+    assert "signal_semantics.json" in manifest["artifact_files"]

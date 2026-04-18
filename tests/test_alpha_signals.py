@@ -14,6 +14,7 @@ from src.research.alpha import (
     AlphaSignalMappingError,
     map_alpha_predictions_to_signals,
 )
+from src.research.signal_semantics import extract_signal_metadata
 
 
 def _prediction_frame() -> pd.DataFrame:
@@ -138,3 +139,22 @@ def test_signal_mapping_is_deterministic_across_repeated_calls() -> None:
     second = map_alpha_predictions_to_signals(frame, config)
 
     pdt.assert_frame_equal(first.signals, second.signals, check_dtype=True, check_exact=True)
+
+
+def test_signal_mapping_returns_typed_signal_metadata() -> None:
+    result = map_alpha_predictions_to_signals(
+        _prediction_frame(),
+        AlphaSignalMappingConfig(
+            policy="zscore_continuous",
+            signal_type="signed_zscore",
+            signal_params={"clip": 2.0},
+        ),
+    )
+
+    assert result.signal is not None
+    assert result.signal.signal_type == "signed_zscore"
+    assert result.metadata["signal_type"] == "signed_zscore"
+    payload = extract_signal_metadata(result.signals)
+    assert payload is not None
+    assert payload["signal_type"] == "signed_zscore"
+    assert payload["parameters"] == {"clip": 2.0}

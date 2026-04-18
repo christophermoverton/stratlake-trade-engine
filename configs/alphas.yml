@@ -20,6 +20,11 @@ cs_linear_ret_1d:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    signal_mapping:
+      policy: zscore_continuous
+      signal_type: signed_zscore
+      signal_params:
+        clip: 3.0
 
 cs_linear_ret_5d:
   alpha_name: cs_linear_ret_5d
@@ -36,6 +41,11 @@ cs_linear_ret_5d:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    signal_mapping:
+      policy: zscore_continuous
+      signal_type: signed_zscore
+      signal_params:
+        clip: 3.0
 
 ridge_ret_5d:
   alpha_name: ridge_ret_5d
@@ -55,6 +65,11 @@ ridge_ret_5d:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    signal_mapping:
+      policy: zscore_continuous
+      signal_type: signed_zscore
+      signal_params:
+        clip: 3.0
 
 elastic_net_ret_5d:
   alpha_name: elastic_net_ret_5d
@@ -78,6 +93,11 @@ elastic_net_ret_5d:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    signal_mapping:
+      policy: zscore_continuous
+      signal_type: signed_zscore
+      signal_params:
+        clip: 3.0
 
 rank_composite_momentum:
   alpha_name: rank_composite_momentum
@@ -95,3 +115,8 @@ rank_composite_momentum:
   defaults:
     price_column: close
     min_cross_section_size: 2
+    signal_mapping:
+      policy: zscore_continuous
+      signal_type: signed_zscore
+      signal_params:
+        clip: 3.0

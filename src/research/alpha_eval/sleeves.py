@@ -11,6 +11,7 @@ import pandas as pd
 from src.config.execution import ExecutionConfig
 from src.research.backtest_runner import run_backtest
 from src.research.metrics import compute_performance_metrics
+from src.research.signal_semantics import attach_signal_metadata, extract_signal_metadata
 
 _SLEEVE_RETURNS_FILENAME = "sleeve_returns.csv"
 _SLEEVE_EQUITY_CURVE_FILENAME = "sleeve_equity_curve.csv"
@@ -194,6 +195,7 @@ def augment_alpha_manifest_with_sleeve(
 
 
 def _validate_signals(signals: pd.DataFrame) -> pd.DataFrame:
+    metadata = extract_signal_metadata(signals)
     required_columns = ("symbol", "ts_utc", "signal")
     missing = [column for column in required_columns if column not in signals.columns]
     if missing:
@@ -211,6 +213,8 @@ def _validate_signals(signals: pd.DataFrame) -> pd.DataFrame:
     normalized = normalized.sort_values(sort_columns, kind="stable").reset_index(drop=True)
     if normalized.duplicated(subset=[column for column in ("symbol", "ts_utc", "timeframe") if column in normalized.columns]).any():
         raise AlphaSleeveError("Sleeve generation requires duplicate-free mapped signal keys.")
+    if metadata is not None:
+        attach_signal_metadata(normalized, metadata)
     return normalized
 
 
@@ -276,6 +280,9 @@ def _build_backtest_input(
     merged = merged.sort_values(merge_keys, kind="stable").reset_index(drop=True)
     if merged[return_column_name].isna().all():
         raise AlphaSleeveError("Sleeve generation produced no usable realized returns.")
+    metadata = extract_signal_metadata(signals)
+    if metadata is not None:
+        attach_signal_metadata(merged, metadata)
     return merged
 
 

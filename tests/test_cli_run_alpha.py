@@ -161,6 +161,38 @@ def test_run_cli_rejects_unknown_builtin_alpha(tmp_path: Path, monkeypatch: pyte
         run_cli(["--alpha-name", "does_not_exist"])
 
 
+def test_run_cli_signal_policy_override_replaces_stale_signal_type_and_constructor(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    _write_builtin_alpha_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    result = run_cli(
+        [
+            "--alpha-name",
+            "cs_linear_ret_1d",
+            "--start",
+            "2025-01-01",
+            "--end",
+            "2025-01-07",
+            "--signal-policy",
+            "top_bottom_quantile",
+            "--signal-quantile",
+            "0.34",
+        ]
+    )
+
+    payload = json.loads((result.artifact_dir / FULL_RUN_SCAFFOLD_FILE).read_text(encoding="utf-8"))
+    assert payload["signal_mapping"]["config"]["policy"] == "top_bottom_quantile"
+    assert payload["signal_mapping"]["config"]["signal_type"] == "ternary_quantile"
+    assert payload["signal_mapping"]["config"]["position_constructor_name"] == "top_bottom_equal_weight"
+    assert payload["signal_mapping"]["config"]["position_constructor_params"] == {
+        "gross_long": 0.5,
+        "gross_short": 0.5,
+    }
+
+
 def test_run_cli_rejects_non_daily_dataset_override(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

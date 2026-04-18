@@ -80,7 +80,7 @@ class ExecutionConfig:
         return self.slippage_bps * self.short_slippage_multiplier
 
     def to_dict(self) -> dict[str, Any]:
-        return {
+        payload = {
             "enabled": self.enabled,
             "execution_delay": self.execution_delay,
             "transaction_cost_bps": self.transaction_cost_bps,
@@ -90,11 +90,16 @@ class ExecutionConfig:
             "slippage_model": self.slippage_model,
             "slippage_turnover_scale": self.slippage_turnover_scale,
             "slippage_volatility_scale": self.slippage_volatility_scale,
-            "long_transaction_cost_bps": self.long_transaction_cost_bps,
-            "short_transaction_cost_bps": self.short_transaction_cost_bps,
-            "short_slippage_multiplier": self.short_slippage_multiplier,
-            "short_borrow_cost_bps": self.short_borrow_cost_bps,
         }
+        if self.long_transaction_cost_bps is not None:
+            payload["long_transaction_cost_bps"] = self.long_transaction_cost_bps
+        if self.short_transaction_cost_bps is not None:
+            payload["short_transaction_cost_bps"] = self.short_transaction_cost_bps
+        if self.short_slippage_multiplier != 1.0:
+            payload["short_slippage_multiplier"] = self.short_slippage_multiplier
+        if self.short_borrow_cost_bps != 0.0:
+            payload["short_borrow_cost_bps"] = self.short_borrow_cost_bps
+        return payload
 
     @classmethod
     def default(cls) -> "ExecutionConfig":

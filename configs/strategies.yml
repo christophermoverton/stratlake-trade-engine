@@ -67,3 +67,72 @@ seeded_random_v1:
     params: {}
   parameters:
     seed: 7
+
+time_series_momentum:
+  dataset: features_daily
+  signal_type: ternary_quantile
+  signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
+  parameters:
+    lookback_short: 5
+    lookback_long: 20
+
+cross_section_momentum:
+  dataset: features_daily
+  signal_type: cross_section_rank
+  signal_params: {}
+  position_constructor:
+    name: rank_dollar_neutral
+    params:
+      gross_long: 0.5
+      gross_short: 0.5
+  parameters:
+    lookback_days: 1
+
+mean_reversion:
+  dataset: features_daily
+  signal_type: ternary_quantile
+  signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
+  parameters:
+    lookback: 20
+    threshold: 1.0
+
+breakout:
+  dataset: features_daily
+  signal_type: ternary_quantile
+  signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
+  parameters:
+    lookback: 20
+
+pairs_trading:
+  dataset: features_daily
+  signal_type: spread_zscore
+  signal_params: {}
+  position_constructor:
+    name: zscore_clip_scale
+    params:
+      clip: 3.0
+      gross_exposure: 1.0
+  parameters:
+    lookback: 63
+    threshold: 2.0
+
+residual_momentum:
+  dataset: features_daily
+  signal_type: cross_section_rank
+  signal_params: {}
+  position_constructor:
+    name: rank_dollar_neutral
+    params:
+      gross_long: 0.5
+      gross_short: 0.5
+  parameters:
+    lookback_days: 20

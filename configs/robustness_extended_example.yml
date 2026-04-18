@@ -1,0 +1,39 @@
+robustness:
+  strategy_name: cross_section_momentum
+  sweep:
+    strategy:
+      name: [cross_section_momentum, mean_reversion]
+      params:
+        lookback_days: [1, 5]
+        lookback: [20, 40]
+        threshold: [1.0, 2.0]
+    signal:
+      type: [cross_section_rank, ternary_quantile, binary_signal]
+      params:
+        quantile: [0.2, 0.3]
+        clip: [2.0, 3.0]
+    constructor:
+      name: [rank_dollar_neutral, identity_weights, zscore_clip_scale]
+      params:
+        gross_long: [0.50, 0.60]
+        gross_short: [0.40, 0.50]
+        gross_exposure: [1.0]
+        clip: [2.5]
+    asymmetry:
+      exclude_short: [false, true]
+      short_availability_policy: [allow_all, exclude]
+    ensemble:
+      definitions:
+        - name: momentum_plus_reversion
+          members: [cross_section_momentum, mean_reversion]
+          weighting_method: equal_weight
+    group_by: [strategy.name, signal.type, constructor.name]
+    batching:
+      batch_size: 50
+      batch_index: 0
+  ranking:
+    primary_metric: sharpe_ratio
+    tie_breakers: [total_return, max_drawdown]
+  statistical_controls:
+    multiple_testing_awareness: true
+    overfitting_warning_search_space: 100

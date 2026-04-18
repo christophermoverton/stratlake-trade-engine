@@ -47,6 +47,20 @@ from src.research.signal_semantics import SignalSemanticsError, ensure_signal_ty
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_ARTIFACTS_ROOT = Path(os.getenv("ARTIFACTS_ROOT", "artifacts")) / "alpha"
+_DEFAULT_SIGNAL_MAPPING_POSITION_CONSTRUCTORS: dict[str, dict[str, Any]] = {
+    "rank_long_short": {
+        "name": "rank_dollar_neutral",
+        "params": {"gross_long": 0.5, "gross_short": 0.5},
+    },
+    "top_bottom_quantile": {
+        "name": "top_bottom_equal_weight",
+        "params": {"gross_long": 0.5, "gross_short": 0.5},
+    },
+    "long_only_top_quantile": {
+        "name": "identity_weights",
+        "params": {},
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -299,12 +313,13 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         "promotion_gates": None if args.promotion_gates is None else load_promotion_gate_config(args.promotion_gates),
     }
     signal_mapping = dict(config_payload.get("signal_mapping", {})) if isinstance(config_payload.get("signal_mapping"), dict) else None
-    if args.signal_policy is not None or args.signal_quantile is not None:
-        signal_mapping = {} if signal_mapping is None else dict(signal_mapping)
-        if args.signal_policy is not None:
-            signal_mapping["policy"] = args.signal_policy
-        if args.signal_quantile is not None:
-            signal_mapping["quantile"] = args.signal_quantile
+    signal_mapping_override_applied = bool(args.signal_policy is not None or args.signal_quantile is not None)
+    if signal_mapping_override_applied:
+        signal_mapping = _apply_signal_mapping_cli_overrides(
+            signal_mapping,
+            policy=args.signal_policy,
+            quantile=args.signal_quantile,
+        )
 
     resolved = dict(config_payload)
     for key, value in cli_payload.items():
@@ -355,6 +370,8 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
             signal_mapping_payload,
             position_constructor=position_constructor,
         )
+        if signal_mapping_override_applied:
+            signal_mapping_payload = _attach_default_signal_mapping_position_constructor(signal_mapping_payload)
         resolved["signal_mapping"] = _serialize_signal_mapping(resolve_signal_mapping_config(signal_mapping_payload))
 
     return resolved
@@ -383,6 +400,54 @@ def _inherit_compatible_position_constructor(
         return normalized_payload
 
     normalized_payload["position_constructor"] = position_constructor
+    return normalized_payload
+
+
+def _apply_signal_mapping_cli_overrides(
+    signal_mapping: dict[str, Any] | None,
+    *,
+    policy: str | None,
+    quantile: float | None,
+) -> dict[str, Any]:
+    normalized = {} if signal_mapping is None else dict(signal_mapping)
+    policy_changed = policy is not None and policy != normalized.get("policy")
+    if policy is not None:
+        normalized["policy"] = policy
+    if quantile is not None:
+        normalized["quantile"] = quantile
+    if policy_changed:
+        normalized.pop("signal_type", None)
+        normalized.pop("signal_params", None)
+        normalized.pop("position_constructor", None)
+    return normalized
+
+
+def _attach_default_signal_mapping_position_constructor(
+    signal_mapping_payload: dict[str, Any],
+) -> dict[str, Any]:
+    normalized_payload = dict(signal_mapping_payload)
+    if normalize_position_constructor_config(normalized_payload.get("position_constructor")) is not None:
+        return normalized_payload
+
+    preview_config = resolve_signal_mapping_config(normalized_payload)
+    if preview_config.policy == "zscore_continuous":
+        clip = preview_config.signal_params.get("clip")
+        normalized_payload["position_constructor"] = {
+            "name": "zscore_clip_scale",
+            "params": {
+                "clip": 3.0 if clip is None else float(clip),
+                "gross_exposure": 1.0,
+            },
+        }
+        return normalized_payload
+
+    default_constructor = _DEFAULT_SIGNAL_MAPPING_POSITION_CONSTRUCTORS.get(preview_config.policy)
+    if default_constructor is None:
+        return normalized_payload
+    normalized_payload["position_constructor"] = {
+        "name": str(default_constructor["name"]),
+        "params": dict(default_constructor["params"]),
+    }
     return normalized_payload
 
 

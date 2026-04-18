@@ -33,6 +33,10 @@ _EXECUTION_OVERRIDE_KEYS = frozenset(
         "slippage_model",
         "slippage_turnover_scale",
         "slippage_volatility_scale",
+        "long_transaction_cost_bps",
+        "short_transaction_cost_bps",
+        "short_slippage_multiplier",
+        "short_borrow_cost_bps",
     )
 )
 _SANITY_KEYS = frozenset(

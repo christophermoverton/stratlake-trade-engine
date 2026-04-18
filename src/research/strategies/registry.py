@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from src.research.position_constructors import normalize_position_constructor_config
+from src.research.strategy_archetype import ArchetypeStrategy
 from src.research.strategy_base import BaseStrategy
 
 from src.research.strategies.baselines import BuyAndHoldStrategy, SMACrossoverStrategy, SeededRandomStrategy
@@ -122,7 +123,15 @@ def build_strategy(strategy_name: str, config: dict[str, Any]) -> BaseStrategy:
     if not isinstance(dataset, str) or not dataset:
         raise ValueError(f"Strategy '{strategy_name}' must define a non-empty dataset name.")
 
+    strategy.name = strategy_name
     strategy.dataset = dataset
+    if isinstance(strategy, ArchetypeStrategy):
+        strategy.required_input_columns = tuple(strategy.strategy_definition.input_schema.required_columns)
+        strategy.requires_return_column = False
+        strategy.signal_type = strategy.strategy_definition.output_signal_schema.signal_type
+        strategy.signal_params = {}
+        strategy.position_constructor_name = "identity_weights"
+        strategy.position_constructor_params = {}
     signal_type = config.get("signal_type")
     if signal_type is not None:
         if not isinstance(signal_type, str) or not signal_type.strip():

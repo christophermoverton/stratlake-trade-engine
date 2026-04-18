@@ -8,7 +8,12 @@ from src.research.consistency import validate_features_to_signals_consistency
 from src.research.input_validation import STRATEGY_INPUT_MIN_ROWS, validate_strategy_input
 from src.research.integrity import validate_research_integrity
 from src.research.position_constructors import position_constructor_metadata_payload
-from src.research.signal_semantics import create_signal, ensure_signal_type_compatible
+from src.research.signal_semantics import (
+    SignalSemanticsError,
+    create_signal,
+    ensure_signal_type_compatible,
+    resolve_signal_type_definition,
+)
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_base import BaseStrategy
 from src.research.strategies._helpers import resolve_return_column
@@ -45,7 +50,11 @@ def generate_signals(df: pd.DataFrame, strategy: BaseStrategy) -> pd.DataFrame:
         )
 
     validate_features_to_signals_consistency(df, signals)
-    validate_research_integrity(df, signals)
+    validate_research_integrity(
+        df,
+        signals,
+        allow_continuous_signals=_allow_continuous_signals_for_strategy(strategy),
+    )
 
     result = df.copy()
     result["signal"] = signals.rename("signal")
@@ -139,3 +148,13 @@ def _warn_on_low_data(df: pd.DataFrame) -> None:
         RuntimeWarning,
         stacklevel=2,
     )
+
+
+def _allow_continuous_signals_for_strategy(strategy: BaseStrategy) -> bool:
+    signal_type = str(getattr(strategy, "signal_type", "target_weight"))
+    try:
+        definition = resolve_signal_type_definition(signal_type)
+    except SignalSemanticsError:
+        return signal_type not in {"binary_signal", "ternary_quantile"}
+    allowed_values = definition.validation_rules.get("allowed_values")
+    return not isinstance(allowed_values, list)

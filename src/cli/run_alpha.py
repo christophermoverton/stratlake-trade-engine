@@ -10,6 +10,8 @@ from typing import Any, Sequence
 from src.cli.run_alpha_evaluation import (
     AlphaEvaluationRunResult,
     _format_run_failure,
+    _apply_signal_mapping_cli_overrides,
+    _attach_default_signal_mapping_position_constructor,
     _inherit_compatible_position_constructor,
     DEFAULT_ARTIFACTS_ROOT,
     load_ticker_file,
@@ -154,12 +156,13 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
         "run_mode": mode,
     }
     signal_mapping = dict(resolved.get("signal_mapping", {})) if isinstance(resolved.get("signal_mapping"), dict) else None
-    if args.signal_policy is not None or args.signal_quantile is not None:
-        signal_mapping = {} if signal_mapping is None else dict(signal_mapping)
-        if args.signal_policy is not None:
-            signal_mapping["policy"] = args.signal_policy
-        if args.signal_quantile is not None:
-            signal_mapping["quantile"] = args.signal_quantile
+    signal_mapping_override_applied = bool(args.signal_policy is not None or args.signal_quantile is not None)
+    if signal_mapping_override_applied:
+        signal_mapping = _apply_signal_mapping_cli_overrides(
+            signal_mapping,
+            policy=args.signal_policy,
+            quantile=args.signal_quantile,
+        )
     for key, value in cli_overrides.items():
         if value is not None:
             resolved[key] = value
@@ -173,6 +176,8 @@ def resolve_cli_config(args: argparse.Namespace) -> dict[str, Any]:
             signal_mapping,
             position_constructor=position_constructor,
         )
+        if signal_mapping_override_applied:
+            signal_mapping = _attach_default_signal_mapping_position_constructor(signal_mapping)
         resolved["signal_mapping"] = signal_mapping
 
     dataset = str(resolved.get("dataset", "")).strip()
@@ -227,7 +232,7 @@ def run_cli(
             dataset=evaluation_result.loaded_frame,
             price_column=_optional_string(resolved_config.get("price_column")),
             realized_return_column=_optional_string(resolved_config.get("realized_return_column")),
-            position_constructor=resolved_config.get("position_constructor"),
+            position_constructor=_resolve_sleeve_position_constructor(resolved_config),
             alpha_name=str(resolved_config["alpha_name"]),
             run_id=evaluation_result.run_id,
         )
@@ -355,6 +360,15 @@ def _optional_string(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _resolve_sleeve_position_constructor(resolved_config: dict[str, Any]) -> dict[str, Any] | None:
+    signal_mapping = resolved_config.get("signal_mapping")
+    if isinstance(signal_mapping, dict):
+        mapping_constructor = normalize_position_constructor_config(signal_mapping.get("position_constructor"))
+        if mapping_constructor is not None:
+            return mapping_constructor
+    return normalize_position_constructor_config(resolved_config.get("position_constructor"))
 
 
 def main() -> None:

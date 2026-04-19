@@ -1,0 +1,66 @@
+{
+  "dataset": "features_daily",
+  "date_range": [
+    "2025-01-10T00:00:00Z",
+    "2025-02-24T00:00:00Z"
+  ],
+  "execution": {
+    "equity_curve_present": true,
+    "valid_returns": true
+  },
+  "flags": {
+    "beta_dominated_strategy": false,
+    "degenerate_signal": false,
+    "high_benchmark_correlation": false,
+    "high_turnover": true,
+    "high_turnover_low_edge": false,
+    "low_data": false,
+    "low_excess_return": true,
+    "no_data": false,
+    "no_trades": false,
+    "sanity_warning": false
+  },
+  "input_validation": {
+    "low_data": false,
+    "required_columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "close"
+    ],
+    "row_count": 230,
+    "timeframe": "1D",
+    "valid_row_count": 230
+  },
+  "metrics": {
+    "max_drawdown": 0.0022588845416819936,
+    "sharpe": 1.3932238495234441,
+    "total_return": 0.002035508867661129
+  },
+  "overall_status": "warn",
+  "relative": {
+    "benchmark_return": 0.0018408546267534298,
+    "correlation": 0.5121100367256324,
+    "excess_return": 0.000194654240907699,
+    "relative_drawdown": -0.01048662041981474
+  },
+  "row_count": 230,
+  "run_id": "variant_0001_61218dbae6",
+  "sanity": {
+    "issue_count": 0,
+    "issues": [],
+    "status": "pass",
+    "strict_sanity_checks": false,
+    "warning_count": 0
+  },
+  "signal": {
+    "pct_flat": 0.2,
+    "pct_long": 0.2,
+    "pct_short": 0.2,
+    "total_trades": 224,
+    "turnover": 0.9739130434782609
+  },
+  "strategy_name": "cross_section_momentum",
+  "symbols_present": 5,
+  "timeframe": "1D"
+}

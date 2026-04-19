@@ -1,0 +1,106 @@
+{
+  "artifact_files": [
+    "config.json",
+    "equity_curve.csv",
+    "equity_curve.parquet",
+    "metrics.json",
+    "qa_summary.json",
+    "signal_diagnostics.json",
+    "signal_semantics.json",
+    "signals.parquet",
+    "trades.parquet"
+  ],
+  "constructor_id": "rank_dollar_neutral",
+  "constructor_params": {
+    "exclude_short": true,
+    "gross_long": 0.5,
+    "gross_short": 0.5
+  },
+  "evaluation_config_path": null,
+  "evaluation_mode": "single",
+  "metric_summary": {
+    "annualized_return": 0.011201992588751875,
+    "annualized_volatility": 0.008018389383256047,
+    "average_execution_friction_per_trade": 0.0,
+    "average_trade_size": 0.22935323383084577,
+    "average_turnover": 0.1336231884057971,
+    "benchmark_correlation": 0.5121100367256324,
+    "benchmark_total_return": 0.0018408546267534298,
+    "cumulative_return": 0.002035508867661129,
+    "excess_return": 0.000194654240907699,
+    "exposure_pct": 39.130434782608695,
+    "hit_rate": 0.5393258426966292,
+    "max_drawdown": 0.0022588845416819936,
+    "percent_periods_traded": 58.26086956521739,
+    "profit_factor": 1.1502105932431201,
+    "rebalance_count": 134.0,
+    "relative_drawdown": -0.01048662041981474,
+    "sanity_issue_count": 0.0,
+    "sanity_warning_count": 0.0,
+    "sharpe_ratio": 1.3932238495234441,
+    "total_execution_friction": 0.0,
+    "total_return": 0.002035508867661129,
+    "total_slippage_cost": 0.0,
+    "total_transaction_cost": 0.0,
+    "total_turnover": 30.733333333333334,
+    "trade_count": 134.0,
+    "turnover": 0.1336231884057971,
+    "volatility": 0.0005051110529375257,
+    "win_rate": 0.5869565217391305
+  },
+  "primary_metric": "sharpe_ratio",
+  "promotion_gate_summary": null,
+  "run_id": "variant_0001_61218dbae6",
+  "signal_contract": {
+    "compatibility_mode": "managed",
+    "constructor_id": "rank_dollar_neutral",
+    "constructor_params": {
+      "exclude_short": true,
+      "gross_long": 0.5,
+      "gross_short": 0.5
+    },
+    "signal_semantics_path": "signal_semantics.json",
+    "signal_type": "cross_section_rank",
+    "signal_version": "1.0.0",
+    "value_column": "signal"
+  },
+  "signal_semantics": {
+    "compatibility_mode": "managed",
+    "constructor_id": "rank_dollar_neutral",
+    "constructor_params": {
+      "exclude_short": true,
+      "gross_long": 0.5,
+      "gross_short": 0.5
+    },
+    "definition": {
+      "compatible_position_constructors": [
+        "rank_dollar_neutral"
+      ],
+      "cross_sectional": true,
+      "directional": true,
+      "executable": true,
+      "ordinal": true,
+      "probabilistic": false
+    },
+    "parameters": {},
+    "signal_origin": "strategy.generate_signals",
+    "signal_type": "cross_section_rank",
+    "source": {
+      "dataset": "features_daily",
+      "layer": "strategy",
+      "strategy_class": "CrossSectionMomentumStrategy",
+      "strategy_name": "cross_section_momentum"
+    },
+    "timestamp_normalization": "UTC",
+    "transformation_history": [],
+    "value_column": "signal",
+    "version": "1.0.0"
+  },
+  "signal_semantics_path": "signal_semantics.json",
+  "signal_type": "cross_section_rank",
+  "signal_version": "1.0.0",
+  "split_count": null,
+  "strategy_name": "cross_section_momentum",
+  "strict_mode": null,
+  "timestamp": "2002-12-25T08:57:09Z"
+}

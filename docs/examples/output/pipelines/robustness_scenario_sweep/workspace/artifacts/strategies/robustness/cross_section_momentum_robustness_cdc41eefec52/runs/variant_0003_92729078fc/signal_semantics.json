@@ -1,0 +1,49 @@
+{
+  "compatibility_mode": "managed",
+  "constructor_id": "identity_weights",
+  "constructor_params": {
+    "exclude_short": true
+  },
+  "definition": {
+    "compatible_position_constructors": [
+      "rank_dollar_neutral"
+    ],
+    "cross_sectional": true,
+    "directional": true,
+    "executable": true,
+    "ordinal": true,
+    "probabilistic": false
+  },
+  "parameters": {
+    "long_only": true,
+    "quantile": 0.2
+  },
+  "signal_origin": "strategy.generate_signals",
+  "signal_type": "binary_signal",
+  "source": {
+    "dataset": "features_daily",
+    "layer": "strategy",
+    "strategy_class": "CrossSectionMomentumStrategy",
+    "strategy_name": "cross_section_momentum"
+  },
+  "timestamp_normalization": "UTC",
+  "transformation_history": [
+    {
+      "input_type": "cross_section_rank",
+      "operation": "rank_to_percentile",
+      "output_type": "cross_section_percentile",
+      "parameters": {}
+    },
+    {
+      "input_type": "cross_section_percentile",
+      "operation": "percentile_to_quantile_bucket",
+      "output_type": "binary_signal",
+      "parameters": {
+        "long_only": true,
+        "quantile": 0.2
+      }
+    }
+  ],
+  "value_column": "signal",
+  "version": "1.0.0"
+}

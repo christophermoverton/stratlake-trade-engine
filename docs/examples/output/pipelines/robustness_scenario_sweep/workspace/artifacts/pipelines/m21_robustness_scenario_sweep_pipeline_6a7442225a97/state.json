@@ -1,0 +1,8 @@
+{
+  "pipeline_run_id": "m21_robustness_scenario_sweep_pipeline_6a7442225a97",
+  "schema_version": 1,
+  "state": {
+    "sweep_artifact_dir": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52",
+    "sweep_ranked_configs_csv": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/ranked_configs.csv"
+  }
+}

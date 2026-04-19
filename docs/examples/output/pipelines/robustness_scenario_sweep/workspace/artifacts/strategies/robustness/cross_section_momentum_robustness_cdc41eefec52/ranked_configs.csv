@@ -1,0 +1,5 @@
+rank,variant_id,strategy_name,signal_type,constructor_id,ensemble_name,sharpe_ratio
+1,variant_0001_61218dbae6,cross_section_momentum,cross_section_rank,rank_dollar_neutral,,1.3932238495234441
+2,variant_0002_00653145ea,cross_section_momentum,binary_signal,identity_weights,,0.17721035362967408
+3,variant_0003_92729078fc,cross_section_momentum,binary_signal,identity_weights,,0.17721035362967408
+4,variant_0000_351990082d,cross_section_momentum,cross_section_rank,rank_dollar_neutral,,-0.14446420333043297

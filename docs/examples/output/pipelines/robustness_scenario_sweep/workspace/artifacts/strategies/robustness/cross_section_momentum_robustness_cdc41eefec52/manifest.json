@@ -1,0 +1,225 @@
+{
+  "artifact_files": [
+    "aggregate_metrics.json",
+    "config.json",
+    "metrics_by_config.csv",
+    "metrics_by_variant.csv",
+    "neighbor_metrics.csv",
+    "ranked_configs.csv",
+    "runs/variant_0000_351990082d/config.json",
+    "runs/variant_0000_351990082d/equity_curve.csv",
+    "runs/variant_0000_351990082d/equity_curve.parquet",
+    "runs/variant_0000_351990082d/manifest.json",
+    "runs/variant_0000_351990082d/metrics.json",
+    "runs/variant_0000_351990082d/qa_summary.json",
+    "runs/variant_0000_351990082d/signal_diagnostics.json",
+    "runs/variant_0000_351990082d/signal_semantics.json",
+    "runs/variant_0000_351990082d/signals.parquet",
+    "runs/variant_0000_351990082d/trades.parquet",
+    "runs/variant_0001_61218dbae6/config.json",
+    "runs/variant_0001_61218dbae6/equity_curve.csv",
+    "runs/variant_0001_61218dbae6/equity_curve.parquet",
+    "runs/variant_0001_61218dbae6/manifest.json",
+    "runs/variant_0001_61218dbae6/metrics.json",
+    "runs/variant_0001_61218dbae6/qa_summary.json",
+    "runs/variant_0001_61218dbae6/signal_diagnostics.json",
+    "runs/variant_0001_61218dbae6/signal_semantics.json",
+    "runs/variant_0001_61218dbae6/signals.parquet",
+    "runs/variant_0001_61218dbae6/trades.parquet",
+    "runs/variant_0002_00653145ea/config.json",
+    "runs/variant_0002_00653145ea/equity_curve.csv",
+    "runs/variant_0002_00653145ea/equity_curve.parquet",
+    "runs/variant_0002_00653145ea/manifest.json",
+    "runs/variant_0002_00653145ea/metrics.json",
+    "runs/variant_0002_00653145ea/qa_summary.json",
+    "runs/variant_0002_00653145ea/signal_diagnostics.json",
+    "runs/variant_0002_00653145ea/signal_semantics.json",
+    "runs/variant_0002_00653145ea/signals.parquet",
+    "runs/variant_0002_00653145ea/trades.parquet",
+    "runs/variant_0003_92729078fc/config.json",
+    "runs/variant_0003_92729078fc/equity_curve.csv",
+    "runs/variant_0003_92729078fc/equity_curve.parquet",
+    "runs/variant_0003_92729078fc/manifest.json",
+    "runs/variant_0003_92729078fc/metrics.json",
+    "runs/variant_0003_92729078fc/qa_summary.json",
+    "runs/variant_0003_92729078fc/signal_diagnostics.json",
+    "runs/variant_0003_92729078fc/signal_semantics.json",
+    "runs/variant_0003_92729078fc/signals.parquet",
+    "runs/variant_0003_92729078fc/trades.parquet",
+    "summary.json",
+    "variants.json"
+  ],
+  "child_runs": [
+    {
+      "artifact_dir": "runs/variant_0000_351990082d",
+      "variant_id": "variant_0000_351990082d"
+    },
+    {
+      "artifact_dir": "runs/variant_0001_61218dbae6",
+      "variant_id": "variant_0001_61218dbae6"
+    },
+    {
+      "artifact_dir": "runs/variant_0002_00653145ea",
+      "variant_id": "variant_0002_00653145ea"
+    },
+    {
+      "artifact_dir": "runs/variant_0003_92729078fc",
+      "variant_id": "variant_0003_92729078fc"
+    }
+  ],
+  "config_count": 4,
+  "evaluation_mode": "robustness",
+  "metric_summary": {
+    "batching": {
+      "batch_index": 0,
+      "batch_size": null
+    },
+    "best_metric_value": 1.3932238495234441,
+    "best_variant_id": "variant_0001_61218dbae6",
+    "best_variant_label": "strategy.name=cross_section_momentum, strategy.params.lookback_days=5, signal.type=cross_section_rank, signal.params.quantile=0.2, constructor.name=rank_dollar_neutral, constructor.params.gross_long=0.5, constructor.params.gross_short=0.5, asymmetry.exclude_short=True",
+    "best_variant_neighbor_gap": 1.537688052853877,
+    "best_variant_split_win_rate": null,
+    "best_variant_top_half_rate": null,
+    "config_count": 4,
+    "deflated_sharpe_ratio": null,
+    "group_by": [],
+    "higher_is_better": true,
+    "invalid_config_count": 4,
+    "metric_median": 0.17721035362967408,
+    "metric_spread": 1.537688052853877,
+    "multiple_testing_awareness": true,
+    "neighbor_gap_max": 1.537688052853877,
+    "neighbor_gap_mean": 0.7688440264269385,
+    "neighbor_pair_count": 2,
+    "overfitting_warning": false,
+    "rank_consistency_mean": null,
+    "ranking_metric": "sharpe_ratio",
+    "rejected_configurations": [
+      {
+        "config": {
+          "asymmetry": {
+            "exclude_short": false
+          },
+          "constructor": {
+            "name": "identity_weights",
+            "params": {}
+          },
+          "signal": {
+            "params": {
+              "quantile": 0.2
+            },
+            "type": "cross_section_rank"
+          },
+          "strategy": {
+            "dataset": "features_daily",
+            "name": "cross_section_momentum",
+            "params": {
+              "lookback_days": 5
+            },
+            "source_signal_type": "cross_section_rank",
+            "version": "1.0.0"
+          }
+        },
+        "reason": "Signal type 'cross_section_rank' is not compatible with position constructor 'identity_weights'. Compatible constructors: rank_dollar_neutral."
+      },
+      {
+        "config": {
+          "asymmetry": {
+            "exclude_short": true
+          },
+          "constructor": {
+            "name": "identity_weights",
+            "params": {}
+          },
+          "signal": {
+            "params": {
+              "quantile": 0.2
+            },
+            "type": "cross_section_rank"
+          },
+          "strategy": {
+            "dataset": "features_daily",
+            "name": "cross_section_momentum",
+            "params": {
+              "lookback_days": 5
+            },
+            "source_signal_type": "cross_section_rank",
+            "version": "1.0.0"
+          }
+        },
+        "reason": "Signal type 'cross_section_rank' is not compatible with position constructor 'identity_weights'. Compatible constructors: rank_dollar_neutral."
+      },
+      {
+        "config": {
+          "asymmetry": {
+            "exclude_short": false
+          },
+          "constructor": {
+            "name": "rank_dollar_neutral",
+            "params": {
+              "gross_long": 0.5,
+              "gross_short": 0.5
+            }
+          },
+          "signal": {
+            "params": {
+              "quantile": 0.2
+            },
+            "type": "binary_signal"
+          },
+          "strategy": {
+            "dataset": "features_daily",
+            "name": "cross_section_momentum",
+            "params": {
+              "lookback_days": 5
+            },
+            "source_signal_type": "cross_section_rank",
+            "version": "1.0.0"
+          }
+        },
+        "reason": "Signal type 'binary_signal' is not compatible with position constructor 'rank_dollar_neutral'. Compatible constructors: identity_weights."
+      },
+      {
+        "config": {
+          "asymmetry": {
+            "exclude_short": true
+          },
+          "constructor": {
+            "name": "rank_dollar_neutral",
+            "params": {
+              "gross_long": 0.5,
+              "gross_short": 0.5
+            }
+          },
+          "signal": {
+            "params": {
+              "quantile": 0.2
+            },
+            "type": "binary_signal"
+          },
+          "strategy": {
+            "dataset": "features_daily",
+            "name": "cross_section_momentum",
+            "params": {
+              "lookback_days": 5
+            },
+            "source_signal_type": "cross_section_rank",
+            "version": "1.0.0"
+          }
+        },
+        "reason": "Signal type 'binary_signal' is not compatible with position constructor 'rank_dollar_neutral'. Compatible constructors: identity_weights."
+      }
+    ],
+    "split_count": 0,
+    "stability_mode": "disabled",
+    "strategy_name": "cross_section_momentum",
+    "threshold_pass_count": null,
+    "threshold_pass_rate": null,
+    "valid_config_count": 4,
+    "variant_count": 4,
+    "worst_metric_value": -0.14446420333043297
+  },
+  "primary_metric": "sharpe_ratio",
+  "run_id": "cross_section_momentum_robustness_cdc41eefec52",
+  "variant_count": 4
+}

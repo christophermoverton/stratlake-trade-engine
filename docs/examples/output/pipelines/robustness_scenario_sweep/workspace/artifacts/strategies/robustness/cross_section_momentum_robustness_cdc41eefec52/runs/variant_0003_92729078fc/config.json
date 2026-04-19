@@ -1,0 +1,33 @@
+{
+  "asymmetry": {
+    "exclude_short": true
+  },
+  "constructor": {
+    "name": "identity_weights",
+    "params": {
+      "exclude_short": true
+    }
+  },
+  "dataset": "features_daily",
+  "execution": {
+    "enabled": false,
+    "execution_delay": 1,
+    "fixed_fee": 0.0,
+    "fixed_fee_model": "per_rebalance",
+    "slippage_bps": 0.0,
+    "slippage_model": "constant",
+    "slippage_turnover_scale": 1.0,
+    "slippage_volatility_scale": 1.0,
+    "transaction_cost_bps": 0.0
+  },
+  "parameters": {
+    "lookback_days": 5
+  },
+  "signal": {
+    "params": {
+      "quantile": 0.2
+    },
+    "type": "binary_signal"
+  },
+  "strategy_name": "cross_section_momentum"
+}

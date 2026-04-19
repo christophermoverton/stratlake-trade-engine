@@ -1,0 +1,31 @@
+{
+  "duration_seconds": 2.0,
+  "ended_at_unix": 1704298966.0,
+  "pipeline_name": "m21_robustness_scenario_sweep",
+  "pipeline_run_id": "m21_robustness_scenario_sweep_pipeline_6a7442225a97",
+  "row_counts": {
+    "research_sweep": 4
+  },
+  "run_type": "pipeline_metrics",
+  "schema_version": 1,
+  "started_at_unix": 1704298964.0,
+  "status": "completed",
+  "status_counts": {
+    "completed": 1,
+    "failed": 0,
+    "reused": 0,
+    "skipped": 0
+  },
+  "step_durations_seconds": {
+    "research_sweep": 1.0
+  },
+  "steps": [
+    {
+      "duration_seconds": 1.0,
+      "ended_at_unix": 1704298966.0,
+      "started_at_unix": 1704298965.0,
+      "status": "completed",
+      "step_id": "research_sweep"
+    }
+  ]
+}

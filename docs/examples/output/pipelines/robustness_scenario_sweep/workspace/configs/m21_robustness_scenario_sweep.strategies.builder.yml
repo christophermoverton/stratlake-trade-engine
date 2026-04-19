@@ -1,0 +1,11 @@
+cross_section_momentum:
+  dataset: features_daily
+  signal_type: cross_section_rank
+  signal_params: {}
+  position_constructor:
+    name: rank_dollar_neutral
+    params:
+      gross_long: 0.5
+      gross_short: 0.5
+  parameters:
+    lookback_days: 5

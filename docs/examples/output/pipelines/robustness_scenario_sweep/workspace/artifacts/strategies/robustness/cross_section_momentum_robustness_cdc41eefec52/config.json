@@ -1,0 +1,64 @@
+{
+  "higher_is_better": null,
+  "ranking": {
+    "higher_is_better": null,
+    "primary_metric": "sharpe_ratio",
+    "tie_breakers": [
+      "total_return"
+    ]
+  },
+  "ranking_metric": "sharpe_ratio",
+  "stability": {
+    "evaluation_path": null,
+    "mode": "disabled",
+    "periods": null
+  },
+  "statistical_controls": {
+    "deflated_sharpe_ratio": false,
+    "multiple_testing_awareness": true,
+    "overfitting_warning_search_space": 100,
+    "reality_check_placeholder": false
+  },
+  "strategy_name": "cross_section_momentum",
+  "sweep": {
+    "asymmetry": {
+      "exclude_short": [
+        false,
+        true
+      ]
+    },
+    "batching": {
+      "batch_index": 0,
+      "batch_size": null
+    },
+    "constructor": {
+      "name": [
+        "rank_dollar_neutral",
+        "identity_weights"
+      ]
+    },
+    "ensemble": {
+      "definitions": [],
+      "include_constituents": true
+    },
+    "exclude": [],
+    "group_by": [],
+    "signal": {
+      "params": {
+        "quantile": [
+          0.2
+        ]
+      },
+      "type": [
+        "cross_section_rank",
+        "binary_signal"
+      ]
+    },
+    "strategy": {
+      "name": [
+        "cross_section_momentum"
+      ]
+    }
+  },
+  "thresholds": {}
+}

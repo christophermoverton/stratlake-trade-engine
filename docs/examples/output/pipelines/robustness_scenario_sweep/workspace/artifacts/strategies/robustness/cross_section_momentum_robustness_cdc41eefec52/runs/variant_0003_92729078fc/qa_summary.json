@@ -1,0 +1,55 @@
+{
+  "dataset": "features_daily",
+  "date_range": [
+    "2025-01-10T00:00:00Z",
+    "2025-02-24T00:00:00Z"
+  ],
+  "execution": {
+    "equity_curve_present": true,
+    "valid_returns": true
+  },
+  "flags": {
+    "beta_dominated_strategy": false,
+    "degenerate_signal": false,
+    "high_benchmark_correlation": false,
+    "high_turnover": false,
+    "high_turnover_low_edge": false,
+    "low_data": false,
+    "low_excess_return": true,
+    "no_data": false,
+    "no_trades": false,
+    "sanity_warning": false
+  },
+  "input_validation": {},
+  "metrics": {
+    "max_drawdown": 0.005211423242953095,
+    "sharpe": 0.17721035362967408,
+    "total_return": 0.0005617368116803689
+  },
+  "overall_status": "warn",
+  "relative": {
+    "benchmark_return": 0.0018408546267534298,
+    "correlation": 0.42552174879088167,
+    "excess_return": -0.0012791178150730609,
+    "relative_drawdown": -0.007534081718543639
+  },
+  "row_count": 230,
+  "run_id": "variant_0003_92729078fc",
+  "sanity": {
+    "issue_count": 0,
+    "issues": [],
+    "status": "pass",
+    "strict_sanity_checks": false,
+    "warning_count": 0
+  },
+  "signal": {
+    "pct_flat": 0.8,
+    "pct_long": 0.2,
+    "pct_short": 0.0,
+    "total_trades": 89,
+    "turnover": 0.3869565217391304
+  },
+  "strategy_name": "cross_section_momentum",
+  "symbols_present": 5,
+  "timeframe": "1D"
+}

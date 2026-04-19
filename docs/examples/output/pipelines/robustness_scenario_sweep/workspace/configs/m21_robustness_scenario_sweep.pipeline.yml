@@ -1,0 +1,17 @@
+id: m21_robustness_scenario_sweep
+steps:
+- id: research_sweep
+  adapter: python_module
+  module: src.cli.run_strategy
+  argv:
+  - --strategy
+  - cross_section_momentum
+  - --strategies-config
+  - configs/m21_robustness_scenario_sweep.strategies.builder.yml
+  - --robustness
+  - configs/m21_robustness_scenario_sweep.robustness.builder.yml
+  - --start
+  - '2025-01-10'
+  - --end
+  - '2025-02-25'
+  - --strict

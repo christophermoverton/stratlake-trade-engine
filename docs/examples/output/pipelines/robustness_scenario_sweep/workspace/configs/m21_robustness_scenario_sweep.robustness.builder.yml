@@ -1,0 +1,25 @@
+robustness:
+  strategy_name: cross_section_momentum
+  sweep:
+    asymmetry:
+      exclude_short:
+      - false
+      - true
+    constructor:
+      name:
+      - rank_dollar_neutral
+      - identity_weights
+    signal:
+      type:
+      - cross_section_rank
+      - binary_signal
+      params:
+        quantile:
+        - 0.2
+    strategy:
+      name:
+      - cross_section_momentum
+  ranking:
+    primary_metric: sharpe_ratio
+    tie_breakers:
+    - total_return

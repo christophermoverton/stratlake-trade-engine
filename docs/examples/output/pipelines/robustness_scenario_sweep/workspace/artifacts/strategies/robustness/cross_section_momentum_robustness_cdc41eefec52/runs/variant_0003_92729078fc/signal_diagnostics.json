@@ -1,0 +1,17 @@
+{
+  "avg_holding_period": 1.0,
+  "exposure_pct": 0.2,
+  "flags": {
+    "always_flat": false,
+    "always_long": false,
+    "always_short": false,
+    "high_turnover": false,
+    "no_trades": false
+  },
+  "pct_flat": 0.8,
+  "pct_long": 0.2,
+  "pct_short": 0.0,
+  "total_rows": 230,
+  "total_trades": 89,
+  "turnover": 0.3869565217391304
+}

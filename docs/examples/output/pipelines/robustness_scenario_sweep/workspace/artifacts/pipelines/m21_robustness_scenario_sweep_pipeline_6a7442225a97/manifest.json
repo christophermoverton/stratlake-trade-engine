@@ -1,0 +1,32 @@
+{
+  "pipeline_name": "m21_robustness_scenario_sweep",
+  "pipeline_run_id": "m21_robustness_scenario_sweep_pipeline_6a7442225a97",
+  "run_type": "pipeline_manifest",
+  "schema_version": 1,
+  "status": "completed",
+  "steps": [
+    {
+      "depends_on": [],
+      "module": "src.cli.run_strategy",
+      "outputs": {
+        "artifact_dir": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52",
+        "manifest_path": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/manifest.json",
+        "name": "cross_section_momentum",
+        "output_paths": {
+          "equity_curve_csv": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/equity_curve.csv",
+          "manifest_json": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/manifest.json",
+          "metrics_json": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/metrics.json",
+          "qa_summary_json": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/qa_summary.json"
+        },
+        "result_type": "RobustnessRunResult",
+        "run_id": "cross_section_momentum_robustness_cdc41eefec52",
+        "status": "completed",
+        "strategy_name": "cross_section_momentum"
+      },
+      "status": "completed",
+      "step_artifact_dir": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52",
+      "step_id": "research_sweep",
+      "step_manifest_path": "artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/manifest.json"
+    }
+  ]
+}

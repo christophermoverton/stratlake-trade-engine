@@ -1,0 +1,35 @@
+{
+  "artifacts": {
+    "metrics_by_config_csv": "workspace/artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/metrics_by_config.csv",
+    "pipeline_manifest": "workspace/artifacts/pipelines/m21_robustness_scenario_sweep_pipeline_6a7442225a97/manifest.json",
+    "ranked_configs_csv": "workspace/artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52/ranked_configs.csv",
+    "summary": "summary.json",
+    "sweep_artifact_dir": "workspace/artifacts/strategies/robustness/cross_section_momentum_robustness_cdc41eefec52"
+  },
+  "components": {
+    "asymmetry_space": {
+      "exclude_short": [
+        false,
+        true
+      ]
+    },
+    "constructor_space": [
+      "rank_dollar_neutral",
+      "identity_weights"
+    ],
+    "signal_space": [
+      "cross_section_rank",
+      "binary_signal"
+    ],
+    "strategy": "cross_section_momentum"
+  },
+  "pipeline": "robustness_scenario_sweep",
+  "purpose": "Canonical robustness sweep expansion with ranked comparable outputs.",
+  "run": {
+    "execution_order": [
+      "research_sweep"
+    ],
+    "pipeline_run_id": "m21_robustness_scenario_sweep_pipeline_6a7442225a97",
+    "status": "completed"
+  }
+}

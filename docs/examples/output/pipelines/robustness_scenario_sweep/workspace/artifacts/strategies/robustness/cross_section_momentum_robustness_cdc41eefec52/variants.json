@@ -1,0 +1,52 @@
+{
+  "variants": [
+    {
+      "asymmetry.exclude_short": false,
+      "constructor.name": "rank_dollar_neutral",
+      "constructor.params.gross_long": 0.5,
+      "constructor.params.gross_short": 0.5,
+      "signal.params.quantile": 0.2,
+      "signal.type": "cross_section_rank",
+      "strategy.name": "cross_section_momentum",
+      "strategy.params.lookback_days": 5,
+      "variant_id": "variant_0000_351990082d",
+      "variant_label": "strategy.name=cross_section_momentum, strategy.params.lookback_days=5, signal.type=cross_section_rank, signal.params.quantile=0.2, constructor.name=rank_dollar_neutral, constructor.params.gross_long=0.5, constructor.params.gross_short=0.5, asymmetry.exclude_short=False",
+      "variant_order": 0
+    },
+    {
+      "asymmetry.exclude_short": true,
+      "constructor.name": "rank_dollar_neutral",
+      "constructor.params.gross_long": 0.5,
+      "constructor.params.gross_short": 0.5,
+      "signal.params.quantile": 0.2,
+      "signal.type": "cross_section_rank",
+      "strategy.name": "cross_section_momentum",
+      "strategy.params.lookback_days": 5,
+      "variant_id": "variant_0001_61218dbae6",
+      "variant_label": "strategy.name=cross_section_momentum, strategy.params.lookback_days=5, signal.type=cross_section_rank, signal.params.quantile=0.2, constructor.name=rank_dollar_neutral, constructor.params.gross_long=0.5, constructor.params.gross_short=0.5, asymmetry.exclude_short=True",
+      "variant_order": 1
+    },
+    {
+      "asymmetry.exclude_short": false,
+      "constructor.name": "identity_weights",
+      "signal.params.quantile": 0.2,
+      "signal.type": "binary_signal",
+      "strategy.name": "cross_section_momentum",
+      "strategy.params.lookback_days": 5,
+      "variant_id": "variant_0002_00653145ea",
+      "variant_label": "strategy.name=cross_section_momentum, strategy.params.lookback_days=5, signal.type=binary_signal, signal.params.quantile=0.2, constructor.name=identity_weights, asymmetry.exclude_short=False",
+      "variant_order": 2
+    },
+    {
+      "asymmetry.exclude_short": true,
+      "constructor.name": "identity_weights",
+      "signal.params.quantile": 0.2,
+      "signal.type": "binary_signal",
+      "strategy.name": "cross_section_momentum",
+      "strategy.params.lookback_days": 5,
+      "variant_id": "variant_0003_92729078fc",
+      "variant_label": "strategy.name=cross_section_momentum, strategy.params.lookback_days=5, signal.type=binary_signal, signal.params.quantile=0.2, constructor.name=identity_weights, asymmetry.exclude_short=True",
+      "variant_order": 3
+    }
+  ]
+}

@@ -58,6 +58,7 @@ Sweep pipelines generate:
 * one M20 pipeline YAML file
 * one strategies config file consumed by `src.cli.run_strategy`
 * one robustness config file consumed by `src.cli.run_strategy --robustness`
+* optionally one portfolio config file consumed by `src.cli.run_portfolio --from-sweep-top-ranked`
 
 ## Single Strategy Example
 
@@ -176,6 +177,32 @@ builder = (
 This emits a standard robustness pipeline step that still runs through
 `src.cli.run_strategy --robustness`.
 
+## Sweep To Portfolio Example
+
+```python
+builder = (
+    PipelineBuilder("research_sweep_to_portfolio")
+    .strategy("cross_section_momentum", params={"lookback_days": 20})
+    .signal("cross_section_rank")
+    .construct_positions(
+        "rank_dollar_neutral",
+        params={"gross_long": 0.5, "gross_short": 0.5},
+    )
+    .sweep(
+        {
+            "signal": {"type": ["cross_section_rank"]},
+            "constructor": {"name": ["rank_dollar_neutral"]},
+            "ranking": {"primary_metric": "sharpe_ratio", "tie_breakers": ["total_return"]},
+        }
+    )
+    .portfolio("equal_weight", params={"timeframe": "1D"})
+)
+```
+
+For this flow, the downstream portfolio stage reads the top-ranked sweep
+variant from `ranked_configs.csv` and consumes the corresponding child artifact
+under `runs/<variant_id>`.
+
 ## CLI
 
 Render builder-friendly config to M20 YAML:
@@ -217,13 +244,13 @@ portfolio:
 
 * The builder stays registry-driven for strategies, signals, and position
   constructors.
-* Portfolio authoring uses existing config-loader semantics rather than a new
-  portfolio registry, because the repo does not currently expose one.
+* Portfolio authoring supports both catalog-based templates (`configs/portfolios.yml`)
+    and versioned registry templates (`artifacts/registry/portfolios.jsonl`).
 * Builder-generated single runs use `src.cli.run_builder_strategy` so signal
   transformations and constructor composition are real execution behavior, not
   just relabeled config.
-* First pass limitation: sweep pipelines do not also build a downstream
-  portfolio stage in the same declarative spec.
+* Sweep pipelines can optionally add a downstream portfolio stage via
+    `--from-sweep-top-ranked` using explicit sweep artifact contracts.
 
 ## Canonical M21.7 Pipelines
 

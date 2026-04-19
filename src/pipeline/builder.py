@@ -9,7 +9,13 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 from src.config.robustness import RobustnessConfig
-from src.portfolio import SUPPORTED_PORTFOLIO_OPTIMIZERS, validate_portfolio_config
+from src.portfolio import (
+    SUPPORTED_PORTFOLIO_OPTIMIZERS,
+    default_portfolio_template_registry_path,
+    load_portfolio_template_registry,
+    resolve_portfolio_template_definition,
+    validate_portfolio_config,
+)
 from src.research.position_constructors import load_position_constructor_registry
 from src.research.position_constructors.base import validate_asymmetry_parameters
 from src.research.signal_semantics import (
@@ -32,6 +38,7 @@ from src.research.strategies.validation import load_strategies_registry
 REPO_ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_STRATEGY_CATALOG_PATH = REPO_ROOT / "configs" / "strategies.yml"
 DEFAULT_PORTFOLIO_CATALOG_PATH = REPO_ROOT / "configs" / "portfolios.yml"
+DEFAULT_PORTFOLIO_TEMPLATE_REGISTRY_PATH = default_portfolio_template_registry_path()
 _SUPPORTED_PORTFOLIO_BUILDERS = frozenset({"equal_weight", *SUPPORTED_PORTFOLIO_OPTIMIZERS})
 _PORTFOLIO_PARAM_KEYS = frozenset(
     {
@@ -321,7 +328,7 @@ def _resolve_strategy_template(strategy_name: str, strategy_catalog: Mapping[str
     return dict(template)
 
 
-def _resolve_portfolio_template_definition(
+def _resolve_portfolio_template_from_catalog(
     portfolio_name: str,
     portfolio_catalog: Mapping[str, Any],
 ) -> dict[str, Any] | None:
@@ -338,11 +345,19 @@ def _resolve_portfolio_template_definition(
     return None
 
 
-def _supported_portfolio_templates(portfolio_catalog: Mapping[str, Any]) -> list[str]:
+def _supported_portfolio_templates(
+    portfolio_catalog: Mapping[str, Any],
+    portfolio_registry: Sequence[Mapping[str, Any]],
+) -> list[str]:
     names = set(_SUPPORTED_PORTFOLIO_BUILDERS)
     raw_portfolios = portfolio_catalog.get("portfolios", portfolio_catalog)
     if isinstance(raw_portfolios, dict):
         names.update(str(name) for name in raw_portfolios)
+    names.update(
+        str(entry.get("portfolio_name"))
+        for entry in portfolio_registry
+        if entry.get("portfolio_name") is not None
+    )
     return sorted(names)
 
 
@@ -726,6 +741,7 @@ class PipelineBuilder:
         constructor_registry_path: str | Path | None = None,
         strategy_catalog_path: str | Path | None = None,
         portfolio_catalog_path: str | Path | None = None,
+        portfolio_registry_path: str | Path | None = None,
     ) -> None:
         self._pipeline_id = _slug(_require_non_empty_string(pipeline_id, field_name="pipeline_id"))
         self._start = start
@@ -736,6 +752,7 @@ class PipelineBuilder:
         self._constructor_registry_path = Path(constructor_registry_path) if constructor_registry_path is not None else resolve_constructor_registry_path()
         self._strategy_catalog_path = Path(strategy_catalog_path) if strategy_catalog_path is not None else DEFAULT_STRATEGY_CATALOG_PATH
         self._portfolio_catalog_path = Path(portfolio_catalog_path) if portfolio_catalog_path is not None else DEFAULT_PORTFOLIO_CATALOG_PATH
+        self._portfolio_registry_path = Path(portfolio_registry_path) if portfolio_registry_path is not None else DEFAULT_PORTFOLIO_TEMPLATE_REGISTRY_PATH
         self._strategy: StrategySelection | None = None
         self._signal: SignalSelection | None = None
         self._constructor: ConstructorSelection | None = None
@@ -753,6 +770,7 @@ class PipelineBuilder:
         constructor_registry_path: str | Path | None = None,
         strategy_catalog_path: str | Path | None = None,
         portfolio_catalog_path: str | Path | None = None,
+        portfolio_registry_path: str | Path | None = None,
     ) -> "PipelineBuilder":
         pipeline_id = payload.get("pipeline_id", payload.get("id", "pipeline"))
         builder = cls(
@@ -765,6 +783,7 @@ class PipelineBuilder:
             constructor_registry_path=constructor_registry_path,
             strategy_catalog_path=strategy_catalog_path,
             portfolio_catalog_path=portfolio_catalog_path,
+            portfolio_registry_path=portfolio_registry_path,
         )
 
         strategy_section = payload.get("strategy")
@@ -911,13 +930,10 @@ class PipelineBuilder:
         constructor_registry = load_position_constructor_registry(self._constructor_registry_path)
         strategy_catalog = _load_optional_yaml(self._strategy_catalog_path)
         portfolio_catalog = _load_optional_yaml(self._portfolio_catalog_path)
+        portfolio_registry = load_portfolio_template_registry(self._portfolio_registry_path)
 
         if self._strategy is None:
             raise PipelineBuilderError("A declarative pipeline must define a strategy.")
-        if self._sweep is not None and self._portfolio is not None:
-            raise PipelineBuilderError(
-                "Sweep pipelines cannot include a portfolio stage in the first builder pass."
-            )
         if self._sweep is None and (self._signal is None or self._constructor is None):
             raise PipelineBuilderError(
                 "Non-sweep pipelines must define both a signal semantic and a position constructor."
@@ -930,6 +946,8 @@ class PipelineBuilder:
                 signal_registry=signal_registry,
                 constructor_registry=constructor_registry,
                 strategy_catalog=strategy_catalog,
+                portfolio_catalog=portfolio_catalog,
+                portfolio_registry=portfolio_registry,
             )
         return self._render_single_pipeline(
             output_path,
@@ -938,6 +956,7 @@ class PipelineBuilder:
             constructor_registry=constructor_registry,
             strategy_catalog=strategy_catalog,
             portfolio_catalog=portfolio_catalog,
+            portfolio_registry=portfolio_registry,
         )
 
     def _strategy_alias(self) -> str:
@@ -962,6 +981,7 @@ class PipelineBuilder:
         constructor_registry: Mapping[str, Any],
         strategy_catalog: Mapping[str, Any],
         portfolio_catalog: Mapping[str, Any],
+        portfolio_registry: Sequence[Mapping[str, Any]],
     ) -> BuiltPipeline:
         assert self._strategy is not None
         assert self._signal is not None
@@ -1074,6 +1094,7 @@ class PipelineBuilder:
         if self._portfolio is not None:
             portfolio_payload, portfolio_name = self._build_portfolio_payload(
                 portfolio_catalog=portfolio_catalog,
+                portfolio_registry=portfolio_registry,
                 component_strategy_name=strategy_alias,
             )
             portfolio_file_name = f"{self._pipeline_id}.portfolio.builder.yml"
@@ -1116,6 +1137,7 @@ class PipelineBuilder:
         self,
         *,
         portfolio_catalog: Mapping[str, Any],
+        portfolio_registry: Sequence[Mapping[str, Any]],
         component_strategy_name: str,
     ) -> tuple[dict[str, Any], str]:
         assert self._portfolio is not None
@@ -1127,9 +1149,27 @@ class PipelineBuilder:
             )
 
         portfolio_name = str(self._portfolio.params.get("portfolio_name", f"{self._pipeline_id}_portfolio"))
-        template_definition = _resolve_portfolio_template_definition(self._portfolio.name, portfolio_catalog)
+        template_definition: dict[str, Any] | None = None
+        if self._portfolio.version is not None:
+            template_definition = resolve_portfolio_template_definition(
+                portfolio_registry,
+                name=self._portfolio.name,
+                version=self._portfolio.version,
+            )
+            if template_definition is None:
+                raise PipelineBuilderError(
+                    f"Unknown portfolio template {self._portfolio.name!r} version {self._portfolio.version!r}."
+                )
+        else:
+            template_definition = _resolve_portfolio_template_from_catalog(self._portfolio.name, portfolio_catalog)
+            if template_definition is None:
+                template_definition = resolve_portfolio_template_definition(
+                    portfolio_registry,
+                    name=self._portfolio.name,
+                    version=None,
+                )
         if template_definition is None and self._portfolio.name not in _SUPPORTED_PORTFOLIO_BUILDERS:
-            available = ", ".join(_supported_portfolio_templates(portfolio_catalog))
+            available = ", ".join(_supported_portfolio_templates(portfolio_catalog, portfolio_registry))
             raise PipelineBuilderError(
                 f"Unknown portfolio builder {self._portfolio.name!r}. Available templates/builders: {available}."
             )
@@ -1197,6 +1237,8 @@ class PipelineBuilder:
         signal_registry: Mapping[str, Any],
         constructor_registry: Mapping[str, Any],
         strategy_catalog: Mapping[str, Any],
+        portfolio_catalog: Mapping[str, Any],
+        portfolio_registry: Sequence[Mapping[str, Any]],
     ) -> BuiltPipeline:
         assert self._strategy is not None
         assert self._sweep is not None
@@ -1248,30 +1290,66 @@ class PipelineBuilder:
         robustness_path = output_path.parent / robustness_file_name
         robustness_reference = _display_path(robustness_path)
 
+        pipeline_steps: list[dict[str, Any]] = [
+            {
+                "id": "research_sweep",
+                "adapter": "python_module",
+                "module": "src.cli.run_strategy",
+                "argv": self._sweep_step_argv(
+                    strategy_name=self._strategy.name,
+                    strategies_reference=strategies_reference,
+                    robustness_reference=robustness_reference,
+                ),
+            }
+        ]
+        support_files = {
+            strategies_file_name: yaml.safe_dump(base_strategy_config, sort_keys=False),
+            robustness_file_name: yaml.safe_dump({"robustness": robustness_payload}, sort_keys=False),
+        }
+
+        if self._portfolio is not None:
+            portfolio_payload, portfolio_name = self._build_portfolio_payload(
+                portfolio_catalog=portfolio_catalog,
+                portfolio_registry=portfolio_registry,
+                component_strategy_name=self._strategy.name,
+            )
+            portfolio_file_name = f"{self._pipeline_id}.portfolio.builder.yml"
+            portfolio_path = output_path.parent / portfolio_file_name
+            portfolio_reference = _display_path(portfolio_path)
+            support_files[portfolio_file_name] = yaml.safe_dump(portfolio_payload, sort_keys=False)
+            portfolio_timeframe = str(self._portfolio.params.get("timeframe", "1D"))
+            portfolio_step = {
+                "id": "run_portfolio",
+                "depends_on": ["research_sweep"],
+                "adapter": "python_module",
+                "module": "src.cli.run_portfolio",
+                "argv": [
+                    "--portfolio-config",
+                    portfolio_reference,
+                    "--portfolio-name",
+                    portfolio_name,
+                    "--timeframe",
+                    portfolio_timeframe,
+                    "--from-sweep-top-ranked",
+                ],
+            }
+            output_dir = self._portfolio.params.get("output_dir")
+            if output_dir is not None:
+                portfolio_step["argv"].extend(["--output-dir", str(output_dir)])
+            evaluation = self._portfolio.params.get("evaluation")
+            if evaluation is not None:
+                portfolio_step["argv"].extend(["--evaluation", str(evaluation)])
+            if self._strict:
+                portfolio_step["argv"].append("--strict")
+            pipeline_steps.append(portfolio_step)
+
         return BuiltPipeline(
             pipeline_id=self._pipeline_id,
             pipeline_yaml=yaml.safe_dump(
-                {
-                    "id": self._pipeline_id,
-                    "steps": [
-                        {
-                            "id": "research_sweep",
-                            "adapter": "python_module",
-                            "module": "src.cli.run_strategy",
-                            "argv": self._sweep_step_argv(
-                                strategy_name=self._strategy.name,
-                                strategies_reference=strategies_reference,
-                                robustness_reference=robustness_reference,
-                            ),
-                        }
-                    ],
-                },
+                {"id": self._pipeline_id, "steps": pipeline_steps},
                 sort_keys=False,
             ),
-            support_files={
-                strategies_file_name: yaml.safe_dump(base_strategy_config, sort_keys=False),
-                robustness_file_name: yaml.safe_dump({"robustness": robustness_payload}, sort_keys=False),
-            },
+            support_files=support_files,
         )
 
     def _build_robustness_payload(

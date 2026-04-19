@@ -68,6 +68,13 @@ from .qa import (
     validate_portfolio_return_consistency,
     validate_weights_behavior,
 )
+from .registry import (
+    DEFAULT_PORTFOLIO_TEMPLATE_REGISTRY_PATH,
+    default_portfolio_template_registry_path,
+    load_portfolio_template_registry,
+    register_portfolio_template,
+    resolve_portfolio_template_definition,
+)
 from .validation import (
     PortfolioValidationError,
     summarize_weight_diagnostics,
@@ -140,6 +147,11 @@ __all__ = [
     "historical_cvar",
     "volatility_target_diagnostics",
     "summarize_portfolio_risk",
+    "DEFAULT_PORTFOLIO_TEMPLATE_REGISTRY_PATH",
+    "default_portfolio_template_registry_path",
+    "load_portfolio_template_registry",
+    "register_portfolio_template",
+    "resolve_portfolio_template_definition",
 ]
 
 

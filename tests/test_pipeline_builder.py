@@ -150,6 +150,46 @@ def test_builder_emits_deterministic_yaml() -> None:
     assert first.support_files == second.support_files
 
 
+def test_builder_resolves_portfolio_template_from_registry(tmp_path: Path) -> None:
+    portfolio_registry = tmp_path / "portfolios.jsonl"
+    portfolio_registry.write_text(
+        json.dumps(
+            {
+                "run_id": "portfolio_template_core_1_0_0",
+                "run_type": "portfolio_template",
+                "timestamp": "2026-01-01T00:00:00Z",
+                "portfolio_name": "core_template",
+                "version": "1.0.0",
+                "definition": {
+                    "allocator": "equal_weight",
+                    "initial_capital": 2.0,
+                    "alignment_policy": "intersection",
+                },
+                "metadata": {},
+            }
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+    built = (
+        PipelineBuilder(
+            "registry_portfolio_pipeline",
+            portfolio_registry_path=portfolio_registry,
+        )
+        .strategy("cross_section_momentum", params={"lookback_days": 1})
+        .signal("cross_section_rank")
+        .construct_positions("rank_dollar_neutral", params={"gross_long": 0.5, "gross_short": 0.5})
+        .portfolio("core_template", version="1.0.0", params={"timeframe": "1D"})
+        .build()
+    )
+
+    portfolio_payload = yaml.safe_load(built.support_files["registry_portfolio_pipeline.portfolio.builder.yml"])
+    definition = portfolio_payload["portfolios"]["registry_portfolio_pipeline_portfolio"]
+    assert definition["allocator"] == "equal_weight"
+    assert definition["initial_capital"] == pytest.approx(2.0)
+
+
 def test_builder_runs_single_pipeline_with_portfolio(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_cross_section_dataset(tmp_path)
     monkeypatch.chdir(tmp_path)
@@ -202,3 +242,89 @@ def test_builder_runs_sweep_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyP
     assert step_artifact_dir.exists()
     assert (step_artifact_dir / "metrics_by_config.csv").exists()
     assert (step_artifact_dir / "ranked_configs.csv").exists()
+
+
+def test_builder_runs_sweep_pipeline_with_portfolio(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_cross_section_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    result = (
+        PipelineBuilder("builder_sweep_with_portfolio")
+        .strategy("cross_section_momentum", params={"lookback_days": 1})
+        .signal("cross_section_rank")
+        .construct_positions("rank_dollar_neutral", params={"gross_long": 0.5, "gross_short": 0.5})
+        .asymmetry({"exclude_short": False})
+        .sweep(
+            {
+                "signal": {"type": ["cross_section_rank"], "params": {"quantile": [0.2]}},
+                "constructor": {"name": ["rank_dollar_neutral"]},
+                "asymmetry": {"exclude_short": [False]},
+                "ranking": {"primary_metric": "sharpe_ratio", "tie_breakers": ["total_return"]},
+            }
+        )
+        .portfolio("equal_weight", params={"timeframe": "1D"})
+        .run()
+    )
+
+    pipeline_dir = tmp_path / "artifacts" / "pipelines" / result.pipeline_run_id
+    manifest = json.loads((pipeline_dir / "manifest.json").read_text(encoding="utf-8"))
+
+    assert result.status == "completed"
+    assert result.execution_order == ("research_sweep", "run_portfolio")
+    assert [step["step_id"] for step in manifest["steps"]] == ["research_sweep", "run_portfolio"]
+    assert Path(manifest["steps"][0]["step_artifact_dir"]).joinpath("ranked_configs.csv").exists()
+    assert Path(manifest["steps"][1]["step_artifact_dir"]).joinpath("manifest.json").exists()
+
+
+def test_builder_sweep_portfolio_yaml_matches_manual_shape() -> None:
+    built = (
+        PipelineBuilder("builder_sweep_parity")
+        .strategy("cross_section_momentum", params={"lookback_days": 20})
+        .signal("cross_section_rank")
+        .construct_positions("rank_dollar_neutral", params={"gross_long": 0.5, "gross_short": 0.5})
+        .asymmetry({"exclude_short": False})
+        .sweep(
+            {
+                "signal": {"type": ["cross_section_rank"], "params": {"quantile": [0.2]}},
+                "constructor": {"name": ["rank_dollar_neutral"]},
+                "ranking": {"primary_metric": "sharpe_ratio", "tie_breakers": ["total_return"]},
+            }
+        )
+        .portfolio("equal_weight", params={"timeframe": "1D"})
+        .build()
+    )
+
+    payload = yaml.safe_load(built.pipeline_yaml)
+    assert payload == {
+        "id": "builder_sweep_parity",
+        "steps": [
+            {
+                "id": "research_sweep",
+                "adapter": "python_module",
+                "module": "src.cli.run_strategy",
+                "argv": [
+                    "--strategy",
+                    "cross_section_momentum",
+                    "--strategies-config",
+                    "builder_sweep_parity.strategies.builder.yml",
+                    "--robustness",
+                    "builder_sweep_parity.robustness.builder.yml",
+                ],
+            },
+            {
+                "id": "run_portfolio",
+                "depends_on": ["research_sweep"],
+                "adapter": "python_module",
+                "module": "src.cli.run_portfolio",
+                "argv": [
+                    "--portfolio-config",
+                    "builder_sweep_parity.portfolio.builder.yml",
+                    "--portfolio-name",
+                    "builder_sweep_parity_portfolio",
+                    "--timeframe",
+                    "1D",
+                    "--from-sweep-top-ranked",
+                ],
+            },
+        ],
+    }

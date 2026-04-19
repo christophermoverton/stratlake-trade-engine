@@ -19,3 +19,9 @@ Behavior checks:
 - generated execution order includes both `run_strategy` and `run_portfolio`
 - declarative and imperative composition produce equivalent generated YAML
 - summaries avoid absolute path leakage
+
+Sweep-plus-portfolio checks (when configured):
+
+- generated execution order includes both `research_sweep` and `run_portfolio`
+- downstream portfolio step uses `--from-sweep-top-ranked`
+- sweep artifact directory contains `ranked_configs.csv` and `runs/<variant_id>/`

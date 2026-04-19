@@ -125,6 +125,14 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="Select the latest matching run per configured strategy from the strategy registry.",
     )
     parser.add_argument(
+        "--from-sweep-top-ranked",
+        action="store_true",
+        help=(
+            "Resolve portfolio components from the top-ranked upstream sweep variant "
+            "using pipeline state."
+        ),
+    )
+    parser.add_argument(
         "--from-candidate-selection",
         help="Build portfolio from candidate selection outputs. Provide path to candidate selection artifact directory.",
     )
@@ -295,6 +303,7 @@ def run_cli(
         portfolio_name=args.portfolio_name,
         explicit_run_ids=parse_run_ids(args.run_ids),
         from_registry=bool(args.from_registry),
+        from_sweep_top_ranked=bool(args.from_sweep_top_ranked),
         from_candidate_selection=(
             None if getattr(args, "from_candidate_selection", None) is None
             else Path(getattr(args, "from_candidate_selection"))
@@ -303,6 +312,7 @@ def run_cli(
         evaluation_path=None if args.evaluation is None else Path(args.evaluation),
         execution_override=execution_override,
         cli_overrides=cli_overrides,
+        state=state,
     )
     resolved_simulation = resolve_simulation_config(
         None if args.simulation is None else load_simulation_config(Path(args.simulation)).to_dict(),
@@ -614,6 +624,14 @@ def _validate_cli_args(args: argparse.Namespace, *, timeframe: str) -> None:
         raise ValueError("The --from-registry flag requires --portfolio-config.")
     if args.from_registry and has_candidate_selection:
         raise ValueError("The --from-registry flag cannot be combined with --from-candidate-selection.")
+    if args.from_sweep_top_ranked and not has_config:
+        raise ValueError("The --from-sweep-top-ranked flag requires --portfolio-config.")
+    if args.from_sweep_top_ranked and args.from_registry:
+        raise ValueError("The --from-sweep-top-ranked flag cannot be combined with --from-registry.")
+    if args.from_sweep_top_ranked and has_run_ids:
+        raise ValueError("The --from-sweep-top-ranked flag cannot be combined with --run-ids.")
+    if args.from_sweep_top_ranked and has_candidate_selection:
+        raise ValueError("The --from-sweep-top-ranked flag cannot be combined with --from-candidate-selection.")
     if args.portfolio_name and not has_config and not has_run_ids and not has_candidate_selection:
         raise ValueError("The --portfolio-name argument requires --portfolio-config or --run-ids.")
     if has_run_ids and not args.portfolio_name:
@@ -642,11 +660,13 @@ def _resolve_portfolio_inputs(
     portfolio_name: str | None,
     explicit_run_ids: Sequence[str],
     from_registry: bool,
+    from_sweep_top_ranked: bool,
     from_candidate_selection: Path | None,
     timeframe: str,
     evaluation_path: Path | None,
     execution_override: Mapping[str, Any] | None,
     cli_overrides: PortfolioCliOverrides | None,
+    state: Mapping[str, Any] | None,
 ) -> tuple[dict[str, Any], list[Path], list[dict[str, Any]]]:
     if portfolio_config_path is not None:
         raw_payload = load_portfolio_config(portfolio_config_path)
@@ -655,7 +675,13 @@ def _resolve_portfolio_inputs(
             raw_definition,
             portfolio_name=portfolio_name,
         )
-        if from_registry:
+        if from_sweep_top_ranked:
+            components = _resolve_sweep_ranked_components(
+                base_definition["components"],
+                timeframe=timeframe,
+                state=state,
+            )
+        elif from_registry:
             components = _resolve_registry_components(
                 base_definition["components"],
                 timeframe=timeframe,
@@ -899,6 +925,7 @@ def _resolve_config_components(raw_components: Sequence[Mapping[str, Any]]) -> l
                 run_id,
                 artifact_type=component.get("artifact_type"),
                 expected_strategy_name=component.get("strategy_name"),
+                source_artifact_path=component.get("source_artifact_path"),
             )
         )
     return _sorted_components(resolved)
@@ -910,6 +937,7 @@ def _resolve_explicit_run_id_components(run_ids: Sequence[str]) -> list[dict[str
             _normalize_required_string(run_id, field_name="run_id"),
             artifact_type="strategy",
             expected_strategy_name=None,
+            source_artifact_path=None,
         )
         for run_id in run_ids
     ]
@@ -965,9 +993,94 @@ def _resolve_registry_components(
                 _normalize_required_string(selected.get("run_id"), field_name="run_id"),
                 artifact_type=artifact_type,
                 expected_strategy_name=strategy_name,
+                source_artifact_path=None,
             )
         )
     return _sorted_components(resolved)
+
+
+def _resolve_sweep_ranked_components(
+    raw_components: Sequence[Mapping[str, Any]],
+    *,
+    timeframe: str,
+    state: Mapping[str, Any] | None,
+) -> list[dict[str, Any]]:
+    del timeframe
+    if len(raw_components) != 1:
+        raise ValueError(
+            "Sweep-driven portfolio generation currently supports exactly one component in portfolio config."
+        )
+    if state is None:
+        raise ValueError(
+            "Pipeline state is required for --from-sweep-top-ranked. Ensure this step depends on a sweep step."
+        )
+
+    sweep_artifact_dir_raw = state.get("sweep_artifact_dir")
+    if not isinstance(sweep_artifact_dir_raw, str) or not sweep_artifact_dir_raw.strip():
+        raise ValueError(
+            "Pipeline state is missing 'sweep_artifact_dir' required by --from-sweep-top-ranked."
+        )
+
+    sweep_artifact_dir = Path(sweep_artifact_dir_raw)
+    ranked_configs_path = sweep_artifact_dir / "ranked_configs.csv"
+    runs_dir = sweep_artifact_dir / "runs"
+    if not ranked_configs_path.exists():
+        raise ValueError(
+            f"Sweep artifact directory '{sweep_artifact_dir.as_posix()}' is missing ranked_configs.csv."
+        )
+    if not runs_dir.exists():
+        raise ValueError(
+            f"Sweep artifact directory '{sweep_artifact_dir.as_posix()}' is missing runs/ directory."
+        )
+
+    ranked = pd.read_csv(ranked_configs_path)
+    required_columns = {"rank", "variant_id", "strategy_name"}
+    missing_columns = sorted(required_columns - set(ranked.columns))
+    if missing_columns:
+        raise ValueError(
+            "Sweep ranked_configs.csv is missing required columns: "
+            + ", ".join(missing_columns)
+            + "."
+        )
+    if ranked.empty:
+        raise ValueError("Sweep ranked_configs.csv is empty; cannot resolve top-ranked variant.")
+
+    ordered = ranked.sort_values(["rank", "variant_id"], kind="stable")
+    top = ordered.iloc[0]
+    variant_id = _normalize_required_string(
+        top.get("variant_id"),
+        field_name="ranked_configs.variant_id",
+    )
+    strategy_name = _normalize_required_string(
+        top.get("strategy_name"),
+        field_name="ranked_configs.strategy_name",
+    )
+    source_artifact_path = runs_dir / variant_id
+    if not source_artifact_path.exists():
+        raise ValueError(
+            f"Top-ranked sweep variant '{variant_id}' has no artifact directory at '{source_artifact_path.as_posix()}'."
+        )
+
+    configured_component = raw_components[0]
+    expected_strategy_name = configured_component.get("strategy_name")
+    if (
+        isinstance(expected_strategy_name, str)
+        and expected_strategy_name.strip()
+        and expected_strategy_name.strip() != strategy_name
+    ):
+        raise ValueError(
+            "Top-ranked sweep strategy does not match portfolio component strategy_name "
+            f"({strategy_name!r} vs {expected_strategy_name.strip()!r})."
+        )
+
+    run_id = f"{sweep_artifact_dir.name}:{variant_id}"
+    component = _resolve_run_component(
+        run_id,
+        artifact_type=configured_component.get("artifact_type", "strategy"),
+        expected_strategy_name=strategy_name,
+        source_artifact_path=source_artifact_path,
+    )
+    return _sorted_components([component])
 
 
 def _resolve_candidate_selection_components(
@@ -1043,14 +1156,21 @@ def _resolve_run_component(
     *,
     artifact_type: object | None,
     expected_strategy_name: object | None,
+    source_artifact_path: object | None,
 ) -> dict[str, Any]:
     normalized_artifact_type = _normalize_component_artifact_type(artifact_type, field_name="artifact_type")
-    registry_entry = _find_registry_entry_for_run_id(run_id, artifact_type=normalized_artifact_type)
-    run_dir = (
-        Path(str(registry_entry["artifact_path"]))
-        if registry_entry is not None and registry_entry.get("artifact_path") is not None
-        else _default_artifact_dir_for_run(run_id, artifact_type=normalized_artifact_type)
-    )
+    run_dir: Path
+    if isinstance(source_artifact_path, str) and source_artifact_path.strip():
+        run_dir = Path(source_artifact_path.strip())
+    elif isinstance(source_artifact_path, Path):
+        run_dir = source_artifact_path
+    else:
+        registry_entry = _find_registry_entry_for_run_id(run_id, artifact_type=normalized_artifact_type)
+        run_dir = (
+            Path(str(registry_entry["artifact_path"]))
+            if registry_entry is not None and registry_entry.get("artifact_path") is not None
+            else _default_artifact_dir_for_run(run_id, artifact_type=normalized_artifact_type)
+        )
     if not run_dir.exists():
         raise ValueError(
             f"Portfolio component run '{run_id}' with artifact_type '{normalized_artifact_type}' "

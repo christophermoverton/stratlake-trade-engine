@@ -469,6 +469,7 @@ def run_cli(
         artifact_dir = getattr(result, "experiment_dir", None)
         metrics = getattr(result, "metrics", None)
         output_paths = {}
+        state_updates: dict[str, Any] = {}
         if artifact_dir is not None:
             output_paths = {
                 "manifest_json": Path(artifact_dir) / "manifest.json",
@@ -476,6 +477,10 @@ def run_cli(
                 "qa_summary_json": Path(artifact_dir) / "qa_summary.json",
                 "equity_curve_csv": Path(artifact_dir) / "equity_curve.csv",
             }
+            ranked_configs = Path(artifact_dir) / "ranked_configs.csv"
+            if ranked_configs.exists():
+                state_updates["sweep_artifact_dir"] = Path(artifact_dir).as_posix()
+                state_updates["sweep_ranked_configs_csv"] = ranked_configs.as_posix()
         return build_pipeline_cli_result(
             identifier=str(getattr(result, "run_id", strategy_name)),
             name=str(getattr(result, "strategy_name", strategy_name)),
@@ -491,6 +496,7 @@ def run_cli(
                 "strategy_name": str(getattr(result, "strategy_name", strategy_name)),
                 "result_type": result.__class__.__name__,
             },
+            state_updates=state_updates,
         )
     return result
 

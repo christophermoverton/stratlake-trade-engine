@@ -10,6 +10,7 @@ Demonstrate the Pipeline Helper / Declarative Builder path as a first-class cano
 - builder rendering through `src.cli.build_pipeline`
 - execution parity with equivalent imperative `PipelineBuilder` composition
 - strategy plus portfolio stage composition in one generated M20 pipeline
+- sweep plus downstream portfolio composition via top-ranked sweep variant selection (`--from-sweep-top-ranked`) when configured
 
 ## Run
 

@@ -1,0 +1,53 @@
+{
+  "artifacts": {
+    "summary": "summary.json"
+  },
+  "components": {
+    "position_constructors": [
+      "identity_weights",
+      "identity_weights",
+      "rank_dollar_neutral"
+    ],
+    "signal_semantics": [
+      "ternary_quantile",
+      "ternary_quantile",
+      "cross_section_rank"
+    ],
+    "strategy_archetypes": [
+      "time_series_momentum",
+      "mean_reversion",
+      "cross_section_momentum"
+    ]
+  },
+  "pipeline": "strategy_archetype_showcase",
+  "purpose": "Show trend, mean-reversion, and cross-sectional archetypes under one canonical composition framework.",
+  "runs": [
+    {
+      "constructor": "identity_weights",
+      "pipeline_manifest": "workspace/artifacts/pipelines/m21_archetype_time_series_momentum_pipeline_f0f36c9d1996/manifest.json",
+      "pipeline_run_id": "m21_archetype_time_series_momentum_pipeline_f0f36c9d1996",
+      "signal_type": "ternary_quantile",
+      "status": "completed",
+      "strategy": "time_series_momentum",
+      "strategy_artifact_dir": "workspace/artifacts/strategies/m21_archetype_time_series_momentum_strategy_single_ffc655be4742"
+    },
+    {
+      "constructor": "identity_weights",
+      "pipeline_manifest": "workspace/artifacts/pipelines/m21_archetype_mean_reversion_pipeline_523e42b9bd64/manifest.json",
+      "pipeline_run_id": "m21_archetype_mean_reversion_pipeline_523e42b9bd64",
+      "signal_type": "ternary_quantile",
+      "status": "completed",
+      "strategy": "mean_reversion",
+      "strategy_artifact_dir": "workspace/artifacts/strategies/m21_archetype_mean_reversion_strategy_single_7a63b589904c"
+    },
+    {
+      "constructor": "rank_dollar_neutral",
+      "pipeline_manifest": "workspace/artifacts/pipelines/m21_archetype_cross_section_momentum_pipeline_3f9cbcf37cd4/manifest.json",
+      "pipeline_run_id": "m21_archetype_cross_section_momentum_pipeline_3f9cbcf37cd4",
+      "signal_type": "cross_section_rank",
+      "status": "completed",
+      "strategy": "cross_section_momentum",
+      "strategy_artifact_dir": "workspace/artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a"
+    }
+  ]
+}

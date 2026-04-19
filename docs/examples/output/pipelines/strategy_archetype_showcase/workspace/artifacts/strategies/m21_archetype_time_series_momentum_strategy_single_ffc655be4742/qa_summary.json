@@ -1,0 +1,75 @@
+{
+  "dataset": "features_daily",
+  "date_range": [
+    "2025-01-10T00:00:00Z",
+    "2025-02-24T00:00:00Z"
+  ],
+  "execution": {
+    "equity_curve_present": true,
+    "valid_returns": true
+  },
+  "flags": {
+    "beta_dominated_strategy": false,
+    "degenerate_signal": false,
+    "high_benchmark_correlation": false,
+    "high_turnover": false,
+    "high_turnover_low_edge": false,
+    "low_data": false,
+    "low_excess_return": false,
+    "no_data": false,
+    "no_trades": false,
+    "sanity_warning": true
+  },
+  "input_validation": {
+    "low_data": false,
+    "required_columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "close"
+    ],
+    "row_count": 230,
+    "timeframe": "1D",
+    "valid_row_count": 230
+  },
+  "metrics": {
+    "max_drawdown": 0.0,
+    "sharpe": 17.848730010032373,
+    "total_return": 0.16022999313171193
+  },
+  "overall_status": "warn",
+  "relative": {
+    "benchmark_return": 0.0018408546267534298,
+    "correlation": -0.20556424033205933,
+    "excess_return": 0.1583891385049585,
+    "relative_drawdown": -0.012745504961496734
+  },
+  "row_count": 230,
+  "run_id": "m21_archetype_time_series_momentum_strategy_single_ffc655be4742",
+  "sanity": {
+    "issue_count": 1,
+    "issues": [
+      {
+        "code": "sharpe_ratio_exceeds_threshold",
+        "location": null,
+        "message": "Sanity check flagged: sharpe_ratio exceeds configured maximum 10.0.",
+        "severity": "warning",
+        "threshold": 10.0,
+        "value": 17.848730010032373
+      }
+    ],
+    "status": "warn",
+    "strict_sanity_checks": false,
+    "warning_count": 1
+  },
+  "signal": {
+    "pct_flat": 0.41304347826086957,
+    "pct_long": 0.3521739130434783,
+    "pct_short": 0.23478260869565218,
+    "total_trades": 5,
+    "turnover": 0.021739130434782608
+  },
+  "strategy_name": "m21_archetype_time_series_momentum__strategy",
+  "symbols_present": 5,
+  "timeframe": "1D"
+}

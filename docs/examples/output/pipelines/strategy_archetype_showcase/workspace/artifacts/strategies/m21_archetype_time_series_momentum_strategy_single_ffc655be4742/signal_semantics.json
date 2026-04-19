@@ -1,0 +1,28 @@
+{
+  "constructor_id": "identity_weights",
+  "constructor_params": {},
+  "definition": {
+    "compatible_position_constructors": [
+      "identity_weights",
+      "top_bottom_equal_weight"
+    ],
+    "cross_sectional": false,
+    "directional": true,
+    "executable": true,
+    "ordinal": true,
+    "probabilistic": false
+  },
+  "parameters": {},
+  "signal_origin": "strategy.generate_signals",
+  "signal_type": "ternary_quantile",
+  "source": {
+    "dataset": "features_daily",
+    "layer": "strategy",
+    "strategy_class": "TimeSeriesMomentumStrategy",
+    "strategy_name": "time_series_momentum"
+  },
+  "timestamp_normalization": "UTC",
+  "transformation_history": [],
+  "value_column": "signal",
+  "version": "1.0.0"
+}

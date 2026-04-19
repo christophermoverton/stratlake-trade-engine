@@ -1,0 +1,30 @@
+{
+  "constructor_id": "rank_dollar_neutral",
+  "constructor_params": {
+    "gross_long": 0.5,
+    "gross_short": 0.5
+  },
+  "definition": {
+    "compatible_position_constructors": [
+      "rank_dollar_neutral"
+    ],
+    "cross_sectional": true,
+    "directional": true,
+    "executable": true,
+    "ordinal": true,
+    "probabilistic": false
+  },
+  "parameters": {},
+  "signal_origin": "strategy.generate_signals",
+  "signal_type": "cross_section_rank",
+  "source": {
+    "dataset": "features_daily",
+    "layer": "strategy",
+    "strategy_class": "CrossSectionMomentumStrategy",
+    "strategy_name": "cross_section_momentum"
+  },
+  "timestamp_normalization": "UTC",
+  "transformation_history": [],
+  "value_column": "signal",
+  "version": "1.0.0"
+}

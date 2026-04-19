@@ -1,0 +1,20 @@
+strategy:
+  name: m21_archetype_mean_reversion__strategy
+  strategy_id: mean_reversion
+  version: 1.0.0
+  dataset: features_daily
+  params:
+    lookback: 10
+    threshold: 1.0
+  source_signal_type: ternary_quantile
+signal:
+  type: ternary_quantile
+  version: 1.0.0
+  params:
+    quantile: 0.2
+constructor:
+  name: identity_weights
+  version: 1.0.0
+  params: {}
+asymmetry:
+  params: {}

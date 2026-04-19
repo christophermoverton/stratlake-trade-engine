@@ -1,0 +1,70 @@
+{
+  "pipeline_name": "m21_archetype_cross_section_momentum",
+  "pipeline_run_id": "m21_archetype_cross_section_momentum_pipeline_3f9cbcf37cd4",
+  "run_type": "pipeline_manifest",
+  "schema_version": 1,
+  "status": "completed",
+  "steps": [
+    {
+      "depends_on": [],
+      "module": "src.cli.run_builder_strategy",
+      "outputs": {
+        "artifact_dir": "artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a",
+        "manifest_path": "artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a/manifest.json",
+        "metrics": {
+          "annualized_return": -0.0019196150935074652,
+          "annualized_volatility": 0.01275033807307407,
+          "average_execution_friction_per_trade": 0.0,
+          "average_trade_size": 0.27410714285714277,
+          "average_turnover": 0.26695652173913037,
+          "benchmark_correlation": 0.058197667065657134,
+          "benchmark_total_return": 0.0018408546267534298,
+          "cumulative_return": -0.0003506811800257914,
+          "excess_return": -0.0021915358067792212,
+          "exposure_pct": 78.26086956521739,
+          "hit_rate": 0.49162011173184356,
+          "max_drawdown": 0.0024309931554508113,
+          "percent_periods_traded": 97.3913043478261,
+          "plausibility_flags": {
+            "beta_dominated_strategy": false,
+            "high_benchmark_correlation": false,
+            "high_turnover_low_edge": false,
+            "low_excess_return": true
+          },
+          "profit_factor": 0.9777878769685048,
+          "rebalance_count": 224.0,
+          "relative_drawdown": -0.010314511806045923,
+          "sanity_issue_count": 0.0,
+          "sanity_status": "pass",
+          "sanity_strict_mode": false,
+          "sanity_warning_count": 0.0,
+          "sharpe_ratio": -0.14446420333043297,
+          "total_execution_friction": 0.0,
+          "total_return": -0.0003506811800257914,
+          "total_slippage_cost": 0.0,
+          "total_transaction_cost": 0.0,
+          "total_turnover": 61.399999999999984,
+          "trade_count": 224.0,
+          "turnover": 0.26695652173913037,
+          "volatility": 0.0008031958017464877,
+          "win_rate": 0.391304347826087
+        },
+        "name": "m21_archetype_cross_section_momentum__strategy",
+        "output_paths": {
+          "equity_curve_csv": "artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a/equity_curve.csv",
+          "manifest_json": "artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a/manifest.json",
+          "metrics_json": "artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a/metrics.json",
+          "qa_summary_json": "artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a/qa_summary.json"
+        },
+        "result_type": "DeclarativeStrategyRunResult",
+        "run_id": "m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a",
+        "status": "completed",
+        "strategy_name": "m21_archetype_cross_section_momentum__strategy"
+      },
+      "status": "completed",
+      "step_artifact_dir": "artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a",
+      "step_id": "run_strategy",
+      "step_manifest_path": "artifacts/strategies/m21_archetype_cross_section_momentum_strategy_single_6db69174fa6a/manifest.json"
+    }
+  ]
+}

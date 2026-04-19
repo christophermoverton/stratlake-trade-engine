@@ -1,0 +1,3 @@
+{"artifact_dir":"artifacts/pipelines/m21_archetype_time_series_momentum_pipeline_f0f36c9d1996","pipeline_name":"m21_archetype_time_series_momentum","pipeline_run_id":"m21_archetype_time_series_momentum_pipeline_f0f36c9d1996","status":"completed"}
+{"artifact_dir":"artifacts/pipelines/m21_archetype_mean_reversion_pipeline_523e42b9bd64","pipeline_name":"m21_archetype_mean_reversion","pipeline_run_id":"m21_archetype_mean_reversion_pipeline_523e42b9bd64","status":"completed"}
+{"artifact_dir":"artifacts/pipelines/m21_archetype_cross_section_momentum_pipeline_3f9cbcf37cd4","pipeline_name":"m21_archetype_cross_section_momentum","pipeline_run_id":"m21_archetype_cross_section_momentum_pipeline_3f9cbcf37cd4","status":"completed"}

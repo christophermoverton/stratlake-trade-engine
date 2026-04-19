@@ -1,0 +1,31 @@
+{
+  "duration_seconds": 2.0,
+  "ended_at_unix": 1705619119.0,
+  "pipeline_name": "m21_archetype_cross_section_momentum",
+  "pipeline_run_id": "m21_archetype_cross_section_momentum_pipeline_3f9cbcf37cd4",
+  "row_counts": {
+    "run_strategy": 230
+  },
+  "run_type": "pipeline_metrics",
+  "schema_version": 1,
+  "started_at_unix": 1705619117.0,
+  "status": "completed",
+  "status_counts": {
+    "completed": 1,
+    "failed": 0,
+    "reused": 0,
+    "skipped": 0
+  },
+  "step_durations_seconds": {
+    "run_strategy": 1.0
+  },
+  "steps": [
+    {
+      "duration_seconds": 1.0,
+      "ended_at_unix": 1705619119.0,
+      "started_at_unix": 1705619118.0,
+      "status": "completed",
+      "step_id": "run_strategy"
+    }
+  ]
+}

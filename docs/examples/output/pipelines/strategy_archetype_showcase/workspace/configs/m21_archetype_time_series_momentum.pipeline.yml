@@ -1,0 +1,12 @@
+id: m21_archetype_time_series_momentum
+steps:
+- id: run_strategy
+  adapter: python_module
+  module: src.cli.run_builder_strategy
+  argv:
+  - --config
+  - configs/m21_archetype_time_series_momentum.strategy.builder.yml
+  - --start
+  - '2025-01-10'
+  - --end
+  - '2025-02-25'

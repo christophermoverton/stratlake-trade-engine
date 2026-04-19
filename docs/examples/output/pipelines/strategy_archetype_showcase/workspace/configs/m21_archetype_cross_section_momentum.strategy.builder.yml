@@ -1,0 +1,20 @@
+strategy:
+  name: m21_archetype_cross_section_momentum__strategy
+  strategy_id: cross_section_momentum
+  version: 1.0.0
+  dataset: features_daily
+  params:
+    lookback_days: 5
+  source_signal_type: cross_section_rank
+signal:
+  type: cross_section_rank
+  version: 1.0.0
+  params: {}
+constructor:
+  name: rank_dollar_neutral
+  version: 1.0.0
+  params:
+    gross_long: 0.5
+    gross_short: 0.5
+asymmetry:
+  params: {}

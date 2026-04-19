@@ -13,6 +13,7 @@ from src.config.execution import ExecutionConfig
 from src.research.alpha import predict_alpha_model, register_alpha_model, train_alpha_model
 from src.research.alpha.base import BaseAlphaModel
 from src.research.backtest_runner import run_backtest
+from src.research.signal_semantics import attach_signal_metadata
 
 
 def _backtest_frame() -> pd.DataFrame:
@@ -319,6 +320,35 @@ def test_run_backtest_preserves_legacy_discrete_behavior() -> None:
     assert result["executed_signal"].tolist() == pytest.approx([0.0, 1.0, 1.0, -1.0])
     assert result["strategy_return"].tolist() == pytest.approx([0.0, -0.02, 0.03, 0.01])
     assert result["equity_curve"].tolist() == pytest.approx([1.0, 0.98, 1.0094, 1.019494])
+
+
+def test_run_backtest_rejects_unmanaged_legacy_signal_frames_when_managed_required() -> None:
+    df = _backtest_frame()
+
+    with pytest.raises(ValueError, match="Canonical workflows do not accept unmanaged legacy signal frames"):
+        run_backtest(df, require_managed_signals=True)
+
+
+def test_run_backtest_rejects_legacy_compatibility_metadata_when_managed_required() -> None:
+    df = _backtest_frame()
+    attach_signal_metadata(
+        df,
+        {
+            "signal_type": "ternary_quantile",
+            "version": "1.0.0",
+            "value_column": "signal",
+            "compatibility_mode": "legacy_inferred",
+            "constructor_id": "backtest_numeric_exposure",
+            "constructor_params": {},
+            "parameters": {},
+            "source": {"layer": "legacy_backtest_input"},
+            "timestamp_normalization": "UTC",
+            "transformation_history": [],
+        },
+    )
+
+    with pytest.raises(ValueError, match="must declare managed typed signal metadata"):
+        run_backtest(df, require_managed_signals=True)
 
 
 def test_run_backtest_accepts_prediction_derived_continuous_signals() -> None:

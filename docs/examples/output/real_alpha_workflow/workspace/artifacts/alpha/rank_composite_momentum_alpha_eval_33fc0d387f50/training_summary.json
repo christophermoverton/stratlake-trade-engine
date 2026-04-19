@@ -5,8 +5,10 @@
     "feature_ret_20d",
     "feature_close_to_sma20"
   ],
+  "hyperparameters": {},
   "model_class": "RankCompositeAlphaModel",
   "model_name": "rank_composite_momentum",
+  "model_type": "rank_composite_alpha_model",
   "prediction": {
     "columns": [
       "symbol",
@@ -20,7 +22,7 @@
     "predict_symbol_count": 6,
     "window_semantics": "[predict_start, predict_end)"
   },
-  "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+  "run_id": "rank_composite_momentum_alpha_eval_33fc0d387f50",
   "signal_mapping": {
     "output_columns": [
       "symbol",
@@ -30,10 +32,22 @@
       "signal"
     ],
     "policy": "top_bottom_quantile",
+    "position_constructor": {
+      "name": "top_bottom_equal_weight",
+      "params": {
+        "gross_long": 0.5,
+        "gross_short": 0.5
+      }
+    },
     "prediction_column": "prediction_score",
     "quantile": 0.34,
     "row_count": 42,
     "signal_column": "signal",
+    "signal_params": {
+      "quantile": 0.34
+    },
+    "signal_type": "ternary_quantile",
+    "signal_version": "1.0.0",
     "timestamp_count": 7
   },
   "target_column": "target_ret_5d",

@@ -457,3 +457,12 @@ def test_save_experiment_persists_signal_semantics_when_present(
     assert manifest["signal_type"] == "binary_signal"
     assert manifest["signal_semantics_path"] == "signal_semantics.json"
     assert "signal_semantics.json" in manifest["artifact_files"]
+    assert manifest["signal_contract"] == {
+        "compatibility_mode": "managed",
+        "constructor_id": None,
+        "constructor_params": {},
+        "signal_semantics_path": "signal_semantics.json",
+        "signal_type": "binary_signal",
+        "signal_version": "1.0.0",
+        "value_column": "signal",
+    }

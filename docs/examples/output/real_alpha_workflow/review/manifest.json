@@ -110,7 +110,7 @@
     "timeframe": null,
     "top_k_per_type": 1
   },
-  "review_id": "registry_review_f0e5786e2f00",
+  "review_id": "registry_review_ac6977fb9db9",
   "review_metrics": {
     "alpha_entry_count": 1,
     "blocked_entry_count": 0,
@@ -131,5 +131,5 @@
     "alpha_evaluation_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false.",
     "portfolio_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false."
   },
-  "timestamp": "2012-11-02T13:27:46Z"
+  "timestamp": "2019-08-27T15:05:56Z"
 }

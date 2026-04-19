@@ -15,6 +15,7 @@ DEFAULT_SIGNAL_TYPES_REGISTRY = REPO_ROOT / "artifacts" / "registry" / "signal_t
 DEFAULT_SIGNAL_SCHEMA_VERSION = "1.0.0"
 _STRUCTURAL_COLUMNS: tuple[str, ...] = ("symbol", "ts_utc")
 _EXECUTABLE_POSITION_CONSTRUCTOR = "backtest_numeric_exposure"
+_LEGACY_COMPATIBILITY_MODES = frozenset({"legacy_inferred"})
 
 
 class SignalSemanticsError(ValueError):
@@ -383,6 +384,65 @@ def extract_signal_metadata(df: pd.DataFrame | None) -> dict[str, Any] | None:
     return None
 
 
+def signal_compatibility_mode(payload: Mapping[str, Any] | None) -> str | None:
+    if payload is None:
+        return None
+    value = payload.get("compatibility_mode")
+    if value is None:
+        return "managed"
+    return _normalize_non_empty_string(value, field_name="compatibility_mode")
+
+
+def is_managed_signal_metadata(payload: Mapping[str, Any] | None) -> bool:
+    if payload is None:
+        return False
+    compatibility_mode = signal_compatibility_mode(payload)
+    return compatibility_mode not in _LEGACY_COMPATIBILITY_MODES
+
+
+def require_managed_signal_metadata(
+    df: pd.DataFrame | None,
+    *,
+    owner: str = "Signal frame",
+) -> dict[str, Any]:
+    payload = extract_signal_metadata(df)
+    if payload is None:
+        raise SignalSemanticsError(
+            f"{owner} must declare explicit typed signal metadata. "
+            "Canonical workflows do not accept unmanaged legacy signal frames."
+        )
+    if not is_managed_signal_metadata(payload):
+        compatibility_mode = signal_compatibility_mode(payload)
+        raise SignalSemanticsError(
+            f"{owner} must declare managed typed signal metadata. "
+            f"Received compatibility_mode={compatibility_mode!r}."
+        )
+    return payload
+
+
+def build_signal_contract(
+    payload: Mapping[str, Any] | None,
+    *,
+    signal_semantics_path: str | None = None,
+) -> dict[str, Any] | None:
+    if payload is None:
+        return None
+    constructor_params = payload.get("constructor_params", {})
+    if not isinstance(constructor_params, Mapping):
+        constructor_params = {}
+    return canonicalize_signal_payload(
+        {
+            "compatibility_mode": signal_compatibility_mode(payload),
+            "constructor_id": payload.get("constructor_id"),
+            "constructor_params": dict(constructor_params),
+            "signal_semantics_path": signal_semantics_path,
+            "signal_type": payload.get("signal_type"),
+            "signal_version": payload.get("version"),
+            "value_column": payload.get("value_column"),
+        }
+    )
+
+
 def create_signal(
     df: pd.DataFrame,
     *,
@@ -411,6 +471,7 @@ def create_signal(
             "signal_type": definition.signal_type_id,
             "version": definition.version,
             "value_column": value_column,
+            "compatibility_mode": "managed",
             "source": dict(source or {}),
             "parameters": dict(parameters or {}),
             "timestamp_normalization": "UTC",
@@ -874,17 +935,21 @@ __all__ = [
     "SignalSemanticsError",
     "SignalTypeDefinition",
     "attach_signal_metadata",
+    "build_signal_contract",
     "canonicalize_signal_payload",
     "create_signal",
     "default_signal_registry_path",
     "ensure_signal_type_compatible",
     "executable_position_constructor_name",
     "extract_signal_metadata",
+    "is_managed_signal_metadata",
     "legacy_signal_type_from_values",
     "load_signal_type_registry",
     "percentile_to_quantile_bucket",
     "rank_to_percentile",
+    "require_managed_signal_metadata",
     "resolve_signal_type_definition",
+    "signal_compatibility_mode",
     "validate_directional_asymmetry_compatibility",
     "score_to_binary_long_only",
     "score_to_cross_section_rank",

@@ -422,7 +422,11 @@ def _execute_strategy_spec(
     if benchmark is None:
         benchmark = build_benchmark_fn(dataset, dataset_name, effective_execution)
         benchmark_cache[benchmark_key] = benchmark
-    results_df = run_backtest(managed, effective_execution)
+    results_df = run_backtest(
+        managed,
+        effective_execution,
+        require_managed_signals=True,
+    )
     metrics = compute_performance_metrics(results_df)
     metrics.update(compute_benchmark_relative_metrics(results_df, benchmark))
     metrics = apply_sanity_fn(metrics, results_df, runtime_config, scope=f"extended:{record['strategy']['name']}")

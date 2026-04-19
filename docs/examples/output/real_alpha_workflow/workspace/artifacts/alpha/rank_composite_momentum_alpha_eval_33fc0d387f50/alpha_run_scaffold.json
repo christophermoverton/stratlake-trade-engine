@@ -1,6 +1,6 @@
 {
   "alpha_name": "rank_composite_momentum",
-  "artifact_dir": "artifacts/alpha/rank_composite_momentum_alpha_eval_bb267780ab85",
+  "artifact_dir": "artifacts/alpha/rank_composite_momentum_alpha_eval_33fc0d387f50",
   "evaluation_metrics": {
     "ic_ir": 350561232.1486001,
     "mean_ic": 0.9999952949916516,
@@ -27,12 +27,26 @@
       "use_ic_weights": true
     },
     "model_type": "rank_composite",
+    "position_constructor": {
+      "name": "zscore_clip_scale",
+      "params": {
+        "clip": 3.0,
+        "gross_exposure": 1.0
+      }
+    },
     "predict_end": "2025-01-25",
     "predict_start": "2025-01-18",
     "price_column": "close",
     "run_mode": "full",
     "signal_mapping": {
       "policy": "top_bottom_quantile",
+      "position_constructor": {
+        "name": "top_bottom_equal_weight",
+        "params": {
+          "gross_long": 0.5,
+          "gross_short": 0.5
+        }
+      },
       "quantile": 0.34
     },
     "start": "2025-01-01",
@@ -40,16 +54,38 @@
     "train_end": "2025-01-18",
     "train_start": "2025-01-04"
   },
-  "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+  "run_id": "rank_composite_momentum_alpha_eval_33fc0d387f50",
   "signal_mapping": {
     "config": {
       "metadata": {},
       "output_column": "signal",
       "policy": "top_bottom_quantile",
+      "position_constructor_name": "top_bottom_equal_weight",
+      "position_constructor_params": {
+        "gross_long": 0.5,
+        "gross_short": 0.5
+      },
       "prediction_column": "prediction_score",
-      "quantile": 0.34
+      "quantile": 0.34,
+      "signal_params": {
+        "quantile": 0.34
+      },
+      "signal_type": "ternary_quantile"
     },
     "row_count": 42,
+    "signal_contract": {
+      "compatibility_mode": "managed",
+      "constructor_id": "top_bottom_equal_weight",
+      "constructor_params": {
+        "gross_long": 0.5,
+        "gross_short": 0.5
+      },
+      "signal_semantics_path": "signal_semantics.json",
+      "signal_type": "ternary_quantile",
+      "signal_version": "1.0.0",
+      "value_column": "signal"
+    },
+    "signal_semantics_path": "signal_semantics.json",
     "signals_path": "signals.parquet"
   },
   "sleeve": {

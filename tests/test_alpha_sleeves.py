@@ -7,7 +7,9 @@ import pandas as pd
 import pandas.testing as pdt
 import pytest
 
+from src.research.position_constructors import position_constructor_metadata_payload
 from src.research.alpha_eval.sleeves import generate_alpha_sleeve, write_alpha_sleeve_artifacts
+from src.research.signal_semantics import create_signal
 
 
 def _signals_frame() -> pd.DataFrame:
@@ -30,6 +32,17 @@ def _signals_frame() -> pd.DataFrame:
             "signal": [1.0, 0.0, -1.0, -1.0, 0.0, 1.0],
         }
     )
+
+
+def _managed_signals_frame() -> pd.DataFrame:
+    signal = create_signal(
+        _signals_frame().sort_values(["symbol", "ts_utc", "timeframe"], kind="stable").reset_index(drop=True),
+        signal_type="target_weight",
+        value_column="signal",
+        source={"layer": "alpha", "component": "unit_test"},
+        metadata=position_constructor_metadata_payload(name="identity_weights", params={}),
+    )
+    return signal.data
 
 
 def _dataset_frame() -> pd.DataFrame:
@@ -55,7 +68,7 @@ def _dataset_frame() -> pd.DataFrame:
 
 def test_generate_alpha_sleeve_builds_expected_return_stream() -> None:
     result = generate_alpha_sleeve(
-        signals=_signals_frame(),
+        signals=_managed_signals_frame(),
         dataset=_dataset_frame(),
         realized_return_column="feature_ret_1d",
         alpha_name="demo_alpha",
@@ -68,12 +81,12 @@ def test_generate_alpha_sleeve_builds_expected_return_stream() -> None:
     assert result.metrics["alpha_name"] == "demo_alpha"
     assert result.metrics["run_id"] == "demo_run"
     assert result.metrics["return_source"] == "realized_return_column:feature_ret_1d"
-    assert result.metrics["constructor_id"] == "backtest_numeric_exposure"
+    assert result.metrics["constructor_id"] == "identity_weights"
 
 
 def test_write_alpha_sleeve_artifacts_is_deterministic_and_updates_manifest(tmp_path: Path) -> None:
     result = generate_alpha_sleeve(
-        signals=_signals_frame(),
+        signals=_managed_signals_frame(),
         dataset=_dataset_frame(),
         realized_return_column="feature_ret_1d",
         alpha_name="demo_alpha",
@@ -120,8 +133,22 @@ def test_write_alpha_sleeve_artifacts_is_deterministic_and_updates_manifest(tmp_
     pdt.assert_frame_equal(returns_frame, result.sleeve_returns, check_dtype=False)
     pdt.assert_frame_equal(equity_frame, result.sleeve_equity_curve, check_dtype=False)
     assert metrics_payload == result.metrics
-    assert manifest_payload["constructor_id"] == "backtest_numeric_exposure"
+    assert manifest_payload["constructor_id"] == "identity_weights"
     assert manifest_payload["artifact_paths"]["sleeve_returns"] == "sleeve_returns.csv"
     assert manifest_payload["artifact_paths"]["sleeve_equity_curve"] == "sleeve_equity_curve.csv"
     assert manifest_payload["artifact_paths"]["sleeve_metrics"] == "sleeve_metrics.json"
     assert manifest_payload["sleeve"]["metric_summary"] == result.metrics
+
+
+def test_generate_alpha_sleeve_rejects_unmanaged_signal_frames() -> None:
+    with pytest.raises(
+        ValueError,
+        match="Canonical workflows do not accept unmanaged legacy signal frames",
+    ):
+        generate_alpha_sleeve(
+            signals=_signals_frame(),
+            dataset=_dataset_frame(),
+            realized_return_column="feature_ret_1d",
+            alpha_name="demo_alpha",
+            run_id="demo_run",
+        )

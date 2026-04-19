@@ -44,4 +44,13 @@ def test_real_alpha_workflow_example_is_deterministic(tmp_path: Path) -> None:
     assert first.summary["review"]["portfolio_entry"]["entity_name"] == "rank_composite_momentum_sleeve_portfolio"
 
     assert (tmp_path / "run_one" / "summary.json").exists()
+    assert (
+        tmp_path
+        / "run_one"
+        / "workspace"
+        / "artifacts"
+        / "alpha"
+        / first.summary["alpha"]["run_id"]
+        / "signal_semantics.json"
+    ).exists()
     assert len(first.summary["review"]["selected_run_ids"]) == 2

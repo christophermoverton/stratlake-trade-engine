@@ -247,7 +247,11 @@ def execute_split(
         raise WalkForwardExecutionError(f"Split '{split.split_id}' produced no training rows.")
 
     signal_frame = generate_signals(split_frame, strategy)
-    backtest_frame = run_backtest(signal_frame, execution_config)
+    backtest_frame = run_backtest(
+        signal_frame,
+        execution_config,
+        require_managed_signals=True,
+    )
     test_frame = slice_dataset_by_date(backtest_frame, start=split.test_start, end=split.test_end)
     if test_frame.empty:
         raise WalkForwardExecutionError(f"Split '{split.split_id}' produced no test rows.")

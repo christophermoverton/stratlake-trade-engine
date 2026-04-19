@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from itertools import product
-import json
 import math
 from pathlib import Path
 from typing import Any
@@ -12,53 +11,26 @@ import pandas as pd
 from src.config.evaluation import EVALUATION_CONFIG
 from src.config.execution import ExecutionConfig
 from src.config.robustness import (
-    EnsembleDefinitionConfig,
     MetricThreshold,
-    RankingConfig,
-    ResearchSweepConfig,
     RobustnessConfig,
-    SignalSweepConfig,
-    SweepLayerConfig,
 )
 from src.config.runtime import RuntimeConfig, resolve_runtime_config
 from src.config.settings import load_yaml_config
 from src.data.load_features import load_features
-from src.portfolio import compute_portfolio_equity_curve, compute_portfolio_metrics, compute_portfolio_returns
-from src.portfolio.artifacts import write_portfolio_artifacts
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import (
-    ROBUSTNESS_ARTIFACTS_ROOT,
-    resolve_robustness_experiment_dir,
-    save_experiment_outputs,
     save_robustness_experiment,
 )
 from src.research.metrics import (
-    aggregate_strategy_returns,
     compute_benchmark_relative_metrics,
     compute_performance_metrics,
 )
 from src.research.registry import serialize_canonical_json
 from src.research.sanity import SanityCheckError, validate_strategy_backtest_sanity
 from src.research.signal_engine import generate_signals
-from src.research.signal_semantics import (
-    Signal,
-    attach_signal_metadata,
-    ensure_signal_type_compatible,
-    extract_signal_metadata,
-    percentile_to_quantile_bucket,
-    rank_to_percentile,
-    score_to_binary_long_only,
-    score_to_cross_section_rank,
-    score_to_signed_zscore,
-    score_to_ternary_long_short,
-    spread_to_zscore,
-    validate_directional_asymmetry_compatibility,
-)
-from src.research.strategies.validation import get_strategy_registry_entry, load_strategies_registry
 from src.research.splits import generate_evaluation_splits
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.strategies import build_strategy
-from src.research.position_constructors import load_position_constructor_registry
 from src.research.walk_forward import (
     WalkForwardExecutionError,
     build_aggregate_summary,
@@ -334,7 +306,11 @@ def _run_single_window_robustness(
         try:
             strategy = build_strategy(strategy_name, variant.strategy_config)
             signal_frame = generate_signals(dataset, strategy)
-            results_df = run_backtest(signal_frame, runtime_config.execution)
+            results_df = run_backtest(
+                signal_frame,
+                runtime_config.execution,
+                require_managed_signals=True,
+            )
             metrics = compute_performance_metrics(results_df)
             metrics.update(compute_benchmark_relative_metrics(results_df, benchmark_results))
             metrics = _apply_sanity(
@@ -710,7 +686,11 @@ def _build_benchmark_results(
 ) -> pd.DataFrame:
     benchmark_strategy = build_strategy("buy_and_hold_v1", {"dataset": dataset_name, "parameters": {}})
     benchmark_signal_frame = generate_signals(dataset, benchmark_strategy)
-    return run_backtest(benchmark_signal_frame, execution_config)
+    return run_backtest(
+        benchmark_signal_frame,
+        execution_config,
+        require_managed_signals=True,
+    )
 
 
 def _normalize_sweep_value(parameter: str, value: Any, base_value: Any) -> Any:

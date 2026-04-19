@@ -43,6 +43,7 @@ What to look at:
 * `summary.json` for the full stitched workflow
 * `workspace/artifacts/alpha/<run_id>/alpha_metrics.json` for evaluation
 * `workspace/artifacts/alpha/<run_id>/signals.parquet` for alpha-to-signal mapping
+* `workspace/artifacts/alpha/<run_id>/signal_semantics.json` for the explicit typed-signal contract
 * `workspace/artifacts/alpha/<run_id>/sleeve_returns.csv` for the alpha sleeve
 * `workspace/artifacts/portfolios/<run_id>/portfolio_returns.csv` for portfolio integration
 * `review/leaderboard.csv` and `review/review_summary.json` for downstream review outputs

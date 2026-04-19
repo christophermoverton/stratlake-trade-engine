@@ -16,6 +16,7 @@ from src.research.signal_semantics import (
     attach_signal_metadata,
     ensure_signal_type_compatible,
     extract_signal_metadata,
+    is_managed_signal_metadata,
     legacy_signal_type_from_values,
     validate_signal_frame,
 )
@@ -68,10 +69,56 @@ def _validate_backtest_signal_column(df: pd.DataFrame) -> pd.Series:
     return normalized_signal.astype("float64")
 
 
-def _validate_signal_semantics(df: pd.DataFrame) -> dict[str, object]:
+def _legacy_signal_semantics_from_metadata(
+    df: pd.DataFrame,
+    metadata: dict[str, object],
+) -> dict[str, object]:
+    signal_type = str(metadata.get("signal_type") or "").strip() or legacy_signal_type_from_values(df["signal"])
+    version = str(metadata.get("version") or "1.0.0").strip() or "1.0.0"
+    value_column = str(metadata.get("value_column") or "signal")
+    parameters = metadata.get("parameters", {})
+    if not isinstance(parameters, dict):
+        parameters = {}
+    validated = validate_signal_frame(
+        df,
+        signal_type=signal_type,
+        value_column=value_column,
+        version=version,
+        parameters=parameters,
+    )
+    attach_signal_metadata(validated, metadata)
+    return {
+        "signal_type": signal_type,
+        "version": version,
+        "validated_row_count": int(len(validated)),
+        "constructor_id": str(metadata.get("constructor_id") or "backtest_numeric_exposure"),
+        "constructor_params": dict(metadata.get("constructor_params", {}))
+        if isinstance(metadata.get("constructor_params"), dict)
+        else {},
+        "compatibility_mode": str(metadata.get("compatibility_mode") or "legacy_inferred"),
+    }
+
+
+def _validate_signal_semantics(
+    df: pd.DataFrame,
+    *,
+    require_managed_signals: bool,
+) -> dict[str, object]:
     try:
         metadata = extract_signal_metadata(df)
+        if metadata is not None and not is_managed_signal_metadata(metadata):
+            if require_managed_signals:
+                raise ValueError(
+                    "Backtest input must declare managed typed signal metadata. "
+                    "Canonical workflows do not accept unmanaged legacy signal frames."
+                )
+            return _legacy_signal_semantics_from_metadata(df, metadata)
         if metadata is None:
+            if require_managed_signals:
+                raise ValueError(
+                    "Backtest input must declare explicit typed signal metadata. "
+                    "Canonical workflows do not accept unmanaged legacy signal frames."
+                )
             inferred_type = legacy_signal_type_from_values(df["signal"])
             validated = validate_signal_frame(df, signal_type=inferred_type, value_column="signal")
             attach_signal_metadata(
@@ -124,7 +171,7 @@ def _managed_signal_semantics(signal_object: Signal) -> dict[str, object]:
 
 def _resolve_managed_signal(df: pd.DataFrame) -> Signal | None:
     metadata = extract_signal_metadata(df)
-    if metadata is None:
+    if metadata is None or not is_managed_signal_metadata(metadata):
         return None
 
     signal_type = str(metadata.get("signal_type", "")).strip()
@@ -198,6 +245,8 @@ def _compute_executed_signal(
 def run_backtest(
     df: pd.DataFrame,
     execution_config: ExecutionConfig | None = None,
+    *,
+    require_managed_signals: bool = False,
 ) -> pd.DataFrame:
     """
     Compute deterministic strategy returns and an equity curve from strategy signals.
@@ -225,7 +274,7 @@ def run_backtest(
     signal_semantics = (
         _managed_signal_semantics(managed_signal)
         if managed_signal is not None
-        else _validate_signal_semantics(df)
+        else _validate_signal_semantics(df, require_managed_signals=require_managed_signals)
     )
 
     return_column = _resolve_return_column(df)
@@ -345,7 +394,6 @@ def _execution_cost_directional(
     short_transaction_cost = (short_delta * (float(short_transaction_cost_bps) / 10_000.0)).astype("float64")
 
     # Slippage (applied to absolute position deltas, with separate multiplier for shorts)
-    abs_delta = delta_position.abs()
     long_slippage_cost = (long_delta * (float(config.slippage_bps) / 10_000.0)).astype("float64")
     short_slippage_bps = config.get_short_slippage_bps()
     short_slippage_cost = (short_delta * (float(short_slippage_bps) / 10_000.0)).astype("float64")

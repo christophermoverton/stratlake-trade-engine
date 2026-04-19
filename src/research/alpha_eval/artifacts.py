@@ -17,7 +17,7 @@ from src.research.promotion import (
     evaluate_promotion_gates,
     write_promotion_gate_artifact,
 )
-from src.research.signal_semantics import extract_signal_metadata
+from src.research.signal_semantics import build_signal_contract, extract_signal_metadata
 
 DEFAULT_ALPHA_EVAL_ARTIFACTS_ROOT = Path("artifacts") / "alpha"
 _IC_TIMESERIES_FILENAME = "ic_timeseries.csv"
@@ -470,8 +470,13 @@ def _build_manifest(
             _PREDICTIONS_FILENAME,
             _QA_SUMMARY_FILENAME,
             *(
-                [_SIGNALS_FILENAME, _SIGNAL_MAPPING_FILENAME, _SIGNAL_SEMANTICS_FILENAME]
+                [_SIGNALS_FILENAME, _SIGNAL_MAPPING_FILENAME]
                 if signal_mapping_payload is not None
+                else []
+            ),
+            *(
+                [_SIGNAL_SEMANTICS_FILENAME]
+                if signal_semantics_payload is not None
                 else []
             ),
             _TRAINING_SUMMARY_FILENAME,
@@ -534,6 +539,12 @@ def _build_manifest(
         ),
         "constructor_params": (
             {} if signal_semantics_payload is None else signal_semantics_payload.get("constructor_params", {})
+        ),
+        "signal_contract": build_signal_contract(
+            signal_semantics_payload,
+            signal_semantics_path=(
+                None if signal_semantics_payload is None else _SIGNAL_SEMANTICS_FILENAME
+            ),
         ),
         "signal_mapping_path": None if signal_mapping_payload is None else _SIGNAL_MAPPING_FILENAME,
         "signal_semantics_path": None if signal_semantics_payload is None else _SIGNAL_SEMANTICS_FILENAME,
@@ -598,6 +609,14 @@ def _augment_parent_manifest(
             Path(artifact_dir_name, _SIGNAL_SEMANTICS_FILENAME).as_posix()
             if _SIGNAL_SEMANTICS_FILENAME in manifest.get("artifact_files", [])
             else None
+        ),
+        "signal_contract": build_signal_contract(
+            manifest.get("signal_semantics") if isinstance(manifest.get("signal_semantics"), dict) else None,
+            signal_semantics_path=(
+                Path(artifact_dir_name, _SIGNAL_SEMANTICS_FILENAME).as_posix()
+                if _SIGNAL_SEMANTICS_FILENAME in manifest.get("artifact_files", [])
+                else None
+            ),
         ),
         "signals_path": (
             Path(artifact_dir_name, _SIGNALS_FILENAME).as_posix()

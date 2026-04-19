@@ -140,7 +140,11 @@ def run_declarative_strategy_experiment(
     }
     attach_signal_metadata(managed_frame, signal_metadata)
 
-    results_df = run_backtest(managed_frame, resolved_runtime.execution)
+    results_df = run_backtest(
+        managed_frame,
+        resolved_runtime.execution,
+        require_managed_signals=True,
+    )
     results_df.attrs["dataset"] = strategy_section["dataset"]
     results_df.attrs["runtime_config"] = resolved_runtime.to_dict()
     metrics = compute_metrics(results_df)
@@ -263,7 +267,11 @@ def _compute_benchmark_metrics(
 ) -> dict[str, float | dict[str, bool]]:
     benchmark_strategy = build_strategy("buy_and_hold_v1", {"dataset": strategy_dataset, "parameters": {}})
     benchmark_signal_frame = generate_signals(dataset, benchmark_strategy)
-    benchmark_results = run_backtest(benchmark_signal_frame, execution_config)
+    benchmark_results = run_backtest(
+        benchmark_signal_frame,
+        execution_config,
+        require_managed_signals=True,
+    )
     return compute_benchmark_relative_metrics(results_df, benchmark_results)
 
 

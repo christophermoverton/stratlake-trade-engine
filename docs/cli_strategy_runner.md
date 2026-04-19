@@ -16,6 +16,10 @@ Current implementation:
 * persists experiment artifacts under `artifacts/strategies/`
 * prints a short console summary for the run
 
+Canonical strategy runs now persist `signal_semantics.json` alongside the
+standard signal/backtest artifacts and record the same contract in
+`manifest.json`.
+
 This command is intentionally scoped to a single research experiment. It does
 not schedule runs, perform live trading, or manage portfolio optimization.
 

@@ -217,7 +217,18 @@
       "slippage_volatility_scale": 1.0,
       "transaction_cost_bps": 0.0
     },
+    "directional_summary": {
+      "long_return_contribution_pct": null,
+      "long_total_return": null,
+      "short_return_contribution_pct": null,
+      "short_total_return": null,
+      "total_short_borrow_cost": null
+    },
     "model_summary": {
+      "directional_asymmetry": {
+        "enabled": false,
+        "short_borrow_cost_bps": 0.0
+      },
       "enabled": false,
       "fixed_fee_model": {
         "amount": 0.0,
@@ -228,30 +239,46 @@
         "method": "constant",
         "proxy": null,
         "rate_bps": 0.0,
+        "short_rate_bps": 0.0,
         "turnover_scale": 1.0,
         "volatility_scale": 1.0
       },
       "totals": {
+        "average_short_exposure": 0.0,
         "changed_sleeve_events": 1,
         "rebalance_count": 1,
         "total_execution_friction": 0.0,
         "total_fixed_fee": 0.0,
+        "total_long_slippage_cost": 0.0,
+        "total_long_transaction_cost": 0.0,
+        "total_long_turnover": 0.9999999999990905,
+        "total_short_borrow_cost": 0.0,
+        "total_short_slippage_cost": 0.0,
+        "total_short_transaction_cost": 0.0,
+        "total_short_turnover": 0.0,
         "total_slippage_cost": 0.0,
         "total_transaction_cost": 0.0,
         "total_turnover": 0.9999999999990905
       },
       "transaction_cost_model": {
         "basis": "portfolio_turnover",
-        "rate_bps": 0.0
+        "long_rate_bps": 0.0,
+        "rate_bps": 0.0,
+        "short_rate_bps": 0.0
       }
     },
     "summary": {
       "execution_drag_total_return": 0.0,
       "gross_total_return": 0.009566662320207975,
+      "long_turnover": null,
       "net_total_return": 0.009566662320207975,
       "rebalance_count": 1.0,
+      "short_turnover": null,
       "total_execution_friction": 0.0,
       "total_fixed_fee": 0.0,
+      "total_long_transaction_cost": null,
+      "total_short_borrow_cost": null,
+      "total_short_transaction_cost": null,
       "total_slippage_cost": 0.0,
       "total_transaction_cost": 0.0,
       "turnover": 0.14285714285701293
@@ -353,6 +380,7 @@
     },
     "diagnostic_summary": {
       "converged": true,
+      "directional_constraints_valid": null,
       "gross_exposure": 0.9999999999990905,
       "iterations": 1,
       "max_single_weight": 0.9999999999990905,
@@ -369,6 +397,7 @@
       "converged": true,
       "covariance_estimator": "sample_covariance_ddof_0_plus_diagonal_ridge",
       "covariance_ridge": 1e-08,
+      "directional_constraints": null,
       "expected_return_estimator": "historical_mean_excess_return_per_period",
       "gross_exposure": 0.9999999999990905,
       "iterations": 1,
@@ -485,7 +514,7 @@
     "portfolio_returns": 7,
     "weights": 7
   },
-  "run_id": "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3",
+  "run_id": "rank_composite_momentum_sleeve_portfolio_portfolio_032512815b12",
   "simulation": {
     "artifact_path": null,
     "enabled": false,
@@ -500,5 +529,5 @@
     "enabled": false,
     "source": "default"
   },
-  "timestamp": "2019-09-15T02:15:01Z"
+  "timestamp": "2010-10-09T05:33:34Z"
 }

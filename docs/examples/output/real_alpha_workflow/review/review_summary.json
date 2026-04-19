@@ -5,7 +5,7 @@
   },
   "entries": [
     {
-      "artifact_path": "artifacts/alpha/rank_composite_momentum_alpha_eval_bb267780ab85",
+      "artifact_path": "artifacts/alpha/rank_composite_momentum_alpha_eval_33fc0d387f50",
       "entity_name": "rank_composite_momentum",
       "evaluation_mode": "alpha_evaluation",
       "gate_count": null,
@@ -17,20 +17,20 @@
       "passed_gate_count": null,
       "promotion_status": "needs_review",
       "rank_within_type": 1,
-      "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+      "run_id": "rank_composite_momentum_alpha_eval_33fc0d387f50",
       "run_type": "alpha_evaluation",
       "secondary_metric_name": "mean_ic",
       "secondary_metric_value": 0.9999952949916516,
       "selected_metric_name": "ic_ir",
       "selected_metric_value": 350561232.1486001,
       "sleeve_metric_name": "sharpe_ratio",
-      "sleeve_metric_value": 35.99999999999999,
+      "sleeve_metric_value": 36.0,
       "sleeve_secondary_metric_name": "total_return",
-      "sleeve_secondary_metric_value": 0.0095666623202173,
+      "sleeve_secondary_metric_value": 0.0015891762630411144,
       "timeframe": "1D"
     },
     {
-      "artifact_path": "artifacts/portfolios/rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3",
+      "artifact_path": "artifacts/portfolios/rank_composite_momentum_sleeve_portfolio_portfolio_032512815b12",
       "entity_name": "rank_composite_momentum_sleeve_portfolio",
       "evaluation_mode": "single",
       "gate_count": null,
@@ -42,7 +42,7 @@
       "passed_gate_count": null,
       "promotion_status": "needs_review",
       "rank_within_type": 1,
-      "run_id": "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3",
+      "run_id": "rank_composite_momentum_sleeve_portfolio_portfolio_032512815b12",
       "run_type": "portfolio",
       "secondary_metric_name": "total_return",
       "secondary_metric_value": 0.009566662320207975,
@@ -96,10 +96,10 @@
       "strategy_secondary_metric": "total_return"
     }
   },
-  "review_id": "registry_review_f0e5786e2f00",
+  "review_id": "registry_review_ac6977fb9db9",
   "run_ids": [
-    "rank_composite_momentum_alpha_eval_bb267780ab85",
-    "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3"
+    "rank_composite_momentum_alpha_eval_33fc0d387f50",
+    "rank_composite_momentum_sleeve_portfolio_portfolio_032512815b12"
   ],
   "skipped_plots": {
     "alpha_evaluation_metric_comparison": "Skipped plot generation because review_config.output.emit_plots is false.",

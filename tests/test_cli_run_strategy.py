@@ -146,7 +146,10 @@ def test_run_cli_invokes_research_pipeline_components(monkeypatch, capsys) -> No
     monkeypatch.setattr("src.cli.run_strategy.load_strategies_config", fake_load_strategies_config)
     monkeypatch.setattr("src.cli.run_strategy.load_features", fake_load_features)
     monkeypatch.setattr("src.cli.run_strategy.generate_signals", fake_generate_signals)
-    monkeypatch.setattr("src.cli.run_strategy.run_backtest", lambda signal_frame, execution_config=None: fake_run_backtest(signal_frame))
+    monkeypatch.setattr(
+        "src.cli.run_strategy.run_backtest",
+        lambda signal_frame, execution_config=None, require_managed_signals=False: fake_run_backtest(signal_frame),
+    )
     monkeypatch.setattr("src.cli.run_strategy.compute_metrics", fake_compute_metrics)
     monkeypatch.setattr("src.cli.run_strategy.save_experiment", fake_save_experiment)
 

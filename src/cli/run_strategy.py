@@ -172,7 +172,11 @@ def run_strategy_experiment(
         cli_overrides=None if execution_config is None else {"execution": execution_config.to_dict()},
         cli_strict=strict,
     )
-    results_df = run_backtest(signal_frame, resolved_runtime.execution)
+    results_df = run_backtest(
+        signal_frame,
+        resolved_runtime.execution,
+        require_managed_signals=True,
+    )
     results_df.attrs["dataset"] = strategy.dataset
     metrics = compute_metrics(results_df)
     metrics.update(_compute_benchmark_metrics(results_df, dataset, strategy.dataset, resolved_runtime.execution))
@@ -355,7 +359,11 @@ def _compute_benchmark_metrics(
 ) -> dict[str, float | dict[str, bool]]:
     benchmark_strategy = build_strategy("buy_and_hold_v1", {"dataset": strategy_dataset, "parameters": {}})
     benchmark_signal_frame = generate_signals(dataset, benchmark_strategy)
-    benchmark_results = run_backtest(benchmark_signal_frame, execution_config)
+    benchmark_results = run_backtest(
+        benchmark_signal_frame,
+        execution_config,
+        require_managed_signals=True,
+    )
     return compute_benchmark_relative_metrics(results_df, benchmark_results)
 
 

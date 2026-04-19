@@ -321,6 +321,8 @@ def write_full_run_scaffold(
             else {
                 "config": dict(evaluation.signal_mapping_result.config.__dict__),
                 "row_count": int(evaluation.signal_mapping_result.row_count),
+                "signal_contract": evaluation.manifest.get("signal_contract"),
+                "signal_semantics_path": evaluation.manifest.get("signal_semantics_path"),
                 "signals_path": "signals.parquet",
             }
         ),

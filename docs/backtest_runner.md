@@ -41,7 +41,9 @@ run_backtest(df: pandas.DataFrame) -> pandas.DataFrame
 * a supported one-period asset return column
 
 `signal` may be discrete or continuous. Any finite numeric value is accepted
-and interpreted literally as exposure after lagged execution.
+and interpreted literally as exposure after lagged execution for direct/manual
+backtest usage. Canonical strategy and alpha workflows now pass managed typed
+signals and reject unmanaged legacy frames instead of inferring contracts.
 
 Supported return column names are currently:
 
@@ -156,3 +158,7 @@ strategy return series and equity curve
 
 This provides a simple and testable foundation for later additions such as
 performance metrics, portfolio construction, and execution assumptions.
+
+When consuming persisted canonical signal artifacts, reload
+`signal_semantics.json` alongside `signals.parquet` so the typed contract
+remains explicit.

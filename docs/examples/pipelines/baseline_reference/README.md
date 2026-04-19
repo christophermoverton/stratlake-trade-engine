@@ -38,4 +38,4 @@ See `config.yml` for the declarative builder mapping used by this example.
 
 - `summary.json` records the deterministic rerun check.
 - Pipeline manifest confirms step ordering and artifact lineage.
-- Strategy artifact directory contains metrics, QA summary, and manifest.
+- Strategy artifact directory contains metrics, QA summary, `signal_semantics.json`, and manifest.

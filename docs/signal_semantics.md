@@ -126,7 +126,8 @@ The mapping result carries both the output DataFrame and the typed `Signal`.
 `run_backtest(...)` validates signal semantics before execution.
 
 - typed signals are validated against the registry and compatibility rules
-- legacy unmanaged inputs remain supported through explicit best-effort classification
+- canonical strategy, alpha-sleeve, walk-forward, robustness, and builder paths require managed typed signals
+- legacy unmanaged inputs remain supported only for direct/manual backtest usage outside canonical workflows
 - non-executable or undefined types are rejected
 
 ### Artifacts And Manifests
@@ -146,3 +147,5 @@ Preferred usage is explicit declaration in config.
 - downstream consumers should read signal semantics from manifests instead of inferring meaning from raw numeric values
 
 Legacy numeric signal frames are still accepted by the backtest runner for compatibility, but they should be upgraded to typed signals over time.
+
+Canonical workflows do not infer contracts from raw numeric frames. When a workflow persists `signals.parquet`, it also persists `signal_semantics.json`; reload that sidecar if you need to reconstruct typed-signal metadata after reading artifacts back from disk.

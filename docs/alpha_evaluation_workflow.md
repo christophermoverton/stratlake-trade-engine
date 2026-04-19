@@ -147,6 +147,7 @@ analogue is stored as `rank_ic_ir`.
 * `predictions.parquet`
 * `signals.parquet` when signal mapping is configured
 * `signal_mapping.json` when signal mapping is configured
+* `signal_semantics.json` when signal mapping is configured
 * `training_summary.json`
 * `coefficients.json`
 * `cross_section_diagnostics.json`
@@ -177,7 +178,7 @@ artifacts/alpha/registry.jsonl
 ```
 
 Each entry links the run id, dataset, timeframe, evaluation horizon, summary
-metrics, and concrete artifact paths.
+metrics, explicit signal contract metadata, and concrete artifact paths.
 
 ### Compare
 

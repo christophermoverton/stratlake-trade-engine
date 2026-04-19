@@ -40,7 +40,8 @@ artifacts
 Alpha utilities feed the alpha-evaluation layer, which now persists
 deterministic artifacts such as `predictions.parquet`,
 `training_summary.json`, `coefficients.json`,
-`cross_section_diagnostics.json`, `alpha_metrics.json`, and `manifest.json`.
+`cross_section_diagnostics.json`, `alpha_metrics.json`, `manifest.json`, and,
+when signal mapping is enabled, `signal_semantics.json`.
 
 ## Alpha Model Interface
 
@@ -253,7 +254,8 @@ The workflow is:
 5. hand the sleeve into downstream portfolio construction when desired
 
 The mapping step is intentionally explicit so research code decides how raw
-scores become exposures.
+scores become exposures. Canonical sleeve generation now requires managed typed
+signal metadata and does not fall back to legacy best-effort signal inference.
 
 Examples:
 

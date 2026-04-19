@@ -1,0 +1,27 @@
+{
+  "config": {
+    "metadata": {},
+    "output_column": "signal",
+    "policy": "top_bottom_quantile",
+    "position_constructor": {
+      "name": "top_bottom_equal_weight",
+      "params": {
+        "gross_long": 0.5,
+        "gross_short": 0.5
+      }
+    },
+    "prediction_column": "prediction_score",
+    "quantile": 0.34,
+    "signal_params": {
+      "quantile": 0.34
+    },
+    "signal_type": "ternary_quantile"
+  },
+  "cross_section_key": "ts_utc",
+  "row_count": 42,
+  "signal_type": "ternary_quantile",
+  "signal_version": "1.0.0",
+  "symbol_count": 6,
+  "tie_breaker": "prediction_score then symbol ascending",
+  "timestamp_count": 7
+}

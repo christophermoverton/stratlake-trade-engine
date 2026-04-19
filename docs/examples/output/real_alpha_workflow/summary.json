@@ -1,7 +1,7 @@
 {
   "alpha": {
     "alpha_name": "rank_composite_momentum",
-    "artifact_dir": "workspace/artifacts/alpha/rank_composite_momentum_alpha_eval_bb267780ab85",
+    "artifact_dir": "workspace/artifacts/alpha/rank_composite_momentum_alpha_eval_33fc0d387f50",
     "catalog_path": "C:/Users/christophermoverton/stratlake-trade-engine/configs/alphas.yml",
     "evaluation": {
       "ic_ir": 350561232.1486001,
@@ -25,7 +25,7 @@
       "train_end": "2025-01-18",
       "train_start": "2025-01-04"
     },
-    "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
+    "run_id": "rank_composite_momentum_alpha_eval_33fc0d387f50",
     "signal_mapping": {
       "policy": "top_bottom_quantile",
       "quantile": 0.34,
@@ -89,32 +89,37 @@
       "metrics": {
         "active_symbol_count_mean": 6.0,
         "alpha_name": "rank_composite_momentum",
-        "annualized_return": 0.4088346831410503,
-        "annualized_volatility": 0.009528750000000013,
+        "annualized_return": 0.05883043409865185,
+        "annualized_volatility": 0.001588125000000002,
         "average_execution_friction_per_trade": 0.0,
-        "average_trade_size": 1.0,
-        "average_turnover": 0.14285714285714285,
-        "cumulative_return": 0.0095666623202173,
+        "average_trade_size": 0.16666666666666666,
+        "average_turnover": 0.023809523809523808,
+        "constructor_id": "top_bottom_equal_weight",
+        "constructor_params": {
+          "gross_long": 0.5,
+          "gross_short": 0.5
+        },
+        "cumulative_return": 0.0015891762630411144,
         "exposure_pct": 85.71428571428571,
         "hit_rate": 0.6,
         "max_drawdown": 0.0,
         "percent_periods_traded": 14.285714285714285,
-        "profit_factor": 2.144019965908192,
+        "profit_factor": 2.0691315532712253,
         "rebalance_count": 6.0,
         "return_source": "price_column:close",
-        "run_id": "rank_composite_momentum_alpha_eval_bb267780ab85",
-        "sharpe_ratio": 35.99999999999999,
+        "run_id": "rank_composite_momentum_alpha_eval_33fc0d387f50",
+        "sharpe_ratio": 36.0,
         "sleeve_row_count": 7,
         "symbol_count": 6,
         "timestamp_count": 7,
         "total_execution_friction": 0.0,
-        "total_return": 0.0095666623202173,
+        "total_return": 0.0015891762630411144,
         "total_slippage_cost": 0.0,
         "total_transaction_cost": 0.0,
-        "total_turnover": 6.0,
+        "total_turnover": 1.0,
         "trade_count": 6.0,
-        "turnover": 0.14285714285714285,
-        "volatility": 0.0006002548286977798,
+        "turnover": 0.023809523809523808,
+        "volatility": 0.00010004247144962996,
         "win_rate": 0.8571428571428571
       },
       "returns_preview": [
@@ -205,7 +210,7 @@
     ]
   },
   "portfolio": {
-    "artifact_dir": "workspace/artifacts/portfolios/rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3",
+    "artifact_dir": "workspace/artifacts/portfolios/rank_composite_momentum_sleeve_portfolio_portfolio_032512815b12",
     "included": true,
     "metrics": {
       "max_drawdown": 0.0,
@@ -324,7 +329,7 @@
         "weight__rank_composite_momentum_sleeve": 0.9999999999990904
       }
     ],
-    "run_id": "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3"
+    "run_id": "rank_composite_momentum_sleeve_portfolio_portfolio_032512815b12"
   },
   "review": {
     "alpha_entry": {
@@ -334,7 +339,7 @@
       "selected_metric_name": "ic_ir",
       "selected_metric_value": 350561232.1486001,
       "sleeve_metric_name": "sharpe_ratio",
-      "sleeve_metric_value": 35.99999999999999
+      "sleeve_metric_value": 36.0
     },
     "artifact_dir": "review",
     "artifact_files": [
@@ -347,10 +352,10 @@
       "selected_metric_name": "sharpe_ratio",
       "selected_metric_value": 36.00000000000001
     },
-    "review_id": "registry_review_f0e5786e2f00",
+    "review_id": "registry_review_ac6977fb9db9",
     "selected_run_ids": [
-      "rank_composite_momentum_alpha_eval_bb267780ab85",
-      "rank_composite_momentum_sleeve_portfolio_portfolio_352f330c97d3"
+      "rank_composite_momentum_alpha_eval_33fc0d387f50",
+      "rank_composite_momentum_sleeve_portfolio_portfolio_032512815b12"
     ]
   },
   "workflow": [

@@ -15,7 +15,12 @@ from src.research.position_constructors import (
 )
 from src.research.backtest_runner import run_backtest
 from src.research.metrics import compute_performance_metrics
-from src.research.signal_semantics import attach_signal_metadata, extract_signal_metadata
+from src.research.signal_semantics import (
+    attach_signal_metadata,
+    build_signal_contract,
+    extract_signal_metadata,
+    require_managed_signal_metadata,
+)
 
 _SLEEVE_RETURNS_FILENAME = "sleeve_returns.csv"
 _SLEEVE_EQUITY_CURVE_FILENAME = "sleeve_equity_curve.csv"
@@ -59,7 +64,11 @@ def generate_alpha_sleeve(
         realized_return_column=realized_return_column,
     )
     backtest_input = _build_backtest_input(resolved_signals, prepared_dataset, return_column_name=return_column_name)
-    backtest_results = run_backtest(backtest_input, execution_config=execution_config)
+    backtest_results = run_backtest(
+        backtest_input,
+        execution_config=execution_config,
+        require_managed_signals=True,
+    )
     sleeve_returns = _aggregate_sleeve_returns(backtest_results)
     sleeve_equity_curve = _build_sleeve_equity_curve(sleeve_returns)
     metrics = _build_sleeve_metrics(
@@ -160,6 +169,15 @@ def augment_alpha_manifest_with_sleeve(
     payload["constructor_params"] = _normalize_json_value(
         sleeve_result.metadata.get("constructor_params", {})
     )
+    if isinstance(payload.get("signal_semantics"), dict):
+        payload["signal_contract"] = build_signal_contract(
+            payload["signal_semantics"],
+            signal_semantics_path=(
+                str(payload.get("signal_semantics_path"))
+                if payload.get("signal_semantics_path") is not None
+                else None
+            ),
+        )
     payload["sleeve"] = _normalize_mapping(
         {
             "enabled": True,
@@ -213,7 +231,12 @@ def _validate_signals(
     *,
     position_constructor: dict[str, Any] | None,
 ) -> pd.DataFrame:
-    metadata = extract_signal_metadata(signals)
+    try:
+        metadata = require_managed_signal_metadata(signals, owner="Sleeve generation signals")
+    except ValueError as exc:
+        raise AlphaSleeveError(
+            f"{exc} Reload signal metadata from signal_semantics.json when consuming persisted signal artifacts."
+        ) from exc
     required_columns = ("symbol", "ts_utc", "signal")
     missing = [column for column in required_columns if column not in signals.columns]
     if missing:

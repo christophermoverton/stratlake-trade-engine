@@ -1,0 +1,10 @@
+{
+  "components": [
+    {
+      "artifact_type": "alpha_sleeve",
+      "run_id": "rank_composite_momentum_alpha_eval_33fc0d387f50",
+      "source_artifact_path": "artifacts/alpha/rank_composite_momentum_alpha_eval_33fc0d387f50",
+      "strategy_name": "rank_composite_momentum_sleeve"
+    }
+  ]
+}

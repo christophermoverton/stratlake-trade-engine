@@ -17,6 +17,7 @@ from src.research.registry import (
     stable_timestamp_from_run_id,
     upsert_registry_entry,
 )
+from src.research.signal_semantics import build_signal_contract
 
 _SUMMARY_KEYS = (
     "mean_ic",
@@ -127,6 +128,16 @@ def build_alpha_evaluation_registry_entry(
             resolved_artifact_dir.joinpath(str(manifest_payload["signal_semantics_path"])).as_posix()
             if manifest_payload.get("signal_semantics_path") is not None
             else None
+        ),
+        "signal_contract": build_signal_contract(
+            manifest_payload.get("signal_semantics")
+            if isinstance(manifest_payload.get("signal_semantics"), Mapping)
+            else None,
+            signal_semantics_path=(
+                resolved_artifact_dir.joinpath(str(manifest_payload["signal_semantics_path"])).as_posix()
+                if manifest_payload.get("signal_semantics_path") is not None
+                else None
+            ),
         ),
         "signal_semantics": (
             canonicalize_value(dict(manifest_payload["signal_semantics"]))

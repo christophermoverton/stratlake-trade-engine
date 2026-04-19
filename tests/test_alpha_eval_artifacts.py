@@ -166,15 +166,26 @@ def test_write_alpha_evaluation_artifacts_persists_explicit_signal_mapping_outpu
 
     assert "signals.parquet" in manifest["artifact_files"]
     assert "signal_mapping.json" in manifest["artifact_files"]
+    assert "signal_semantics.json" in manifest["artifact_files"]
     assert "qa_summary.json" in manifest["artifact_files"]
     assert manifest["artifact_paths"]["signals"] == "signals.parquet"
     assert manifest["artifact_paths"]["signal_mapping"] == "signal_mapping.json"
+    assert manifest["artifact_paths"]["signal_semantics"] == "signal_semantics.json"
     assert manifest["signals_path"] == "signals.parquet"
     assert manifest["signal_mapping_path"] == "signal_mapping.json"
+    assert manifest["signal_semantics_path"] == "signal_semantics.json"
+    assert manifest["signal_contract"]["signal_type"] == "ternary_quantile"
+    assert manifest["signal_contract"]["constructor_id"] is None
+    assert manifest["signal_contract"]["compatibility_mode"] == "managed"
 
     signal_mapping_payload = json.loads((output_dir / "signal_mapping.json").read_text(encoding="utf-8"))
     assert signal_mapping_payload["config"]["policy"] == "top_bottom_quantile"
     assert signal_mapping_payload["config"]["quantile"] == pytest.approx(0.34)
+
+    signal_semantics_payload = json.loads((output_dir / "signal_semantics.json").read_text(encoding="utf-8"))
+    assert signal_semantics_payload["signal_type"] == "ternary_quantile"
+    assert signal_semantics_payload.get("constructor_id") is None
+    assert signal_semantics_payload["compatibility_mode"] == "managed"
 
     signals = pd.read_parquet(output_dir / "signals.parquet")
     assert list(signals.columns) == ["symbol", "ts_utc", "timeframe", "prediction_score", "signal"]
@@ -297,6 +308,7 @@ def test_write_alpha_evaluation_artifacts_updates_parent_manifest_idempotently(t
     assert parent_manifest["alpha_evaluation"]["qa_summary_path"] == "alpha_eval/qa_summary.json"
     assert parent_manifest["alpha_evaluation"]["training_summary_path"] == "alpha_eval/training_summary.json"
     assert parent_manifest["alpha_evaluation"]["timeseries_path"] == "alpha_eval/ic_timeseries.csv"
+    assert parent_manifest["alpha_evaluation"]["signal_contract"] is None
     assert "alpha_eval/alpha_metrics.json" in parent_manifest["artifact_files"]
     assert parent_manifest["artifact_groups"]["alpha_evaluation"] == [
         "alpha_eval/alpha_metrics.json",

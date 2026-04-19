@@ -29,7 +29,7 @@ from src.research.registry import (
     serialize_canonical_json,
     upsert_registry_entry,
 )
-from src.research.signal_semantics import extract_signal_metadata
+from src.research.signal_semantics import build_signal_contract, extract_signal_metadata
 from src.research.signal_diagnostics import compute_signal_diagnostics
 from src.research.strategy_qa import generate_strategy_qa_summary
 
@@ -253,6 +253,10 @@ def _build_registry_entry(
     )
     signal_semantics = _signal_semantics_payload(results_df)
     constructor_id, constructor_params = _constructor_payload(signal_semantics)
+    signal_contract = build_signal_contract(
+        signal_semantics,
+        signal_semantics_path=_SIGNAL_SEMANTICS_FILENAME if signal_semantics is not None else None,
+    )
     return {
         "run_id": run_id,
         "timestamp": _utc_timestamp_from_run_id(run_id),
@@ -269,6 +273,7 @@ def _build_registry_entry(
         "signal_version": None if signal_semantics is None else signal_semantics.get("version"),
         "constructor_id": constructor_id,
         "constructor_params": constructor_params,
+        "signal_contract": signal_contract,
         "signal_semantics": signal_semantics,
         "promotion_status": None if promotion_evaluation is None else promotion_evaluation.promotion_status,
         "review_status": review_metadata["status"],
@@ -787,6 +792,7 @@ def _build_manifest(
         if path.is_file() and path.name != "manifest.json"
     )
     constructor_id, constructor_params = _constructor_payload(signal_semantics)
+    signal_semantics_path = _SIGNAL_SEMANTICS_FILENAME if _SIGNAL_SEMANTICS_FILENAME in artifact_files else None
     return {
         "run_id": experiment_dir.name,
         "timestamp": _utc_timestamp_from_run_id(experiment_dir.name),
@@ -795,11 +801,15 @@ def _build_manifest(
         "evaluation_config_path": config.get("evaluation_config_path"),
         "strict_mode": config.get("strict_mode"),
         "artifact_files": artifact_files,
-        "signal_semantics_path": _SIGNAL_SEMANTICS_FILENAME if _SIGNAL_SEMANTICS_FILENAME in artifact_files else None,
+        "signal_semantics_path": signal_semantics_path,
         "signal_type": None if signal_semantics is None else signal_semantics.get("signal_type"),
         "signal_version": None if signal_semantics is None else signal_semantics.get("version"),
         "constructor_id": constructor_id,
         "constructor_params": constructor_params,
+        "signal_contract": build_signal_contract(
+            signal_semantics,
+            signal_semantics_path=signal_semantics_path,
+        ),
         "signal_semantics": signal_semantics,
         "split_count": split_count,
         "primary_metric": "sharpe_ratio",

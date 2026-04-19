@@ -1,0 +1,33 @@
+archetypes:
+  - name: time_series_momentum
+    strategy_params:
+      lookback_short: 5
+      lookback_long: 20
+    signal:
+      type: ternary_quantile
+      params:
+        quantile: 0.25
+    constructor:
+      name: identity_weights
+      params: {}
+  - name: mean_reversion
+    strategy_params:
+      lookback: 10
+      threshold: 1.0
+    signal:
+      type: ternary_quantile
+      params:
+        quantile: 0.20
+    constructor:
+      name: identity_weights
+      params: {}
+  - name: cross_section_momentum
+    strategy_params:
+      lookback_days: 5
+    signal:
+      type: cross_section_rank
+    constructor:
+      name: rank_dollar_neutral
+      params:
+        gross_long: 0.5
+        gross_short: 0.5

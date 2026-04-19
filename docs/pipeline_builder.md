@@ -224,3 +224,13 @@ portfolio:
   just relabeled config.
 * First pass limitation: sweep pipelines do not also build a downstream
   portfolio stage in the same declarative spec.
+
+## Canonical M21.7 Pipelines
+
+Canonical end-to-end references for builder and orchestration composition live in:
+
+* `docs/examples/pipelines/README.md`
+
+These examples include baseline strategy composition, archetype showcase,
+long/short asymmetry controls, robustness sweeps, campaign orchestration,
+resume/reuse semantics, and declarative builder parity checks.

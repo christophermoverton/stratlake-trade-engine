@@ -1,0 +1,15 @@
+pipeline_id: m21_baseline_reference
+start: "2025-01-10"
+end: "2025-02-25"
+strict: true
+strategy:
+  name: cross_section_momentum
+  params:
+    lookback_days: 5
+signal:
+  type: cross_section_rank
+constructor:
+  name: rank_dollar_neutral
+  params:
+    gross_long: 0.5
+    gross_short: 0.5

@@ -1,0 +1,20 @@
+pipeline_id: m21_long_short_risk_controls
+start: "2025-01-10"
+end: "2025-02-25"
+strict: true
+strategy:
+  name: cross_section_momentum
+  params:
+    lookback_days: 7
+signal:
+  type: cross_section_rank
+constructor:
+  name: rank_dollar_neutral
+  params:
+    gross_long: 0.6
+    gross_short: 0.4
+asymmetry:
+  params:
+    exclude_short: false
+    max_short_positions: 2
+    short_position_scale: 0.8

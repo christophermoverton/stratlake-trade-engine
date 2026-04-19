@@ -1,0 +1,30 @@
+pipeline_id: m21_robustness_scenario_sweep
+start: "2025-01-10"
+end: "2025-02-25"
+strict: true
+strategy:
+  name: cross_section_momentum
+  params:
+    lookback_days: 5
+signal:
+  type: cross_section_rank
+constructor:
+  name: rank_dollar_neutral
+  params:
+    gross_long: 0.5
+    gross_short: 0.5
+asymmetry:
+  params:
+    exclude_short: false
+sweep:
+  signal:
+    type: [cross_section_rank, binary_signal]
+    params:
+      quantile: [0.2]
+  constructor:
+    name: [rank_dollar_neutral, identity_weights]
+  asymmetry:
+    exclude_short: [false, true]
+  ranking:
+    primary_metric: sharpe_ratio
+    tie_breakers: [total_return]

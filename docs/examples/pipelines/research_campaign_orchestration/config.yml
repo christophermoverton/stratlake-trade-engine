@@ -1,0 +1,2 @@
+source_case_study: docs/examples/real_world_scenario_sweep_case_study.py
+output_subdir: orchestrated_campaign

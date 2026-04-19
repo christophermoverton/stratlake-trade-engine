@@ -58,6 +58,30 @@ For details, see:
 * [docs/milestone_20_data_platform_orchestration.md](docs/milestone_20_data_platform_orchestration.md)
 * [docs/examples/pipeline_scenario_matrix_case_study.md](docs/examples/pipeline_scenario_matrix_case_study.md)
 
+## Milestone 21 Summary
+
+Milestone 21 adds canonical composition layers for signal semantics, position
+constructors, strategy archetypes, asymmetry-aware controls, extended
+robustness sweeps, and declarative pipeline authoring.
+
+The repository now includes:
+
+* strategy archetype definitions and validation integrated with typed signal
+  semantics and constructor compatibility
+* registry-driven position-constructor selection and directional asymmetry
+  validation
+* declarative pipeline generation through `python -m src.cli.build_pipeline`
+* canonical reference pipeline library under `docs/examples/pipelines/` for
+  end-to-end composition patterns
+
+Start with:
+
+* [docs/signal_semantics.md](docs/signal_semantics.md)
+* [docs/strategy_library.md](docs/strategy_library.md)
+* [docs/extended_robustness_sweeps.md](docs/extended_robustness_sweeps.md)
+* [docs/pipeline_builder.md](docs/pipeline_builder.md)
+* [docs/examples/pipelines/README.md](docs/examples/pipelines/README.md)
+
 ## Milestone 18 Summary
 
 Milestone 18 keeps the campaign-orchestration and resume/reuse layers

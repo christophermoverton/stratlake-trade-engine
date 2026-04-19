@@ -1,0 +1,21 @@
+pipeline_id: m21_declarative_builder
+start: "2025-01-10"
+end: "2025-02-25"
+strict: true
+strategy:
+  name: cross_section_momentum
+  params:
+    lookback_days: 5
+signal:
+  type: cross_section_rank
+constructor:
+  name: rank_dollar_neutral
+  params:
+    gross_long: 0.5
+    gross_short: 0.5
+portfolio:
+  name: equal_weight
+  params:
+    timeframe: 1D
+    alignment_policy: intersection
+    initial_capital: 1.0

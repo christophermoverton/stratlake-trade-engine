@@ -1,0 +1,2 @@
+source_case_study: docs/examples/real_world_resume_workflow_case_study.py
+output_subdir: resume_reuse_flow

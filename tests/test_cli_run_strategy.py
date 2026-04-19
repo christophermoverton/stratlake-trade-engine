@@ -505,7 +505,7 @@ def test_run_strategy_experiment_strict_sanity_failure_prevents_artifact_write(
 
     monkeypatch.setattr(
         "src.cli.run_strategy.get_strategy_config",
-        lambda strategy_name: {
+        lambda strategy_name, path=None: {
             "dataset": "features_daily",
             "parameters": {},
             "sanity": {
@@ -542,7 +542,7 @@ def test_run_strategy_experiment_non_strict_sanity_records_warning(
 
     monkeypatch.setattr(
         "src.cli.run_strategy.get_strategy_config",
-        lambda strategy_name: {
+        lambda strategy_name, path=None: {
             "dataset": "features_daily",
             "parameters": {},
             "sanity": {
@@ -566,7 +566,7 @@ def test_run_strategy_experiment_non_strict_sanity_records_warning(
 
 
 def test_run_cli_passes_strict_flag_to_single_strategy_run(monkeypatch: pytest.MonkeyPatch) -> None:
-    monkeypatch.setattr("src.cli.run_strategy.get_strategy_config", lambda strategy_name: {"dataset": "features_daily"})
+    monkeypatch.setattr("src.cli.run_strategy.get_strategy_config", lambda strategy_name, path=None: {"dataset": "features_daily"})
     calls: dict[str, object] = {}
 
     def fake_run_strategy_experiment(strategy_name, **kwargs):

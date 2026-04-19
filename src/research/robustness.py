@@ -212,6 +212,7 @@ def run_robustness_experiment(
     runtime_config: RuntimeConfig | None = None,
     execution_config: ExecutionConfig | None = None,
     strict: bool = False,
+    strategy_config_path: Path = STRATEGIES_CONFIG,
 ) -> RobustnessRunResult:
     """Run deterministic robustness analysis over a strategy parameter sweep."""
 
@@ -227,10 +228,11 @@ def run_robustness_experiment(
             runtime_config=runtime_config,
             execution_config=execution_config,
             strict=strict,
+            strategy_config_path=strategy_config_path,
         )
 
     resolved_strategy_name = robustness_config.resolve_strategy_name(strategy_name)
-    strategy_config = load_strategy_config(resolved_strategy_name)
+    strategy_config = load_strategy_config(resolved_strategy_name, path=strategy_config_path)
     variants = expand_parameter_sweeps(resolved_strategy_name, strategy_config, robustness_config)
     resolved_runtime = runtime_config or resolve_runtime_config(
         strategy_config,

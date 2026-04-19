@@ -55,6 +55,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description="Run a full strategy experiment using the StratLake research pipeline."
     )
+    parser.add_argument(
+        "--strategies-config",
+        default=str(STRATEGIES_CONFIG),
+        help="Strategy config registry path. Defaults to configs/strategies.yml.",
+    )
     parser.add_argument("--strategy", help="Strategy name defined in configs/strategies.yml.")
     parser.add_argument("--start", dest="start", help="Inclusive experiment start date (YYYY-MM-DD).")
     parser.add_argument("--end", dest="end", help="Exclusive experiment end date (YYYY-MM-DD).")
@@ -124,11 +129,14 @@ def load_strategies_config(path: Path = STRATEGIES_CONFIG) -> dict[str, dict[str
 
 
 def get_strategy_config(
-    strategy_name: str, strategies: dict[str, dict[str, Any]] | None = None
+    strategy_name: str,
+    strategies: dict[str, dict[str, Any]] | None = None,
+    *,
+    path: Path = STRATEGIES_CONFIG,
 ) -> dict[str, Any]:
     """Return the requested strategy configuration or raise a clear validation error."""
 
-    registry = strategies or load_strategies_config()
+    registry = strategies or load_strategies_config(path)
     if strategy_name not in registry:
         available = ", ".join(sorted(registry)) or "<none>"
         raise ValueError(
@@ -151,10 +159,11 @@ def run_strategy_experiment(
     execution_config: ExecutionConfig | None = None,
     strict: bool = False,
     simulation_config: dict[str, Any] | None = None,
+    strategies_config_path: Path = STRATEGIES_CONFIG,
 ) -> StrategyRunResult:
     """Run the full strategy research pipeline and persist experiment artifacts."""
 
-    config = get_strategy_config(strategy_name)
+    config = get_strategy_config(strategy_name, path=strategies_config_path)
     strategy = build_strategy(strategy_name, config)
     dataset = load_features(strategy.dataset, start=start, end=end)
     signal_frame = generate_signals(dataset, strategy)
@@ -390,6 +399,7 @@ def run_cli(
     """Execute the strategy runner CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
+    strategies_config_path = Path(args.strategies_config)
     execution_override = _execution_override_from_args(args)
     robustness_config = None if not args.robustness else load_robustness_config(Path(args.robustness))
     strategy_name = args.strategy
@@ -399,7 +409,7 @@ def run_cli(
     if strategy_name is None:
         raise ValueError("A strategy must be provided via --strategy or the robustness config.")
 
-    config = get_strategy_config(strategy_name)
+    config = get_strategy_config(strategy_name, path=strategies_config_path)
     if args.promotion_gates is not None:
         config = dict(config)
         config["promotion_gates"] = load_promotion_gate_config(args.promotion_gates)
@@ -419,6 +429,7 @@ def run_cli(
             evaluation_path=None if not args.evaluation else Path(args.evaluation),
             execution_config=runtime_config.execution,
             strict=args.strict,
+            strategy_config_path=strategies_config_path,
         )
     elif args.evaluation:
         if args.simulation:
@@ -443,6 +454,7 @@ def run_cli(
             execution_config=runtime_config.execution,
             strict=args.strict,
             simulation_config=None if args.simulation is None else load_simulation_config(Path(args.simulation)).to_dict(),
+            strategies_config_path=strategies_config_path,
         )
     print_summary(result)
     if pipeline_context is not None:

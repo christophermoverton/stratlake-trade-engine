@@ -48,6 +48,7 @@ def run_extended_robustness_experiment(
     runtime_config: RuntimeConfig | None = None,
     execution_config: ExecutionConfig | None = None,
     strict: bool = False,
+    strategy_config_path: Path,
 ):
     from src.research.robustness import (
         RobustnessAnalysisError,
@@ -75,7 +76,7 @@ def run_extended_robustness_experiment(
     seen_signatures: set[str] = set()
     order_index = 0
     for current_strategy_name in strategy_names:
-        base_config = load_strategy_config(current_strategy_name)
+        base_config = load_strategy_config(current_strategy_name, path=strategy_config_path)
         registry_entry = get_strategy_registry_entry(current_strategy_name, registry=registry)
         strategy_overrides = _expand_keyed_space(dict(research_sweep.strategy.params), dict(research_sweep.strategy.options))
         signal_options = _expand_signal_space(research_sweep)
@@ -144,7 +145,7 @@ def run_extended_robustness_experiment(
                 {
                     "run_kind": "ensemble",
                     "record": record,
-                    "runtime_base_config": load_strategy_config(ensemble_definition.members[0]),
+                    "runtime_base_config": load_strategy_config(ensemble_definition.members[0], path=strategy_config_path),
                     "variant": StrategyVariant(
                         variant_id=_variant_id(order_index, record),
                         variant_label=_label(flat),
@@ -200,6 +201,7 @@ def run_extended_robustness_experiment(
                     start=start,
                     end=end,
                     result_cache=result_cache,
+                    strategy_config_path=strategy_config_path,
                 )
             result_cache[cache_key] = executed
         rows.append(
@@ -449,6 +451,7 @@ def _execute_ensemble_spec(
     start: str | None,
     end: str | None,
     result_cache: dict[str, dict[str, Any]],
+    strategy_config_path: Path,
 ) -> dict[str, Any]:
     from src.research.robustness import load_strategy_config
 
@@ -456,7 +459,7 @@ def _execute_ensemble_spec(
     for member_name in record["ensemble"]["members"]:
         member_record = _build_strategy_record(
             strategy_name=str(member_name),
-            strategy_config=load_strategy_config(str(member_name)),
+            strategy_config=load_strategy_config(str(member_name), path=strategy_config_path),
             signal_option={"type": record["signal"]["type"], **{f"params.{key}": value for key, value in record["signal"]["params"].items()}},
             constructor_option={"name": record["constructor"]["name"], **{f"params.{key}": value for key, value in record["constructor"]["params"].items()}},
             asymmetry_option={f"params.{key}": value for key, value in record["asymmetry"].items()},

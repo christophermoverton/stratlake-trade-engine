@@ -1,0 +1,29 @@
+pack_id: m22_scale_repro
+description: Canonical scale and reproducibility benchmark pack for milestone validation.
+dataset:
+  generator: synthetic_features_daily
+  features_root: workspace
+  dataset_name: features_daily
+  start_date: "2025-01-01"
+  periods: 90
+  frequency: D
+  symbols:
+    - AAA
+    - BBB
+    - CCC
+    - DDD
+    - EEE
+    - FFF
+campaign:
+  config_path: ../../docs/examples/data/m22_7_campaign_configs/scale_repro_strategy_benchmark.yml
+  overrides: {}
+batching:
+  batch_size: 3
+outputs:
+  inventory_excludes:
+    - checkpoint.json
+    - manifest.json
+    - summary.json
+    - comparisons/*
+    - inventory.json
+    - snapshots/*

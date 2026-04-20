@@ -1,0 +1,42 @@
+dataset_selection:
+  dataset: features_daily
+  timeframe: 1D
+  evaluation_horizon: 5
+time_windows:
+  start: "2025-01-01"
+  end: "2025-03-31"
+targets:
+  strategy_names:
+    - momentum_v1
+    - mean_reversion_v1
+    - sma_crossover_v1
+  strategy_config_path: configs/strategies.yml
+comparison:
+  enabled: true
+  top_k: 3
+  strategy_metric: sharpe_ratio
+milestone_reporting:
+  enabled: true
+scenarios:
+  enabled: true
+  matrix:
+    - name: window_start
+      path: time_windows.start
+      values:
+        - "2025-01-01"
+        - "2025-01-15"
+    - name: top_k
+      path: comparison.top_k
+      values:
+        - 2
+        - 3
+        - 4
+  include:
+    - scenario_id: cumulative_return_review
+      description: Re-rank the comparison and review surfaces on cumulative return.
+      overrides:
+        comparison:
+          strategy_metric: cumulative_return
+        review:
+          ranking:
+            strategy_primary_metric: cumulative_return

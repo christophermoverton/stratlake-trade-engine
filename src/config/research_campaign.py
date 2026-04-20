@@ -574,6 +574,7 @@ class ResolvedResearchCampaignScenario:
     description: str | None
     source: str
     sweep_values: dict[str, Any]
+    overrides: dict[str, Any]
     config: "ResearchCampaignConfig"
     fingerprint: str
 
@@ -584,6 +585,7 @@ class ResolvedResearchCampaignScenario:
             "description": self.description,
             "source": self.source,
             "sweep_values": _canonicalize_value(dict(self.sweep_values)),
+            "overrides": _canonicalize_value(dict(self.overrides)),
             "fingerprint": self.fingerprint,
             "config": effective_config,
             "effective_config": effective_config,
@@ -2247,6 +2249,7 @@ def expand_research_campaign_scenarios(
                 description="Implicit single-scenario campaign configuration.",
                 source="default",
                 sweep_values={},
+                overrides={},
                 config=base_config,
                 fingerprint=_scenario_fingerprint(base_config),
             ),
@@ -2283,6 +2286,7 @@ def expand_research_campaign_scenarios(
                 description=None,
                 source="matrix",
                 sweep_values=dict(sweep_values),
+                overrides=_canonicalize_value(dict(override_payload)),
                 config=scenario_config,
                 fingerprint=_scenario_fingerprint(scenario_config),
             )
@@ -2301,6 +2305,7 @@ def expand_research_campaign_scenarios(
                 description=included.description,
                 source="include",
                 sweep_values={},
+                overrides=_canonicalize_value(dict(included.overrides)),
                 config=scenario_config,
                 fingerprint=_scenario_fingerprint(scenario_config),
             )

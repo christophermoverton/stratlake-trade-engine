@@ -30,6 +30,10 @@ class ExecutionConfig:
     short_transaction_cost_bps: float | None = None
     short_slippage_multiplier: float = 1.0
     short_borrow_cost_bps: float = 0.0
+    # Short-side capacity and availability modeling (optional - enable short constraints)
+    max_short_weight_sum: float | None = None  # max total short exposure (e.g., 0.40)
+    short_availability_limit: float | None = None  # max short exposure for hard-to-borrow stocks
+    short_availability_policy: str = "exclude"  # {exclude, cap, penalty} - effect when hitting limit
 
     @property
     def friction_bps(self) -> float:
@@ -55,12 +59,15 @@ class ExecutionConfig:
 
     @property
     def has_directional_asymmetry(self) -> bool:
-        """True if directional cost asymmetry is configured."""
+        """True if directional cost asymmetry or short-capacity constraints are configured."""
         return bool(
             self.long_transaction_cost_bps is not None
             or self.short_transaction_cost_bps is not None
             or self.short_slippage_multiplier != 1.0
             or self.short_borrow_cost_bps > 0.0
+            or self.max_short_weight_sum is not None
+            or self.short_availability_limit is not None
+            or self.short_availability_policy != "exclude"
         )
 
     def get_long_transaction_cost_bps(self) -> float:
@@ -99,6 +106,12 @@ class ExecutionConfig:
             payload["short_slippage_multiplier"] = self.short_slippage_multiplier
         if self.short_borrow_cost_bps != 0.0:
             payload["short_borrow_cost_bps"] = self.short_borrow_cost_bps
+        if self.max_short_weight_sum is not None:
+            payload["max_short_weight_sum"] = self.max_short_weight_sum
+        if self.short_availability_limit is not None:
+            payload["short_availability_limit"] = self.short_availability_limit
+        if self.short_availability_policy != "exclude":
+            payload["short_availability_policy"] = self.short_availability_policy
         return payload
 
     @classmethod
@@ -117,6 +130,9 @@ class ExecutionConfig:
             short_transaction_cost_bps=None,
             short_slippage_multiplier=1.0,
             short_borrow_cost_bps=0.0,
+            max_short_weight_sum=None,
+            short_availability_limit=None,
+            short_availability_policy="exclude",
         )
 
     @classmethod
@@ -190,6 +206,21 @@ class ExecutionConfig:
             field_name="short_borrow_cost_bps",
         )
 
+        # Short-side capacity and availability (optional)
+        max_short_weight_sum = _coerce_optional_non_negative_float(
+            payload.get("max_short_weight_sum", seed.max_short_weight_sum),
+            field_name="max_short_weight_sum",
+        )
+        short_availability_limit = _coerce_optional_non_negative_float(
+            payload.get("short_availability_limit", seed.short_availability_limit),
+            field_name="short_availability_limit",
+        )
+        short_availability_policy = _coerce_choice(
+            payload.get("short_availability_policy", seed.short_availability_policy),
+            field_name="short_availability_policy",
+            supported_values=frozenset({"exclude", "cap", "penalty"}),
+        )
+
         enabled_value = payload.get("enabled")
         if enabled_value is None:
             enabled = bool(
@@ -220,6 +251,9 @@ class ExecutionConfig:
             short_transaction_cost_bps=short_transaction_cost_bps,
             short_slippage_multiplier=short_slippage_multiplier,
             short_borrow_cost_bps=short_borrow_cost_bps,
+            max_short_weight_sum=max_short_weight_sum,
+            short_availability_limit=short_availability_limit,
+            short_availability_policy=short_availability_policy,
         )
 
 

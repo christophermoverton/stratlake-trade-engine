@@ -58,6 +58,40 @@ def _write_daily_features_dataset(root: Path, symbol: str = "AAPL", periods: int
     return feature_df
 
 
+def _write_cross_section_features_dataset(root: Path, periods: int = 80) -> pd.DataFrame:
+    timestamps = pd.date_range("2025-01-01", periods=periods, freq="D", tz="UTC")
+    symbols = ["AAA", "BBB", "CCC", "DDD", "EEE"]
+    frames: list[pd.DataFrame] = []
+    for symbol_index, symbol in enumerate(symbols):
+        close = 100.0 + float(symbol_index * 7)
+        closes: list[float] = []
+        market_returns: list[float] = []
+        for ts_index in range(periods):
+            close += (symbol_index - 2) * 0.45 + ((ts_index % 6) - 2) * 0.16
+            closes.append(round(close, 6))
+            market_returns.append(round(0.0015 + ((ts_index % 5) - 2) * 0.0002, 6))
+
+        close_series = pd.Series(closes, dtype="float64")
+        frame = pd.DataFrame(
+            {
+                "symbol": pd.Series([symbol] * periods, dtype="string"),
+                "ts_utc": timestamps,
+                "timeframe": pd.Series(["1D"] * periods, dtype="string"),
+                "date": pd.Series(timestamps.strftime("%Y-%m-%d"), dtype="string"),
+                "close": close_series,
+                "feature_ret_1d": close_series.div(close_series.shift(1)).sub(1.0).fillna(0.0),
+                "high": close_series + 1.0,
+                "low": close_series - 1.0,
+                "market_return": pd.Series(market_returns, dtype="float64"),
+            }
+        )
+        dataset_path = root / "data" / "curated" / "features_daily" / f"symbol={symbol}" / "year=2025"
+        dataset_path.mkdir(parents=True, exist_ok=True)
+        frame.to_parquet(dataset_path / "part-0.parquet", index=False)
+        frames.append(frame)
+    return pd.concat(frames, ignore_index=True)
+
+
 def _write_alpha_features_daily_dataset(root: Path) -> pd.DataFrame:
     timestamps = pd.date_range("2025-01-01", periods=8, freq="D", tz="UTC")
     rows: list[dict[str, object]] = []
@@ -259,6 +293,51 @@ def test_single_strategy_reruns_produce_stable_values_and_registry_entries(
     assert registry_entries[0]["run_id"] == first.run_id
     assert registry_entries[0]["strategy_name"] == strategy_name
     assert registry_entries[0]["artifact_path"] == first.experiment_dir.as_posix()
+
+
+@pytest.mark.parametrize(
+    "strategy_name,dataset_writer",
+    [
+        ("volatility_regime_momentum", _write_daily_features_dataset),
+        ("weighted_cross_section_ensemble", _write_cross_section_features_dataset),
+    ],
+)
+def test_new_archetype_reruns_produce_stable_values_and_registry_entries(
+    strategy_name: str,
+    dataset_writer,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    dataset_writer(tmp_path)
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+
+    first = run_strategy_experiment(strategy_name)
+    second = run_strategy_experiment(strategy_name)
+
+    assert first.run_id == second.run_id
+    _assert_structured_values_stable(first.metrics, second.metrics, path="result.metrics")
+    _assert_frame_values_stable(
+        first.results_df.loc[:, ["signal", "strategy_return", "equity_curve"]],
+        second.results_df.loc[:, ["signal", "strategy_return", "equity_curve"]],
+    )
+    _assert_structured_values_stable(
+        first.signal_diagnostics,
+        second.signal_diagnostics,
+        path="result.signal_diagnostics",
+    )
+    _assert_structured_values_stable(first.qa_summary, second.qa_summary, path="result.qa_summary")
+
+    first_artifacts = _single_run_artifacts(first.experiment_dir)
+    second_artifacts = _single_run_artifacts(second.experiment_dir)
+    _assert_structured_values_stable(first_artifacts, second_artifacts, path="artifacts")
+
+    registry_entries = load_registry(default_registry_path(artifact_root))
+    assert len(registry_entries) == 1
+    assert registry_entries[0]["run_id"] == first.run_id
+    assert registry_entries[0]["strategy_name"] == strategy_name
 
 
 def test_registry_latest_lookup_and_comparison_outputs_remain_stable_for_identical_reruns(

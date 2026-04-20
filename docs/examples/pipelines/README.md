@@ -18,6 +18,8 @@ Each example is runnable and demonstrates one or more integration points across:
   Baseline signal semantics -> constructor -> strategy execution flow.
 - `strategy_archetype_showcase/`
   Multiple archetypes (trend, mean reversion, cross-sectional) under one canonical execution pattern.
+- `regime_ensemble_showcase/`
+  Regime-aware and ensemble archetypes under the same builder-driven execution path.
 - `long_short_risk_controls/`
   Directional asymmetry and constructor-level risk controls.
 - `robustness_scenario_sweep/`
@@ -36,6 +38,7 @@ Run from repository root with relative paths:
 ```powershell
 python docs/examples/pipelines/baseline_reference/pipeline.py
 python docs/examples/pipelines/strategy_archetype_showcase/pipeline.py
+python docs/examples/pipelines/regime_ensemble_showcase/pipeline.py
 python docs/examples/pipelines/long_short_risk_controls/pipeline.py
 python docs/examples/pipelines/robustness_scenario_sweep/pipeline.py
 python docs/examples/pipelines/research_campaign_orchestration/pipeline.py

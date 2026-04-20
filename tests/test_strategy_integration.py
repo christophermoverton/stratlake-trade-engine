@@ -117,6 +117,54 @@ class TestStrategyBacktestIntegration:
         assert set(signals.unique()) <= {-1, 0, 1}
         assert len(signals) == len(realistic_feature_data)
 
+    def test_volatility_regime_momentum_for_backtest(self, realistic_feature_data):
+        """Test regime-aware momentum generates valid gated ternary signals."""
+        config = {
+            "dataset": "features_daily",
+            "signal_type": "ternary_quantile",
+            "position_constructor": {
+                "name": "identity_weights",
+                "params": {}
+            },
+            "parameters": {
+                "lookback_short": 10,
+                "lookback_long": 30,
+                "volatility_lookback": 10,
+                "min_volatility": 0.0,
+                "max_volatility": 0.08,
+            },
+        }
+
+        strategy = build_strategy("volatility_regime_momentum", config)
+        signals = strategy.generate_signals(realistic_feature_data)
+
+        assert len(signals) == len(realistic_feature_data)
+        assert set(signals.unique()) <= {-1, 0, 1}
+
+    def test_weighted_cross_section_ensemble_for_backtest(self, realistic_feature_data):
+        """Test ensemble strategy generates ranked signals suitable for portfolio construction."""
+        config = {
+            "dataset": "features_daily",
+            "signal_type": "cross_section_rank",
+            "position_constructor": {
+                "name": "rank_dollar_neutral",
+                "params": {}
+            },
+            "parameters": {
+                "momentum_lookback_days": 5,
+                "residual_lookback_days": 10,
+                "momentum_weight": 0.6,
+                "residual_weight": 0.4,
+            },
+        }
+
+        strategy = build_strategy("weighted_cross_section_ensemble", config)
+        signals = strategy.generate_signals(realistic_feature_data)
+
+        assert len(signals) == len(realistic_feature_data)
+        assert signals.min() >= -1.0
+        assert signals.max() <= 1.0
+
 
 class TestStrategySignalSemantics:
     """Test that strategies comply with Signal Semantics Layer (M21.1)."""
@@ -141,6 +189,25 @@ class TestStrategySignalSemantics:
             ("breakout", {
                 "dataset": "features_daily",
                 "parameters": {"lookback": 20},
+            }),
+            ("volatility_regime_momentum", {
+                "dataset": "features_daily",
+                "parameters": {
+                    "lookback_short": 10,
+                    "lookback_long": 30,
+                    "volatility_lookback": 10,
+                    "min_volatility": 0.0,
+                    "max_volatility": 0.08,
+                },
+            }),
+            ("weighted_cross_section_ensemble", {
+                "dataset": "features_daily",
+                "parameters": {
+                    "momentum_lookback_days": 5,
+                    "residual_lookback_days": 10,
+                    "momentum_weight": 0.6,
+                    "residual_weight": 0.4,
+                },
             }),
         ]
 
@@ -223,7 +290,7 @@ class TestStrategyRegistry:
         """Test discovering strategies from registry."""
         registry = load_strategies_registry()
 
-        # Verify all 6 archetypes are in registry
+        # Verify all canonical archetypes are in registry
         strategy_ids = [entry["strategy_id"] for entry in registry]
         expected = [
             "time_series_momentum",
@@ -232,6 +299,8 @@ class TestStrategyRegistry:
             "breakout",
             "pairs_trading",
             "residual_momentum",
+            "volatility_regime_momentum",
+            "weighted_cross_section_ensemble",
         ]
         assert sorted(strategy_ids) == sorted(expected)
 

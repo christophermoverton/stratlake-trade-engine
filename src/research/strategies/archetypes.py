@@ -1,16 +1,8 @@
 """
-Canonical Strategy Archetype Implementations
+Canonical Strategy Archetype Implementations.
 
-Implements the 6 core strategy archetypes:
-1. time_series_momentum - Trend-following based on historical momentum
-2. cross_section_momentum - Relative strength across universe
-3. mean_reversion - Reversion to statistical mean
-4. breakout - Reaction to price extremes
-5. pairs_trading - Mean reversion of relative spreads
-6. residual_momentum - Momentum after removing systematic factors
-
-All strategies are deterministic, produce typed signals, and support
-reproducible research pipelines.
+Implements deterministic single-strategy, regime-aware, and ensemble
+archetypes suitable for reproducible research pipelines.
 """
 
 from __future__ import annotations
@@ -30,6 +22,56 @@ from src.research.strategy_archetype import (
     MissingDataHandling,
     FailureMode,
 )
+
+
+def _sorted_working_frame(df: pd.DataFrame, columns: list[str]) -> pd.DataFrame:
+    """Return a stable symbol/time ordered working frame with original indices."""
+    working = df.loc[:, columns].copy()
+    working["_orig_index"] = np.arange(len(df), dtype="int64")
+    sort_columns = ["ts_utc", "_orig_index"]
+    if "symbol" in working.columns:
+        sort_columns = ["symbol", "ts_utc", "_orig_index"]
+    return working.sort_values(sort_columns, kind="stable").reset_index(drop=True)
+
+
+def _restore_series(working: pd.DataFrame, column: str, index: pd.Index) -> pd.Series:
+    """Restore a computed column from a sorted working frame back to the original order."""
+    restored = working.sort_values("_orig_index", kind="stable")[column].reset_index(drop=True)
+    restored.index = index
+    return restored.rename("signal")
+
+
+def _normalize_ranked_signal(
+    df: pd.DataFrame,
+    *,
+    score_column: str,
+    index: pd.Index,
+) -> pd.Series:
+    """Convert per-timestamp scores into deterministic cross-sectional ranks."""
+    ranked = df.loc[:, ["ts_utc", "symbol", score_column]].copy()
+    ranked["_orig_index"] = np.arange(len(df), dtype="int64")
+
+    def normalize_group(group: pd.DataFrame) -> pd.DataFrame:
+        ordered = group.sort_values(
+            [score_column, "symbol", "_orig_index"],
+            ascending=[False, True, True],
+            kind="stable",
+        ).copy()
+        if len(ordered) == 1:
+            ordered["signal"] = 0.0
+        else:
+            ranks = np.arange(len(ordered), dtype="float64")
+            ordered["signal"] = 1.0 - (2.0 * ranks / float(len(ordered) - 1))
+        return ordered
+
+    normalized = (
+        ranked.groupby("ts_utc", sort=False, group_keys=False)
+        .apply(normalize_group)
+        .sort_values("_orig_index", kind="stable")
+    )
+    signal = normalized["signal"].reset_index(drop=True)
+    signal.index = index
+    return signal.rename("signal")
 
 
 # ==============================================================================
@@ -850,3 +892,266 @@ class ResidualMomentumStrategy(ArchetypeStrategy):
             signal = pd.Series(0.0, index=df.index)
 
         return signal.rename("signal")
+
+
+# ==============================================================================
+# Volatility Regime Momentum
+# ==============================================================================
+
+
+class VolatilityRegimeMomentumStrategy(ArchetypeStrategy):
+    """
+    Time-series momentum gated by an explicit realized-volatility regime.
+
+    Research Hypothesis:
+    Momentum signals are more reliable inside bounded volatility regimes.
+    When realized volatility is too low or too high, standing down can reduce
+    whipsaw and execution noise without introducing dynamic randomness.
+    """
+
+    strategy_definition = StrategyDefinition(
+        strategy_id="volatility_regime_momentum",
+        version="1.0.0",
+        archetype=StrategyArchetype.VOLATILITY_REGIME_MOMENTUM,
+        name="Volatility Regime Momentum",
+        description="Time-series momentum gated by explicit realized-volatility thresholds.",
+        mathematical_definition=(
+            "For each symbol: (1) compute short and long rolling close averages; "
+            "(2) derive a base ternary momentum signal from the moving-average spread; "
+            "(3) compute rolling realized volatility from close-to-close returns; "
+            "(4) emit the base signal only when realized volatility lies within "
+            "[min_volatility, max_volatility], otherwise emit 0."
+        ),
+        research_hypothesis=(
+            "Momentum behaves more reliably in moderate-volatility environments. "
+            "Explicitly gating by realized volatility preserves interpretable trend logic "
+            "while reducing exposure in adverse regimes."
+        ),
+        input_schema=InputSchema(
+            required_columns=["ts_utc", "symbol", "close"],
+            required_fields=[
+                InputSchemaField(
+                    name="close",
+                    dtype="float64",
+                    description="Closing price used for both momentum and realized-volatility estimation.",
+                ),
+            ],
+            time_series_required=True,
+            cross_sectional_required=False,
+            min_lookback_periods=2,
+            supported_timeframes=("daily", "weekly"),
+        ),
+        output_signal_schema=OutputSignalSchema(
+            signal_type="ternary_quantile",
+            allowed_values=[-1.0, 0.0, 1.0],
+            description="Ternary signal gated by a deterministic volatility regime filter.",
+        ),
+        execution_semantics=ExecutionSemantics(
+            rebalance_frequency=RebalanceFrequency.DAILY,
+            execution_lag_days=1,
+            missing_data_handling=MissingDataHandling.SKIP_EPOCH,
+            deterministic=True,
+        ),
+        failure_modes=(
+            FailureMode(
+                name="Threshold Misspecification",
+                description="Static volatility thresholds may suppress profitable signals or admit noisy regimes.",
+                regime="threshold_mismatch",
+                sensitivity="moderate",
+                mitigation="Tune thresholds explicitly and document them in config.",
+            ),
+            FailureMode(
+                name="Delayed Regime Recognition",
+                description="Rolling volatility reacts after regime shifts, so gating can lag turning points.",
+                regime="regime_transition",
+                sensitivity="moderate",
+                mitigation="Shorten volatility lookback while preserving deterministic thresholds.",
+            ),
+        ),
+        assumptions=(
+            "Realized volatility estimated from close-to-close returns is an adequate regime proxy.",
+            "Static thresholds are chosen ex ante and remain fixed through the run.",
+            "Signal suppression outside the accepted regime is preferable to adaptive parameter mutation.",
+        ),
+        regime_dependencies=(
+            "Performs best when momentum edges persist in bounded-volatility conditions.",
+            "Stands down during volatility extremes or unusually compressed ranges.",
+        ),
+        tags=("momentum", "regime_aware", "volatility_filter", "time_series"),
+    )
+
+    def __init__(
+        self,
+        *,
+        lookback_short: int,
+        lookback_long: int,
+        volatility_lookback: int,
+        min_volatility: float = 0.0,
+        max_volatility: float = 0.03,
+    ) -> None:
+        if lookback_short <= 0 or lookback_long <= 0:
+            raise ValueError("Lookback windows must be positive integers.")
+        if lookback_short >= lookback_long:
+            raise ValueError("lookback_short must be strictly less than lookback_long.")
+        if volatility_lookback <= 1:
+            raise ValueError("volatility_lookback must be greater than 1.")
+        if min_volatility < 0.0:
+            raise ValueError("min_volatility must be non-negative.")
+        if max_volatility <= 0.0:
+            raise ValueError("max_volatility must be positive.")
+        if min_volatility > max_volatility:
+            raise ValueError("min_volatility must be less than or equal to max_volatility.")
+
+        self.lookback_short = lookback_short
+        self.lookback_long = lookback_long
+        self.volatility_lookback = volatility_lookback
+        self.min_volatility = float(min_volatility)
+        self.max_volatility = float(max_volatility)
+
+    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
+        """Generate regime-filtered momentum signals."""
+        working = _sorted_working_frame(df, ["ts_utc", "symbol", "close"])
+        grouped_close = working["close"].astype("float64").groupby(working["symbol"], sort=False)
+        short_ma = grouped_close.transform(
+            lambda series: series.rolling(window=self.lookback_short, min_periods=self.lookback_short).mean()
+        )
+        long_ma = grouped_close.transform(
+            lambda series: series.rolling(window=self.lookback_long, min_periods=self.lookback_long).mean()
+        )
+        realized_volatility = grouped_close.transform(
+            lambda series: (
+                series.pct_change()
+                .rolling(window=self.volatility_lookback, min_periods=self.volatility_lookback)
+                .std()
+            )
+        )
+        regime_active = realized_volatility.between(self.min_volatility, self.max_volatility, inclusive="both")
+        base_signal = pd.Series(0, index=working.index, dtype="int64")
+        base_signal.loc[short_ma > long_ma] = 1
+        base_signal.loc[short_ma < long_ma] = -1
+        working["signal"] = base_signal.where(regime_active.fillna(False), 0).astype("int64")
+        return _restore_series(working, "signal", df.index)
+
+
+# ==============================================================================
+# Weighted Cross-Section Ensemble
+# ==============================================================================
+
+
+class WeightedCrossSectionEnsembleStrategy(ArchetypeStrategy):
+    """
+    Deterministic ensemble over multiple ranked cross-sectional child strategies.
+
+    Research Hypothesis:
+    Blending complementary ranked signals can stabilize cross-sectional selection
+    while keeping signal construction transparent and fully reproducible.
+    """
+
+    strategy_definition = StrategyDefinition(
+        strategy_id="weighted_cross_section_ensemble",
+        version="1.0.0",
+        archetype=StrategyArchetype.WEIGHTED_CROSS_SECTION_ENSEMBLE,
+        name="Weighted Cross-Section Ensemble",
+        description="Weighted ensemble over cross-sectional momentum and residual momentum sleeves.",
+        mathematical_definition=(
+            "At each timestamp: (1) compute child cross-sectional signals from raw momentum and residual momentum; "
+            "(2) combine them with explicit deterministic weights; "
+            "(3) re-rank the blended score cross-sectionally with symbol-ascending tie-breaking; "
+            "(4) normalize the resulting rank into [-1, +1]."
+        ),
+        research_hypothesis=(
+            "A weighted blend of raw and residual momentum can capture complementary relative-strength effects "
+            "while remaining interpretable and deterministic."
+        ),
+        input_schema=InputSchema(
+            required_columns=["ts_utc", "symbol", "close", "market_return"],
+            required_fields=[
+                InputSchemaField(name="close", dtype="float64", description="Closing price"),
+                InputSchemaField(
+                    name="market_return",
+                    dtype="float64",
+                    description="Market return input required by the residual momentum sleeve.",
+                ),
+            ],
+            time_series_required=True,
+            cross_sectional_required=True,
+            min_cross_section_size=5,
+            min_lookback_periods=1,
+            supported_timeframes=("daily",),
+        ),
+        output_signal_schema=OutputSignalSchema(
+            signal_type="cross_section_rank",
+            value_range=(-1.0, 1.0),
+            description="Normalized cross-sectional rank derived from an explicit weighted ensemble score.",
+        ),
+        execution_semantics=ExecutionSemantics(
+            rebalance_frequency=RebalanceFrequency.DAILY,
+            execution_lag_days=1,
+            missing_data_handling=MissingDataHandling.SKIP_EPOCH,
+            deterministic=True,
+        ),
+        failure_modes=(
+            FailureMode(
+                name="Weight Concentration",
+                description="Poorly chosen weights can collapse the ensemble into a single sleeve.",
+                regime="weight_instability",
+                sensitivity="moderate",
+                mitigation="Use explicit documented weights and validate sleeve contribution in tests.",
+            ),
+            FailureMode(
+                name="Shared Factor Exposure",
+                description="Child sleeves may become highly correlated and reduce diversification benefits.",
+                regime="factor_alignment",
+                sensitivity="moderate",
+                mitigation="Monitor child score dispersion and revise weights only through explicit config changes.",
+            ),
+        ),
+        assumptions=(
+            "Cross-sectional momentum and residual momentum provide complementary but compatible signals.",
+            "Weights are fixed ex ante and do not adapt during a run.",
+            "Re-ranking the blended score is an acceptable deterministic normalization step.",
+        ),
+        regime_dependencies=(
+            "Useful when raw momentum and factor-adjusted momentum each contain incremental information.",
+            "May add less value when both sleeves collapse into the same ordering.",
+        ),
+        tags=("ensemble", "cross_sectional", "momentum", "residual", "weighted"),
+    )
+
+    def __init__(
+        self,
+        *,
+        momentum_lookback_days: int = 5,
+        residual_lookback_days: int = 20,
+        momentum_weight: float = 0.5,
+        residual_weight: float = 0.5,
+    ) -> None:
+        if momentum_lookback_days <= 0:
+            raise ValueError("momentum_lookback_days must be positive.")
+        if residual_lookback_days <= 0:
+            raise ValueError("residual_lookback_days must be positive.")
+        if momentum_weight < 0.0 or residual_weight < 0.0:
+            raise ValueError("Ensemble weights must be non-negative.")
+        if momentum_weight + residual_weight <= 0.0:
+            raise ValueError("At least one ensemble weight must be positive.")
+
+        self.momentum_lookback_days = momentum_lookback_days
+        self.residual_lookback_days = residual_lookback_days
+        self.momentum_weight = float(momentum_weight)
+        self.residual_weight = float(residual_weight)
+
+    def generate_signals(self, df: pd.DataFrame) -> pd.Series:
+        """Generate deterministic weighted ensemble cross-sectional ranks."""
+        momentum_sleeve = CrossSectionMomentumStrategy(
+            lookback_days=self.momentum_lookback_days
+        ).generate_signals(df).astype("float64")
+        residual_sleeve = ResidualMomentumStrategy(
+            lookback_days=self.residual_lookback_days
+        ).generate_signals(df).astype("float64")
+
+        total_weight = self.momentum_weight + self.residual_weight
+        working = df.loc[:, ["ts_utc", "symbol"]].copy()
+        working["ensemble_score"] = (
+            (self.momentum_weight * momentum_sleeve) + (self.residual_weight * residual_sleeve)
+        ) / total_weight
+        return _normalize_ranked_signal(working, score_column="ensemble_score", index=df.index)

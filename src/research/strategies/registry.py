@@ -16,6 +16,8 @@ from src.research.strategies.archetypes import (
     BreakoutStrategy,
     PairsTradingStrategy,
     ResidualMomentumStrategy,
+    VolatilityRegimeMomentumStrategy,
+    WeightedCrossSectionEnsembleStrategy,
 )
 
 StrategyBuilder = Callable[[dict[str, Any]], BaseStrategy]
@@ -89,6 +91,25 @@ def _build_residual_momentum(parameters: dict[str, Any]) -> BaseStrategy:
     )
 
 
+def _build_volatility_regime_momentum(parameters: dict[str, Any]) -> BaseStrategy:
+    return VolatilityRegimeMomentumStrategy(
+        lookback_short=int(parameters.get("lookback_short", 10)),
+        lookback_long=int(parameters.get("lookback_long", 30)),
+        volatility_lookback=int(parameters.get("volatility_lookback", 20)),
+        min_volatility=float(parameters.get("min_volatility", 0.0)),
+        max_volatility=float(parameters.get("max_volatility", 0.03)),
+    )
+
+
+def _build_weighted_cross_section_ensemble(parameters: dict[str, Any]) -> BaseStrategy:
+    return WeightedCrossSectionEnsembleStrategy(
+        momentum_lookback_days=int(parameters.get("momentum_lookback_days", 5)),
+        residual_lookback_days=int(parameters.get("residual_lookback_days", 20)),
+        momentum_weight=float(parameters.get("momentum_weight", 0.5)),
+        residual_weight=float(parameters.get("residual_weight", 0.5)),
+    )
+
+
 STRATEGY_BUILDERS: dict[str, StrategyBuilder] = {
     "momentum_v1": _build_momentum,
     "mean_reversion_v1": _build_mean_reversion,
@@ -103,6 +124,8 @@ STRATEGY_BUILDERS: dict[str, StrategyBuilder] = {
     "breakout": _build_breakout,
     "pairs_trading": _build_pairs_trading,
     "residual_momentum": _build_residual_momentum,
+    "volatility_regime_momentum": _build_volatility_regime_momentum,
+    "weighted_cross_section_ensemble": _build_weighted_cross_section_ensemble,
 }
 
 

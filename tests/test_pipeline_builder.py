@@ -212,6 +212,65 @@ def test_builder_runs_single_pipeline_with_portfolio(tmp_path: Path, monkeypatch
     assert Path(manifest["steps"][1]["step_artifact_dir"]).exists()
 
 
+def test_builder_runs_regime_strategy_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_cross_section_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    result = (
+        PipelineBuilder("builder_regime_pipeline")
+        .strategy(
+            "volatility_regime_momentum",
+            params={
+                "lookback_short": 5,
+                "lookback_long": 20,
+                "volatility_lookback": 10,
+                "min_volatility": 0.0,
+                "max_volatility": 0.08,
+            },
+        )
+        .signal("ternary_quantile", params={"quantile": 0.2})
+        .construct_positions("identity_weights", params={})
+        .run()
+    )
+
+    pipeline_dir = tmp_path / "artifacts" / "pipelines" / result.pipeline_run_id
+    manifest = json.loads((pipeline_dir / "manifest.json").read_text(encoding="utf-8"))
+
+    assert result.status == "completed"
+    assert result.execution_order == ("run_strategy",)
+    assert [step["step_id"] for step in manifest["steps"]] == ["run_strategy"]
+    assert Path(manifest["steps"][0]["step_artifact_dir"]).joinpath("signals.parquet").exists()
+
+
+def test_builder_runs_weighted_ensemble_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write_cross_section_dataset(tmp_path)
+    monkeypatch.chdir(tmp_path)
+
+    result = (
+        PipelineBuilder("builder_weighted_ensemble_pipeline")
+        .strategy(
+            "weighted_cross_section_ensemble",
+            params={
+                "momentum_lookback_days": 5,
+                "residual_lookback_days": 10,
+                "momentum_weight": 0.6,
+                "residual_weight": 0.4,
+            },
+        )
+        .signal("cross_section_rank")
+        .construct_positions("rank_dollar_neutral", params={"gross_long": 0.5, "gross_short": 0.5})
+        .run()
+    )
+
+    pipeline_dir = tmp_path / "artifacts" / "pipelines" / result.pipeline_run_id
+    manifest = json.loads((pipeline_dir / "manifest.json").read_text(encoding="utf-8"))
+
+    assert result.status == "completed"
+    assert result.execution_order == ("run_strategy",)
+    assert [step["step_id"] for step in manifest["steps"]] == ["run_strategy"]
+    assert Path(manifest["steps"][0]["step_artifact_dir"]).joinpath("signal_semantics.json").exists()
+
+
 def test_builder_runs_sweep_pipeline(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     _write_cross_section_dataset(tmp_path)
     monkeypatch.chdir(tmp_path)

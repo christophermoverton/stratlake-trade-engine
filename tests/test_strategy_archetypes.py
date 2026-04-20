@@ -21,6 +21,8 @@ from src.research.strategies.archetypes import (
     BreakoutStrategy,
     PairsTradingStrategy,
     ResidualMomentumStrategy,
+    VolatilityRegimeMomentumStrategy,
+    WeightedCrossSectionEnsembleStrategy,
 )
 from src.research.strategies.registry import build_strategy
 from src.research.strategies.validation import (
@@ -79,6 +81,58 @@ def sample_single_symbol_df():
     }
 
     return pd.DataFrame(data)
+
+
+@pytest.fixture
+def sample_regime_df():
+    """Create a deterministic single-symbol series with calm and high-volatility segments."""
+    timestamps = pd.date_range("2024-01-01", periods=80, freq="D", tz="UTC")
+    close = 100.0
+    closes: list[float] = []
+    for index in range(len(timestamps)):
+        if index < 35:
+            close += 0.6
+        elif index < 50:
+            close += 4.5 if index % 2 == 0 else -3.8
+        else:
+            close += 0.5
+        closes.append(round(close, 6))
+
+    close_series = pd.Series(closes, dtype="float64")
+    return pd.DataFrame(
+        {
+            "ts_utc": timestamps,
+            "symbol": pd.Series(["REGIME"] * len(timestamps), dtype="string"),
+            "close": close_series,
+            "high": close_series + 1.0,
+            "low": close_series - 1.0,
+        }
+    )
+
+
+@pytest.fixture
+def sample_ensemble_df():
+    """Create a deterministic five-symbol cross-sectional dataset for ensemble tests."""
+    timestamps = pd.date_range("2024-01-01", periods=60, freq="D", tz="UTC")
+    symbols = ["AAA", "BBB", "CCC", "DDD", "EEE"]
+    rows: list[dict[str, object]] = []
+    for symbol_index, symbol in enumerate(symbols):
+        close = 90.0 + float(symbol_index * 8)
+        for ts_index, ts_utc in enumerate(timestamps):
+            close += (symbol_index - 2) * 0.55 + ((ts_index % 6) - 2) * 0.18
+            market_return = 0.0015 + ((ts_index % 5) - 2) * 0.0002
+            rows.append(
+                {
+                    "ts_utc": ts_utc,
+                    "symbol": symbol,
+                    "close": round(close, 6),
+                    "high": round(close + 1.0, 6),
+                    "low": round(close - 1.0, 6),
+                    "market_return": round(market_return, 6),
+                }
+            )
+
+    return pd.DataFrame(rows)
 
 
 class TestTimeSeriesMomentum:
@@ -331,13 +385,154 @@ class TestResidualMomentum:
         validate_signal_output("residual_momentum", signals)
 
 
+class TestVolatilityRegimeMomentum:
+    """Tests for VolatilityRegimeMomentumStrategy."""
+
+    def test_instantiation(self):
+        """Test strategy instantiation."""
+        strategy = VolatilityRegimeMomentumStrategy(
+            lookback_short=5,
+            lookback_long=20,
+            volatility_lookback=10,
+            min_volatility=0.002,
+            max_volatility=0.03,
+        )
+        assert strategy.strategy_id == "volatility_regime_momentum"
+
+    def test_invalid_parameters(self):
+        """Test invalid parameters."""
+        with pytest.raises(ValueError):
+            VolatilityRegimeMomentumStrategy(
+                lookback_short=10,
+                lookback_long=5,
+                volatility_lookback=10,
+            )
+        with pytest.raises(ValueError):
+            VolatilityRegimeMomentumStrategy(
+                lookback_short=5,
+                lookback_long=20,
+                volatility_lookback=1,
+            )
+
+    def test_generate_signals(self, sample_regime_df):
+        """Test signal generation and regime gating."""
+        strategy = VolatilityRegimeMomentumStrategy(
+            lookback_short=5,
+            lookback_long=15,
+            volatility_lookback=5,
+            min_volatility=0.002,
+            max_volatility=0.03,
+        )
+        signals = strategy.generate_signals(sample_regime_df)
+        base_signals = TimeSeriesMomentumStrategy(
+            lookback_short=5,
+            lookback_long=15,
+        ).generate_signals(sample_regime_df)
+
+        assert len(signals) == len(sample_regime_df)
+        assert set(signals.unique()) <= {-1, 0, 1}
+        volatile_segment = signals.iloc[40:50]
+        assert volatile_segment.eq(0).all()
+        assert base_signals.iloc[40:50].ne(0).any()
+
+    def test_determinism(self, sample_regime_df):
+        """Test deterministic output."""
+        strategy = VolatilityRegimeMomentumStrategy(
+            lookback_short=5,
+            lookback_long=15,
+            volatility_lookback=5,
+            min_volatility=0.002,
+            max_volatility=0.03,
+        )
+
+        outputs = [strategy.generate_signals(sample_regime_df) for _ in range(5)]
+        for index in range(1, len(outputs)):
+            assert outputs[index].equals(outputs[0])
+
+    def test_output_schema_validation(self, sample_regime_df):
+        """Test output schema validation."""
+        strategy = VolatilityRegimeMomentumStrategy(
+            lookback_short=5,
+            lookback_long=15,
+            volatility_lookback=5,
+            min_volatility=0.002,
+            max_volatility=0.03,
+        )
+        signals = strategy.generate_signals(sample_regime_df)
+
+        validate_signal_output("volatility_regime_momentum", signals)
+
+
+class TestWeightedCrossSectionEnsemble:
+    """Tests for WeightedCrossSectionEnsembleStrategy."""
+
+    def test_instantiation(self):
+        """Test strategy instantiation."""
+        strategy = WeightedCrossSectionEnsembleStrategy(
+            momentum_lookback_days=5,
+            residual_lookback_days=20,
+            momentum_weight=0.6,
+            residual_weight=0.4,
+        )
+        assert strategy.strategy_id == "weighted_cross_section_ensemble"
+
+    def test_invalid_parameters(self):
+        """Test invalid parameters."""
+        with pytest.raises(ValueError):
+            WeightedCrossSectionEnsembleStrategy(momentum_weight=0.0, residual_weight=0.0)
+        with pytest.raises(ValueError):
+            WeightedCrossSectionEnsembleStrategy(momentum_weight=-0.1, residual_weight=1.0)
+
+    def test_generate_signals(self, sample_ensemble_df):
+        """Test deterministic ensemble ranking."""
+        strategy = WeightedCrossSectionEnsembleStrategy(
+            momentum_lookback_days=5,
+            residual_lookback_days=10,
+            momentum_weight=0.6,
+            residual_weight=0.4,
+        )
+        signals = strategy.generate_signals(sample_ensemble_df)
+
+        assert len(signals) == len(sample_ensemble_df)
+        assert signals.min() >= -1.0
+        assert signals.max() <= 1.0
+        latest_timestamp = sample_ensemble_df["ts_utc"].max()
+        last_cross_section = signals.loc[sample_ensemble_df["ts_utc"].eq(latest_timestamp)].tolist()
+        assert sorted(last_cross_section) == [-1.0, -0.5, 0.0, 0.5, 1.0]
+
+    def test_determinism(self, sample_ensemble_df):
+        """Test deterministic output."""
+        strategy = WeightedCrossSectionEnsembleStrategy(
+            momentum_lookback_days=5,
+            residual_lookback_days=10,
+            momentum_weight=0.6,
+            residual_weight=0.4,
+        )
+
+        outputs = [strategy.generate_signals(sample_ensemble_df) for _ in range(5)]
+        for index in range(1, len(outputs)):
+            assert outputs[index].equals(outputs[0])
+
+    def test_output_schema_validation(self, sample_ensemble_df):
+        """Test output schema validation."""
+        strategy = WeightedCrossSectionEnsembleStrategy(
+            momentum_lookback_days=5,
+            residual_lookback_days=10,
+            momentum_weight=0.6,
+            residual_weight=0.4,
+        )
+        signals = strategy.generate_signals(sample_ensemble_df)
+
+        validate_signal_output("weighted_cross_section_ensemble", signals)
+
+
 class TestRegistryIntegration:
     """Tests for registry and validation integration."""
 
     def test_load_registry(self):
         """Test loading registry."""
         registry = load_strategies_registry()
-        assert len(registry) == 6
+        assert len(registry) == 8
         assert all("strategy_id" in entry for entry in registry)
 
     def test_list_available_strategies(self):
@@ -350,6 +545,8 @@ class TestRegistryIntegration:
             "breakout",
             "pairs_trading",
             "residual_momentum",
+            "volatility_regime_momentum",
+            "weighted_cross_section_ensemble",
         ]
         assert sorted(strategies) == sorted(expected)
 
@@ -360,6 +557,12 @@ class TestRegistryIntegration:
 
         cross_section = get_strategy_by_archetype("cross_section_momentum")
         assert "cross_section_momentum" in cross_section
+
+        regime = get_strategy_by_archetype("volatility_regime_momentum")
+        assert "volatility_regime_momentum" in regime
+
+        ensemble = get_strategy_by_archetype("weighted_cross_section_ensemble")
+        assert "weighted_cross_section_ensemble" in ensemble
 
     def test_validate_config(self, sample_single_symbol_df):
         """Test configuration validation."""

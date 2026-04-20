@@ -1,8 +1,8 @@
 # Strategy Archetype Library
 
-**Version:** 1.0.0  
+**Version:** 1.1.0  
 **Status:** Production-Ready  
-**Last Updated:** April 2026
+**Last Updated:** April 20, 2026
 
 ---
 
@@ -21,7 +21,7 @@ The **Strategy Archetype Library** formalizes a canonical set of research-grade 
 
 ## Canonical Strategy Archetypes
 
-The library implements **6 core strategy archetypes**, representing distinct research hypotheses:
+The library implements **8 canonical strategy archetypes**, representing distinct research hypotheses:
 
 ### 1. Time Series Momentum
 
@@ -444,6 +444,119 @@ strategy:
 
 ---
 
+### 7. Volatility Regime Momentum
+
+**Strategy ID:** `volatility_regime_momentum` (v1.0.0)
+
+**Archetype:** Regime-Aware | Trend-Following | Volatility-Gated
+
+**Design Intent:**
+Preserve a canonical momentum sleeve while suppressing exposure when realized volatility falls outside an explicitly documented operating band.
+
+**Regime Logic:**
+
+For each symbol independently:
+
+1. Compute short and long rolling close averages
+2. Form the base momentum signal:
+   - Signal = +1 if short average > long average
+   - Signal = -1 if short average < long average
+   - Signal = 0 otherwise
+3. Compute realized volatility from close-to-close returns over `volatility_lookback`
+4. Gate the base signal:
+   - Keep the signal when `min_volatility <= realized_volatility <= max_volatility`
+   - Emit `0` outside that band
+
+**Required Inputs:**
+- `ts_utc`
+- `symbol`
+- `close`
+
+**Output Signal Type:** `ternary_quantile`
+
+**Canonical Configuration:**
+```yaml
+strategy:
+  name: volatility_regime_momentum
+  version: 1.0.0
+  dataset: features_daily
+  signal_type: ternary_quantile
+  position_constructor: identity_weights
+  parameters:
+    lookback_short: 5
+    lookback_long: 20
+    volatility_lookback: 10
+    min_volatility: 0.0
+    max_volatility: 0.08
+```
+
+**Assumptions:**
+- Realized volatility is estimated deterministically from close-to-close returns
+- Thresholds are fixed ex ante and do not adapt during a run
+- Signal suppression is preferable to dynamic parameter mutation
+
+**Minimal Working Pipeline Example:**
+- `docs/examples/pipelines/regime_ensemble_showcase/`
+
+---
+
+### 8. Weighted Cross-Section Ensemble
+
+**Strategy ID:** `weighted_cross_section_ensemble` (v1.0.0)
+
+**Archetype:** Ensemble | Cross-Sectional | Weighted Blend
+
+**Design Intent:**
+Blend multiple transparent ranked sleeves into one canonical cross-sectional signal without introducing hidden optimization or dynamic weight changes.
+
+**Ensemble Logic:**
+
+At each timestamp:
+
+1. Compute `cross_section_momentum`
+2. Compute `residual_momentum`
+3. Blend both sleeves with explicit weights:
+
+$$
+\text{ensemble\_score}_i = \frac{w_m \cdot s^{\text{momentum}}_i + w_r \cdot s^{\text{residual}}_i}{w_m + w_r}
+$$
+
+4. Re-rank the blended score deterministically with symbol-ascending tie-breaking
+5. Normalize the final rank to `cross_section_rank` in `[-1, 1]`
+
+**Required Inputs:**
+- `ts_utc`
+- `symbol`
+- `close`
+- `market_return`
+
+**Output Signal Type:** `cross_section_rank`
+
+**Canonical Configuration:**
+```yaml
+strategy:
+  name: weighted_cross_section_ensemble
+  version: 1.0.0
+  dataset: features_daily
+  signal_type: cross_section_rank
+  position_constructor: rank_dollar_neutral
+  parameters:
+    momentum_lookback_days: 5
+    residual_lookback_days: 10
+    momentum_weight: 0.6
+    residual_weight: 0.4
+```
+
+**Assumptions:**
+- Child sleeves are themselves deterministic and registry-backed
+- Weights are explicit, static, and documented in config
+- Re-ranking the blended score is the canonical normalization step
+
+**Minimal Working Pipeline Example:**
+- `docs/examples/pipelines/regime_ensemble_showcase/`
+
+---
+
 ## Usage Guide
 
 ### 1. Configuration
@@ -537,6 +650,8 @@ All strategies emit **explicitly typed signals** compatible with the Signal Sema
 | Breakout | `ternary_quantile` | {-1, 0, 1} | ✓ |
 | Pairs Trading | `spread_zscore` | ℝ (continuous) | ✓ |
 | Residual Momentum | `cross_section_rank` | [-1.0, 1.0] | ✓ |
+| Volatility Regime Momentum | `ternary_quantile` | {-1, 0, 1} | ✓ |
+| Weighted Cross-Section Ensemble | `cross_section_rank` | [-1.0, 1.0] | ✓ |
 
 ### Position Constructor Compatibility
 
@@ -655,11 +770,11 @@ Strategies may suffer when widely adopted. Monitor factor crowding and adjust po
 
 ### Planned Enhancements
 
-1. **Adaptive parameters**: Dynamic threshold/lookback adjustment
-2. **Regime detection**: Automatic strategy switching
-3. **Multi-strategy ensembles**: Composite signal generation
-4. **Statistical factor models**: Enhanced residual momentum
-5. **Volatility scaling**: Normalized position sizing
+1. **Additional regime filters**: Trend-strength, liquidity, or drawdown gates with explicit thresholds
+2. **Voting or hierarchical ensembles**: Meta-strategies over canonical child sleeves
+3. **Statistical factor models**: Enhanced residual momentum
+4. **Volatility scaling**: Normalized position sizing
+5. **More canonical examples**: Additional builder-backed showcase pipelines
 
 ### Extension Points
 
@@ -723,6 +838,12 @@ print(f"NaN count: {signal.isna().sum()}")
 
 ## Version History
 
+### v1.1.0 (April 20, 2026)
+
+- Added `volatility_regime_momentum` as a regime-aware canonical archetype
+- Added `weighted_cross_section_ensemble` as an ensemble canonical archetype
+- Added builder-backed canonical pipeline examples for regime-aware and ensemble execution
+
 ### v1.0.0 (April 2026)
 
 - Initial release with 6 canonical archetypes
@@ -733,6 +854,6 @@ print(f"NaN count: {signal.isna().sum()}")
 
 ---
 
-**Last Updated:** April 18, 2026  
+**Last Updated:** April 20, 2026  
 **Maintained By:** StratLake Research Team  
 **Status:** Production

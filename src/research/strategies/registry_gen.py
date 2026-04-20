@@ -14,6 +14,8 @@ from src.research.strategies.archetypes import (
     BreakoutStrategy,
     PairsTradingStrategy,
     ResidualMomentumStrategy,
+    VolatilityRegimeMomentumStrategy,
+    WeightedCrossSectionEnsembleStrategy,
 )
 
 
@@ -26,6 +28,8 @@ def generate_strategies_registry() -> list[dict]:
         BreakoutStrategy.strategy_definition,
         PairsTradingStrategy.strategy_definition,
         ResidualMomentumStrategy.strategy_definition,
+        VolatilityRegimeMomentumStrategy.strategy_definition,
+        WeightedCrossSectionEnsembleStrategy.strategy_definition,
     ]
 
     return [s.to_registry_entry() for s in strategies]

@@ -136,3 +136,32 @@ residual_momentum:
       gross_short: 0.5
   parameters:
     lookback_days: 20
+
+volatility_regime_momentum:
+  dataset: features_daily
+  signal_type: ternary_quantile
+  signal_params: {}
+  position_constructor:
+    name: identity_weights
+    params: {}
+  parameters:
+    lookback_short: 5
+    lookback_long: 20
+    volatility_lookback: 10
+    min_volatility: 0.002
+    max_volatility: 0.03
+
+weighted_cross_section_ensemble:
+  dataset: features_daily
+  signal_type: cross_section_rank
+  signal_params: {}
+  position_constructor:
+    name: rank_dollar_neutral
+    params:
+      gross_long: 0.5
+      gross_short: 0.5
+  parameters:
+    momentum_lookback_days: 5
+    residual_lookback_days: 20
+    momentum_weight: 0.6
+    residual_weight: 0.4

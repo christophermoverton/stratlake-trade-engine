@@ -32,6 +32,8 @@ class StrategyArchetype(str, Enum):
     BREAKOUT = "breakout"
     PAIRS_TRADING = "pairs_trading"
     RESIDUAL_MOMENTUM = "residual_momentum"
+    VOLATILITY_REGIME_MOMENTUM = "volatility_regime_momentum"
+    WEIGHTED_CROSS_SECTION_ENSEMBLE = "weighted_cross_section_ensemble"
 
 
 class RebalanceFrequency(str, Enum):

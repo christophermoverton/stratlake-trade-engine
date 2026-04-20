@@ -25,6 +25,7 @@ def _load_example_module(path: Path):
     [
         ("docs/examples/pipelines/baseline_reference/pipeline.py", "runs"),
         ("docs/examples/pipelines/strategy_archetype_showcase/pipeline.py", "runs"),
+        ("docs/examples/pipelines/regime_ensemble_showcase/pipeline.py", "runs"),
         ("docs/examples/pipelines/long_short_risk_controls/pipeline.py", "run"),
         ("docs/examples/pipelines/robustness_scenario_sweep/pipeline.py", "run"),
         ("docs/examples/pipelines/declarative_builder/pipeline.py", "equivalence"),

@@ -226,6 +226,63 @@ Important details:
 * side-specific cost fields are optional and backward-compatible
 * short-capacity fields are optional; when absent, no constraints apply
 
+### Short-Availability Policy Behavior (Exclude vs Cap vs Penalty)
+
+When `short_availability_policy` is configured, the three policies produce **measurably different execution outcomes:**
+
+#### `exclude` — Zero Out Constrained Positions
+
+Removes all short positions that would violate the limit.
+
+**Effect on execution:**
+* Short exposure reduced to 0 (or within limit)
+* Short turnover reduced (fewer positions to manage)
+* Short transaction/slippage costs eliminated
+* **Result:** Lower total execution friction, but loses short exposure alpha
+
+**When to use:** When short capacity is truly unavailable (no hard-to-borrow shares available)
+
+#### `cap` — Rescale Shorts Proportionally
+
+Rescales all short positions proportionally to fit within the limit while preserving relative positioning.
+
+**Effect on execution:**
+* Short exposure reduced but proportionally maintained across securities
+* Short turnover slightly reduced (smaller position sizes)
+* Short transaction/slippage costs reduced (smaller positions)
+* Short borrow costs reduced (smaller exposure)
+* **Result:** Moderate friction increase, preserves hedge structure
+
+**When to use:** When short capacity is limited but you want to maintain the short strategy's relative structure
+
+#### `penalty` — Keep Weights, Apply Violation Cost
+
+Keeps the original portfolio weights unchanged but applies a penalty cost for each unit of constraint violation.
+
+**Penalty calculation:**
+- Penalty rate = `short_borrow_cost_bps × 5` (violation penalty is 5x the borrow cost)
+- Penalty cost per day = violation_amount × penalty_rate / 10000
+- Example: If `short_borrow_cost_bps = 100` and violation_amount = 0.10 (10% excess short), daily penalty = 0.10 × 500/10000 = 0.005 (5 bps)
+
+**Effect on execution:**
+* Short exposure **unchanged** (full alpha preserved)
+* Short turnover **unchanged** (same positions to manage)
+* **Additional penalty cost applied** (significant friction increase)
+* Short borrow costs **unchanged** (penalties separate from borrow costs)
+* **Result:** Highest total execution friction, but preserves maximum alpha opportunity
+
+**When to use:** When you want to flag and quantify the cost of violating constraints without actually enforcing them (e.g., monitoring "what-if" scenarios)
+
+**Behavioral Comparison:**
+
+| Policy | Short Exposure | Friction Increase | Use Case |
+|--------|----------------|-------------------|----------|
+| `exclude` | 0% of limit | Lowest | Hard constraint |
+| `cap` | ~100% of limit | Moderate | Soft constraint |
+| `penalty` | 100% of limit | Highest | Cost quantification |
+
+---
+
 ## Deterministic Behavior
 
 The execution model is deterministic by design:
@@ -311,7 +368,7 @@ If `short_borrow_cost_drag_pct` is dominant (>40%), focus on borrow cost reducti
 
 ## 🔹 Capacity Impact Analysis
 
-When constraints are configured, this section estimates the portfolio impact **of** the constraints:
+When constraints are configured, this section estimates the portfolio impact **of** the constraints using **real dual-execution deltas**:
 
 ```json
 "capacity_impact": {
@@ -319,19 +376,34 @@ When constraints are configured, this section estimates the portfolio impact **o
   "turnover_delta": 0.05,
   "short_exposure_delta": -0.08,
   "baseline_friction": 0.0045,
-  "constrained_friction": 0.0060
+  "constrained_friction": 0.0060,
+  "note": "real_deltas_from_dual_execution"
 }
 ```
+
+**Methodology:**
+
+The capacity impact is computed by running **two complete execution calculations:**
+
+1. **Constrained execution** — Uses portfolio weights after constraint enforcement (primary result)
+2. **Baseline execution** — Uses original weights without constraint enforcement
+
+Deltas are computed as: baseline_metric - constrained_metric
+
+This ensures capacity impact reflects actual execution behavior changes, not approximations.
 
 **Interpretation:**
 
 * `return_delta` - additional friction cost due to constraints (negative = worse performance)
 * `turnover_delta` - change in portfolio turnover (positive = more rebalancing)
 * `short_exposure_delta` - reduction in average short exposure (negative = less shorting)
-* `baseline_friction` - estimated costs without constraints
-* `constrained_friction` - actual costs with constraints
+* `baseline_friction` - costs without constraints (from original weights)
+* `constrained_friction` - costs with constraints applied
+* **Reconciliation:** `return_delta = baseline_friction - constrained_friction` (always exact)
 
 **Example:** If `return_delta = -0.0015` and `short_exposure_delta = -0.08`, the constraint reduces short exposure by 8% but costs 15 bps in additional friction. Evaluate if the reduced short exposure justifies the cost.
+
+**Note on penalty policy:** When using `penalty` policy, constraint penalty costs are included in execution_friction and reflected in the deltas. The penalty creates measurable friction cost for violations without modifying weights.
 
 ---
 

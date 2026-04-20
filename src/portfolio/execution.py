@@ -39,20 +39,28 @@ def _apply_short_capacity_constraints(
     (exclude, cap, or penalty). Returns both modified weights and a log of modifications
     for tracking constraint binding.
     
+    For penalty policy: weights are kept unchanged, but violations are recorded for
+    penalty cost calculation in the execution model.
+    
     Args:
         weights_wide: DataFrame of portfolio weights (asset columns, date index)
         execution_config: ExecutionConfig with constraint settings
         
     Returns:
-        Tuple of (modified_weights_wide, modification_log dict)
+        Tuple of (modified_weights_wide, modification_log dict) where log includes:
+        - enforced: bool indicating if constraints were applied
+        - policy: str indicating policy used (exclude, cap, penalty)
+        - violations: list of violations when penalty policy is used
+        - modifications_by_date: dict of modifications per date
     """
     
     # If no constraints configured, return original weights unchanged
     if execution_config.max_short_weight_sum is None and execution_config.short_availability_limit is None:
-        return weights_wide.copy(), {"enforced": False, "policy": None}
+        return weights_wide.copy(), {"enforced": False, "policy": None, "violations": []}
     
     enforced_weights = weights_wide.copy()
     modifications_by_date = {}
+    violations = []  # For penalty policy: track violations for cost calculation
     
     # For each date, check and enforce constraints
     for date_idx in enforced_weights.index:
@@ -88,11 +96,19 @@ def _apply_short_capacity_constraints(
                             "scale_factor": float(scale_factor),
                         }
                 elif execution_config.short_availability_policy == "penalty":
-                    # Keep weights unchanged; penalty will be applied in cost calculation
+                    # Keep weights unchanged; record violation for penalty cost calculation
+                    violation_amount = total_short_exposure - execution_config.max_short_weight_sum
+                    violations.append({
+                        "date": date_idx,
+                        "constraint": "max_short_weight_sum",
+                        "violation_amount": float(violation_amount),
+                        "allowed": float(execution_config.max_short_weight_sum),
+                        "actual": float(total_short_exposure),
+                    })
                     modifications_by_date[date_idx] = {
                         "event": "max_short_weight_penalty",
                         "original_short_exposure": float(total_short_exposure),
-                        "violation_amount": float(total_short_exposure - execution_config.max_short_weight_sum),
+                        "violation_amount": float(violation_amount),
                         "penalty_applied": True,
                     }
         
@@ -111,6 +127,16 @@ def _apply_short_capacity_constraints(
                         enforced_weights.loc[date_idx, short_mask] *= scale_factor
                         if date_idx not in modifications_by_date:
                             modifications_by_date[date_idx] = {"event": "availability_limit_cap", "scale_factor": float(scale_factor)}
+                elif execution_config.short_availability_policy == "penalty":
+                    # Record violation for penalty cost calculation
+                    violation_amount = short_exposure_after - execution_config.short_availability_limit
+                    violations.append({
+                        "date": date_idx,
+                        "constraint": "short_availability_limit",
+                        "violation_amount": float(violation_amount),
+                        "allowed": float(execution_config.short_availability_limit),
+                        "actual": float(short_exposure_after),
+                    })
     
     return enforced_weights, {
         "enforced": True,
@@ -118,7 +144,9 @@ def _apply_short_capacity_constraints(
         "max_short_weight_sum": execution_config.max_short_weight_sum,
         "short_availability_limit": execution_config.short_availability_limit,
         "modifications_by_date": modifications_by_date,
+        "violations": violations,  # For penalty policy
     }
+
 
 
 # ============================================================================
@@ -226,7 +254,25 @@ def apply_portfolio_execution_model(
         execution_config.short_borrow_cost_bps,
         enabled=execution_config.enabled,
     )
-    execution_friction = (proportional_cost + fixed_fee + slippage_cost + short_borrow_cost).astype("float64")
+    
+    # Compute penalty costs for violations under penalty policy
+    penalty_violations = constraint_modification_log.get("violations", []) if constraints_active else []
+    constraint_penalty_cost = _compute_penalty_costs(
+        violations=penalty_violations,
+        execution_config=execution_config,
+    )
+    
+    # Add penalty cost to execution_friction if present
+    if constraint_penalty_cost is not None:
+        # Align penalty cost Series with returns_wide index
+        penalty_cost_aligned = pd.Series(0.0, index=returns_wide.index)
+        for date, cost in constraint_penalty_cost.items():
+            if date in penalty_cost_aligned.index:
+                penalty_cost_aligned.loc[date] = cost
+        execution_friction = (proportional_cost + fixed_fee + slippage_cost + short_borrow_cost + penalty_cost_aligned).astype("float64")
+    else:
+        penalty_cost_aligned = pd.Series(0.0, index=returns_wide.index)
+        execution_friction = (proportional_cost + fixed_fee + slippage_cost + short_borrow_cost).astype("float64")
     
     # BASELINE EXECUTION (for comparing to constrained when constraints are active)
     baseline_execution_friction = execution_friction.copy()  # Default: same as constrained
@@ -315,6 +361,7 @@ def apply_portfolio_execution_model(
         long_slippage_cost=long_slippage_cost,
         short_slippage_cost=short_slippage_cost,
         short_borrow_cost=short_borrow_cost,
+        constraint_penalty_cost=penalty_cost_aligned if constraint_penalty_cost is not None else None,
     )
 
     frame_payload: dict[str, pd.Series] = {
@@ -329,6 +376,11 @@ def apply_portfolio_execution_model(
         "portfolio_slippage_cost": slippage_cost,
         "portfolio_execution_friction": execution_friction,
     }
+    
+    # Add constraint penalty cost if penalties are being applied
+    if constraint_penalty_cost is not None and (penalty_cost_aligned > 0.0).any():
+        frame_payload["portfolio_constraint_penalty_cost"] = penalty_cost_aligned.astype("float64")
+    
     if execution_config.has_directional_asymmetry:
         frame_payload.update(
             {
@@ -529,6 +581,50 @@ def _slippage_proxy_name(slippage_model: str) -> str | None:
 # ============================================================================
 
 
+def _compute_penalty_costs(
+    *,
+    violations: list[dict[str, Any]],
+    execution_config: ExecutionConfig,
+) -> pd.Series | None:
+    """
+    Compute penalty costs for constraint violations under penalty policy.
+    
+    Penalty cost is applied as: violation_amount * penalty_rate
+    Penalty rate is derived from short_borrow_cost_bps (5x multiplier for constraint violation penalty)
+    
+    Args:
+        violations: List of violation dicts from constraint enforcement
+        execution_config: ExecutionConfig with penalty rate settings
+        
+    Returns:
+        Series with penalty cost per date, or None if no violations
+    """
+    if not violations or execution_config.short_availability_policy != "penalty":
+        return None
+    
+    # Use short_borrow_cost_bps as base penalty rate, with 5x multiplier for constraint violations
+    # This makes penalty costs material (similar to high borrow costs) but distinct from borrow costs
+    penalty_rate_bps = execution_config.short_borrow_cost_bps * 5.0  # 5x multiplier
+    penalty_rate = penalty_rate_bps / 10000.0  # Convert bps to decimal
+    
+    # Group violations by date and accumulate penalty cost
+    penalty_by_date = {}
+    for violation in violations:
+        date = violation["date"]
+        violation_amount = violation["violation_amount"]
+        # Cost = violation_amount * penalty_rate (daily)
+        penalty_cost = violation_amount * penalty_rate
+        
+        if date not in penalty_by_date:
+            penalty_by_date[date] = 0.0
+        penalty_by_date[date] += penalty_cost
+    
+    # Convert to Series aligned with date index
+    if penalty_by_date:
+        return pd.Series(penalty_by_date, name="penalty_cost")
+    return None
+
+
 def _compute_constraint_events(
     *,
     enforced_weights_wide: pd.DataFrame,
@@ -607,55 +703,6 @@ def _compute_constraint_utilization(
     return utilization
 
 
-def _compute_capacity_impact_analysis(
-    *,
-    returns_wide: pd.DataFrame,
-    weights_wide: pd.DataFrame,
-    execution_config: ExecutionConfig,
-    constrained_long_cost: pd.Series,
-    constrained_short_cost: pd.Series,
-    constrained_friction: pd.Series,
-) -> dict[str, Any] | None:
-    """
-    Perform dual-run capacity impact analysis.
-    
-    Computes the estimated impact of constraints by comparing constrained
-    execution with estimated unconstrained baseline. Uses analytical estimation
-    rather than full re-execution to avoid recursion.
-    """
-    # Only analyze if constraints are configured
-    if execution_config.max_short_weight_sum is None and execution_config.short_availability_limit is None:
-        return None
-    
-    # Estimate baseline execution metrics without short constraints
-    # by computing what long-only execution would look like
-    
-    # Baseline: assume same transaction costs but applied to unconstrained positions
-    # Approximation: baseline has more short exposure and similar costs structure
-    constrained_short_exposure = weights_wide.clip(upper=0.0).abs().sum(axis=1).mean()
-    constrained_friction_total = constrained_friction.sum()
-    constrained_turnover = weights_wide.diff().fillna(weights_wide).abs().sum(axis=1).sum()
-    
-    # Estimate baseline: if constraints were not binding, short exposure could be higher
-    # This is a deterministic estimate, not a full re-run
-    estimated_baseline_friction = constrained_friction_total * 0.95  # 5% reduction without constraints
-    estimated_baseline_turnover = constrained_turnover * 0.98
-    
-    # Compute deltas
-    return_delta = constrained_friction_total - estimated_baseline_friction
-    turnover_delta = constrained_turnover - estimated_baseline_turnover
-    short_exposure_delta = constrained_short_exposure * 0.05  # estimated constraint reduction
-    
-    return {
-        "return_delta": float(return_delta),
-        "turnover_delta": float(turnover_delta),
-        "short_exposure_delta": float(short_exposure_delta),
-        "baseline_friction": float(estimated_baseline_friction),
-        "constrained_friction": float(constrained_friction_total),
-        "note": "estimated_baseline_from_constraints",
-    }
-
-
 def _compute_side_cost_attribution(
     *,
     long_transaction_cost: pd.Series,
@@ -663,15 +710,21 @@ def _compute_side_cost_attribution(
     long_slippage_cost: pd.Series,
     short_slippage_cost: pd.Series,
     short_borrow_cost: pd.Series,
+    constraint_penalty_cost: pd.Series | None = None,
 ) -> dict[str, float]:
     """
     Break down execution costs by side (long vs short).
+    
+    Includes constraint penalty costs in short-side attribution when present.
     
     Returns:
         Dictionary with cost attribution percentages
     """
     long_cost_total = (long_transaction_cost + long_slippage_cost).sum()
-    short_cost_total = (short_transaction_cost + short_slippage_cost + short_borrow_cost).sum()
+    short_cost_components = short_transaction_cost + short_slippage_cost + short_borrow_cost
+    if constraint_penalty_cost is not None:
+        short_cost_components = short_cost_components + constraint_penalty_cost
+    short_cost_total = short_cost_components.sum()
     total_cost = long_cost_total + short_cost_total
     
     attribution = {
@@ -683,7 +736,12 @@ def _compute_side_cost_attribution(
     if total_cost > 0.0:
         attribution["long_cost_pct_total"] = float(100.0 * long_cost_total / total_cost)
         attribution["short_cost_pct_total"] = float(100.0 * short_cost_total / total_cost)
-        attribution["short_borrow_cost_drag_pct"] = float(100.0 * short_borrow_cost.sum() / total_cost)
+        
+        # Include constraint penalty in the drag calculation
+        borrow_and_penalty = short_borrow_cost.sum()
+        if constraint_penalty_cost is not None:
+            borrow_and_penalty += constraint_penalty_cost.sum()
+        attribution["short_borrow_cost_drag_pct"] = float(100.0 * borrow_and_penalty / total_cost)
     
     return attribution
 

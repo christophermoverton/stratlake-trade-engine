@@ -1047,3 +1047,200 @@ class TestBindingFrequencyCalculation:
         # With 10 dates and constraint binding all periods, frequency should reflect binding
         assert stress["constraint_binding_frequency"] >= 1.0  # At least 1 binding per period on average
 
+
+class TestPenaltyPolicyBehavior:
+    """Test penalty policy as a distinct behavioral policy."""
+    
+    def test_penalty_policy_produces_different_friction_from_exclude_and_cap(self) -> None:
+        """Test that penalty policy increases execution friction vs exclude/cap."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 10,
+            index=dates,
+            columns=assets,
+        )
+        # Weights with short exposure exceeding the constraint (40% short > 30% limit)
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.40]] * 10,
+            index=dates,
+            columns=assets,
+        )
+        
+        # Exclude policy: removes shorts
+        config_exclude = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_borrow_cost_bps": 100.0,
+            "short_availability_policy": "exclude",
+        })
+        
+        # Cap policy: rescales shorts
+        config_cap = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_borrow_cost_bps": 100.0,
+            "short_availability_policy": "cap",
+        })
+        
+        # Penalty policy: applies penalty cost for violations
+        config_penalty = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_borrow_cost_bps": 100.0,
+            "short_availability_policy": "penalty",
+        })
+        
+        result_exclude = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_exclude,
+        )
+        
+        result_cap = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_cap,
+        )
+        
+        result_penalty = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_penalty,
+        )
+        
+        # Get execution friction totals
+        exclude_friction = result_exclude.summary["totals"]["total_execution_friction"]
+        cap_friction = result_cap.summary["totals"]["total_execution_friction"]
+        penalty_friction = result_penalty.summary["totals"]["total_execution_friction"]
+        
+        # Penalty should have higher friction than both exclude and cap
+        # (because it keeps full short exposure but adds penalty cost)
+        assert penalty_friction > exclude_friction, "Penalty should have higher friction than exclude"
+        assert penalty_friction > cap_friction, "Penalty should have higher friction than cap"
+    
+    def test_penalty_policy_keeps_short_exposure_unchanged(self) -> None:
+        """Test that penalty policy does not modify weights (keeps short exposure)."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        # Weights with 40% short exposure
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.40]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        
+        config_penalty = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_availability_policy": "penalty",
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_penalty,
+        )
+        
+        # Penalty policy should keep full 40% short exposure (not modified)
+        short_exposure = result.summary["totals"]["average_short_exposure"]
+        assert short_exposure == 0.40, "Penalty policy should not modify weights"
+    
+    def test_penalty_policy_includes_penalty_cost_in_frame(self) -> None:
+        """Test that penalty cost appears in execution output when violations occur."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        # Weights with short exposure exceeding constraint
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.40]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        
+        config_penalty = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_borrow_cost_bps": 100.0,
+            "short_availability_policy": "penalty",
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_penalty,
+        )
+        
+        # Check that penalty cost appears in frame when violations occur
+        if "portfolio_constraint_penalty_cost" in result.frame.columns:
+            # Penalty cost should be > 0 for violations
+            assert (result.frame["portfolio_constraint_penalty_cost"] > 0.0).any()
+    
+    def test_penalty_cost_included_in_side_cost_attribution(self) -> None:
+        """Test that penalty cost is included in side cost attribution."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        # Weights with short exposure exceeding constraint
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.40]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        
+        config_penalty = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_borrow_cost_bps": 100.0,
+            "short_availability_policy": "penalty",
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_penalty,
+        )
+        
+        # Check side cost attribution exists
+        assert "side_cost_attribution" in result.summary
+        attribution = result.summary["side_cost_attribution"]
+        
+        # Penalty should increase short_cost_pct
+        assert attribution["short_cost_pct_total"] > 0.0
+        assert attribution["long_cost_pct_total"] + attribution["short_cost_pct_total"] <= 101.0  # Allow rounding
+

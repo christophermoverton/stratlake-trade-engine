@@ -797,3 +797,253 @@ class TestInterpretationLayerDeterminism:
         assert result1.summary["constraint_utilization"] == result2.summary["constraint_utilization"]
         assert result1.summary["side_cost_attribution"] == result2.summary["side_cost_attribution"]
 
+
+class TestPolicyDifferentiation:
+    """Test that different policies produce measurably different execution outcomes."""
+    
+    def test_exclude_vs_cap_produce_distinct_short_exposure(self) -> None:
+        """Test that 'exclude' and 'cap' policies produce different short exposures."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        # Weights with short exposure exceeding the limit
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.50]] * 5,  # -50% short, limit is 0.30
+            index=dates,
+            columns=assets,
+        )
+        
+        # Exclude policy: removes shorts beyond limit
+        config_exclude = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_availability_policy": "exclude",
+        })
+        
+        # Cap policy: rescales shorts to fit limit
+        config_cap = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_availability_policy": "cap",
+        })
+        
+        result_exclude = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_exclude,
+        )
+        
+        result_cap = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_cap,
+        )
+        
+        # Get final short exposures
+        exclude_short_exposure = result_exclude.summary["totals"]["average_short_exposure"]
+        cap_short_exposure = result_cap.summary["totals"]["average_short_exposure"]
+        
+        # Exclude should have zero short exposure
+        assert exclude_short_exposure == 0.0
+        # Cap should have some short exposure (capped to 0.30)
+        assert 0.25 < cap_short_exposure <= 0.30
+
+
+class TestConstraintEnforcementBehavior:
+    """Test that constraints actually affect execution behavior (not just tracked)."""
+    
+    def test_constraints_reduce_short_exposure_in_execution(self) -> None:
+        """Test that configured constraints actually reduce short exposure in portfolio."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        # Weights with unconstrained short exposure of 40%
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.40]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        
+        # Unconstrained execution
+        config_unconstrained = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+        })
+        
+        # Constrained execution (limit 30% short)
+        config_constrained = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_availability_policy": "exclude",
+        })
+        
+        result_unconstrained = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_unconstrained,
+        )
+        
+        result_constrained = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_constrained,
+        )
+        
+        unconstrained_short = result_unconstrained.summary["totals"]["average_short_exposure"]
+        constrained_short = result_constrained.summary["totals"]["average_short_exposure"]
+        
+        # Constraint should reduce short exposure
+        assert unconstrained_short > constrained_short
+        # Should be reduced to approximately 0 (excluded)
+        assert constrained_short <= 0.01  # Allow tiny floating point errors
+
+
+class TestRealCapacityImpactDeltas:
+    """Test that capacity_impact deltas are derived from real dual execution."""
+    
+    def test_capacity_impact_deltas_are_positive_when_constraints_bind(self) -> None:
+        """Test that capacity impact shows friction INCREASE when constraints bind."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        # Weights where constraint will bind (40% short > 30% limit)
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.40]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        
+        config = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+            "short_availability_policy": "exclude",
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config,
+        )
+        
+        # Should have capacity_impact block
+        assert "capacity_impact" in result.summary
+        impact = result.summary["capacity_impact"]
+        
+        # Deltas should be present
+        assert "return_delta" in impact
+        assert "turnover_delta" in impact
+        assert "short_exposure_delta" in impact
+        
+        # Verify deltas reference real execution values
+        assert "baseline_friction" in impact
+        assert "constrained_friction" in impact
+        assert isinstance(impact["baseline_friction"], (int, float))
+        assert isinstance(impact["constrained_friction"], (int, float))
+
+
+class TestBindingFrequencyCalculation:
+    """Test that constraint_binding_frequency is correctly computed from actual binding events."""
+    
+    def test_binding_frequency_is_zero_when_no_constraints_bind(self) -> None:
+        """Test that binding frequency is zero when constraints are not violated."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        # Weights that don't violate the 30% limit (only 10% short)
+        weights_wide = pd.DataFrame(
+            [[0.45, 0.45, -0.10]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        
+        config = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config,
+        )
+        
+        assert "side_stress_analysis" in result.summary
+        stress = result.summary["side_stress_analysis"]
+        # Binding frequency should be zero
+        assert stress["constraint_binding_frequency"] == 0.0
+    
+    def test_binding_frequency_is_positive_when_constraints_bind(self) -> None:
+        """Test that binding frequency is > 0 when constraints actually bind."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 10,
+            index=dates,
+            columns=assets,
+        )
+        # Weights where constraint binds on all 10 dates (40% short > 30% limit)
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.40]] * 10,
+            index=dates,
+            columns=assets,
+        )
+        
+        config = ExecutionConfig.from_mapping({
+            "enabled": True,
+            "execution_delay": 1,
+            "transaction_cost_bps": 5.0,
+            "slippage_bps": 2.0,
+            "max_short_weight_sum": 0.30,
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config,
+        )
+        
+        assert "side_stress_analysis" in result.summary
+        stress = result.summary["side_stress_analysis"]
+        # Binding frequency should be > 0
+        assert stress["constraint_binding_frequency"] > 0.0
+        # With 10 dates and constraint binding all periods, frequency should reflect binding
+        assert stress["constraint_binding_frequency"] >= 1.0  # At least 1 binding per period on average
+

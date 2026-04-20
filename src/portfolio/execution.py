@@ -328,6 +328,7 @@ def apply_portfolio_execution_model(
         enforced_weights_wide=enforced_weights_wide,
         original_weights_wide=original_weights_wide,
         execution_config=execution_config,
+        violations=constraint_modification_log.get("violations"),
     )
     constraint_utilization = _compute_constraint_utilization(
         short_exposure=directional_weight_change["portfolio_short_exposure"],
@@ -630,12 +631,23 @@ def _compute_constraint_events(
     enforced_weights_wide: pd.DataFrame,
     original_weights_wide: pd.DataFrame,
     execution_config: ExecutionConfig,
+    violations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     """
-    Track actual constraint binding events by comparing enforced vs original weights.
+    Track actual constraint binding events by comparing enforced vs original weights,
+    or by counting recorded violations for penalty policy.
     
+    For exclude/cap policies: events detected by weight modification.
+    For penalty policy: events counted from recorded violations.
+    
+    Args:
+        enforced_weights_wide: DataFrame of weights after constraint enforcement
+        original_weights_wide: DataFrame of original weights before enforcement
+        execution_config: ExecutionConfig with constraint settings
+        violations: List of violations recorded during constraint enforcement (for penalty policy)
+        
     Returns:
-        Dictionary with real event counts based on actual weight modifications
+        Dictionary with real event counts based on actual constraint binding
     """
     events = {
         "max_short_weight_hits": 0,
@@ -647,7 +659,16 @@ def _compute_constraint_events(
     if not execution_config.has_directional_asymmetry:
         return events
     
-    # Compare enforced vs original for each date to detect actual constraint binding
+    # For penalty policy: count violations directly (weights not modified)
+    if execution_config.short_availability_policy == "penalty" and violations:
+        for violation in violations:
+            if violation["constraint"] == "max_short_weight_sum":
+                events["max_short_weight_hits"] += 1
+            elif violation["constraint"] == "short_availability_limit":
+                events["availability_caps_triggered"] += 1
+        return events
+    
+    # For exclude/cap policies: compare enforced vs original weights
     for date_idx in enforced_weights_wide.index:
         original_row = original_weights_wide.loc[date_idx]
         enforced_row = enforced_weights_wide.loc[date_idx]

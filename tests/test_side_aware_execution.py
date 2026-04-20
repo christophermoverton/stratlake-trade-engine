@@ -1244,3 +1244,116 @@ class TestPenaltyPolicyBehavior:
         assert attribution["short_cost_pct_total"] > 0.0
         assert attribution["long_cost_pct_total"] + attribution["short_cost_pct_total"] <= 101.0  # Allow rounding
 
+
+class TestPenaltyPolicyEventAccounting:
+    """Test that penalty policy violations count as binding constraint events."""
+
+    def test_penalty_violations_count_as_binding_events(self) -> None:
+        """Test that penalty policy violations increment max_short_weight_hits."""
+        dates = pd.date_range("2025-01-01", periods=10, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 10,
+            index=dates,
+            columns=assets,
+        )
+        # Weights with short exposure exceeding constraint on every date
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.50]] * 10,  # -0.50 exceeds 0.30 limit
+            index=dates,
+            columns=assets,
+        )
+        
+        config_penalty = resolve_execution_config({
+            "max_short_weight_sum": 0.30,
+            "short_borrow_cost_bps": 100.0,
+            "short_availability_policy": "penalty",
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_penalty,
+        )
+        
+        # With penalty policy, violations should count as binding events
+        assert result.summary["side_stress_analysis"]["constraint_binding_frequency"] > 0.0, \
+            "Penalty violations should produce constraint binding events"
+        assert result.summary["side_stress_analysis"]["constraint_binding_events"] >= 1, \
+            "constraint_binding_events should count penalty violations"
+
+    def test_penalty_binding_frequency_reflects_violation_frequency(self) -> None:
+        """Test that binding frequency matches violation frequency for penalty policy."""
+        dates = pd.date_range("2025-01-01", periods=20, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 20,
+            index=dates,
+            columns=assets,
+        )
+        
+        # Weights that violate on 10 out of 20 dates
+        weights = []
+        for i in range(20):
+            if i < 10:
+                # Violating: short exposure 0.50 > limit 0.30
+                weights.append([0.30, 0.20, -0.50])
+            else:
+                # Compliant: short exposure 0.20 <= limit 0.30
+                weights.append([0.40, 0.40, -0.20])
+        
+        weights_wide = pd.DataFrame(weights, index=dates, columns=assets)
+        
+        config_penalty = resolve_execution_config({
+            "max_short_weight_sum": 0.30,
+            "short_borrow_cost_bps": 100.0,
+            "short_availability_policy": "penalty",
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_penalty,
+        )
+        
+        # Binding frequency should be ~0.5 (10 violations / 20 periods)
+        expected_frequency = 10.0 / 20.0
+        assert abs(result.summary["side_stress_analysis"]["constraint_binding_frequency"] - expected_frequency) < 0.01, \
+            f"Frequency should be ~{expected_frequency}, got {result.summary['side_stress_analysis']['constraint_binding_frequency']}"
+
+    def test_exclude_policy_still_counts_binding_events(self) -> None:
+        """Test that exclude policy still counts binding events (regression test)."""
+        dates = pd.date_range("2025-01-01", periods=5, freq="D")
+        assets = ["A", "B", "C"]
+        
+        returns_wide = pd.DataFrame(
+            [[0.01, 0.02, -0.01]] * 5,
+            index=dates,
+            columns=assets,
+        )
+        # Weights with short exposure exceeding constraint
+        weights_wide = pd.DataFrame(
+            [[0.30, 0.30, -0.50]] * 5,  # -0.50 exceeds 0.30 limit
+            index=dates,
+            columns=assets,
+        )
+        
+        config_exclude = resolve_execution_config({
+            "max_short_weight_sum": 0.30,
+            "short_borrow_cost_bps": 100.0,
+            "short_availability_policy": "exclude",
+        })
+        
+        result = apply_portfolio_execution_model(
+            returns_wide=returns_wide,
+            weights_wide=weights_wide,
+            execution_config=config_exclude,
+        )
+        
+        # Exclude should also count events (via weight modification)
+        assert result.summary["side_stress_analysis"]["constraint_binding_frequency"] > 0.0, \
+            "Exclude policy should still count binding events"
+        assert result.summary["side_stress_analysis"]["constraint_binding_events"] >= 1
+

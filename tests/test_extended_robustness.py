@@ -57,6 +57,12 @@ def test_load_robustness_config_parses_extended_sweep_mapping(tmp_path: Path) ->
                         "group_by": ["strategy.name", "signal.type"],
                     },
                     "ranking": {"primary_metric": "sharpe_ratio", "tie_breakers": ["total_return"]},
+                    "statistical_controls": {
+                        "primary_metric": "sharpe_ratio",
+                        "validity_ranking_method": "adjusted_q_value",
+                        "fdr_alpha": 0.1,
+                        "min_splits_for_inference": 4,
+                    },
                 }
             },
             sort_keys=False,
@@ -73,6 +79,9 @@ def test_load_robustness_config_parses_extended_sweep_mapping(tmp_path: Path) ->
     assert config.research_sweep.asymmetry.options["exclude_short"] == (False, True)
     assert config.ranking.primary_metric == "sharpe_ratio"
     assert config.ranking.tie_breakers == ("total_return",)
+    assert config.statistical_controls.primary_metric == "sharpe_ratio"
+    assert config.statistical_controls.validity_ranking_method == "adjusted_q_value"
+    assert config.statistical_controls.min_splits_for_inference == 4
 
 
 def test_run_extended_robustness_experiment_rejects_invalid_combos_and_is_deterministic(

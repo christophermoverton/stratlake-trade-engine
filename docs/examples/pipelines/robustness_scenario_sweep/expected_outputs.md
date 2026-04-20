@@ -17,4 +17,8 @@ Behavior checks:
 
 - the pipeline executes a single `research_sweep` step
 - sweep artifacts include ranked and per-config outputs
+- sweep artifacts include `statistical_validity` metadata in `summary.json`,
+  `aggregate_metrics.json`, and `manifest.json`
+- row-level sweep outputs include `raw_primary_metric`, correction fields,
+  warning codes, and `validity_rank`
 - output references remain relative in case-study summaries

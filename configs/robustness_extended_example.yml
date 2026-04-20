@@ -2,38 +2,33 @@ robustness:
   strategy_name: cross_section_momentum
   sweep:
     strategy:
-      name: [cross_section_momentum, mean_reversion]
+      name: [cross_section_momentum]
       params:
         lookback_days: [1, 5]
-        lookback: [20, 40]
-        threshold: [1.0, 2.0]
     signal:
-      type: [cross_section_rank, ternary_quantile, binary_signal]
+      type: [cross_section_rank, binary_signal]
       params:
-        quantile: [0.2, 0.3]
-        clip: [2.0, 3.0]
+        quantile: [0.2]
     constructor:
-      name: [rank_dollar_neutral, identity_weights, zscore_clip_scale]
-      params:
-        gross_long: [0.50, 0.60]
-        gross_short: [0.40, 0.50]
-        gross_exposure: [1.0]
-        clip: [2.5]
+      name: [rank_dollar_neutral, identity_weights]
     asymmetry:
       exclude_short: [false, true]
-      short_availability_policy: [allow_all, exclude]
-    ensemble:
-      definitions:
-        - name: momentum_plus_reversion
-          members: [cross_section_momentum, mean_reversion]
-          weighting_method: equal_weight
     group_by: [strategy.name, signal.type, constructor.name]
-    batching:
-      batch_size: 50
-      batch_index: 0
+  stability:
+    mode: subperiods
+    periods: 4
   ranking:
     primary_metric: sharpe_ratio
     tie_breakers: [total_return, max_drawdown]
   statistical_controls:
+    deflated_sharpe_ratio: true
     multiple_testing_awareness: true
+    primary_metric: sharpe_ratio
+    validity_ranking_method: adjusted_q_value
+    fdr_alpha: 0.10
+    min_splits_for_inference: 4
+    low_neighbor_gap_threshold: 0.05
+    low_threshold_pass_rate_threshold: 0.50
+    rank_instability_correlation_threshold: 0.50
+    dsr_min_observations: 20
     overfitting_warning_search_space: 100

@@ -265,6 +265,17 @@ def print_summary(result: StrategyRunResult | WalkForwardRunResult | RobustnessR
         threshold_pass_rate = result.summary.get("threshold_pass_rate")
         if threshold_pass_rate is not None:
             print(f"threshold_pass_rate: {float(threshold_pass_rate):.2%}")
+        statistical_validity = result.summary.get("statistical_validity")
+        if isinstance(statistical_validity, dict):
+            correction_method = statistical_validity.get("correction_method_used")
+            if correction_method is not None:
+                print(f"validity_correction: {correction_method}")
+            validity_method = statistical_validity.get("validity_ranking_method_used")
+            if validity_method is not None:
+                print(f"validity_ranking: {validity_method}")
+            unavailable_reason = statistical_validity.get("validity_ranking_unavailable_reason")
+            if unavailable_reason:
+                print(f"validity_note: {unavailable_reason}")
         return
 
     print(f"strategy: {result.strategy_name}")

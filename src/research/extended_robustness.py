@@ -34,6 +34,7 @@ from src.research.signal_semantics import (
     spread_to_zscore,
     validate_directional_asymmetry_compatibility,
 )
+from src.research.statistical_validity import apply_statistical_validity_controls
 from src.research.strategies import build_strategy
 from src.research.strategies.validation import get_strategy_registry_entry, load_strategies_registry
 
@@ -58,6 +59,7 @@ def run_extended_robustness_experiment(
         _build_benchmark_results,
         _build_neighbor_metrics,
         _build_robustness_summary,
+        _rank_stability_metrics,
         _resolve_metric_direction,
         _validate_robustness_outputs,
         load_strategy_config,
@@ -220,7 +222,15 @@ def run_extended_robustness_experiment(
     variant_metrics = pd.DataFrame(rows)
     higher_is_better = _resolve_metric_direction(robustness_config.ranking.primary_metric, robustness_config.ranking.higher_is_better)
     variant_metrics = _rank_with_tie_breakers(variant_metrics, robustness_config.ranking, higher_is_better=higher_is_better)
-    stability_metrics = pd.DataFrame()
+    stability_metrics = _build_extended_stability_metrics(
+        child_payloads,
+        robustness_config=robustness_config,
+    )
+    stability_metrics = _rank_stability_metrics(
+        stability_metrics,
+        robustness_config.ranking.primary_metric,
+        higher_is_better,
+    )
     neighbor_metrics = _build_extended_neighbor_metrics(
         [payload["variant"] for payload in child_payloads],
         variant_metrics,
@@ -243,11 +253,21 @@ def run_extended_robustness_experiment(
             "rejected_configurations": rejected,
             "group_by": list(research_sweep.group_by),
             "batching": research_sweep.batching.to_dict(),
-            "deflated_sharpe_ratio": None,
             "multiple_testing_awareness": robustness_config.statistical_controls.multiple_testing_awareness,
             "overfitting_warning": len(variant_metrics) >= robustness_config.statistical_controls.overfitting_warning_search_space,
         }
     )
+    validity = apply_statistical_validity_controls(
+        variant_metrics=variant_metrics,
+        stability_metrics=stability_metrics,
+        neighbor_metrics=neighbor_metrics,
+        child_payloads=child_payloads,
+        robustness_config=robustness_config,
+        higher_is_better=higher_is_better,
+        summary=summary,
+    )
+    variant_metrics = validity.variant_metrics
+    summary["statistical_validity"] = validity.summary
     _validate_robustness_outputs(variant_metrics, stability_metrics, neighbor_metrics, summary, robustness_config)
     owner_name = strategy_name or robustness_config.strategy_name or (strategy_names[0] if len(strategy_names) == 1 else "research_sweep")
     experiment_dir = resolve_robustness_experiment_dir(owner_name, config=robustness_config.to_dict(), variant_metrics=variant_metrics, stability_metrics=stability_metrics, summary=summary)
@@ -565,6 +585,71 @@ def _build_extended_neighbor_metrics(
     return pd.concat(frames, axis=0, ignore_index=True)
 
 
+def _build_extended_stability_metrics(
+    child_payloads: list[dict[str, Any]],
+    *,
+    robustness_config: RobustnessConfig,
+) -> pd.DataFrame:
+    if robustness_config.stability.mode == "disabled":
+        return pd.DataFrame()
+    if robustness_config.stability.mode != "subperiods":
+        raise ValueError(
+            "Extended robustness sweeps currently support statistical split evidence only with "
+            "stability.mode='subperiods'."
+        )
+
+    rows: list[dict[str, Any]] = []
+    for payload in child_payloads:
+        variant = payload["variant"]
+        executed = payload["executed"]
+        if executed["artifact_kind"] == "strategy":
+            results_df = executed["results_df"]
+            for period in _generate_frame_periods(results_df, robustness_config):
+                period_df = results_df.loc[period.mask].reset_index(drop=True)
+                metrics = compute_performance_metrics(period_df)
+                rows.append({**variant.to_record(), **period.to_record(), **metrics})
+        else:
+            portfolio_output = executed["portfolio_output"]
+            timeframe = str(executed["child_config"].get("timeframe", "1D"))
+            for period in _generate_frame_periods(portfolio_output, robustness_config):
+                period_df = portfolio_output.loc[period.mask].reset_index(drop=True)
+                metrics = compute_portfolio_metrics(period_df, timeframe)
+                rows.append({**variant.to_record(), **period.to_record(), **metrics})
+    return pd.DataFrame(rows)
+
+
+def _generate_frame_periods(frame: pd.DataFrame, robustness_config: RobustnessConfig) -> list[Any]:
+    key_column = "date" if "date" in frame.columns else "ts_utc" if "ts_utc" in frame.columns else None
+    if key_column is None:
+        raise ValueError("Extended robustness subperiod stability requires a 'date' or 'ts_utc' column.")
+    time_values = frame[key_column].astype("string")
+    unique_values = list(dict.fromkeys(time_values.tolist()))
+    period_count = int(robustness_config.stability.periods or 0)
+    if len(unique_values) < period_count:
+        raise ValueError(
+            "Extended robustness subperiod stability requires at least as many distinct timestamps as configured periods."
+        )
+
+    periods: list[Any] = []
+    base_width, remainder = divmod(len(unique_values), period_count)
+    start_index = 0
+    for index in range(period_count):
+        width = base_width + (1 if index < remainder else 0)
+        end_index = start_index + width
+        period_values = unique_values[start_index:end_index]
+        periods.append(
+            _ExtendedPeriodDefinition(
+                period_id=f"period_{index:04d}",
+                period_mode="subperiods",
+                period_start=str(period_values[0]),
+                period_end=str(period_values[-1]),
+                mask=time_values.isin(period_values),
+            )
+        )
+        start_index = end_index
+    return periods
+
+
 def _rank_with_tie_breakers(frame: pd.DataFrame, ranking: RankingConfig, *, higher_is_better: bool) -> pd.DataFrame:
     ordered = frame.copy()
     ordered["_primary"] = pd.to_numeric(ordered[ranking.primary_metric], errors="coerce")
@@ -596,13 +681,19 @@ def _write_artifacts(*, experiment_dir: Path, robustness_config: RobustnessConfi
     _write_json(experiment_dir / "variants.json", {"variants": [payload["variant"].to_record() for payload in child_payloads]})
     variant_metrics.to_csv(experiment_dir / "metrics_by_variant.csv", index=False)
     variant_metrics.to_csv(experiment_dir / "metrics_by_config.csv", index=False)
-    _write_json(experiment_dir / "aggregate_metrics.json", {"summary": summary, "ranking": robustness_config.ranking.to_dict()})
+    _write_json(
+        experiment_dir / "aggregate_metrics.json",
+        {
+            "summary": summary,
+            "ranking": robustness_config.ranking.to_dict(),
+            "statistical_validity": summary.get("statistical_validity"),
+        },
+    )
     if not stability_metrics.empty:
         stability_metrics.to_csv(experiment_dir / "stability_metrics.csv", index=False)
     if not neighbor_metrics.empty:
         neighbor_metrics.to_csv(experiment_dir / "neighbor_metrics.csv", index=False)
-    ranked_columns = [column for column in ("rank", "variant_id", "strategy_name", "signal_type", "constructor_id", "ensemble_name", robustness_config.ranking.primary_metric) if column in variant_metrics.columns]
-    variant_metrics.loc[:, ranked_columns].to_csv(experiment_dir / "ranked_configs.csv", index=False)
+    variant_metrics.to_csv(experiment_dir / "ranked_configs.csv", index=False)
     child_runs = []
     for payload in child_payloads:
         child_dir = runs_dir / payload["variant"].variant_id
@@ -612,7 +703,24 @@ def _write_artifacts(*, experiment_dir: Path, robustness_config: RobustnessConfi
         else:
             write_portfolio_artifacts(child_dir, payload["executed"]["portfolio_output"], payload["executed"]["metrics"], payload["executed"]["child_config"], payload["executed"]["components"])
         child_runs.append({"variant_id": payload["variant"].variant_id, "artifact_dir": child_dir.relative_to(experiment_dir).as_posix()})
-    _write_json(experiment_dir / "manifest.json", {"run_id": experiment_dir.name, "evaluation_mode": "robustness", "primary_metric": robustness_config.ranking.primary_metric, "artifact_files": sorted(path.relative_to(experiment_dir).as_posix() for path in experiment_dir.rglob("*") if path.is_file()), "metric_summary": summary, "variant_count": int(summary.get("variant_count", len(variant_metrics))), "config_count": int(summary.get("config_count", len(variant_metrics))), "child_runs": child_runs})
+    _write_json(
+        experiment_dir / "manifest.json",
+        {
+            "run_id": experiment_dir.name,
+            "evaluation_mode": "robustness",
+            "primary_metric": robustness_config.ranking.primary_metric,
+            "artifact_files": sorted(
+                path.relative_to(experiment_dir).as_posix()
+                for path in experiment_dir.rglob("*")
+                if path.is_file()
+            ),
+            "metric_summary": summary,
+            "variant_count": int(summary.get("variant_count", len(variant_metrics))),
+            "config_count": int(summary.get("config_count", len(variant_metrics))),
+            "child_runs": child_runs,
+            "statistical_validity": summary.get("statistical_validity"),
+        },
+    )
 
 
 def _flatten_record(record: Mapping[str, Any]) -> dict[str, Any]:
@@ -653,3 +761,28 @@ def _variant_id(order_index: int, record: Mapping[str, Any]) -> str:
 
 def _write_json(path: Path, payload: Any) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+
+
+class _ExtendedPeriodDefinition:
+    def __init__(
+        self,
+        *,
+        period_id: str,
+        period_mode: str,
+        period_start: str,
+        period_end: str,
+        mask: pd.Series,
+    ) -> None:
+        self.period_id = period_id
+        self.period_mode = period_mode
+        self.period_start = period_start
+        self.period_end = period_end
+        self.mask = mask
+
+    def to_record(self) -> dict[str, Any]:
+        return {
+            "period_id": self.period_id,
+            "period_mode": self.period_mode,
+            "period_start": self.period_start,
+            "period_end": self.period_end,
+        }

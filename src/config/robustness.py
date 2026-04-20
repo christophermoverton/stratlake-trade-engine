@@ -9,6 +9,7 @@ from src.config.settings import load_yaml_config
 REPO_ROOT = Path(__file__).resolve().parents[2]
 ROBUSTNESS_CONFIG = REPO_ROOT / "configs" / "robustness.yml"
 SUPPORTED_STABILITY_MODES = {"disabled", "subperiods", "walk_forward"}
+SUPPORTED_VALIDITY_RANKING_METHODS = {"adjusted_q_value", "deflated_sharpe_ratio", "none"}
 
 
 def _require_non_empty_string(value: Any, *, field_name: str) -> str:
@@ -257,6 +258,14 @@ class StatisticalControlsConfig:
     deflated_sharpe_ratio: bool = False
     multiple_testing_awareness: bool = True
     overfitting_warning_search_space: int = 100
+    primary_metric: str | None = None
+    validity_ranking_method: str = "adjusted_q_value"
+    fdr_alpha: float = 0.10
+    min_splits_for_inference: int = 4
+    low_neighbor_gap_threshold: float = 0.05
+    low_threshold_pass_rate_threshold: float = 0.50
+    rank_instability_correlation_threshold: float = 0.50
+    dsr_min_observations: int = 30
     reality_check_placeholder: bool = False
 
     @classmethod
@@ -270,10 +279,69 @@ class StatisticalControlsConfig:
             raise ValueError(
                 "Robustness statistical_controls overfitting_warning_search_space must be a positive integer."
             )
+        primary_metric = _normalize_optional_string(
+            payload.get("primary_metric"),
+            field_name="statistical_controls.primary_metric",
+        )
+        validity_ranking_method = payload.get("validity_ranking_method", "adjusted_q_value")
+        if (
+            not isinstance(validity_ranking_method, str)
+            or validity_ranking_method not in SUPPORTED_VALIDITY_RANKING_METHODS
+        ):
+            supported = ", ".join(sorted(SUPPORTED_VALIDITY_RANKING_METHODS))
+            raise ValueError(
+                "Robustness statistical_controls validity_ranking_method must be one of: "
+                f"{supported}."
+            )
+        fdr_alpha = payload.get("fdr_alpha", 0.10)
+        if not isinstance(fdr_alpha, int | float) or not 0.0 < float(fdr_alpha) <= 1.0:
+            raise ValueError("Robustness statistical_controls fdr_alpha must be in the interval (0, 1].")
+        min_splits_for_inference = payload.get("min_splits_for_inference", 4)
+        if not isinstance(min_splits_for_inference, int) or min_splits_for_inference < 2:
+            raise ValueError(
+                "Robustness statistical_controls min_splits_for_inference must be an integer >= 2."
+            )
+        low_neighbor_gap_threshold = payload.get("low_neighbor_gap_threshold", 0.05)
+        if not isinstance(low_neighbor_gap_threshold, int | float) or float(low_neighbor_gap_threshold) < 0.0:
+            raise ValueError(
+                "Robustness statistical_controls low_neighbor_gap_threshold must be a non-negative number."
+            )
+        low_threshold_pass_rate_threshold = payload.get("low_threshold_pass_rate_threshold", 0.50)
+        if (
+            not isinstance(low_threshold_pass_rate_threshold, int | float)
+            or not 0.0 <= float(low_threshold_pass_rate_threshold) <= 1.0
+        ):
+            raise ValueError(
+                "Robustness statistical_controls low_threshold_pass_rate_threshold must be in [0, 1]."
+            )
+        rank_instability_correlation_threshold = payload.get(
+            "rank_instability_correlation_threshold",
+            0.50,
+        )
+        if (
+            not isinstance(rank_instability_correlation_threshold, int | float)
+            or not -1.0 <= float(rank_instability_correlation_threshold) <= 1.0
+        ):
+            raise ValueError(
+                "Robustness statistical_controls rank_instability_correlation_threshold must be in [-1, 1]."
+            )
+        dsr_min_observations = payload.get("dsr_min_observations", 30)
+        if not isinstance(dsr_min_observations, int) or dsr_min_observations < 2:
+            raise ValueError(
+                "Robustness statistical_controls dsr_min_observations must be an integer >= 2."
+            )
         return cls(
             deflated_sharpe_ratio=bool(payload.get("deflated_sharpe_ratio", False)),
             multiple_testing_awareness=bool(payload.get("multiple_testing_awareness", True)),
             overfitting_warning_search_space=overfitting_warning_search_space,
+            primary_metric=primary_metric,
+            validity_ranking_method=validity_ranking_method,
+            fdr_alpha=float(fdr_alpha),
+            min_splits_for_inference=min_splits_for_inference,
+            low_neighbor_gap_threshold=float(low_neighbor_gap_threshold),
+            low_threshold_pass_rate_threshold=float(low_threshold_pass_rate_threshold),
+            rank_instability_correlation_threshold=float(rank_instability_correlation_threshold),
+            dsr_min_observations=dsr_min_observations,
             reality_check_placeholder=bool(payload.get("reality_check_placeholder", False)),
         )
 
@@ -282,6 +350,14 @@ class StatisticalControlsConfig:
             "deflated_sharpe_ratio": self.deflated_sharpe_ratio,
             "multiple_testing_awareness": self.multiple_testing_awareness,
             "overfitting_warning_search_space": self.overfitting_warning_search_space,
+            "primary_metric": self.primary_metric,
+            "validity_ranking_method": self.validity_ranking_method,
+            "fdr_alpha": self.fdr_alpha,
+            "min_splits_for_inference": self.min_splits_for_inference,
+            "low_neighbor_gap_threshold": self.low_neighbor_gap_threshold,
+            "low_threshold_pass_rate_threshold": self.low_threshold_pass_rate_threshold,
+            "rank_instability_correlation_threshold": self.rank_instability_correlation_threshold,
+            "dsr_min_observations": self.dsr_min_observations,
             "reality_check_placeholder": self.reality_check_placeholder,
         }
 

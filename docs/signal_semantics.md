@@ -9,7 +9,10 @@ Every typed signal answers three questions without reading implementation code:
 - how it was created
 - what downstream components may consume it
 
-The implementation lives in [src/research/signal_semantics.py](/C:/Users/christophermoverton/stratlake-trade-engine/src/research/signal_semantics.py:1) and is backed by the registry in [artifacts/registry/signal_types.jsonl](/C:/Users/christophermoverton/stratlake-trade-engine/artifacts/registry/signal_types.jsonl:1).
+The implementation lives in
+[src/research/signal_semantics.py](../src/research/signal_semantics.py) and is
+backed by the registry in
+[artifacts/registry/signal_types.jsonl](../artifacts/registry/signal_types.jsonl).
 
 ## Canonical Signal Types
 

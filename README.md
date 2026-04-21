@@ -8,6 +8,28 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
+## Milestone 22 Summary
+
+Milestone 22 hardens verification and release traceability so milestone
+branches can prove merge readiness using one explicit, inspectable validation
+surface.
+
+The repository now includes:
+
+* milestone-branch validation workflow via `.github/workflows/milestone_validation.yml`
+* docs/path linting for release-facing surfaces via
+  `python -m src.cli.run_docs_path_lint`
+* deterministic canonical rerun validation via
+  `python -m src.cli.run_deterministic_rerun_validation`
+* standardized milestone validation bundles via
+  `python -m src.cli.run_milestone_validation`
+* machine-readable validation outputs under
+  `artifacts/qa/milestone_validation_bundle/`
+
+For the full pre-merge checklist and release-traceability bundle contract, see:
+
+* [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
+
 ## Milestone 19 Summary
 
 Milestone 19 builds on the sweep expansion and campaign orchestration layers

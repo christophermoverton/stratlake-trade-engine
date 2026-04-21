@@ -10,25 +10,68 @@ later comparison, portfolio construction, and registry-backed reuse.
 
 ## Milestone 22 Summary
 
-Milestone 22 hardens verification and release traceability so milestone
-branches can prove merge readiness using one explicit, inspectable validation
-surface.
+Milestone 22 extends the Milestone 21 signal, strategy, portfolio, and pipeline
+foundation into a stricter release-ready research surface. It adds
+deterministic validation bundles, typed-signal hardening, richer strategy and
+portfolio composition, statistical-validity controls, side-aware execution
+realism, and reproducible benchmark packs for scale and rerun review.
 
 The repository now includes:
 
-* milestone-branch validation workflow via `.github/workflows/milestone_validation.yml`
-* docs/path linting for release-facing surfaces via
-  `python -m src.cli.run_docs_path_lint`
-* deterministic canonical rerun validation via
-  `python -m src.cli.run_deterministic_rerun_validation`
-* standardized milestone validation bundles via
+* milestone-grade validation and release traceability:
+  `.github/workflows/milestone_validation.yml`,
+  `python -m src.cli.run_docs_path_lint`,
+  `python -m src.cli.run_deterministic_rerun_validation`, and
   `python -m src.cli.run_milestone_validation`
-* machine-readable validation outputs under
-  `artifacts/qa/milestone_validation_bundle/`
+* docs/path linting for release-facing docs, examples, and README links, with
+  machine-readable reports under `artifacts/qa/`
+* deterministic rerun validation for canonical pipeline examples:
+  baseline reference, robustness scenario sweep, and declarative builder
+* standardized validation bundles under
+  `artifacts/qa/milestone_validation_bundle/`, including docs/path lint,
+  deterministic rerun, ruff, milestone pytest slice, and optional full pytest
+* stricter typed-signal enforcement across canonical workflows, including
+  explicit signal semantics, transformation metadata, and fail-fast validation
+* portfolio-template registry support plus sweep-to-portfolio builder parity,
+  allowing top-ranked robustness outputs to flow into portfolio construction
+  without hand-wired artifact lookup
+* statistical-validity controls for extended robustness sweeps, including
+  split-based raw p-values, FDR-style q-values, Deflated Sharpe Ratio support,
+  validity-aware ranking fields, and explicit non-applicability metadata
+* side-aware execution realism for strategy and portfolio research, including
+  long/short cost splits, short borrow costs, short-capacity limits,
+  short-availability policies, and binding-event accounting
+* expanded strategy archetypes with `volatility_regime_momentum` and
+  `weighted_cross_section_ensemble`, both integrated with registry,
+  PipelineBuilder, docs, examples, and deterministic validation coverage
+* canonical benchmark-pack infrastructure through
+  `python -m src.cli.run_benchmark_pack`, with deterministic batching,
+  checkpoint/resume state, benchmark matrices, artifact inventories, and
+  cross-rerun inventory comparison
+* committed M22 example surfaces for benchmark-pack reproducibility and
+  regime/ensemble strategy showcase workflows
 
-For the full pre-merge checklist and release-traceability bundle contract, see:
+Common Milestone 22 commands:
+
+```powershell
+python -m src.cli.run_docs_path_lint --output artifacts/qa/docs_path_lint.json
+python -m src.cli.run_deterministic_rerun_validation --output artifacts/qa/deterministic_rerun.json
+python -m src.cli.run_milestone_validation --bundle-dir artifacts/qa/milestone_validation_bundle --include-full-pytest
+python -m src.cli.run_benchmark_pack --config configs/benchmark_packs/m22_scale_repro.yml
+python docs/examples/scale_repro_benchmark_pack.py
+```
+
+Start with:
 
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
+* [docs/milestone_22_benchmark_packs.md](docs/milestone_22_benchmark_packs.md)
+* [docs/signal_semantics.md](docs/signal_semantics.md)
+* [docs/extended_robustness_sweeps.md](docs/extended_robustness_sweeps.md)
+* [docs/execution_model.md](docs/execution_model.md)
+* [docs/strategy_library.md](docs/strategy_library.md)
+* [docs/pipeline_builder.md](docs/pipeline_builder.md)
+* [docs/examples/scale_repro_benchmark_pack.md](docs/examples/scale_repro_benchmark_pack.md)
+* [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 
 ## Milestone 19 Summary
 
@@ -1013,7 +1056,14 @@ Start here:
 * [docs/milestone_15_candidate_selection_issue_1.md](docs/milestone_15_candidate_selection_issue_1.md)
 * [docs/milestone_16_campaign_workflow.md](docs/milestone_16_campaign_workflow.md)
 * [docs/milestone_17_resume_workflow.md](docs/milestone_17_resume_workflow.md)
+* [docs/milestone_20_data_platform_orchestration.md](docs/milestone_20_data_platform_orchestration.md)
+* [docs/signal_semantics.md](docs/signal_semantics.md)
+* [docs/strategy_library.md](docs/strategy_library.md)
+* [docs/extended_robustness_sweeps.md](docs/extended_robustness_sweeps.md)
+* [docs/pipeline_builder.md](docs/pipeline_builder.md)
+* [docs/milestone_22_benchmark_packs.md](docs/milestone_22_benchmark_packs.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
+* [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
@@ -1045,6 +1095,8 @@ Examples:
 * [docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md)
 * [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
+* [docs/examples/scale_repro_benchmark_pack.md](docs/examples/scale_repro_benchmark_pack.md)
+* [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 
@@ -1054,6 +1106,7 @@ Merge-readiness notes:
 * [docs/milestone_11_merge_readiness.md](docs/milestone_11_merge_readiness.md)
 * [docs/milestone_13_merge_readiness.md](docs/milestone_13_merge_readiness.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
+* [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 
 ## Repository Layout
 

@@ -44,10 +44,7 @@ from src.research.campaign_checkpoint import (
 from src.research.candidate_selection.registry import candidate_selection_registry_path
 from src.research.experiment_tracker import ARTIFACTS_ROOT as STRATEGY_ARTIFACTS_ROOT
 from src.research.reporting import (
-    MILESTONE_DECISION_LOG_FILENAME,
-    MILESTONE_MANIFEST_FILENAME,
     MILESTONE_MARKDOWN_REPORT_FILENAME,
-    MILESTONE_SUMMARY_FILENAME,
     generate_campaign_milestone_report,
 )
 from src.research.registry import canonicalize_value, default_registry_path, load_registry

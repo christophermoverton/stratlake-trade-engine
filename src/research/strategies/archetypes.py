@@ -311,8 +311,6 @@ class CrossSectionMomentumStrategy(ArchetypeStrategy):
 
     def generate_signals(self, df: pd.DataFrame) -> pd.Series:
         """Generate cross-sectional momentum signals."""
-        closes = df["close"].astype("float64")
-
         # Group by timestamp to compute cross-sectional ranks
         def rank_by_return(group):
             # Compute return: latest / oldest
@@ -722,7 +720,6 @@ class PairsTradingStrategy(ArchetypeStrategy):
             raise ValueError("Pairs trading requires at least 2 distinct symbols.")
 
         # Compute spread z-scores per timestamp
-        closes = df["close"].astype("float64")
         spreads = []
 
         for ts in df["ts_utc"].unique():
@@ -860,7 +857,6 @@ class ResidualMomentumStrategy(ArchetypeStrategy):
         if "market_return" not in df.columns:
             raise ValueError("Residual momentum requires 'market_return' column.")
 
-        closes = df["close"].astype("float64")
         market_ret = df["market_return"].astype("float64")
 
         # Compute returns

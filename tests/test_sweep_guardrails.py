@@ -391,7 +391,7 @@ class TestOrchestrationExpansionPreflight:
                 [{"name": "timeframe", "path": "dataset_selection.timeframe", "values": ["1D", "4H"]}]
             )
         )
-        result = _run_orchestration_expansion_preflight(config, orchestration_artifact_dir=tmp_path)
+        _run_orchestration_expansion_preflight(config, orchestration_artifact_dir=tmp_path)
 
         preflight_path = tmp_path / ORCHESTRATION_EXPANSION_PREFLIGHT_FILENAME
         assert preflight_path.exists()

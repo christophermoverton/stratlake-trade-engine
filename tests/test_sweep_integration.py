@@ -258,7 +258,7 @@ alpha_one:
             ),
         ),
     )
-    second_result = run_research_campaign(config)
+    run_research_campaign(config)
     assert second_alpha_calls == []
 
     # Tamper one scenario fingerprint provenance and confirm only that scenario reruns.

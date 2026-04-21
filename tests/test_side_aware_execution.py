@@ -11,7 +11,7 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.config.execution import ExecutionConfig, resolve_execution_config
-from src.portfolio.execution import apply_portfolio_execution_model, PortfolioExecutionResult
+from src.portfolio.execution import apply_portfolio_execution_model
 
 
 class TestShortCapacityConfiguration:
@@ -116,9 +116,6 @@ class TestLongOnlyStressTest:
         dates = pd.date_range("2025-01-01", periods=5, freq="D")
         assets = ["ASSET_A", "ASSET_B", "ASSET_C"]
         
-        # Index: MultiIndex of (date, asset)
-        index = pd.MultiIndex.from_product([dates, assets], names=["ts_utc", "symbol"])
-        
         # Returns: all positive
         returns_wide = pd.DataFrame(
             [[0.01, 0.02, 0.015],  # ASSET_A, B, C on day 1
@@ -185,8 +182,6 @@ class TestHighBorrowCostStressTest:
         """Test that high borrow costs significantly increase short-side friction."""
         dates = pd.date_range("2025-01-01", periods=5, freq="D")
         assets = ["ASSET_A", "ASSET_B", "ASSET_C"]
-        
-        index = pd.MultiIndex.from_product([dates, assets], names=["ts_utc", "symbol"])
         
         returns_wide = pd.DataFrame(
             [[0.01, 0.02, 0.015]] * 5,

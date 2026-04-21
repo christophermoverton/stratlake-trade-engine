@@ -16,8 +16,6 @@ from typing import Any, Mapping
 
 import pandas as pd
 
-from src.research.strategy_archetype import StrategyDefinition
-
 
 class StrategyRegistryError(ValueError):
     """Raised when strategy registry entry is invalid."""

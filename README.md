@@ -36,6 +36,65 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+## Milestone 23 Summary
+
+Milestone 23 makes the repository's deterministic execution workflows
+notebook-addressable while preserving CLI parity for release, CI, and
+automation paths. It adds a stable `src.execution` Python API for running and
+inspecting strategy, alpha, alpha-evaluation, portfolio, pipeline, campaign,
+validation, and benchmark-pack workflows from notebooks and scripts.
+
+The repository now includes:
+
+* shared execution-layer adapters under `src/execution/` so notebook and CLI
+  entrypoints use the same underlying workflow behavior
+* notebook-friendly `ExecutionResult` helpers for inspecting metrics,
+  manifests, summaries, comparison reports, named outputs, and artifact paths
+* importable execution APIs for strategy comparison, alpha evaluation, full
+  alpha runs, portfolio construction, pipeline execution, campaign
+  orchestration, docs/path linting, deterministic rerun validation, milestone
+  validation bundles, and benchmark packs
+* CLI/API parity tests that protect shared artifact contracts and reduce drift
+  between process-oriented CLI behavior and notebook-oriented Python behavior
+* canonical notebook execution documentation and import-safe examples for
+  copying into interactive analysis workflows
+* a Q1 2026 cross-sectional XGBoost notebook case study that demonstrates the
+  alpha-to-portfolio workflow with notebook inspection helpers
+
+Common Milestone 23 Python entrypoints:
+
+```python
+from src.execution import (
+    compare_strategies,
+    run_alpha,
+    run_alpha_evaluation,
+    run_benchmark_pack,
+    run_docs_path_lint,
+    run_deterministic_rerun_validation,
+    run_milestone_validation,
+    run_pipeline,
+    run_portfolio,
+    run_research_campaign,
+    run_strategy,
+)
+```
+
+Common Milestone 23 validation commands:
+
+```powershell
+python -m src.cli.run_docs_path_lint --output artifacts/qa/docs_path_lint.json
+python -m src.cli.run_deterministic_rerun_validation --output artifacts/qa/deterministic_rerun.json
+python -m src.cli.run_milestone_validation --bundle-dir artifacts/qa/milestone_validation_bundle --include-full-pytest
+```
+
+Start with:
+
+* [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
+* [docs/examples/notebook_execution_api_examples.md](docs/examples/notebook_execution_api_examples.md)
+* [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
+* [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
+* [docs/getting_started.md](docs/getting_started.md)
+
 ## Milestone 22 Summary
 
 Milestone 22 extends the Milestone 21 signal, strategy, portfolio, and pipeline

@@ -310,6 +310,21 @@ By default, `to_dict()` excludes `raw_result` because raw workflow results may
 contain DataFrames, models, or other non-JSON objects. Pass
 `include_raw_result=True` only for local debugging.
 
+## CLI/API Parity Expectations
+
+The notebook execution API is expected to stay aligned with the corresponding
+CLI workflows on stable, machine-readable contracts. Parity tests cover
+representative strategy, alpha evaluation, portfolio, pipeline, validation, and
+benchmark-pack paths. They compare workflow identifiers, deterministic run ids,
+names, summary metrics, manifest references, named output path keys, artifact
+file names, and workflow-specific `extra` fields.
+
+Parity intentionally does not compare raw stdout text, object identity,
+absolute workspace prefixes, transient logs, or raw DataFrames/models attached
+to `raw_result`. CLI entrypoints may also apply process-oriented behavior, such
+as exiting non-zero when validation reports fail, while the API returns an
+`ExecutionResult` so notebooks can inspect the failed report.
+
 ## Working With Artifacts
 
 The API is intentionally artifact-first. In notebooks, prefer using the

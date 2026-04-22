@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from src.pipeline.pipeline_runner import PipelineRunResult, PipelineRunner, PipelineSpec
+from src.pipeline.pipeline_runner import PipelineRunResult, PipelineSpec
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -32,8 +32,9 @@ def run_cli(argv: Sequence[str] | None = None) -> PipelineRunResult:
     """Execute one pipeline from CLI arguments."""
 
     args = parse_args(argv)
-    spec = load_pipeline_spec(args.config)
-    result = PipelineRunner(spec).run()
+    from src.execution.pipeline import run_pipeline_from_cli_args
+
+    result = run_pipeline_from_cli_args(args).raw_result
     print_summary(result)
     return result
 

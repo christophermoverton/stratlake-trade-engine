@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Sequence
 
 from src.cli.comparison_cli import (
     add_dual_flag_argument,
-    optional_output_path,
     parse_csv_or_space_separated,
     print_comparison_summary,
 )
@@ -14,7 +12,7 @@ from src.config.evaluation import EVALUATION_CONFIG
 from src.research.compare import (
     DEFAULT_METRIC,
     ComparisonResult,
-    compare_strategies,
+    compare_strategies,  # noqa: F401 - compatibility hook for tests and callers.
     render_leaderboard_table,
 )
 from src.pipeline.cli_adapter import build_pipeline_cli_result
@@ -85,18 +83,11 @@ def run_cli(
 ) -> ComparisonResult | dict[str, object]:
     """Execute the comparison CLI flow from parsed command-line arguments."""
 
+    del state
     args = parse_args(argv)
-    strategies = parse_strategy_names(args.strategies)
-    result = compare_strategies(
-        strategies,
-        metric=args.metric,
-        evaluation_path=None if args.evaluation is None else Path(args.evaluation),
-        start=args.start,
-        end=args.end,
-        top_k=args.top_k,
-        from_registry=args.from_registry,
-        output_path=optional_output_path(args.output_path),
-    )
+    from src.execution.comparison import compare_strategies_from_cli_args
+
+    result = compare_strategies_from_cli_args(args).raw_result
     print_comparison_summary(
         identifier_label="comparison_id",
         identifier=result.comparison_id,

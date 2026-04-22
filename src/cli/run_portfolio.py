@@ -281,7 +281,7 @@ def parse_run_ids(raw_values: Sequence[str] | None) -> list[str]:
     return run_ids
 
 
-def run_cli(
+def _run_cli_impl(
     argv: Sequence[str] | None = None,
     *,
     state: Mapping[str, Any] | None = None,
@@ -507,6 +507,23 @@ def run_cli(
             },
         )
     return result
+
+
+def run_cli(
+    argv: Sequence[str] | None = None,
+    *,
+    state: Mapping[str, Any] | None = None,
+    pipeline_context: Mapping[str, Any] | None = None,
+) -> PortfolioRunResult | PortfolioWalkForwardRunResult | dict[str, Any]:
+    """Execute the portfolio runner CLI flow from parsed command-line arguments."""
+
+    from src.execution.portfolio import run_portfolio
+
+    return run_portfolio(
+        argv,
+        state=state,
+        pipeline_context=pipeline_context,
+    ).raw_result
 
 
 def _pipeline_argv(

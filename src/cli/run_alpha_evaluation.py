@@ -170,8 +170,9 @@ def run_cli(argv: Sequence[str] | None = None) -> AlphaEvaluationRunResult:
     """Execute the alpha evaluation CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
-    resolved_config = resolve_cli_config(args)
-    result = run_resolved_config(resolved_config)
+    from src.execution.alpha import run_alpha_evaluation_from_cli_args
+
+    result = run_alpha_evaluation_from_cli_args(args).raw_result
     print_summary(result)
     return result
 

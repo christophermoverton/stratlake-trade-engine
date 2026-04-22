@@ -11,16 +11,16 @@ import yaml
 
 from src.config.execution import ExecutionConfig
 from src.config.evaluation import EVALUATION_CONFIG
-from src.config.robustness import ROBUSTNESS_CONFIG, load_robustness_config
-from src.config.simulation import load_simulation_config, resolve_simulation_config
+from src.config.robustness import ROBUSTNESS_CONFIG, load_robustness_config  # noqa: F401
+from src.config.simulation import load_simulation_config, resolve_simulation_config  # noqa: F401
 from src.config.runtime import RuntimeConfig, resolve_runtime_config
 from src.data.load_features import load_features
 from src.research.backtest_runner import run_backtest
 from src.research.experiment_tracker import save_experiment
 from src.research.input_validation import StrategyInputError
 from src.research.metrics import aggregate_strategy_returns, compute_benchmark_relative_metrics, infer_periods_per_year
-from src.research.promotion import load_promotion_gate_config
-from src.research.robustness import RobustnessRunResult, run_robustness_experiment
+from src.research.promotion import load_promotion_gate_config  # noqa: F401
+from src.research.robustness import RobustnessRunResult, run_robustness_experiment  # noqa: F401
 from src.research.simulation import SimulationRunResult, run_return_simulation, write_simulation_artifacts
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.signal_diagnostics import compute_signal_diagnostics
@@ -28,7 +28,7 @@ from src.research.signal_engine import generate_signals
 from src.research.sanity import SanityCheckError, validate_strategy_backtest_sanity
 from src.research.strategies import build_strategy
 from src.research.strategy_qa import generate_strategy_qa_summary
-from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment
+from src.research.walk_forward import WalkForwardRunResult, compute_metrics, run_walk_forward_experiment  # noqa: F401
 from src.pipeline.cli_adapter import build_pipeline_cli_result
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -418,65 +418,13 @@ def run_cli(
     """Execute the strategy runner CLI flow from parsed command-line arguments."""
 
     args = parse_args(argv)
-    strategies_config_path = Path(args.strategies_config)
-    execution_override = _execution_override_from_args(args)
-    robustness_config = None if not args.robustness else load_robustness_config(Path(args.robustness))
-    strategy_name = args.strategy
-    if robustness_config is not None:
-        strategy_name = robustness_config.resolve_strategy_name(strategy_name)
+    from src.execution.strategy import run_strategy_from_cli_args
 
-    if strategy_name is None:
-        raise ValueError("A strategy must be provided via --strategy or the robustness config.")
-
-    config = get_strategy_config(strategy_name, path=strategies_config_path)
-    if args.promotion_gates is not None:
-        config = dict(config)
-        config["promotion_gates"] = load_promotion_gate_config(args.promotion_gates)
-    runtime_config = resolve_runtime_config(
-        config,
-        cli_overrides=None if execution_override is None else {"execution": execution_override},
-        cli_strict=args.strict,
-    )
-    if args.simulation and robustness_config is not None:
-        raise ValueError("The --simulation argument cannot be combined with --robustness.")
-    if robustness_config is not None:
-        result = run_robustness_experiment(
-            strategy_name,
-            robustness_config=robustness_config,
-            start=args.start,
-            end=args.end,
-            evaluation_path=None if not args.evaluation else Path(args.evaluation),
-            execution_config=runtime_config.execution,
-            strict=args.strict,
-            strategy_config_path=strategies_config_path,
-        )
-    elif args.evaluation:
-        if args.simulation:
-            raise ValueError("The --simulation argument cannot be combined with --evaluation.")
-        if args.start or args.end:
-            raise ValueError("The --start and --end arguments cannot be combined with --evaluation.")
-
-        strategy = build_strategy(strategy_name, config)
-        result = run_walk_forward_experiment(
-            strategy_name,
-            strategy,
-            evaluation_path=Path(args.evaluation),
-            strategy_config=config,
-            execution_config=runtime_config.execution,
-            strict=args.strict,
-        )
-    else:
-        result = run_strategy_experiment(
-            strategy_name,
-            start=args.start,
-            end=args.end,
-            execution_config=runtime_config.execution,
-            strict=args.strict,
-            simulation_config=None if args.simulation is None else load_simulation_config(Path(args.simulation)).to_dict(),
-            strategies_config_path=strategies_config_path,
-        )
+    execution_result = run_strategy_from_cli_args(args)
+    result = execution_result.raw_result
     print_summary(result)
     if pipeline_context is not None:
+        strategy_name = str(getattr(result, "strategy_name", args.strategy or "strategy"))
         artifact_dir = getattr(result, "experiment_dir", None)
         metrics = getattr(result, "metrics", None)
         output_paths = {}

@@ -1,13 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Sequence
-
-from src.validation.deterministic_rerun import (
-    run_deterministic_rerun_validation,
-    write_deterministic_rerun_report,
-)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -34,11 +28,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
     args = parse_args(argv)
-    report = run_deterministic_rerun_validation(
-        repo_root=Path(args.repo_root),
-        output_root=Path(args.workdir),
-    )
-    output_path = write_deterministic_rerun_report(report, Path(args.output))
+    from src.execution.validation import run_deterministic_rerun_validation_from_cli_args
+
+    execution_result = run_deterministic_rerun_validation_from_cli_args(args)
+    report = execution_result.raw_result
+    output_path = execution_result.output_paths["report_json"]
     print(f"deterministic_rerun_status: {report['status']}")
     print(f"target_count: {report['target_count']}")
     print(f"pass_count: {report['pass_count']}")

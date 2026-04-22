@@ -16,12 +16,14 @@ This guide walks through the current repository workflow:
 5. run the Milestone 11.5 alpha-to-portfolio example
 6. run the Milestone 12 alpha-evaluation example
 7. run the Milestone 13 review-and-promotion example
-8. run a strict strategy
-9. build a portfolio from saved runs
+8. run from notebooks or Python scripts
+9. run a strict strategy
+10. build a portfolio from saved runs
 
 For deeper detail, continue with:
 
 * [alpha_workflow.md](alpha_workflow.md)
+* [notebook_execution_api.md](notebook_execution_api.md)
 * [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
 * [portfolio_construction_workflow.md](portfolio_construction_workflow.md)
 * [research_validity_framework.md](research_validity_framework.md)
@@ -229,6 +231,41 @@ To exercise operational volatility targeting from the shipped config:
 ```powershell
 python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name momentum_meanrev_targeted --from-registry --timeframe 1D
 ```
+
+## Run From Notebooks Or Python Scripts
+
+The same deterministic strategy, alpha, alpha-evaluation, portfolio, pipeline,
+campaign, validation, and benchmark-pack workflows are available through
+importable Python entrypoints:
+
+```python
+from src.execution import (
+    run_alpha,
+    run_alpha_evaluation,
+    run_benchmark_pack,
+    run_pipeline,
+    run_portfolio,
+    run_research_campaign,
+    run_strategy,
+)
+```
+
+These functions return `ExecutionResult` summaries with artifact paths,
+manifest paths, metrics, named outputs, and notebook-safe inspection helpers
+such as `output_keys()`, `output_path(...)`, `load_manifest()`,
+`load_metrics_json()`, `load_summary_json()`, `load_comparison_json()`, and
+`notebook_summary()`.
+
+Use notebooks for exploration, inspection, comparative analysis, and interactive
+review. Use the CLI for operational runs, automation, CI, milestone validation,
+and release-oriented workflows where process exit behavior matters.
+
+See:
+
+* [notebook_execution_api.md](notebook_execution_api.md)
+* [examples/notebook_execution_api_examples.md](examples/notebook_execution_api_examples.md)
+* [examples/notebook_execution_api_examples.py](examples/notebook_execution_api_examples.py)
+* [examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
 ## What Gets Written
 

@@ -8,6 +8,34 @@ consumes validated feature datasets, runs backtests with explicit execution
 assumptions, applies layered validation, and writes auditable artifacts for
 later comparison, portfolio construction, and registry-backed reuse.
 
+## Notebook Execution API
+
+Milestone 23 exposes the repository's deterministic execution workflows through
+stable Python imports for notebooks and scripts. Notebook users can run
+strategy, alpha, alpha-evaluation, portfolio, pipeline, campaign, validation,
+and benchmark-pack workflows without shelling out, then inspect the same
+artifact-first contracts used by the CLI.
+
+```python
+from src.execution import run_strategy
+
+result = run_strategy("momentum_v1", start="2022-01-01", end="2023-01-01")
+result.notebook_summary()
+result.load_metrics_json()
+result.load_manifest()
+```
+
+Use notebooks for exploration, inspection, comparisons, and interactive review.
+Use the CLI for automation, CI, milestone validation, release bundles, and
+operational runs.
+
+Start with:
+
+* [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
+* [docs/examples/notebook_execution_api_examples.md](docs/examples/notebook_execution_api_examples.md)
+* [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
+* [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
+
 ## Milestone 22 Summary
 
 Milestone 22 extends the Milestone 21 signal, strategy, portfolio, and pipeline

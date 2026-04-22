@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Sequence
-
-from src.validation.milestone_bundle import build_milestone_validation_bundle
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -31,11 +28,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
     args = parse_args(argv)
-    summary = build_milestone_validation_bundle(
-        repo_root=Path(args.repo_root),
-        bundle_dir=Path(args.bundle_dir),
-        include_full_pytest=bool(args.include_full_pytest),
-    )
+    from src.execution.validation import run_milestone_validation_from_cli_args
+
+    summary = run_milestone_validation_from_cli_args(args).raw_result
     print(f"milestone_validation_status: {summary['status']}")
     print(f"bundle_dir: {summary['bundle_dir']}")
     print(f"started_at_utc: {summary['started_at_utc']}")

@@ -15,7 +15,7 @@ from src.cli.run_alpha_evaluation import (
     _inherit_compatible_position_constructor,
     DEFAULT_ARTIFACTS_ROOT,
     load_ticker_file,
-    run_resolved_config,
+    run_resolved_config,  # noqa: F401 - compatibility hook for execution adapters/tests.
 )
 from src.data.load_features import SUPPORTED_FEATURE_DATASETS
 from src.research.alpha import AlphaPredictionError, AlphaTrainingError
@@ -23,10 +23,10 @@ from src.research.alpha.catalog import ALPHAS_CONFIG, resolve_alpha_config
 from src.research.alpha_eval import (
     AlphaEvaluationError,
     ForwardReturnAlignmentError,
-    alpha_evaluation_registry_path,
-    generate_alpha_sleeve,
-    register_alpha_evaluation_run,
-    write_alpha_sleeve_artifacts,
+    alpha_evaluation_registry_path,  # noqa: F401 - compatibility hook for execution adapters.
+    generate_alpha_sleeve,  # noqa: F401 - compatibility hook for execution adapters.
+    register_alpha_evaluation_run,  # noqa: F401 - compatibility hook for execution adapters.
+    write_alpha_sleeve_artifacts,  # noqa: F401 - compatibility hook for execution adapters.
 )
 from src.research.position_constructors import normalize_position_constructor_config
 from src.research.promotion import load_promotion_gate_config
@@ -220,51 +220,9 @@ def run_cli(
     """Execute the first-class built-in alpha runner."""
 
     args = parse_args(argv)
-    resolved_config = resolve_cli_config(args)
-    evaluation_result = run_resolved_config(resolved_config)
+    from src.execution.alpha import run_alpha_from_cli_args
 
-    scaffold_path: Path | None = None
-    if resolved_config["run_mode"] == "full":
-        if evaluation_result.signal_mapping_result is None:
-            raise ValueError("Full alpha runs require signal mapping to generate a sleeve.")
-        sleeve_result = generate_alpha_sleeve(
-            signals=evaluation_result.signal_mapping_result.signals,
-            dataset=evaluation_result.loaded_frame,
-            price_column=_optional_string(resolved_config.get("price_column")),
-            realized_return_column=_optional_string(resolved_config.get("realized_return_column")),
-            position_constructor=_resolve_sleeve_position_constructor(resolved_config),
-            alpha_name=str(resolved_config["alpha_name"]),
-            run_id=evaluation_result.run_id,
-        )
-        updated_manifest = write_alpha_sleeve_artifacts(
-            evaluation_result.artifact_dir,
-            sleeve_result,
-            update_manifest=True,
-        )
-        register_alpha_evaluation_run(
-            run_id=evaluation_result.run_id,
-            alpha_name=str(resolved_config["alpha_model"]),
-            effective_config=evaluation_result.resolved_config,
-            evaluation_result=evaluation_result.evaluation_result,
-            artifact_dir=evaluation_result.artifact_dir,
-            manifest=updated_manifest or evaluation_result.manifest,
-            registry_path=alpha_evaluation_registry_path(Path(str(resolved_config["artifacts_root"]))),
-        )
-        scaffold_path = write_full_run_scaffold(
-            artifact_dir=evaluation_result.artifact_dir,
-            evaluation=evaluation_result,
-            resolved_config=resolved_config,
-        )
-
-    result = AlphaRunResult(
-        alpha_name=str(resolved_config["alpha_name"]),
-        mode=str(resolved_config["run_mode"]),
-        run_id=evaluation_result.run_id,
-        artifact_dir=evaluation_result.artifact_dir,
-        evaluation=evaluation_result,
-        scaffold_path=scaffold_path,
-        resolved_config=dict(evaluation_result.resolved_config),
-    )
+    result = run_alpha_from_cli_args(args).raw_result
     print_summary(result)
     if pipeline_context is not None:
         manifest_path = result.artifact_dir / "manifest.json"

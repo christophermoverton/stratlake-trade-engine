@@ -1,12 +1,10 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 import sys
 from typing import Sequence
 
-from src.config.benchmark_pack import BenchmarkPackConfigError, load_benchmark_pack_config
-from src.research.benchmark_pack import run_benchmark_pack
+from src.config.benchmark_pack import BenchmarkPackConfigError
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -32,13 +30,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def run_cli(argv: Sequence[str] | None = None):
     args = parse_args(argv)
-    config = load_benchmark_pack_config(Path(args.config))
-    result = run_benchmark_pack(
-        config,
-        output_root=None if args.output_root is None else Path(args.output_root),
-        compare_to=None if args.compare_to is None else Path(args.compare_to),
-        stop_after_batches=args.stop_after_batches,
-    )
+    from src.execution.benchmark import run_benchmark_pack_from_cli_args
+
+    result = run_benchmark_pack_from_cli_args(args).raw_result
     print_summary(result)
     return result
 

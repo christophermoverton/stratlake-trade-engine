@@ -12,6 +12,10 @@ if str(REPO_ROOT) not in sys.path:
 from src.execution import (  # noqa: E402
     run_alpha,
     run_alpha_evaluation,
+    run_benchmark_pack,
+    run_docs_path_lint,
+    run_deterministic_rerun_validation,
+    run_milestone_validation,
     run_pipeline,
     run_portfolio,
     run_research_campaign,
@@ -147,4 +151,59 @@ def research_campaign_example() -> ExecutionResult:
     print(result.run_id)
     print(result.output_paths.get("checkpoint_json"))
     print(result.extra.get("stage_statuses"))
+    return result
+
+
+def docs_path_lint_example() -> ExecutionResult:
+    """Run guarded docs/path lint from Python and inspect the JSON report."""
+
+    result = run_docs_path_lint(output="artifacts/qa/docs_path_lint.json")
+
+    print(result.metrics.get("status"))
+    print(result.metrics.get("finding_count"))
+    print(result.output_paths.get("report_json"))
+    return result
+
+
+def deterministic_rerun_validation_example() -> ExecutionResult:
+    """Run canonical deterministic rerun validation from Python."""
+
+    result = run_deterministic_rerun_validation(
+        workdir="artifacts/qa/rerun_workdir",
+        output="artifacts/qa/deterministic_rerun.json",
+    )
+
+    print(result.metrics.get("status"))
+    print(result.metrics.get("pass_count"))
+    print(result.output_paths.get("report_json"))
+    return result
+
+
+def milestone_validation_example() -> ExecutionResult:
+    """Build the milestone validation bundle through the notebook API."""
+
+    result = run_milestone_validation(
+        bundle_dir="artifacts/qa/milestone_validation_bundle",
+        include_full_pytest=False,
+    )
+
+    print(result.metrics.get("status"))
+    print(result.output_paths.get("summary_json"))
+    print(result.output_paths.get("docs_path_lint_json"))
+    print(result.output_paths.get("deterministic_rerun_json"))
+    return result
+
+
+def benchmark_pack_example() -> ExecutionResult:
+    """Run the scale/repro benchmark pack and inspect generated artifacts."""
+
+    result = run_benchmark_pack(
+        "configs/benchmark_packs/m22_scale_repro.yml",
+        output_root="artifacts/benchmark_packs/m22_scale_repro",
+    )
+
+    print(result.metrics.get("status"))
+    print(result.metrics.get("scenario_count"))
+    print(result.output_paths.get("summary_json"))
+    print(result.output_paths.get("inventory_json"))
     return result

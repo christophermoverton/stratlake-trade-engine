@@ -1,10 +1,7 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 from typing import Sequence
-
-from src.validation.docs_path_lint import lint_guarded_surfaces, write_docs_path_lint_report
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -26,8 +23,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
     args = parse_args(argv)
-    report = lint_guarded_surfaces(repo_root=Path(args.repo_root))
-    output_path = write_docs_path_lint_report(report, Path(args.output))
+    from src.execution.validation import run_docs_path_lint_from_cli_args
+
+    execution_result = run_docs_path_lint_from_cli_args(args)
+    report = execution_result.raw_result
+    output_path = execution_result.output_paths["report_json"]
     print(f"docs_path_lint_status: {report['status']}")
     print(f"guarded_file_count: {report['guarded_file_count']}")
     print(f"finding_count: {report['finding_count']}")

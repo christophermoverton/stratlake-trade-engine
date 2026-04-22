@@ -34,11 +34,22 @@ def run_benchmark_pack(
         manifest_path=raw_result.manifest_path,
         metrics=dict(raw_result.summary),
         output_paths={
+            "config_json": raw_result.output_root / "benchmark_pack_config.json",
+            "dataset_summary_json": raw_result.output_root / "dataset_summary.json",
             "summary_json": raw_result.summary_path,
             "manifest_json": raw_result.manifest_path,
             "checkpoint_json": raw_result.checkpoint_path,
             "inventory_json": raw_result.inventory_path,
+            "batch_plan_json": raw_result.batch_plan_path,
+            "batch_plan_csv": raw_result.batch_plan_csv_path,
+            "benchmark_matrix_csv": raw_result.benchmark_matrix_csv_path,
             "benchmark_matrix_summary": raw_result.benchmark_matrix_summary_path,
+            "comparison_json": raw_result.comparison_path,
+        },
+        extra={
+            "pack_id": raw_result.pack_id,
+            "status": raw_result.status,
+            "comparison": raw_result.comparison,
         },
     )
 

@@ -15,7 +15,11 @@ from src.cli.run_research_campaign import (
 from src.execution import (
     run_alpha,
     run_alpha_evaluation,
+    run_benchmark_pack,
     run_campaign,
+    run_docs_path_lint,
+    run_deterministic_rerun_validation,
+    run_milestone_validation,
     run_pipeline,
     run_portfolio,
     run_research_campaign,
@@ -456,6 +460,197 @@ def test_run_campaign_api_summarizes_scenario_orchestration(monkeypatch, tmp_pat
     assert result.extra["scenarios"][0]["scenario_id"] == "scenario_a"
 
 
+def test_run_docs_path_lint_api_writes_report_and_exposes_findings(tmp_path: Path) -> None:
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(parents=True)
+    (docs_dir / "leak.md").write_text(
+        "Reference: C:/Users/example/local/path/file.md\n",
+        encoding="utf-8",
+    )
+    output_path = tmp_path / "artifacts" / "qa" / "docs_path_lint.json"
+
+    result = run_docs_path_lint(repo_root=tmp_path, output=output_path)
+
+    assert result.workflow == "docs_path_lint"
+    assert result.run_id == "docs_path_lint"
+    assert result.artifact_dir == output_path.parent
+    assert result.output_paths["report_json"] == output_path
+    assert result.metrics["run_type"] == "docs_path_lint"
+    assert result.metrics["status"] == "failed"
+    assert result.metrics["finding_count"] >= 1
+    assert result.extra["finding_count"] == result.metrics["finding_count"]
+    assert output_path.exists()
+    assert result.raw_result == result.metrics
+
+
+def test_docs_path_lint_cli_delegates_to_execution_api(monkeypatch, tmp_path: Path) -> None:
+    from src.cli.run_docs_path_lint import run_cli
+
+    calls: dict[str, object] = {}
+    report_path = tmp_path / "docs_path_lint.json"
+    report = {
+        "run_type": "docs_path_lint",
+        "schema_version": 1,
+        "status": "passed",
+        "guarded_file_count": 2,
+        "finding_count": 0,
+        "findings": [],
+    }
+
+    def fake_run_from_cli_args(args):
+        calls["repo_root"] = args.repo_root
+        calls["output"] = args.output
+        return ExecutionResult(
+            workflow="docs_path_lint",
+            run_id="docs_path_lint",
+            name="docs_path_lint",
+            artifact_dir=report_path.parent,
+            metrics=dict(report),
+            output_paths={"report_json": report_path},
+            raw_result=report,
+        )
+
+    monkeypatch.setattr(
+        "src.execution.validation.run_docs_path_lint_from_cli_args",
+        fake_run_from_cli_args,
+    )
+
+    returned = run_cli(["--repo-root", str(tmp_path), "--output", str(report_path)])
+
+    assert returned == report
+    assert calls == {"repo_root": str(tmp_path), "output": str(report_path)}
+
+
+def test_run_deterministic_rerun_validation_api_exposes_report_path(monkeypatch, tmp_path: Path) -> None:
+    report = {
+        "run_type": "deterministic_rerun_validation",
+        "schema_version": 1,
+        "status": "passed",
+        "target_count": 1,
+        "pass_count": 1,
+        "targets": [],
+    }
+
+    monkeypatch.setattr(
+        "src.validation.deterministic_rerun.run_deterministic_rerun_validation",
+        lambda repo_root, output_root: report,
+    )
+
+    output_path = tmp_path / "deterministic_rerun.json"
+    result = run_deterministic_rerun_validation(
+        repo_root=tmp_path,
+        workdir=tmp_path / "workdir",
+        output=output_path,
+    )
+
+    assert result.workflow == "deterministic_rerun_validation"
+    assert result.output_paths["report_json"] == output_path
+    assert result.metrics["run_type"] == "deterministic_rerun_validation"
+    assert result.extra == {"target_count": 1, "pass_count": 1}
+    assert output_path.exists()
+
+
+def test_run_milestone_validation_api_exposes_bundle_artifacts(monkeypatch, tmp_path: Path) -> None:
+    bundle_dir = tmp_path / "bundle"
+    summary = {
+        "run_type": "milestone_validation_bundle",
+        "schema_version": 1,
+        "status": "passed",
+        "started_at_utc": "2026-04-22T00:00:00Z",
+        "finished_at_utc": "2026-04-22T00:00:01Z",
+        "bundle_dir": bundle_dir.as_posix(),
+        "checks": {
+            "docs_path_lint": {
+                "status": "passed",
+                "report_path": "checks/docs_path_lint.json",
+                "finding_count": 0,
+                "guarded_file_count": 12,
+            },
+            "deterministic_rerun": {
+                "status": "passed",
+                "report_path": "checks/deterministic_rerun.json",
+                "target_count": 3,
+                "pass_count": 3,
+            },
+            "commands": [],
+        },
+        "pytest_targets": ["tests/test_docs_path_portability.py"],
+        "include_full_pytest": False,
+    }
+
+    monkeypatch.setattr(
+        "src.validation.milestone_bundle.build_milestone_validation_bundle",
+        lambda repo_root, bundle_dir, include_full_pytest: summary,
+    )
+
+    result = run_milestone_validation(repo_root=tmp_path, bundle_dir=bundle_dir)
+
+    assert result.workflow == "milestone_validation"
+    assert result.artifact_dir == bundle_dir
+    assert result.output_paths["summary_json"] == bundle_dir / "summary.json"
+    assert result.output_paths["docs_path_lint_json"] == bundle_dir / "checks" / "docs_path_lint.json"
+    assert result.output_paths["deterministic_rerun_json"] == bundle_dir / "checks" / "deterministic_rerun.json"
+    assert result.metrics["run_type"] == "milestone_validation_bundle"
+    assert result.extra["checks"] == summary["checks"]
+
+
+def test_run_benchmark_pack_api_exposes_machine_readable_artifacts(monkeypatch, tmp_path: Path) -> None:
+    output_root = tmp_path / "benchmark_pack"
+    raw_result = type(
+        "BenchmarkPackRunResult",
+        (),
+        {
+            "pack_id": "m22_scale_repro",
+            "pack_run_id": "m22_scale_repro_123",
+            "status": "completed",
+            "output_root": output_root,
+            "checkpoint_path": output_root / "checkpoint.json",
+            "manifest_path": output_root / "manifest.json",
+            "summary_path": output_root / "summary.json",
+            "inventory_path": output_root / "inventory.json",
+            "batch_plan_path": output_root / "batch_plan.json",
+            "batch_plan_csv_path": output_root / "batch_plan.csv",
+            "benchmark_matrix_csv_path": output_root / "benchmark_matrix.csv",
+            "benchmark_matrix_summary_path": output_root / "benchmark_matrix.json",
+            "comparison_path": output_root / "comparisons" / "inventory_comparison.json",
+            "summary": {
+                "run_type": "benchmark_pack",
+                "status": "completed",
+                "batch_count": 1,
+                "scenario_count": 2,
+            },
+            "comparison": {"matches": True},
+        },
+    )()
+
+    monkeypatch.setattr("src.config.benchmark_pack.load_benchmark_pack_config", lambda path: object())
+    monkeypatch.setattr(
+        "src.research.benchmark_pack.run_benchmark_pack",
+        lambda config, output_root, compare_to, stop_after_batches: raw_result,
+    )
+
+    result = run_benchmark_pack(
+        "configs/benchmark_packs/m22_scale_repro.yml",
+        output_root=output_root,
+        compare_to=tmp_path / "reference_inventory.json",
+    )
+
+    assert result.workflow == "benchmark_pack"
+    assert result.run_id == "m22_scale_repro_123"
+    assert result.artifact_dir == output_root
+    assert result.manifest_path == output_root / "manifest.json"
+    assert result.output_paths["summary_json"] == output_root / "summary.json"
+    assert result.output_paths["batch_plan_csv"] == output_root / "batch_plan.csv"
+    assert result.output_paths["benchmark_matrix_csv"] == output_root / "benchmark_matrix.csv"
+    assert result.output_paths["comparison_json"] == output_root / "comparisons" / "inventory_comparison.json"
+    assert result.metrics["run_type"] == "benchmark_pack"
+    assert result.extra == {
+        "pack_id": "m22_scale_repro",
+        "status": "completed",
+        "comparison": {"matches": True},
+    }
+
+
 def test_notebook_execution_api_example_is_import_safe() -> None:
     namespace = runpy.run_path("docs/examples/notebook_execution_api_examples.py")
 
@@ -466,3 +661,7 @@ def test_notebook_execution_api_example_is_import_safe() -> None:
     assert callable(namespace["registry_backed_portfolio_example"])
     assert callable(namespace["pipeline_example"])
     assert callable(namespace["research_campaign_example"])
+    assert callable(namespace["docs_path_lint_example"])
+    assert callable(namespace["deterministic_rerun_validation_example"])
+    assert callable(namespace["milestone_validation_example"])
+    assert callable(namespace["benchmark_pack_example"])

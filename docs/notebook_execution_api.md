@@ -16,6 +16,10 @@ from src.execution import (
     run_strategy,
     run_alpha,
     run_alpha_evaluation,
+    run_benchmark_pack,
+    run_docs_path_lint,
+    run_deterministic_rerun_validation,
+    run_milestone_validation,
     run_portfolio,
     run_pipeline,
     run_research_campaign,
@@ -206,13 +210,80 @@ Single-campaign results expose checkpoint and stage state references in
 `extra`; scenario orchestration results expose scenario catalogs, matrix
 artifacts, expansion preflight, and per-scenario run ids.
 
+### Validation
+
+Operational validation checks are exposed through the same execution layer:
+
+```python
+from src.execution import (
+    run_docs_path_lint,
+    run_deterministic_rerun_validation,
+    run_milestone_validation,
+)
+
+docs_result = run_docs_path_lint(output="artifacts/qa/docs_path_lint.json")
+rerun_result = run_deterministic_rerun_validation(
+    workdir="artifacts/qa/rerun_workdir",
+    output="artifacts/qa/deterministic_rerun.json",
+)
+bundle_result = run_milestone_validation(
+    bundle_dir="artifacts/qa/milestone_validation_bundle",
+    include_full_pytest=False,
+)
+```
+
+These wrappers preserve the CLI validation contracts. `run_docs_path_lint`
+writes the same docs/path lint JSON report and exposes it as
+`output_paths["report_json"]`. `run_deterministic_rerun_validation` writes the
+canonical rerun comparison report and exposes target/pass counts in `extra`.
+`run_milestone_validation` builds the milestone validation bundle without
+changing its schema; notebook callers can inspect
+`output_paths["summary_json"]`, `output_paths["docs_path_lint_json"]`, and
+`output_paths["deterministic_rerun_json"]`.
+
+CLI fail conditions are unchanged: the CLI runners still exit non-zero when
+their report status is not passed. The Python APIs return structured
+`ExecutionResult` objects with the same report payloads in `metrics` and
+`raw_result` so notebooks can inspect failures before deciding whether to
+raise.
+
+### Benchmark Packs
+
+Benchmark-pack execution is available from Python:
+
+```python
+from src.execution import run_benchmark_pack
+
+result = run_benchmark_pack(
+    "configs/benchmark_packs/m22_scale_repro.yml",
+    output_root="artifacts/benchmark_packs/m22_scale_repro",
+)
+
+result.run_id
+result.metrics["status"]
+result.output_paths["summary_json"]
+result.output_paths["manifest_json"]
+result.output_paths["inventory_json"]
+result.output_paths["benchmark_matrix_csv"]
+```
+
+The wrapper loads the same benchmark-pack config and delegates to the existing
+benchmark runner used by `python -m src.cli.run_benchmark_pack`. It preserves
+the deterministic output layout, checkpoint/resume behavior, manifest,
+inventory, benchmark matrix, and optional comparison report. Named paths include
+`summary_json`, `manifest_json`, `checkpoint_json`, `inventory_json`,
+`batch_plan_json`, `batch_plan_csv`, `benchmark_matrix_csv`,
+`benchmark_matrix_summary`, and `comparison_json` when a comparison is written.
+
 ## `ExecutionResult` Contract
 
 Notebook entrypoints return `ExecutionResult` with these stable fields:
 
 * `workflow`: workflow family, such as `"strategy"`, `"alpha"`,
   `"alpha_evaluation"`, `"portfolio"`, `"pipeline"`,
-  `"research_campaign"`, or `"research_campaign_orchestration"`.
+  `"research_campaign"`, `"research_campaign_orchestration"`,
+  `"docs_path_lint"`, `"deterministic_rerun_validation"`,
+  `"milestone_validation"`, or `"benchmark_pack"`.
 * `run_id`: deterministic run identifier produced by the workflow.
 * `name`: strategy, alpha, portfolio, pipeline, or pack name.
 * `artifact_dir`: root directory for persisted artifacts, when the workflow
@@ -224,7 +295,7 @@ Notebook entrypoints return `ExecutionResult` with these stable fields:
   `alpha_metrics_json`, `weights_csv`, or `predictions_parquet`.
 * `extra`: deterministic workflow-specific metadata, such as alpha mode,
   portfolio timeframe, allocator, pipeline state, campaign stage execution,
-  or scenario summaries.
+  scenario summaries, validation check references, or benchmark-pack status.
 * `raw_result`: the original workflow result object for deeper inspection.
 
 Use `to_dict()` when you want a JSON-safe summary:

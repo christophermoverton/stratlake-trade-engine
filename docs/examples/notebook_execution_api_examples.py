@@ -27,19 +27,7 @@ from src.execution.result import ExecutionResult  # noqa: E402
 def summarize(result: ExecutionResult) -> dict[str, Any]:
     """Return the JSON-safe fields notebook users usually inspect first."""
 
-    return {
-        "workflow": result.workflow,
-        "run_id": result.run_id,
-        "name": result.name,
-        "artifact_dir": None if result.artifact_dir is None else result.artifact_dir.as_posix(),
-        "manifest_path": None if result.manifest_path is None else result.manifest_path.as_posix(),
-        "metrics": result.metrics,
-        "output_paths": {
-            key: value.as_posix()
-            for key, value in sorted(result.output_paths.items())
-        },
-        "extra": result.extra,
-    }
+    return result.notebook_summary()
 
 
 def strategy_example() -> ExecutionResult:
@@ -54,8 +42,9 @@ def strategy_example() -> ExecutionResult:
 
     print(result.run_id)
     print(result.metrics.get("sharpe_ratio"))
-    print(result.output_paths.get("metrics_json"))
+    print(result.output_path("metrics_json"))
     print(result.manifest_path)
+    print(result.load_metrics_json())
     return result
 
 
@@ -75,8 +64,9 @@ def alpha_evaluation_example() -> ExecutionResult:
 
     print(result.run_id)
     print(result.metrics.get("mean_ic"))
-    print(result.output_paths.get("alpha_metrics_json"))
-    print(result.output_paths.get("predictions_parquet"))
+    print(result.output_path("alpha_metrics_json"))
+    print(result.output_path("predictions_parquet"))
+    print(result.output_keys())
     return result
 
 
@@ -92,8 +82,8 @@ def alpha_full_run_example() -> ExecutionResult:
 
     print(result.run_id)
     print(result.extra.get("mode"))
-    print(result.output_paths.get("signals_parquet"))
-    print(result.output_paths.get("sleeve_metrics_json"))
+    print(result.output_path("signals_parquet"))
+    print(result.output_path("sleeve_metrics_json"))
     return result
 
 
@@ -109,8 +99,8 @@ def portfolio_example(component_run_ids: list[str]) -> ExecutionResult:
 
     print(result.run_id)
     print(result.metrics.get("total_return"))
-    print(result.output_paths.get("weights_csv"))
-    print(result.output_paths.get("portfolio_returns_csv"))
+    print(result.output_path("weights_csv"))
+    print(result.output_path("portfolio_returns_csv"))
     return result
 
 
@@ -136,8 +126,8 @@ def pipeline_example() -> ExecutionResult:
     result = run_pipeline("configs/test_pipeline.yml")
 
     print(result.run_id)
-    print(result.output_paths.get("lineage_json"))
-    print(result.output_paths.get("state_json"))
+    print(result.output_path("lineage_json"))
+    print(result.output_path("state_json"))
     print(result.extra.get("execution_order"))
     return result
 
@@ -149,7 +139,8 @@ def research_campaign_example() -> ExecutionResult:
 
     print(result.workflow)
     print(result.run_id)
-    print(result.output_paths.get("checkpoint_json"))
+    print(result.output_path("checkpoint_json"))
+    print(result.load_summary_json())
     print(result.extra.get("stage_statuses"))
     return result
 
@@ -161,7 +152,8 @@ def docs_path_lint_example() -> ExecutionResult:
 
     print(result.metrics.get("status"))
     print(result.metrics.get("finding_count"))
-    print(result.output_paths.get("report_json"))
+    print(result.output_path("report_json"))
+    print(result.load_metrics_json("report_json"))
     return result
 
 
@@ -175,7 +167,7 @@ def deterministic_rerun_validation_example() -> ExecutionResult:
 
     print(result.metrics.get("status"))
     print(result.metrics.get("pass_count"))
-    print(result.output_paths.get("report_json"))
+    print(result.output_path("report_json"))
     return result
 
 
@@ -188,9 +180,9 @@ def milestone_validation_example() -> ExecutionResult:
     )
 
     print(result.metrics.get("status"))
-    print(result.output_paths.get("summary_json"))
-    print(result.output_paths.get("docs_path_lint_json"))
-    print(result.output_paths.get("deterministic_rerun_json"))
+    print(result.output_path("summary_json"))
+    print(result.output_path("docs_path_lint_json"))
+    print(result.output_path("deterministic_rerun_json"))
     return result
 
 
@@ -204,6 +196,8 @@ def benchmark_pack_example() -> ExecutionResult:
 
     print(result.metrics.get("status"))
     print(result.metrics.get("scenario_count"))
-    print(result.output_paths.get("summary_json"))
-    print(result.output_paths.get("inventory_json"))
+    print(result.output_path("summary_json"))
+    print(result.output_path("inventory_json"))
+    if result.has_output("comparison_json"):
+        print(result.load_comparison_json())
     return result

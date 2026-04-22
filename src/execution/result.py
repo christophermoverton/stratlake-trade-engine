@@ -1,8 +1,25 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterable
+
+
+_METRICS_OUTPUT_KEYS = (
+    "metrics_json",
+    "alpha_metrics_json",
+    "aggregate_metrics_json",
+    "pipeline_metrics_json",
+    "report_json",
+)
+_SUMMARY_OUTPUT_KEYS = (
+    "summary_json",
+    "benchmark_matrix_summary",
+    "qa_summary_json",
+    "training_summary_json",
+    "report_json",
+)
 
 
 @dataclass(frozen=True)
@@ -19,6 +36,93 @@ class ExecutionResult:
     output_paths: dict[str, Path] = field(default_factory=dict)
     extra: dict[str, Any] = field(default_factory=dict)
     raw_result: Any = None
+
+    def output_keys(self) -> tuple[str, ...]:
+        """Return available named output keys in deterministic order."""
+
+        return tuple(sorted(self.output_paths))
+
+    def has_output(self, key: str) -> bool:
+        """Return whether a named output path is present on this result."""
+
+        return key in self.output_paths
+
+    def output_path(self, key: str, *, must_exist: bool = False) -> Path:
+        """Return one named output path, raising clearly when it is unavailable."""
+
+        if key not in self.output_paths:
+            available = ", ".join(self.output_keys()) or "<none>"
+            raise KeyError(f"ExecutionResult has no output path named {key!r}; available outputs: {available}")
+        path = self.output_paths[key]
+        if must_exist and not path.exists():
+            raise FileNotFoundError(f"Output path {key!r} does not exist: {path}")
+        return path
+
+    def artifact_path(self, *parts: str | Path, must_exist: bool = False) -> Path:
+        """Resolve a path under artifact_dir without creating or mutating anything."""
+
+        if self.artifact_dir is None:
+            raise ValueError("ExecutionResult has no artifact_dir.")
+        path = self.artifact_dir.joinpath(*parts)
+        _ensure_under_root(path, self.artifact_dir)
+        if must_exist and not path.exists():
+            raise FileNotFoundError(f"Artifact path does not exist: {path}")
+        return path
+
+    def load_manifest(self) -> dict[str, Any]:
+        """Load the result manifest JSON from manifest_path."""
+
+        if self.manifest_path is None:
+            raise ValueError("ExecutionResult has no manifest_path.")
+        payload = load_json_artifact(self.manifest_path)
+        if not isinstance(payload, dict):
+            raise ValueError(f"Manifest JSON must contain an object: {self.manifest_path}")
+        return payload
+
+    def load_output_json(self, key: str) -> Any:
+        """Load JSON from a named output path."""
+
+        return load_json_artifact(self.output_path(key, must_exist=True))
+
+    def load_metrics_json(self, key: str | None = None) -> dict[str, Any]:
+        """Load a metrics/report JSON payload from a named output path."""
+
+        selected_key = key or self._first_available_output(_METRICS_OUTPUT_KEYS, label="metrics JSON")
+        payload = self.load_output_json(selected_key)
+        if not isinstance(payload, dict):
+            raise ValueError(f"Metrics JSON output {selected_key!r} must contain an object.")
+        return payload
+
+    def load_summary_json(self, key: str | None = None) -> dict[str, Any]:
+        """Load a summary-style JSON payload from a named output path."""
+
+        selected_key = key or self._first_available_output(_SUMMARY_OUTPUT_KEYS, label="summary JSON")
+        payload = self.load_output_json(selected_key)
+        if not isinstance(payload, dict):
+            raise ValueError(f"Summary JSON output {selected_key!r} must contain an object.")
+        return payload
+
+    def load_comparison_json(self, key: str = "comparison_json") -> dict[str, Any]:
+        """Load a comparison JSON payload when the workflow exposed one."""
+
+        payload = self.load_output_json(key)
+        if not isinstance(payload, dict):
+            raise ValueError(f"Comparison JSON output {key!r} must contain an object.")
+        return payload
+
+    def notebook_summary(self) -> dict[str, Any]:
+        """Return a compact JSON-safe payload for notebook display."""
+
+        return {
+            "workflow": self.workflow,
+            "run_id": self.run_id,
+            "name": self.name,
+            "artifact_dir": _path_or_none(self.artifact_dir),
+            "manifest_path": _path_or_none(self.manifest_path),
+            "metrics": _json_safe(self.metrics),
+            "output_keys": list(self.output_keys()),
+            "extra": _json_safe(self.extra),
+        }
 
     def to_dict(self, *, include_raw_result: bool = False) -> dict[str, Any]:
         """Return a JSON-safe summary payload."""
@@ -41,6 +145,26 @@ class ExecutionResult:
         if include_raw_result:
             payload["raw_result"] = self.raw_result
         return payload
+
+    def _first_available_output(self, candidates: Iterable[str], *, label: str) -> str:
+        for key in candidates:
+            if key in self.output_paths:
+                return key
+        available = ", ".join(self.output_keys()) or "<none>"
+        expected = ", ".join(candidates)
+        raise KeyError(
+            f"ExecutionResult has no {label} output. Expected one of: {expected}; "
+            f"available outputs: {available}"
+        )
+
+
+def load_json_artifact(path: str | Path) -> Any:
+    """Load a local JSON artifact without side effects."""
+
+    resolved_path = Path(path)
+    if not resolved_path.exists():
+        raise FileNotFoundError(f"JSON artifact does not exist: {resolved_path}")
+    return json.loads(resolved_path.read_text(encoding="utf-8"))
 
 
 def summarize_execution_result(
@@ -129,3 +253,10 @@ def _json_safe(value: Any) -> Any:
         except (TypeError, ValueError):
             return str(value)
     return value
+
+
+def _ensure_under_root(path: Path, root: Path) -> None:
+    resolved_path = path.resolve()
+    resolved_root = root.resolve()
+    if resolved_path != resolved_root and resolved_root not in resolved_path.parents:
+        raise ValueError(f"Artifact path escapes artifact_dir: {path}")

@@ -6,7 +6,7 @@ from src.execution.comparison import compare_strategies
 from src.execution.orchestration import run_campaign, run_research_campaign
 from src.execution.pipeline import run_pipeline
 from src.execution.portfolio import run_portfolio
-from src.execution.result import ExecutionResult
+from src.execution.result import ExecutionResult, load_json_artifact
 from src.execution.strategy import run_strategy
 from src.execution.validation import (
     run_docs_path_lint,
@@ -17,6 +17,7 @@ from src.execution.validation import (
 __all__ = [
     "ExecutionResult",
     "compare_strategies",
+    "load_json_artifact",
     "run_alpha",
     "run_alpha_evaluation",
     "run_benchmark_pack",

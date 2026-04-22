@@ -13,6 +13,7 @@ building subprocess calls or emulating shell arguments.
 
 ```python
 from src.execution import (
+    load_json_artifact,
     run_strategy,
     run_alpha,
     run_alpha_evaluation,
@@ -48,6 +49,8 @@ result.run_id
 result.metrics["sharpe_ratio"]
 result.artifact_dir
 result.manifest_path
+result.output_keys()
+result.load_metrics_json()
 ```
 
 Strategy runs write the same deterministic strategy artifacts as the CLI, such
@@ -70,8 +73,8 @@ result = run_alpha_evaluation(
 )
 
 result.metrics["mean_ic"]
-result.output_paths["alpha_metrics_json"]
-result.output_paths["predictions_parquet"]
+result.output_path("alpha_metrics_json")
+result.output_path("predictions_parquet")
 result.manifest_path
 ```
 
@@ -92,8 +95,8 @@ result = run_alpha(
 )
 
 result.metrics["ic_ir"]
-result.output_paths["signals_parquet"]
-result.output_paths["sleeve_metrics_json"]
+result.output_path("signals_parquet")
+result.output_path("sleeve_metrics_json")
 result.extra["mode"]
 ```
 
@@ -117,8 +120,8 @@ result = run_portfolio(
 )
 
 result.metrics["total_return"]
-result.output_paths["weights_csv"]
-result.output_paths["portfolio_returns_csv"]
+result.output_path("weights_csv")
+result.output_path("portfolio_returns_csv")
 result.manifest_path
 ```
 
@@ -148,10 +151,10 @@ from src.execution import run_pipeline
 result = run_pipeline("configs/test_pipeline.yml")
 
 result.run_id
-result.output_paths["manifest_json"]
-result.output_paths["pipeline_metrics_json"]
-result.output_paths["lineage_json"]
-result.output_paths["state_json"]
+result.output_path("manifest_json")
+result.output_path("pipeline_metrics_json")
+result.output_path("lineage_json")
+result.output_path("state_json")
 result.extra["execution_order"]
 result.extra["state"]
 ```
@@ -174,10 +177,11 @@ result.workflow
 result.run_id
 result.artifact_dir
 result.manifest_path
-result.output_paths["checkpoint_json"]
-result.output_paths["summary_json"]
+result.output_path("checkpoint_json")
+result.output_path("summary_json")
 result.extra["stage_statuses"]
 result.extra["stage_execution"]
+result.load_summary_json()
 ```
 
 `run_campaign(...)` is an alias. Both functions accept `config_path=...`, an
@@ -199,9 +203,9 @@ result = run_research_campaign(
 )
 
 result.workflow  # "research_campaign_orchestration"
-result.output_paths["scenario_catalog_json"]
-result.output_paths["scenario_matrix_csv"]
-result.output_paths["expansion_preflight_json"]
+result.output_path("scenario_catalog_json")
+result.output_path("scenario_matrix_csv")
+result.output_path("expansion_preflight_json")
 result.extra["scenarios"]
 result.extra["scenario_run_ids"]
 ```
@@ -261,10 +265,10 @@ result = run_benchmark_pack(
 
 result.run_id
 result.metrics["status"]
-result.output_paths["summary_json"]
-result.output_paths["manifest_json"]
-result.output_paths["inventory_json"]
-result.output_paths["benchmark_matrix_csv"]
+result.output_path("summary_json")
+result.output_path("manifest_json")
+result.output_path("inventory_json")
+result.output_path("benchmark_matrix_csv")
 ```
 
 The wrapper loads the same benchmark-pack config and delegates to the existing
@@ -298,6 +302,10 @@ Notebook entrypoints return `ExecutionResult` with these stable fields:
   scenario summaries, validation check references, or benchmark-pack status.
 * `raw_result`: the original workflow result object for deeper inspection.
 
+The result also exposes lightweight inspection helpers for those same fields
+and paths. They are conveniences for reading existing artifacts, not alternate
+execution surfaces.
+
 Use `to_dict()` when you want a JSON-safe summary:
 
 ```python
@@ -309,6 +317,77 @@ payload["metrics"]
 By default, `to_dict()` excludes `raw_result` because raw workflow results may
 contain DataFrames, models, or other non-JSON objects. Pass
 `include_raw_result=True` only for local debugging.
+
+## Notebook Inspection Helpers
+
+`ExecutionResult` keeps the artifact-first contract visible while removing the
+small bits of notebook boilerplate that otherwise repeat across workflows.
+These helpers only inspect local paths already exposed by the result. They do
+not trigger execution, mutate files, create persistence, download data, or infer
+global state.
+
+Available helpers:
+
+* `output_keys()`: list named outputs in deterministic order.
+* `has_output(key)`: check whether an optional output was exposed.
+* `output_path(key, must_exist=False)`: fetch a named output path and raise a
+  clear `KeyError` when the key is absent. Set `must_exist=True` when the
+  notebook should fail immediately if the file is missing.
+* `artifact_path(*parts, must_exist=False)`: resolve a path under
+  `artifact_dir` without creating it. Paths that escape the artifact root are
+  rejected.
+* `load_manifest()`: load `manifest_path` as JSON and require an object payload.
+* `load_output_json(key)`: load JSON from an explicit named output path.
+* `load_metrics_json(key=None)`: load a metrics/report JSON output. Without a
+  key, it chooses the first available standard metrics key such as
+  `metrics_json`, `alpha_metrics_json`, `aggregate_metrics_json`,
+  `pipeline_metrics_json`, or `report_json`.
+* `load_summary_json(key=None)`: load a summary-style JSON output. Without a
+  key, it chooses the first available standard summary key such as
+  `summary_json`, `benchmark_matrix_summary`, `qa_summary_json`,
+  `training_summary_json`, or `report_json`.
+* `load_comparison_json(key="comparison_json")`: load a comparison JSON payload
+  when a workflow emitted one.
+* `notebook_summary()`: return a compact JSON-safe payload with identity,
+  artifact root, manifest path, metrics, output keys, and `extra`.
+* `load_json_artifact(path)`: module-level helper for loading any explicit
+  local JSON artifact path.
+
+Example inspection flow:
+
+```python
+result = run_strategy("momentum_v1", start="2022-01-01", end="2023-01-01")
+
+result.notebook_summary()
+result.output_keys()
+
+manifest = result.load_manifest()
+metrics = result.load_metrics_json()
+qa_summary = result.load_summary_json("qa_summary_json")
+
+equity_curve_path = result.output_path("equity_curve_csv", must_exist=True)
+```
+
+Optional outputs should be checked explicitly:
+
+```python
+result = run_benchmark_pack("configs/benchmark_packs/m22_scale_repro.yml")
+
+if result.has_output("comparison_json"):
+    comparison = result.load_comparison_json()
+```
+
+For workflow-specific reports, prefer loading by the named output key so the
+file being inspected remains obvious:
+
+```python
+summary = result.load_output_json("summary_json")
+docs_lint = result.load_output_json("docs_path_lint_json")
+```
+
+These helpers are intentionally narrow. Use `metrics` for the in-memory summary
+returned by the workflow, and use the `load_*` helpers when you want to inspect
+the machine-readable artifact that was written to disk.
 
 ## CLI/API Parity Expectations
 
@@ -340,6 +419,16 @@ summary_payload = result.to_dict()
 
 This keeps notebook code aligned with the same deterministic artifact contracts
 used by CLI and pipeline workflows.
+
+The helper equivalent keeps the same explicit paths while adding clearer
+missing-file behavior:
+
+```python
+metrics_path = result.output_path("metrics_json", must_exist=True)
+manifest_payload = result.load_manifest()
+metrics_artifact = result.load_metrics_json()
+summary_payload = result.notebook_summary()
+```
 
 ## Example Script
 

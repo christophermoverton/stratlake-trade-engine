@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import runpy
 from pathlib import Path
 from types import SimpleNamespace
@@ -25,7 +26,7 @@ from src.execution import (
     run_research_campaign,
     run_strategy,
 )
-from src.execution.result import ExecutionResult
+from src.execution.result import ExecutionResult, load_json_artifact
 
 
 def test_execution_result_serializes_paths_and_metrics(tmp_path: Path) -> None:
@@ -46,6 +47,126 @@ def test_execution_result_serializes_paths_and_metrics(tmp_path: Path) -> None:
     assert payload["artifact_dir"].endswith("run-123")
     assert payload["metrics"] == {"sharpe_ratio": 1.2}
     assert payload["output_paths"]["metrics_json"].endswith("metrics.json")
+
+
+def test_execution_result_helpers_load_artifacts_and_summarize_outputs(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "run-123"
+    artifact_dir.mkdir()
+    manifest_path = artifact_dir / "manifest.json"
+    metrics_path = artifact_dir / "metrics.json"
+    summary_path = artifact_dir / "summary.json"
+    comparison_path = artifact_dir / "comparison.json"
+    manifest_payload = {"run_id": "run-123", "artifact_paths": {"metrics": "metrics.json"}}
+    metrics_payload = {"sharpe_ratio": 1.2, "total_return": 0.1}
+    summary_payload = {"status": "completed", "row_count": 2}
+    comparison_payload = {"matches": True}
+    manifest_path.write_text(json.dumps(manifest_payload), encoding="utf-8")
+    metrics_path.write_text(json.dumps(metrics_payload), encoding="utf-8")
+    summary_path.write_text(json.dumps(summary_payload), encoding="utf-8")
+    comparison_path.write_text(json.dumps(comparison_payload), encoding="utf-8")
+
+    result = ExecutionResult(
+        workflow="strategy_comparison",
+        run_id="run-123",
+        name="comparison",
+        artifact_dir=artifact_dir,
+        metrics={"sharpe_ratio": 1.2},
+        manifest_path=manifest_path,
+        output_paths={
+            "summary_json": summary_path,
+            "metrics_json": metrics_path,
+            "comparison_json": comparison_path,
+        },
+        extra={"selection_mode": "explicit"},
+    )
+
+    assert result.output_keys() == ("comparison_json", "metrics_json", "summary_json")
+    assert result.has_output("metrics_json") is True
+    assert result.output_path("metrics_json", must_exist=True) == metrics_path
+    assert result.artifact_path("metrics.json", must_exist=True) == metrics_path
+    assert result.load_manifest() == manifest_payload
+    assert load_json_artifact(metrics_path) == metrics_payload
+    assert result.load_metrics_json() == metrics_payload
+    assert result.load_output_json("summary_json") == summary_payload
+    assert result.load_summary_json() == summary_payload
+    assert result.load_comparison_json() == comparison_payload
+    assert result.notebook_summary() == {
+        "workflow": "strategy_comparison",
+        "run_id": "run-123",
+        "name": "comparison",
+        "artifact_dir": artifact_dir.as_posix(),
+        "manifest_path": manifest_path.as_posix(),
+        "metrics": {"sharpe_ratio": 1.2},
+        "output_keys": ["comparison_json", "metrics_json", "summary_json"],
+        "extra": {"selection_mode": "explicit"},
+    }
+
+
+def test_execution_result_helpers_raise_clearly_for_missing_optional_outputs(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "run-123"
+    artifact_dir.mkdir()
+    result = ExecutionResult(
+        workflow="strategy",
+        run_id="run-123",
+        name="momentum_v1",
+        artifact_dir=artifact_dir,
+        output_paths={"metrics_json": artifact_dir / "missing_metrics.json"},
+    )
+
+    try:
+        result.output_path("summary_json")
+    except KeyError as exc:
+        assert "available outputs: metrics_json" in str(exc)
+    else:
+        raise AssertionError("Expected missing output key to raise KeyError.")
+
+    try:
+        result.load_metrics_json()
+    except FileNotFoundError as exc:
+        assert "missing_metrics.json" in str(exc)
+    else:
+        raise AssertionError("Expected missing metrics file to raise FileNotFoundError.")
+
+    try:
+        result.load_comparison_json()
+    except KeyError as exc:
+        assert "comparison_json" in str(exc)
+    else:
+        raise AssertionError("Expected missing comparison output to raise KeyError.")
+
+    try:
+        result.artifact_path("..", "outside.json")
+    except ValueError as exc:
+        assert "escapes artifact_dir" in str(exc)
+    else:
+        raise AssertionError("Expected artifact path escape to raise ValueError.")
+
+
+def test_execution_result_helpers_are_side_effect_free(tmp_path: Path) -> None:
+    artifact_dir = tmp_path / "run-123"
+    artifact_dir.mkdir()
+    manifest_path = artifact_dir / "manifest.json"
+    metrics_path = artifact_dir / "metrics.json"
+    manifest_path.write_text('{"run_id": "run-123"}', encoding="utf-8")
+    metrics_path.write_text('{"sharpe_ratio": 1.2}', encoding="utf-8")
+    before = {path.name: path.stat().st_mtime_ns for path in artifact_dir.iterdir()}
+    result = ExecutionResult(
+        workflow="strategy",
+        run_id="run-123",
+        name="momentum_v1",
+        artifact_dir=artifact_dir,
+        metrics={"sharpe_ratio": 1.2},
+        manifest_path=manifest_path,
+        output_paths={"metrics_json": metrics_path},
+    )
+
+    assert result.load_manifest()["run_id"] == "run-123"
+    assert result.load_metrics_json()["sharpe_ratio"] == 1.2
+    assert result.to_dict()["metrics"] == {"sharpe_ratio": 1.2}
+
+    after = {path.name: path.stat().st_mtime_ns for path in artifact_dir.iterdir()}
+    assert after == before
+    assert {path.name for path in artifact_dir.iterdir()} == {"manifest.json", "metrics.json"}
 
 
 def test_run_strategy_api_delegates_to_same_strategy_execution(monkeypatch) -> None:

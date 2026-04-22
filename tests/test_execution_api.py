@@ -775,14 +775,63 @@ def test_run_benchmark_pack_api_exposes_machine_readable_artifacts(monkeypatch, 
 def test_notebook_execution_api_example_is_import_safe() -> None:
     namespace = runpy.run_path("docs/examples/notebook_execution_api_examples.py")
 
-    assert callable(namespace["strategy_example"])
-    assert callable(namespace["alpha_evaluation_example"])
-    assert callable(namespace["alpha_full_run_example"])
-    assert callable(namespace["portfolio_example"])
-    assert callable(namespace["registry_backed_portfolio_example"])
-    assert callable(namespace["pipeline_example"])
-    assert callable(namespace["research_campaign_example"])
-    assert callable(namespace["docs_path_lint_example"])
-    assert callable(namespace["deterministic_rerun_validation_example"])
-    assert callable(namespace["milestone_validation_example"])
-    assert callable(namespace["benchmark_pack_example"])
+    assert callable(namespace["inspect_result"])
+    assert callable(namespace["strategy_notebook_cell"])
+    assert callable(namespace["strategy_comparison_notebook_cell"])
+    assert callable(namespace["alpha_evaluation_notebook_cell"])
+    assert callable(namespace["alpha_full_run_notebook_cell"])
+    assert callable(namespace["portfolio_notebook_cell"])
+    assert callable(namespace["registry_backed_portfolio_notebook_cell"])
+    assert callable(namespace["pipeline_notebook_cell"])
+    assert callable(namespace["research_campaign_notebook_cell"])
+    assert callable(namespace["scenario_orchestration_notebook_cell"])
+    assert callable(namespace["validation_notebook_cell"])
+    assert callable(namespace["benchmark_pack_notebook_cell"])
+    assert callable(namespace["explicit_artifact_load_notebook_cell"])
+
+
+def test_notebook_execution_api_example_uses_public_imports_and_helpers() -> None:
+    source = Path("docs/examples/notebook_execution_api_examples.py").read_text(encoding="utf-8")
+
+    assert "from src.execution import" in source
+    assert "from src.execution.result import" not in source
+    for helper_name in (
+        "output_keys(",
+        "output_path(",
+        "load_manifest(",
+        "load_metrics_json(",
+        "load_summary_json(",
+        "load_comparison_json(",
+        "notebook_summary(",
+    ):
+        assert helper_name in source
+
+
+def test_q1_2026_notebook_example_is_valid_and_uses_execution_api() -> None:
+    notebook_path = Path("docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb")
+    notebook = json.loads(notebook_path.read_text(encoding="utf-8"))
+
+    assert notebook["nbformat"] == 4
+    assert notebook["nbformat_minor"] >= 5
+    assert isinstance(notebook["cells"], list)
+    assert notebook["cells"]
+    assert all(cell["outputs"] == [] for cell in notebook["cells"] if cell["cell_type"] == "code")
+
+    source = "\n".join(
+        "".join(cell.get("source", []))
+        for cell in notebook["cells"]
+    )
+    assert "from src.execution import run_alpha, run_docs_path_lint, run_portfolio" in source
+    assert "run_alpha(" in source
+    assert "run_portfolio(" in source
+    assert "run_docs_path_lint(" in source
+    assert "notebook_summary(" in source
+    assert "output_keys(" in source
+    assert "output_path(" in source
+    assert "load_manifest(" in source
+    assert "load_metrics_json(" in source
+    assert "load_summary_json(" in source
+    assert "subprocess" not in source
+    assert "!python" not in source
+    assert "features_daily" in source
+    assert "configs/alphas_2026_q1.yml" in source

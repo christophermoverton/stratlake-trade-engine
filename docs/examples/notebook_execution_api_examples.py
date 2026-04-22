@@ -10,9 +10,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from src.execution import (  # noqa: E402
+    ExecutionResult,
+    compare_strategies,
+    load_json_artifact,
     run_alpha,
     run_alpha_evaluation,
     run_benchmark_pack,
+    run_campaign,
     run_docs_path_lint,
     run_deterministic_rerun_validation,
     run_milestone_validation,
@@ -21,17 +25,28 @@ from src.execution import (  # noqa: E402
     run_research_campaign,
     run_strategy,
 )
-from src.execution.result import ExecutionResult  # noqa: E402
 
 
-def summarize(result: ExecutionResult) -> dict[str, Any]:
-    """Return the JSON-safe fields notebook users usually inspect first."""
+def inspect_result(result: ExecutionResult) -> dict[str, Any]:
+    """Return the notebook-safe inspection payload users usually want first."""
 
-    return result.notebook_summary()
+    inspection: dict[str, Any] = {
+        "summary": result.notebook_summary(),
+        "output_keys": result.output_keys(),
+    }
+    if result.manifest_path is not None and result.manifest_path.exists():
+        inspection["manifest"] = result.load_manifest()
+    if any(result.has_output(key) for key in ("metrics_json", "alpha_metrics_json", "report_json")):
+        inspection["metrics_artifact"] = result.load_metrics_json()
+    if any(result.has_output(key) for key in ("summary_json", "qa_summary_json")):
+        inspection["summary_artifact"] = result.load_summary_json()
+    if result.has_output("comparison_json") and result.output_path("comparison_json").exists():
+        inspection["comparison_artifact"] = result.load_comparison_json()
+    return inspection
 
 
-def strategy_example() -> ExecutionResult:
-    """Run one strategy from Python and inspect deterministic artifacts."""
+def strategy_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Run one deterministic strategy and inspect its manifest and metrics."""
 
     result = run_strategy(
         "momentum_v1",
@@ -40,16 +55,39 @@ def strategy_example() -> ExecutionResult:
         strict=True,
     )
 
-    print(result.run_id)
-    print(result.metrics.get("sharpe_ratio"))
-    print(result.output_path("metrics_json"))
-    print(result.manifest_path)
-    print(result.load_metrics_json())
-    return result
+    metrics = result.load_metrics_json()
+    manifest = result.load_manifest()
+    equity_curve_path = result.output_path("equity_curve_csv", must_exist=True)
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "sharpe_ratio": metrics.get("sharpe_ratio"),
+        "manifest_run_id": manifest.get("run_id"),
+        "equity_curve_path": equity_curve_path,
+    }
 
 
-def alpha_evaluation_example() -> ExecutionResult:
-    """Run alpha evaluation from an in-memory config mapping."""
+def strategy_comparison_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Compare strategy outputs from Python and inspect the leaderboard summary."""
+
+    result = compare_strategies(
+        ["momentum_v1", "mean_reversion_v1"],
+        start="2022-01-01",
+        end="2023-01-01",
+        metric="sharpe_ratio",
+    )
+
+    summary = result.load_summary_json()
+    leaderboard_path = result.output_path("leaderboard_csv", must_exist=True)
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "leaderboard_path": leaderboard_path,
+        "metric": result.extra.get("metric"),
+        "row_count": summary.get("row_count", result.extra.get("row_count")),
+    }
+
+
+def alpha_evaluation_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Evaluate one alpha from an in-memory config mapping."""
 
     result = run_alpha_evaluation(
         config={
@@ -62,16 +100,17 @@ def alpha_evaluation_example() -> ExecutionResult:
         }
     )
 
-    print(result.run_id)
-    print(result.metrics.get("mean_ic"))
-    print(result.output_path("alpha_metrics_json"))
-    print(result.output_path("predictions_parquet"))
-    print(result.output_keys())
-    return result
+    alpha_metrics = result.load_metrics_json("alpha_metrics_json")
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "mean_ic": alpha_metrics.get("mean_ic"),
+        "predictions_path": result.output_path("predictions_parquet", must_exist=True),
+        "manifest": result.load_manifest(),
+    }
 
 
-def alpha_full_run_example() -> ExecutionResult:
-    """Run a built-in alpha and produce evaluation plus sleeve artifacts."""
+def alpha_full_run_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Run the full alpha surface and inspect signal and sleeve artifacts."""
 
     result = run_alpha(
         "cs_linear_ret_1d",
@@ -80,15 +119,17 @@ def alpha_full_run_example() -> ExecutionResult:
         end="2023-01-01",
     )
 
-    print(result.run_id)
-    print(result.extra.get("mode"))
-    print(result.output_path("signals_parquet"))
-    print(result.output_path("sleeve_metrics_json"))
-    return result
+    sleeve_metrics = result.load_metrics_json("sleeve_metrics_json")
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "mode": result.extra.get("mode"),
+        "signals_path": result.output_path("signals_parquet", must_exist=True),
+        "sleeve_metrics": sleeve_metrics,
+    }
 
 
-def portfolio_example(component_run_ids: list[str]) -> ExecutionResult:
-    """Build a portfolio from completed component run ids."""
+def portfolio_notebook_cell(component_run_ids: list[str]) -> tuple[ExecutionResult, dict[str, Any]]:
+    """Build a portfolio from completed strategy or alpha-sleeve component runs."""
 
     result = run_portfolio(
         portfolio_name="core_portfolio",
@@ -97,15 +138,17 @@ def portfolio_example(component_run_ids: list[str]) -> ExecutionResult:
         strict=True,
     )
 
-    print(result.run_id)
-    print(result.metrics.get("total_return"))
-    print(result.output_path("weights_csv"))
-    print(result.output_path("portfolio_returns_csv"))
-    return result
+    portfolio_metrics = result.load_metrics_json()
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "total_return": portfolio_metrics.get("total_return"),
+        "weights_path": result.output_path("weights_csv", must_exist=True),
+        "returns_path": result.output_path("portfolio_returns_csv", must_exist=True),
+    }
 
 
-def registry_backed_portfolio_example() -> ExecutionResult:
-    """Build a portfolio from the latest matching registry entries."""
+def registry_backed_portfolio_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Build a portfolio from latest matching registry entries."""
 
     result = run_portfolio(
         portfolio_config_path="configs/portfolios.yml",
@@ -114,90 +157,145 @@ def registry_backed_portfolio_example() -> ExecutionResult:
         timeframe="1D",
     )
 
-    print(result.run_id)
-    print(result.extra.get("allocator_name"))
-    print(result.manifest_path)
-    return result
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "allocator": result.extra.get("allocator_name"),
+        "component_count": result.extra.get("component_count"),
+        "manifest": result.load_manifest(),
+    }
 
 
-def pipeline_example() -> ExecutionResult:
-    """Run a YAML pipeline spec from Python and inspect orchestration artifacts."""
+def pipeline_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Run a YAML pipeline spec and inspect lineage, metrics, and state handoff."""
 
     result = run_pipeline("configs/test_pipeline.yml")
 
-    print(result.run_id)
-    print(result.output_path("lineage_json"))
-    print(result.output_path("state_json"))
-    print(result.extra.get("execution_order"))
-    return result
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "pipeline_metrics": result.load_metrics_json("pipeline_metrics_json"),
+        "lineage": result.load_output_json("lineage_json"),
+        "state": result.load_output_json("state_json"),
+        "execution_order": result.extra.get("execution_order"),
+    }
 
 
-def research_campaign_example() -> ExecutionResult:
-    """Run a campaign config through the same staged workflow used by the CLI."""
+def research_campaign_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Run one campaign config and inspect staged orchestration outputs."""
 
     result = run_research_campaign(config_path="configs/research_campaign.yml")
 
-    print(result.workflow)
-    print(result.run_id)
-    print(result.output_path("checkpoint_json"))
-    print(result.load_summary_json())
-    print(result.extra.get("stage_statuses"))
-    return result
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "campaign_summary": result.load_summary_json(),
+        "checkpoint": result.load_output_json("checkpoint_json"),
+        "stage_statuses": result.extra.get("stage_statuses"),
+    }
 
 
-def docs_path_lint_example() -> ExecutionResult:
-    """Run guarded docs/path lint from Python and inspect the JSON report."""
+def scenario_orchestration_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Run a scenario-enabled campaign and inspect orchestration artifacts."""
 
-    result = run_docs_path_lint(output="artifacts/qa/docs_path_lint.json")
+    result = run_campaign(
+        config_path="configs/research_campaign.yml",
+        overrides={
+            "scenarios": {
+                "enabled": True,
+                "max_scenarios": 4,
+                "matrix": [
+                    {
+                        "name": "top_k",
+                        "path": "comparison.top_k",
+                        "values": [5, 10],
+                    }
+                ],
+                "include": [
+                    {
+                        "scenario_id": "review_only",
+                        "overrides": {"review": {"filters": {"run_types": ["alpha_evaluation"]}}},
+                    }
+                ],
+            }
+        },
+    )
 
-    print(result.metrics.get("status"))
-    print(result.metrics.get("finding_count"))
-    print(result.output_path("report_json"))
-    print(result.load_metrics_json("report_json"))
-    return result
+    return result, {
+        "notebook_summary": result.notebook_summary(),
+        "orchestration_summary": result.load_summary_json(),
+        "scenario_catalog": result.load_output_json("scenario_catalog_json"),
+        "scenario_matrix_path": result.output_path("scenario_matrix_csv", must_exist=True),
+        "scenario_run_ids": result.extra.get("scenario_run_ids"),
+    }
 
 
-def deterministic_rerun_validation_example() -> ExecutionResult:
-    """Run canonical deterministic rerun validation from Python."""
+def validation_notebook_cell() -> dict[str, tuple[ExecutionResult, dict[str, Any]]]:
+    """Run validation reports from Python and keep failures inspectable."""
 
-    result = run_deterministic_rerun_validation(
+    docs_result = run_docs_path_lint(output="artifacts/qa/docs_path_lint.json")
+    rerun_result = run_deterministic_rerun_validation(
         workdir="artifacts/qa/rerun_workdir",
         output="artifacts/qa/deterministic_rerun.json",
     )
-
-    print(result.metrics.get("status"))
-    print(result.metrics.get("pass_count"))
-    print(result.output_path("report_json"))
-    return result
-
-
-def milestone_validation_example() -> ExecutionResult:
-    """Build the milestone validation bundle through the notebook API."""
-
-    result = run_milestone_validation(
+    bundle_result = run_milestone_validation(
         bundle_dir="artifacts/qa/milestone_validation_bundle",
         include_full_pytest=False,
     )
 
-    print(result.metrics.get("status"))
-    print(result.output_path("summary_json"))
-    print(result.output_path("docs_path_lint_json"))
-    print(result.output_path("deterministic_rerun_json"))
-    return result
+    return {
+        "docs_path_lint": (
+            docs_result,
+            {
+                "status": docs_result.metrics.get("status"),
+                "report": docs_result.load_metrics_json("report_json"),
+            },
+        ),
+        "deterministic_rerun": (
+            rerun_result,
+            {
+                "status": rerun_result.metrics.get("status"),
+                "report": rerun_result.load_metrics_json("report_json"),
+            },
+        ),
+        "milestone_validation": (
+            bundle_result,
+            {
+                "status": bundle_result.metrics.get("status"),
+                "summary": bundle_result.load_summary_json("summary_json"),
+                "docs_lint_path": bundle_result.output_path("docs_path_lint_json"),
+                "rerun_path": bundle_result.output_path("deterministic_rerun_json"),
+            },
+        ),
+    }
 
 
-def benchmark_pack_example() -> ExecutionResult:
-    """Run the scale/repro benchmark pack and inspect generated artifacts."""
+def benchmark_pack_notebook_cell() -> tuple[ExecutionResult, dict[str, Any]]:
+    """Run a benchmark pack and inspect summary, inventory, matrix, and comparison."""
 
     result = run_benchmark_pack(
         "configs/benchmark_packs/m22_scale_repro.yml",
         output_root="artifacts/benchmark_packs/m22_scale_repro",
     )
 
-    print(result.metrics.get("status"))
-    print(result.metrics.get("scenario_count"))
-    print(result.output_path("summary_json"))
-    print(result.output_path("inventory_json"))
-    if result.has_output("comparison_json"):
-        print(result.load_comparison_json())
-    return result
+    inspection: dict[str, Any] = {
+        "notebook_summary": result.notebook_summary(),
+        "summary": result.load_summary_json("summary_json"),
+        "inventory": result.load_output_json("inventory_json"),
+        "benchmark_matrix_path": result.output_path("benchmark_matrix_csv", must_exist=True),
+    }
+    if result.has_output("comparison_json") and result.output_path("comparison_json").exists():
+        inspection["comparison"] = result.load_comparison_json()
+    return result, inspection
+
+
+def explicit_artifact_load_notebook_cell(result: ExecutionResult) -> dict[str, Any]:
+    """Load a known JSON artifact path explicitly when it is not a named output."""
+
+    manifest = result.load_manifest()
+    extra_summary_path = manifest.get("artifact_paths", {}).get("summary")
+    if not extra_summary_path:
+        return {"manifest": manifest, "extra_summary": None}
+    return {
+        "manifest": manifest,
+        "extra_summary": load_json_artifact(
+            result.artifact_path(extra_summary_path, must_exist=True)
+        ),
+    }

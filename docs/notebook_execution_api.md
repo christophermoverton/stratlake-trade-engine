@@ -13,6 +13,7 @@ building subprocess calls or emulating shell arguments.
 
 ```python
 from src.execution import (
+    compare_strategies,
     load_json_artifact,
     run_strategy,
     run_alpha,
@@ -29,6 +30,19 @@ from src.execution import (
 
 Each function returns an `ExecutionResult`, a small notebook-friendly summary
 around the underlying workflow result.
+
+## When To Use Notebooks
+
+Use the Python execution API from notebooks when the work is exploratory or
+inspection-heavy: comparing runs, reviewing metrics, opening manifests,
+checking validation reports, walking through benchmark-pack inventories, or
+teaching a workflow interactively.
+
+Use the CLI for operational runs, automation, CI, release validation,
+scheduled benchmark packs, and milestone bundles where command-line arguments,
+stdout/stderr, and process exit behavior are part of the contract. Notebook
+execution complements the CLI; it does not replace the CLI as the release or
+automation interface.
 
 ## Entrypoints
 
@@ -55,6 +69,23 @@ result.load_metrics_json()
 
 Strategy runs write the same deterministic strategy artifacts as the CLI, such
 as `metrics.json`, `qa_summary.json`, `equity_curve.csv`, and `manifest.json`.
+
+Strategy comparisons can also be launched from Python when you want a
+leaderboard in an interactive analysis:
+
+```python
+from src.execution import compare_strategies
+
+result = compare_strategies(
+    ["momentum_v1", "mean_reversion_v1"],
+    start="2022-01-01",
+    end="2023-01-01",
+    metric="sharpe_ratio",
+)
+
+result.output_path("leaderboard_csv")
+result.load_summary_json()
+```
 
 ### Alpha Evaluation
 
@@ -430,9 +461,23 @@ metrics_artifact = result.load_metrics_json()
 summary_payload = result.notebook_summary()
 ```
 
-## Example Script
+## Canonical Examples
 
 See
 [`docs/examples/notebook_execution_api_examples.py`](examples/notebook_execution_api_examples.py)
-for compact Python functions that demonstrate strategy, alpha evaluation, full
-alpha, portfolio, pipeline, and campaign calls through the public execution API.
+for import-safe notebook cell functions that demonstrate strategy, strategy
+comparison, alpha evaluation, full alpha, portfolio, pipeline, campaign,
+scenario orchestration, validation, and benchmark-pack calls through the public
+execution API.
+
+See
+[`docs/examples/notebook_execution_api_examples.md`](examples/notebook_execution_api_examples.md)
+for the notebook-oriented walkthrough, including CLI-versus-notebook guidance,
+interactive inspection patterns, validation report handling, and parity
+expectations.
+
+For a canonical `.ipynb` case-study artifact, see
+[`docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb`](examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb).
+It demonstrates the Q1 2026 XGBoost alpha-to-portfolio workflow through
+`run_alpha`, `run_portfolio`, validation helpers, and `ExecutionResult`
+inspection methods.

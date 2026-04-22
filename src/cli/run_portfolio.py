@@ -517,13 +517,16 @@ def run_cli(
 ) -> PortfolioRunResult | PortfolioWalkForwardRunResult | dict[str, Any]:
     """Execute the portfolio runner CLI flow from parsed command-line arguments."""
 
-    from src.execution.portfolio import run_portfolio
+    from src.execution.portfolio import run_portfolio_from_argv
 
-    return run_portfolio(
+    result = run_portfolio_from_argv(
         argv,
         state=state,
         pipeline_context=pipeline_context,
     ).raw_result
+    if not isinstance(result, dict):
+        print_summary(result)
+    return result
 
 
 def _pipeline_argv(

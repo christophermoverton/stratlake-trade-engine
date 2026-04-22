@@ -22,6 +22,7 @@ This guide walks through the current repository workflow:
 For deeper detail, continue with:
 
 * [alpha_workflow.md](alpha_workflow.md)
+* [notebook_execution_api.md](notebook_execution_api.md)
 * [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
 * [portfolio_construction_workflow.md](portfolio_construction_workflow.md)
 * [research_validity_framework.md](research_validity_framework.md)
@@ -229,6 +230,20 @@ To exercise operational volatility targeting from the shipped config:
 ```powershell
 python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name momentum_meanrev_targeted --from-registry --timeframe 1D
 ```
+
+## Run From Notebooks Or Python Scripts
+
+The same deterministic strategy, alpha, alpha-evaluation, and portfolio
+workflows are available through importable Python entrypoints:
+
+```python
+from src.execution import run_strategy, run_alpha, run_alpha_evaluation, run_portfolio
+```
+
+These functions return `ExecutionResult` summaries with artifact paths,
+manifest paths, metrics, and the raw workflow result. See
+[notebook_execution_api.md](notebook_execution_api.md) and
+[examples/notebook_execution_api_examples.py](examples/notebook_execution_api_examples.py).
 
 ## What Gets Written
 

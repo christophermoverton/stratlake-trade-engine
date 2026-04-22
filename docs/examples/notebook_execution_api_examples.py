@@ -9,7 +9,14 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from src.execution import run_alpha, run_alpha_evaluation, run_portfolio, run_strategy  # noqa: E402
+from src.execution import (  # noqa: E402
+    run_alpha,
+    run_alpha_evaluation,
+    run_pipeline,
+    run_portfolio,
+    run_research_campaign,
+    run_strategy,
+)
 from src.execution.result import ExecutionResult  # noqa: E402
 
 
@@ -116,4 +123,28 @@ def registry_backed_portfolio_example() -> ExecutionResult:
     print(result.run_id)
     print(result.extra.get("allocator_name"))
     print(result.manifest_path)
+    return result
+
+
+def pipeline_example() -> ExecutionResult:
+    """Run a YAML pipeline spec from Python and inspect orchestration artifacts."""
+
+    result = run_pipeline("configs/test_pipeline.yml")
+
+    print(result.run_id)
+    print(result.output_paths.get("lineage_json"))
+    print(result.output_paths.get("state_json"))
+    print(result.extra.get("execution_order"))
+    return result
+
+
+def research_campaign_example() -> ExecutionResult:
+    """Run a campaign config through the same staged workflow used by the CLI."""
+
+    result = run_research_campaign(config_path="configs/research_campaign.yml")
+
+    print(result.workflow)
+    print(result.run_id)
+    print(result.output_paths.get("checkpoint_json"))
+    print(result.extra.get("stage_statuses"))
     return result

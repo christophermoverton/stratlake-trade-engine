@@ -2,10 +2,25 @@ from __future__ import annotations
 
 import runpy
 from pathlib import Path
+from types import SimpleNamespace
 
 import pandas as pd
 
-from src.execution import run_alpha, run_alpha_evaluation, run_portfolio, run_strategy
+from src.cli.run_research_campaign import (
+    CampaignStageRecord,
+    ResearchCampaignOrchestrationResult,
+    ResearchCampaignRunResult,
+    ScenarioCampaignRunResult,
+)
+from src.execution import (
+    run_alpha,
+    run_alpha_evaluation,
+    run_campaign,
+    run_pipeline,
+    run_portfolio,
+    run_research_campaign,
+    run_strategy,
+)
 from src.execution.result import ExecutionResult
 
 
@@ -253,6 +268,194 @@ def test_run_portfolio_api_uses_explicit_parameters_and_summarizes_result(monkey
     assert calls["strict"] is True
 
 
+def test_run_pipeline_api_exposes_artifact_state_and_lineage_paths(tmp_path: Path, monkeypatch) -> None:
+    config_path = tmp_path / "pipeline.yml"
+    config_path.write_text(
+        """
+id: notebook_pipeline
+steps:
+  - id: prepare
+    adapter: python_module
+    module: src.pipeline.testing
+    argv: ["--stage", "prepare"]
+  - id: evaluate
+    depends_on: [prepare]
+    adapter: python_module
+    module: src.pipeline.testing
+    argv: ["--stage", "evaluate"]
+""".strip(),
+        encoding="utf-8",
+    )
+    monkeypatch.chdir(tmp_path)
+
+    result = run_pipeline(config_path)
+
+    assert result.workflow == "pipeline"
+    assert result.name == "notebook_pipeline"
+    assert result.artifact_dir == tmp_path / "artifacts" / "pipelines" / result.run_id
+    assert result.manifest_path == result.artifact_dir / "manifest.json"
+    assert result.output_paths["manifest_json"] == result.manifest_path
+    assert result.output_paths["pipeline_metrics_json"] == result.artifact_dir / "pipeline_metrics.json"
+    assert result.output_paths["lineage_json"] == result.artifact_dir / "lineage.json"
+    assert result.output_paths["state_json"] == result.artifact_dir / "state.json"
+    assert result.metrics["status"] == "completed"
+    assert result.metrics["steps_executed"] == 2
+    assert result.metrics["status_counts"]["completed"] == 2
+    assert result.extra["execution_order"] == ["prepare", "evaluate"]
+    assert result.extra["state"] == {}
+    assert result.to_dict()["output_paths"]["lineage_json"].endswith("lineage.json")
+
+
+def test_run_research_campaign_api_summarizes_campaign_state_and_outputs(monkeypatch, tmp_path: Path) -> None:
+    campaign_dir = tmp_path / "campaign_artifacts" / "research_campaign_123"
+    campaign_dir.mkdir(parents=True)
+    raw_result = ResearchCampaignRunResult(
+        config=SimpleNamespace(to_dict=lambda: {}),
+        campaign_run_id="research_campaign_123",
+        campaign_artifact_dir=campaign_dir,
+        campaign_checkpoint_path=campaign_dir / "checkpoint.json",
+        campaign_manifest_path=campaign_dir / "manifest.json",
+        campaign_summary_path=campaign_dir / "summary.json",
+        campaign_milestone_summary_path=campaign_dir / "milestone_report" / "summary.json",
+        campaign_milestone_decision_log_path=campaign_dir / "milestone_report" / "decision_log.json",
+        campaign_milestone_manifest_path=campaign_dir / "milestone_report" / "manifest.json",
+        campaign_milestone_markdown_path=campaign_dir / "milestone_report" / "report.md",
+        preflight_summary_path=campaign_dir / "preflight_summary.json",
+        campaign_checkpoint={"stage_states": {"preflight": "completed", "research": "reused"}},
+        campaign_manifest={"campaign_run_id": "research_campaign_123"},
+        campaign_summary={
+            "status": "completed",
+            "stage_statuses": {"preflight": "completed", "research": "reused"},
+            "selected_run_ids": {"alpha_run_ids": ["alpha_run"]},
+            "final_outcomes": {"resumable_stage_names": []},
+            "stage_execution": {"research": {"reuse": {"reused": True}}},
+            "output_paths": {"alpha_manifest": (tmp_path / "alpha" / "manifest.json").as_posix()},
+        },
+        preflight_summary={"status": "passed"},
+        stage_records=(
+            CampaignStageRecord("preflight", "completed", {}),
+            CampaignStageRecord("research", "reused", {"reuse_policy": {"action": "reuse"}}),
+        ),
+        alpha_results=(SimpleNamespace(run_id="alpha_run"),),
+        strategy_results=(),
+        alpha_comparison_result=None,
+        strategy_comparison_result=None,
+        candidate_selection_result=None,
+        portfolio_result=None,
+        candidate_review_result=None,
+        review_result=None,
+    )
+
+    monkeypatch.setattr("src.execution.orchestration._run_campaign", lambda config: raw_result)
+
+    result = run_research_campaign({"outputs": {"campaign_artifacts_root": campaign_dir.parent.as_posix()}})
+
+    assert result.workflow == "research_campaign"
+    assert result.run_id == "research_campaign_123"
+    assert result.artifact_dir == campaign_dir
+    assert result.manifest_path == campaign_dir / "manifest.json"
+    assert result.output_paths["checkpoint_json"] == campaign_dir / "checkpoint.json"
+    assert result.output_paths["summary_json"] == campaign_dir / "summary.json"
+    assert result.output_paths["alpha_manifest"] == tmp_path / "alpha" / "manifest.json"
+    assert result.metrics["status"] == "completed"
+    assert result.metrics["stage_counts"] == {"completed": 1, "reused": 1}
+    assert result.metrics["reused_stage_count"] == 1
+    assert result.extra["stage_statuses"]["research"] == "reused"
+    assert result.extra["stage_execution"]["research"]["reuse"]["reused"] is True
+    assert result.extra["checkpoint_path"].endswith("checkpoint.json")
+    assert result.raw_result is raw_result
+
+
+def test_run_campaign_api_summarizes_scenario_orchestration(monkeypatch, tmp_path: Path) -> None:
+    orchestration_dir = tmp_path / "campaign_artifacts" / "research_campaign_orchestration_123"
+    scenario_dir = orchestration_dir / "scenarios" / "scenario_a"
+    scenario_result = ResearchCampaignRunResult(
+        config=SimpleNamespace(to_dict=lambda: {}),
+        campaign_run_id="research_campaign_scenario_a",
+        campaign_artifact_dir=scenario_dir,
+        campaign_checkpoint_path=scenario_dir / "checkpoint.json",
+        campaign_manifest_path=scenario_dir / "manifest.json",
+        campaign_summary_path=scenario_dir / "summary.json",
+        campaign_milestone_summary_path=None,
+        campaign_milestone_decision_log_path=None,
+        campaign_milestone_manifest_path=None,
+        campaign_milestone_markdown_path=None,
+        preflight_summary_path=scenario_dir / "preflight_summary.json",
+        campaign_checkpoint={},
+        campaign_manifest={},
+        campaign_summary={"status": "completed"},
+        preflight_summary={"status": "passed"},
+        stage_records=(),
+        alpha_results=(),
+        strategy_results=(),
+        alpha_comparison_result=None,
+        strategy_comparison_result=None,
+        candidate_selection_result=None,
+        portfolio_result=None,
+        candidate_review_result=None,
+        review_result=None,
+    )
+    raw_result = ResearchCampaignOrchestrationResult(
+        config=SimpleNamespace(to_dict=lambda: {}),
+        orchestration_run_id="research_campaign_orchestration_123",
+        orchestration_artifact_dir=orchestration_dir,
+        scenario_catalog_path=orchestration_dir / "scenario_catalog.json",
+        orchestration_manifest_path=orchestration_dir / "manifest.json",
+        orchestration_summary_path=orchestration_dir / "summary.json",
+        scenario_matrix_csv_path=orchestration_dir / "scenario_matrix.csv",
+        scenario_matrix_summary_path=orchestration_dir / "scenario_matrix.json",
+        expansion_preflight_path=orchestration_dir / "expansion_preflight.json",
+        scenario_catalog={"scenarios": []},
+        orchestration_manifest={"run_type": "research_campaign_orchestration"},
+        orchestration_summary={
+            "status": "completed",
+            "scenario_status_counts": {"completed": 1},
+            "scenarios": [{"scenario_id": "scenario_a", "status": "completed"}],
+        },
+        expansion_preflight={"status": "passed"},
+        scenario_results=(
+            ScenarioCampaignRunResult(
+                scenario_id="scenario_a",
+                description=None,
+                source="matrix",
+                sweep_values={"lookback": 20},
+                fingerprint="abc123",
+                result=scenario_result,
+            ),
+        ),
+    )
+
+    monkeypatch.setattr("src.execution.orchestration._run_campaign", lambda config: raw_result)
+
+    result = run_campaign(
+        {
+            "scenarios": {
+                "enabled": True,
+                "include": [
+                    {
+                        "scenario_id": "scenario_a",
+                        "overrides": {"dataset_selection": {"evaluation_horizon": 5}},
+                    }
+                ],
+            }
+        }
+    )
+
+    assert result.workflow == "research_campaign_orchestration"
+    assert result.run_id == "research_campaign_orchestration_123"
+    assert result.artifact_dir == orchestration_dir
+    assert result.manifest_path == orchestration_dir / "manifest.json"
+    assert result.output_paths["scenario_catalog_json"] == orchestration_dir / "scenario_catalog.json"
+    assert result.output_paths["expansion_preflight_json"] == orchestration_dir / "expansion_preflight.json"
+    assert result.metrics == {
+        "status": "completed",
+        "scenario_count": 1,
+        "scenario_status_counts": {"completed": 1},
+    }
+    assert result.extra["scenario_run_ids"] == ["research_campaign_scenario_a"]
+    assert result.extra["scenarios"][0]["scenario_id"] == "scenario_a"
+
+
 def test_notebook_execution_api_example_is_import_safe() -> None:
     namespace = runpy.run_path("docs/examples/notebook_execution_api_examples.py")
 
@@ -261,3 +464,5 @@ def test_notebook_execution_api_example_is_import_safe() -> None:
     assert callable(namespace["alpha_full_run_example"])
     assert callable(namespace["portfolio_example"])
     assert callable(namespace["registry_backed_portfolio_example"])
+    assert callable(namespace["pipeline_example"])
+    assert callable(namespace["research_campaign_example"])

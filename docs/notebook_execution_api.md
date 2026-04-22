@@ -12,7 +12,14 @@ Use this surface when you want to run research workflows from Python without
 building subprocess calls or emulating shell arguments.
 
 ```python
-from src.execution import run_strategy, run_alpha, run_alpha_evaluation, run_portfolio
+from src.execution import (
+    run_strategy,
+    run_alpha,
+    run_alpha_evaluation,
+    run_portfolio,
+    run_pipeline,
+    run_research_campaign,
+)
 ```
 
 Each function returns an `ExecutionResult`, a small notebook-friendly summary
@@ -127,12 +134,85 @@ Portfolio outputs preserve the CLI artifact contract, including
 `portfolio_equity_curve.csv`, `metrics.json`, `qa_summary.json`, and
 `manifest.json`.
 
+### Pipeline
+
+YAML pipeline specs can be launched directly from Python:
+
+```python
+from src.execution import run_pipeline
+
+result = run_pipeline("configs/test_pipeline.yml")
+
+result.run_id
+result.output_paths["manifest_json"]
+result.output_paths["pipeline_metrics_json"]
+result.output_paths["lineage_json"]
+result.output_paths["state_json"]
+result.extra["execution_order"]
+result.extra["state"]
+```
+
+`run_pipeline` uses `PipelineSpec.from_yaml(...)` and `PipelineRunner.run()`,
+the same path used by `python -m src.cli.run_pipeline`. It preserves
+deterministic pipeline ids, dependency ordering, pipeline state handoff,
+manifest writing, metrics, lineage, state artifacts, and registry updates.
+
+### Research Campaigns And Orchestration
+
+Campaign-style staged workflows are available through:
+
+```python
+from src.execution import run_research_campaign, run_campaign
+
+result = run_research_campaign(config_path="configs/research_campaign.yml")
+
+result.workflow
+result.run_id
+result.artifact_dir
+result.manifest_path
+result.output_paths["checkpoint_json"]
+result.output_paths["summary_json"]
+result.extra["stage_statuses"]
+result.extra["stage_execution"]
+```
+
+`run_campaign(...)` is an alias. Both functions accept `config_path=...`, an
+in-memory config mapping, or a resolved `ResearchCampaignConfig`. They resolve
+configuration with the shared campaign config resolver and delegate to the
+existing campaign runner, so preflight checks, stage ordering, checkpoints,
+resume/reuse decisions, manifests, milestone reports, and downstream stage
+invocation stay CLI-equivalent.
+
+When the campaign config enables scenario expansion, the same function returns
+an orchestration summary:
+
+```python
+result = run_research_campaign(
+    config={
+        "scenarios": {"enabled": True},
+        # normal campaign config sections...
+    }
+)
+
+result.workflow  # "research_campaign_orchestration"
+result.output_paths["scenario_catalog_json"]
+result.output_paths["scenario_matrix_csv"]
+result.output_paths["expansion_preflight_json"]
+result.extra["scenarios"]
+result.extra["scenario_run_ids"]
+```
+
+Single-campaign results expose checkpoint and stage state references in
+`extra`; scenario orchestration results expose scenario catalogs, matrix
+artifacts, expansion preflight, and per-scenario run ids.
+
 ## `ExecutionResult` Contract
 
 Notebook entrypoints return `ExecutionResult` with these stable fields:
 
 * `workflow`: workflow family, such as `"strategy"`, `"alpha"`,
-  `"alpha_evaluation"`, or `"portfolio"`.
+  `"alpha_evaluation"`, `"portfolio"`, `"pipeline"`,
+  `"research_campaign"`, or `"research_campaign_orchestration"`.
 * `run_id`: deterministic run identifier produced by the workflow.
 * `name`: strategy, alpha, portfolio, pipeline, or pack name.
 * `artifact_dir`: root directory for persisted artifacts, when the workflow
@@ -143,7 +223,8 @@ Notebook entrypoints return `ExecutionResult` with these stable fields:
 * `output_paths`: named artifact paths, such as `metrics_json`,
   `alpha_metrics_json`, `weights_csv`, or `predictions_parquet`.
 * `extra`: deterministic workflow-specific metadata, such as alpha mode,
-  portfolio timeframe, allocator, or split count.
+  portfolio timeframe, allocator, pipeline state, campaign stage execution,
+  or scenario summaries.
 * `raw_result`: the original workflow result object for deeper inspection.
 
 Use `to_dict()` when you want a JSON-safe summary:
@@ -179,4 +260,4 @@ used by CLI and pipeline workflows.
 See
 [`docs/examples/notebook_execution_api_examples.py`](examples/notebook_execution_api_examples.py)
 for compact Python functions that demonstrate strategy, alpha evaluation, full
-alpha, and portfolio calls through the public execution API.
+alpha, portfolio, pipeline, and campaign calls through the public execution API.

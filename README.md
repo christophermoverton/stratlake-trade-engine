@@ -44,9 +44,16 @@ on top of existing Milestone 24 regime outputs, adds profile-driven smoothing
 and minimum-duration gating, computes stability metrics, and persists
 calibration artifacts without redefining the taxonomy.
 
+Milestone 25 Issue 4 adds a deterministic regime-aware policy optimization
+layer. It consumes the existing taxonomy, calibration profile and stability
+metadata, optional ML confidence, and emits config-driven policy decisions plus
+adaptive-vs-static comparison artifacts for strategy, alpha, and portfolio
+research surfaces.
+
 Start with:
 
 * [docs/regime_calibration.md](docs/regime_calibration.md)
+* [docs/regime_policy_optimization.md](docs/regime_policy_optimization.md)
 
 ## Milestone 24 Summary
 

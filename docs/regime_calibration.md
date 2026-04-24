@@ -135,6 +135,12 @@ The bundle contains:
 * `regime_calibration_summary.json`: compact summary for review surfaces.
 * `regime_stability_metrics.json`: stability metrics only.
 
+`regime_calibration.json` is the manifest-like calibration payload. It is
+listed in its own `file_inventory` by relative path only; it is not self-hashed
+because adding its own digest would change the file contents recursively.
+Companion files such as `regime_calibration_summary.json` and
+`regime_stability_metrics.json` include `sha256` entries in `file_inventory`.
+
 Artifact payloads are JSON-only, use sorted keys, and keep persisted paths
 portable and relative when callers provide source artifact references.
 

@@ -263,3 +263,114 @@ def test_calibration_output_preserves_supported_taxonomy_labels_only() -> None:
         assert result.labels[column].map(lambda value: isinstance(value, str)).all()
         assert result.labels[column].map(lambda value: "=" not in value).all()
         assert result.labels[column].isin(allowed).all()
+
+
+def test_short_run_labels_are_marked_unstable_and_attribution_ineligible() -> None:
+    # Construct a sequence where BULL appears in two separate stabilized runs,
+    # the second of which is shorter than min_regime_duration_days=3 because
+    # the sequence ends before BULL can fully displace the trailing RECOVERY
+    # candidate.  Pattern after stabilization: [REC×3, BULL×3, REC×3, BULL×2].
+    # BULL total = 5 (>= min_observations_for_attribution=4) but has a short run.
+    sequence = [
+        _RECOVERY,
+        _BULL, _BULL, _BULL,
+        _RECOVERY, _RECOVERY, _RECOVERY,
+        _BULL, _BULL, _BULL,
+        _RECOVERY,
+    ]
+    labels = _labels(sequence)
+
+    result = apply_regime_calibration(
+        labels,
+        profile={
+            "name": "short_run_gate",
+            "min_regime_duration_days": 3,
+            "transition_smoothing_window": 1,
+            "allow_single_day_flips": False,
+            "max_flip_rate": 1.0,
+            "max_single_day_flip_share": 1.0,
+            "min_observations_per_regime": 2,
+            "min_observations_for_attribution": 4,
+            "low_confidence_share_threshold": 1.0,
+            "unstable_regime_fallback": None,
+            "unknown_regime_fallback": _UNDEFINED,
+            "require_stability_for_attribution": True,
+        },
+    )
+
+    summary = result.attribution_summary.set_index("regime_label")
+
+    # BULL has 5 total observations (3 + 2 across two runs) and meets the
+    # observation threshold, but the second run (length 2) is shorter than
+    # min_regime_duration_days=3, so has_unstable_run must be True.
+    assert int(summary.loc[_BULL, "observation_count"]) >= 4
+    assert bool(summary.loc[_BULL, "has_unstable_run"]) is True
+    assert bool(summary.loc[_BULL, "is_attribution_eligible"]) is False
+
+    # RECOVERY has only runs of length 3 (== min_regime_duration_days), which
+    # are not strictly less than 3, so it should not have an unstable run.
+    assert bool(summary.loc[_RECOVERY, "has_unstable_run"]) is False
+
+
+def test_require_stability_for_attribution_false_allows_short_run_label_when_count_met() -> None:
+    # Same stabilized sequence as above but require_stability_for_attribution=False.
+    # BULL still has has_unstable_run=True, but the stability flag must NOT
+    # block attribution eligibility when the profile disables stability gating.
+    sequence = [
+        _RECOVERY,
+        _BULL, _BULL, _BULL,
+        _RECOVERY, _RECOVERY, _RECOVERY,
+        _BULL, _BULL, _BULL,
+        _RECOVERY,
+    ]
+    labels = _labels(sequence)
+
+    result = apply_regime_calibration(
+        labels,
+        profile={
+            "name": "no_stability_gate",
+            "min_regime_duration_days": 3,
+            "transition_smoothing_window": 1,
+            "allow_single_day_flips": False,
+            "max_flip_rate": 1.0,
+            "max_single_day_flip_share": 1.0,
+            "min_observations_per_regime": 2,
+            "min_observations_for_attribution": 4,
+            "low_confidence_share_threshold": 1.0,
+            "unstable_regime_fallback": None,
+            "unknown_regime_fallback": _UNDEFINED,
+            "require_stability_for_attribution": False,
+        },
+    )
+
+    summary = result.attribution_summary.set_index("regime_label")
+
+    # has_unstable_run should still reflect the short run truthfully
+    assert bool(summary.loc[_BULL, "has_unstable_run"]) is True
+    # But with stability gating disabled and 5 obs >= min_observations_for_attribution=4,
+    # BULL should be attribution eligible.
+    assert int(summary.loc[_BULL, "observation_count"]) >= 4
+    assert bool(summary.loc[_BULL, "is_attribution_eligible"]) is True
+
+
+def test_artifact_inventory_self_hash_contract(tmp_path: Path) -> None:
+    # regime_calibration.json is the manifest-like file and is intentionally
+    # listed in its own file_inventory by path only (no sha256).
+    # Companion files receive sha256 entries.
+    labels = _labels([_BULL, _BULL, _RECOVERY, _RECOVERY, _RECOVERY])
+    result = apply_regime_calibration(labels, profile="baseline")
+    output_dir = tmp_path / "self_hash_check"
+
+    manifest = write_regime_calibration_artifacts(output_dir, result, write_stability_metrics=True)
+
+    inventory = manifest["file_inventory"]
+
+    # regime_calibration.json entry: path present, sha256 absent (self-hash not allowed)
+    assert REGIME_CALIBRATION_FILENAME in inventory
+    assert "path" in inventory[REGIME_CALIBRATION_FILENAME]
+    assert "sha256" not in inventory[REGIME_CALIBRATION_FILENAME]
+
+    # companion files carry sha256
+    assert "sha256" in inventory[REGIME_CALIBRATION_SUMMARY_FILENAME]
+    assert "sha256" in inventory[REGIME_STABILITY_METRICS_FILENAME]
+

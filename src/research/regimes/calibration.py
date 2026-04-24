@@ -469,15 +469,15 @@ def _compute_stability_metrics(
     )
     unstable_rows = sum(run["duration"] for run in runs if run["duration"] < min_regime_duration_days)
     counts = composite.value_counts(sort=False).astype("int64")
-    per_label_stable = {
-        run["label"]: False
+    per_label_has_short_run = {
+        str(run["label"]): True
         for run in runs
         if run["duration"] < min_regime_duration_days
     }
     attribution_rows: list[dict[str, Any]] = []
     for label in sorted(str(key) for key in counts.index.tolist()):
         observation_count = int(counts.loc[label])
-        has_short_run = per_label_stable.get(label, False)
+        has_short_run = per_label_has_short_run.get(label, False)
         meets_min_regime_observations = observation_count >= min_observations_per_regime
         eligible = observation_count >= min_observations_for_attribution and meets_min_regime_observations
         if require_stability_for_attribution and has_short_run:

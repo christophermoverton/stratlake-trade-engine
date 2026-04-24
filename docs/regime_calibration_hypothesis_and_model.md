@@ -289,3 +289,9 @@ The model behind regime calibration is therefore not a predictive market model.
 It is a policy model over an existing regime sequence: smooth when necessary,
 require persistence when appropriate, measure instability explicitly, gate weak
 evidence, and degrade safely when configured thresholds are violated.
+
+> **Operational note:** Calibrated labels should be interpreted as an
+> operationally stabilized regime stream, not as a replacement for the raw
+> descriptive regime stream. The raw stream remains the auditable record of
+> what the classifier observed. The calibrated stream represents what the
+> configured profile considers stable enough for downstream use.

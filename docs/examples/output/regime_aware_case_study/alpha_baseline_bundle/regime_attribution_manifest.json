@@ -1,0 +1,51 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv",
+    "regime_comparison_summary.json",
+    "regime_comparison_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 9585,
+      "path": "regime_attribution_report.md",
+      "sha256": "3dee2ddecd246c23c8b2ff391f5c69ecb331dda312f96a409155634d04694e6b"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "e7aea32852ae9022cfa3f92fcdfba4ab2ae9adf32487fd4ea5fc658f67905808"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 17,
+      "sha256": "fd0b97ca5b809b44b596fa3e604fa732517cbf12b734a7f004c5f32e9205098d"
+    },
+    "regime_comparison_summary.json": {
+      "path": "regime_comparison_summary.json",
+      "sha256": "48c5a2f9e8cbaa34a9223f5f0d91cc28b6a9bf35416e1fd46827c708b11a8b74"
+    },
+    "regime_comparison_table.csv": {
+      "path": "regime_comparison_table.csv",
+      "rows": 34,
+      "sha256": "5aa21c5fc4a0a4c6080035c80d4cb276134f88ce6410a5bf4df65efa2a0c1869"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "alpha_variant": "baseline",
+    "surface": "alpha"
+  },
+  "run_id": "alpha_baseline_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": true,
+    "dominant_regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=correlation_stress",
+    "fragility_flag": false,
+    "regime_count": 17
+  },
+  "surface": "alpha",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

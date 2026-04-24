@@ -1,0 +1,45 @@
+{
+  "artifact_type": "regime_transition_analysis",
+  "artifacts": {
+    "regime_transition_events_csv": "regime_transition_events.csv",
+    "regime_transition_manifest_json": "regime_transition_manifest.json",
+    "regime_transition_summary_json": "regime_transition_summary.json",
+    "regime_transition_windows_csv": "regime_transition_windows.csv"
+  },
+  "file_inventory": {
+    "regime_transition_events.csv": {
+      "path": "regime_transition_events.csv",
+      "rows": 35,
+      "sha256": "8b2909933b1c0aabc808042f138ed0f32e3fb516dad3b5374752fed6fdcb7837"
+    },
+    "regime_transition_manifest.json": {
+      "path": "regime_transition_manifest.json"
+    },
+    "regime_transition_summary.json": {
+      "path": "regime_transition_summary.json",
+      "sha256": "e1ae4d5904c8132ed2cf4c3af8c2362e40f493a3098dd06ead4cf19f33db4d5c"
+    },
+    "regime_transition_windows.csv": {
+      "path": "regime_transition_windows.csv",
+      "rows": 103,
+      "sha256": "8ecc97ec3e6bd9a5db0fcadcdc1507d2a691273008ea20cdaa52982dd98f5d63"
+    }
+  },
+  "metadata": {
+    "alpha_variant": "defensive",
+    "surface": "alpha"
+  },
+  "run_id": "alpha_defensive_bundle",
+  "schema_version": 1,
+  "summary": {
+    "coverage_counts": {
+      "sparse": 2,
+      "sufficient": 33
+    },
+    "event_count": 35,
+    "stress_transition_count": 2,
+    "window_row_count": 103
+  },
+  "surface": "alpha",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

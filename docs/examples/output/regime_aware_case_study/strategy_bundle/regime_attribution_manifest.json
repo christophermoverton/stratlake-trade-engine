@@ -1,0 +1,39 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 6959,
+      "path": "regime_attribution_report.md",
+      "sha256": "a1ea2c4b20dcb868aa4c1467bd9cc9d26e6aad0d0ef30852064ff3c7e80b4242"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "af18fff3f93c6b396587eac8b4e8cf1839215bceca0c28d15495e603a17de176"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 17,
+      "sha256": "59ce1d794abca041a76fbabf397034918425035e65f4f2aecdd189ea10c0b0e0"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "surface": "strategy"
+  },
+  "run_id": "strategy_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": false,
+    "dominant_regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=correlation_stress",
+    "fragility_flag": false,
+    "regime_count": 17
+  },
+  "surface": "strategy",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

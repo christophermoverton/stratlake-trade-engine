@@ -1,0 +1,405 @@
+{
+  "alpha": {
+    "baseline": {
+      "attribution": {
+        "best_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": 0.04,
+          "observation_count": 2,
+          "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=correlation_stress"
+        },
+        "fragility_flag": false,
+        "fragility_reason": "no deterministic fragility heuristic triggered",
+        "primary_metric": "mean_ic",
+        "worst_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": -0.03,
+          "observation_count": 2,
+          "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress"
+        }
+      },
+      "conditional_dimensions": [
+        "composite",
+        "drawdown_recovery",
+        "stress",
+        "trend",
+        "volatility"
+      ]
+    },
+    "comparison": {
+      "best_run": {
+        "run_id": "alpha_baseline",
+        "winner_count": 15
+      },
+      "regime_winners": [
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=underwater|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": 0.04,
+          "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=underwater|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": 0.037500000000000006,
+          "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress",
+          "run_id": "alpha_defensive"
+        },
+        {
+          "primary_metric_value": 0.025,
+          "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": 0.04,
+          "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": 0.0225,
+          "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress",
+          "run_id": "alpha_defensive"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=recovery|stress=dispersion_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=underwater|stress=correlation_stress",
+          "run_id": "alpha_baseline"
+        },
+        {
+          "primary_metric_value": null,
+          "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=underwater|stress=dispersion_stress",
+          "run_id": "alpha_baseline"
+        }
+      ],
+      "robust_run_ids": [
+        "alpha_baseline",
+        "alpha_defensive"
+      ],
+      "warning_row_count": 34
+    },
+    "defensive": {
+      "attribution": {
+        "best_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": 0.037500000000000006,
+          "observation_count": 2,
+          "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress"
+        },
+        "fragility_flag": false,
+        "fragility_reason": "no deterministic fragility heuristic triggered",
+        "primary_metric": "mean_ic",
+        "worst_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": 0.015,
+          "observation_count": 2,
+          "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress"
+        }
+      },
+      "conditional_dimensions": [
+        "composite",
+        "drawdown_recovery",
+        "stress",
+        "trend",
+        "volatility"
+      ]
+    }
+  },
+  "artifact_tree": [
+    "alpha_baseline_bundle/manifest.json",
+    "alpha_baseline_bundle/metrics_by_regime.csv",
+    "alpha_baseline_bundle/regime_attribution_manifest.json",
+    "alpha_baseline_bundle/regime_attribution_report.md",
+    "alpha_baseline_bundle/regime_attribution_summary.json",
+    "alpha_baseline_bundle/regime_attribution_table.csv",
+    "alpha_baseline_bundle/regime_comparison_summary.json",
+    "alpha_baseline_bundle/regime_comparison_table.csv",
+    "alpha_baseline_bundle/regime_conditional_manifest.json",
+    "alpha_baseline_bundle/regime_conditional_summary.json",
+    "alpha_baseline_bundle/regime_labels.csv",
+    "alpha_baseline_bundle/regime_summary.json",
+    "alpha_baseline_bundle/regime_transition_events.csv",
+    "alpha_baseline_bundle/regime_transition_manifest.json",
+    "alpha_baseline_bundle/regime_transition_summary.json",
+    "alpha_baseline_bundle/regime_transition_windows.csv",
+    "alpha_defensive_bundle/manifest.json",
+    "alpha_defensive_bundle/metrics_by_regime.csv",
+    "alpha_defensive_bundle/regime_attribution_manifest.json",
+    "alpha_defensive_bundle/regime_attribution_report.md",
+    "alpha_defensive_bundle/regime_attribution_summary.json",
+    "alpha_defensive_bundle/regime_attribution_table.csv",
+    "alpha_defensive_bundle/regime_conditional_manifest.json",
+    "alpha_defensive_bundle/regime_conditional_summary.json",
+    "alpha_defensive_bundle/regime_labels.csv",
+    "alpha_defensive_bundle/regime_summary.json",
+    "alpha_defensive_bundle/regime_transition_events.csv",
+    "alpha_defensive_bundle/regime_transition_manifest.json",
+    "alpha_defensive_bundle/regime_transition_summary.json",
+    "alpha_defensive_bundle/regime_transition_windows.csv",
+    "final_interpretation.md",
+    "notebook_review/alpha_baseline_attribution_summary.md",
+    "notebook_review/alpha_baseline_comparison_summary.md",
+    "notebook_review/alpha_baseline_inventory.md",
+    "notebook_review/alpha_baseline_transition_highlights.md",
+    "notebook_review/strategy_attribution_summary.md",
+    "notebook_review/strategy_inventory.md",
+    "notebook_review/strategy_transition_highlights.md",
+    "regime_bundle/manifest.json",
+    "regime_bundle/regime_labels.csv",
+    "regime_bundle/regime_summary.json",
+    "strategy_bundle/manifest.json",
+    "strategy_bundle/metrics_by_regime.csv",
+    "strategy_bundle/regime_attribution_manifest.json",
+    "strategy_bundle/regime_attribution_report.md",
+    "strategy_bundle/regime_attribution_summary.json",
+    "strategy_bundle/regime_attribution_table.csv",
+    "strategy_bundle/regime_conditional_manifest.json",
+    "strategy_bundle/regime_conditional_summary.json",
+    "strategy_bundle/regime_labels.csv",
+    "strategy_bundle/regime_summary.json",
+    "strategy_bundle/regime_transition_events.csv",
+    "strategy_bundle/regime_transition_manifest.json",
+    "strategy_bundle/regime_transition_summary.json",
+    "strategy_bundle/regime_transition_windows.csv"
+  ],
+  "case_study": {
+    "description": "Deterministic end-to-end regime-aware workflow covering classification, artifacts, conditional evaluation, transitions, attribution, comparison, and notebook review.",
+    "milestone": "M24.7",
+    "name": "canonical_regime_aware_case_study"
+  },
+  "classification": {
+    "defined_row_count": 22,
+    "label_preview": [
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2025-01-01T00:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2025-01-02T00:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=correlation_stress",
+        "stress_state": "correlation_stress",
+        "trend_state": "sideways",
+        "ts_utc": "2025-01-03T00:00:00Z",
+        "volatility_state": "low_volatility"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=correlation_stress",
+        "stress_state": "correlation_stress",
+        "trend_state": "sideways",
+        "ts_utc": "2025-01-04T00:00:00Z",
+        "volatility_state": "low_volatility"
+      },
+      {
+        "drawdown_recovery_state": "underwater",
+        "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=correlation_stress",
+        "stress_state": "correlation_stress",
+        "trend_state": "sideways",
+        "ts_utc": "2025-01-05T00:00:00Z",
+        "volatility_state": "normal_volatility"
+      }
+    ],
+    "state_distribution": {
+      "drawdown_recovery": {
+        "drawdown": 4,
+        "near_peak": 5,
+        "recovery": 9,
+        "underwater": 6
+      },
+      "stress": {
+        "correlation_stress": 19,
+        "dispersion_stress": 3,
+        "undefined": 2
+      },
+      "trend": {
+        "downtrend": 6,
+        "sideways": 7,
+        "undefined": 2,
+        "uptrend": 9
+      },
+      "volatility": {
+        "high_volatility": 7,
+        "low_volatility": 7,
+        "normal_volatility": 8,
+        "undefined": 2
+      }
+    },
+    "undefined_row_count": 2
+  },
+  "commands": [
+    "python docs/examples/regime_aware_case_study.py",
+    "python docs/examples/regime_aware_case_study.py --output-root docs/examples/output/regime_aware_case_study"
+  ],
+  "inputs": {
+    "alpha_rows_per_variant": 24,
+    "market_data_rows": 72,
+    "market_symbols": [
+      "AAA",
+      "BBB",
+      "CCC"
+    ],
+    "market_timestamps": 24,
+    "strategy_rows": 24
+  },
+  "limitations": [
+    "The market, strategy, and alpha inputs are deterministic repository fixtures designed for validation and documentation.",
+    "The case study demonstrates strategy and alpha surfaces directly; a portfolio surface is deferred to keep the canonical example concise and fast to validate.",
+    "Interpretation remains descriptive and evidence-based, not causal."
+  ],
+  "notebook_review": {
+    "alpha_baseline_attribution_summary": "notebook_review/alpha_baseline_attribution_summary.md",
+    "alpha_baseline_comparison_summary": "notebook_review/alpha_baseline_comparison_summary.md",
+    "alpha_baseline_inventory": "notebook_review/alpha_baseline_inventory.md",
+    "alpha_baseline_transition_highlights": "notebook_review/alpha_baseline_transition_highlights.md",
+    "strategy_attribution_summary": "notebook_review/strategy_attribution_summary.md",
+    "strategy_inventory": "notebook_review/strategy_inventory.md",
+    "strategy_transition_highlights": "notebook_review/strategy_transition_highlights.md"
+  },
+  "paths": {
+    "alpha_baseline_bundle": "alpha_baseline_bundle",
+    "alpha_defensive_bundle": "alpha_defensive_bundle",
+    "interpretation_markdown": "final_interpretation.md",
+    "notebook_review_dir": "notebook_review",
+    "output_root": ".",
+    "regime_bundle": "regime_bundle",
+    "strategy_bundle": "strategy_bundle"
+  },
+  "strategy": {
+    "alignment_preview": [
+      {
+        "regime_alignment_status": "matched_undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "strategy_return": 0.001,
+        "ts_utc": "2025-01-01T00:00:00Z"
+      },
+      {
+        "regime_alignment_status": "matched_undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "strategy_return": 0.002,
+        "ts_utc": "2025-01-02T00:00:00Z"
+      },
+      {
+        "regime_alignment_status": "matched_defined",
+        "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=correlation_stress",
+        "strategy_return": 0.003,
+        "ts_utc": "2025-01-03T00:00:00Z"
+      },
+      {
+        "regime_alignment_status": "matched_defined",
+        "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=correlation_stress",
+        "strategy_return": 0.001,
+        "ts_utc": "2025-01-04T00:00:00Z"
+      },
+      {
+        "regime_alignment_status": "matched_defined",
+        "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=correlation_stress",
+        "strategy_return": -0.006,
+        "ts_utc": "2025-01-05T00:00:00Z"
+      }
+    ],
+    "attribution": {
+      "best_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": 0.012035999999999936,
+        "observation_count": 2,
+        "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=correlation_stress"
+      },
+      "fragility_flag": false,
+      "fragility_reason": "no deterministic fragility heuristic triggered",
+      "primary_metric": "total_return",
+      "worst_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": -0.018916000000000044,
+        "observation_count": 2,
+        "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress"
+      }
+    },
+    "conditional_dimensions": [
+      "composite",
+      "drawdown_recovery",
+      "stress",
+      "trend",
+      "volatility"
+    ],
+    "conditional_summary": {
+      "matched_defined": 22,
+      "matched_undefined": 2,
+      "regime_labels_unavailable": 0,
+      "total_rows": 24,
+      "unmatched_timestamp": 0
+    },
+    "transition": {
+      "event_count": 35,
+      "most_adverse_category": {
+        "event_count": 5,
+        "metric_value": -0.005250000000000005,
+        "transition_category": "generic_transition",
+        "transition_dimension": "drawdown_recovery"
+      },
+      "primary_metric": "post_transition_return",
+      "stress_onset_summary": {
+        "present": false,
+        "transition_category": "stress_onset"
+      },
+      "stress_transition_count": 2
+    }
+  }
+}

@@ -605,6 +605,7 @@ python -m src.cli.run_research_campaign
 python -m src.cli.run_research_campaign --config docs/examples/data/milestone_16_campaign_configs/full_campaign.yml
 python docs/examples/real_world_campaign_case_study.py
 python docs/examples/real_world_resume_workflow_case_study.py
+python docs/examples/regime_aware_case_study.py
 ```
 
 ## Cross-Sectional Utilities
@@ -1178,6 +1179,7 @@ Examples:
 * [docs/examples/milestone_13_review_promotion_workflow.md](docs/examples/milestone_13_review_promotion_workflow.md)
 * [docs/examples/milestone_16_campaign_workflow.md](docs/examples/milestone_16_campaign_workflow.md)
 * [docs/examples/real_world_campaign_case_study.md](docs/examples/real_world_campaign_case_study.md)
+* [docs/examples/regime_aware_case_study.md](docs/examples/regime_aware_case_study.md)
 * [docs/examples/milestone_17_resume_workflow.md](docs/examples/milestone_17_resume_workflow.md)
 * [docs/examples/real_world_resume_workflow_case_study.md](docs/examples/real_world_resume_workflow_case_study.md)
 * [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)

@@ -36,6 +36,18 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+## Milestone 25 Summary
+
+Milestone 25 extends the regime-aware evaluation layer with deterministic
+regime calibration profiles and stability controls. The calibration layer works
+on top of existing Milestone 24 regime outputs, adds profile-driven smoothing
+and minimum-duration gating, computes stability metrics, and persists
+calibration artifacts without redefining the taxonomy.
+
+Start with:
+
+* [docs/regime_calibration.md](docs/regime_calibration.md)
+
 ## Milestone 24 Summary
 
 Milestone 24 introduces a full regime-aware research interpretation surface

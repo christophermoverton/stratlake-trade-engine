@@ -4,7 +4,14 @@ from dataclasses import dataclass, field
 from typing import Any
 
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
+
+try:
+    from sklearn.linear_model import LogisticRegression
+except ImportError as exc:  # pragma: no cover - exercised only in missing-dependency environments
+    LogisticRegression = None  # type: ignore[assignment]
+    _SKLEARN_IMPORT_ERROR = exc
+else:
+    _SKLEARN_IMPORT_ERROR = None
 
 from src.research.regime_ml.base import BaseRegimeModel, RegimeMLError
 
@@ -28,6 +35,7 @@ class LogisticRegressionRegimeModel(BaseRegimeModel):
         y: pd.Series,
         metadata: dict[str, Any] | None = None,
     ) -> "LogisticRegressionRegimeModel":
+        _require_sklearn()
         features = _validate_feature_frame(X)
         labels = _validate_target(y, expected_index=features.index)
         class_count = int(labels.astype("string").nunique())
@@ -62,9 +70,17 @@ class LogisticRegressionRegimeModel(BaseRegimeModel):
 
 
 def _require_fit(model: LogisticRegression | None) -> LogisticRegression:
+    _require_sklearn()
     if model is None:
         raise RegimeMLError("Regime model must be fitted before prediction.")
     return model
+
+
+def _require_sklearn() -> None:
+    if LogisticRegression is None:
+        raise RegimeMLError(
+            "scikit-learn is required for regime ML. Install project ML dependencies before running this pipeline."
+        ) from _SKLEARN_IMPORT_ERROR
 
 
 def _validate_feature_frame(X: pd.DataFrame) -> pd.DataFrame:
@@ -72,8 +88,6 @@ def _validate_feature_frame(X: pd.DataFrame) -> pd.DataFrame:
         raise TypeError("Regime model features must be provided as a pandas DataFrame.")
     if X.empty:
         raise RegimeMLError("Regime model features must not be empty.")
-    if list(X.columns) != sorted(X.columns):
-        X = X.loc[:, sorted(X.columns)]
     normalized = X.copy(deep=True)
     normalized.attrs = {}
     for column in normalized.columns:

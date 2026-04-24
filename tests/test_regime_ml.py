@@ -78,6 +78,16 @@ def test_regime_ml_pipeline_is_deterministic_and_taxonomy_compatible(tmp_path: P
     assert (output_dir / REGIME_LABEL_MAPPING_FILENAME).exists()
 
 
+def test_regime_ml_normalizes_feature_order_and_persists_actual_schema() -> None:
+    result = run_regime_ml_pipeline(
+        _regime_ml_frame(),
+        feature_columns=["feature_c", "feature_a", "feature_b"],
+    )
+
+    assert result.manifest["feature_columns"] == ["feature_a", "feature_b", "feature_c"]
+    assert result.diagnostics["feature_columns"] == ["feature_a", "feature_b", "feature_c"]
+
+
 def test_regime_ml_probabilities_sum_to_one_and_thresholds_are_applied() -> None:
     result = run_regime_ml_pipeline(
         _regime_ml_frame(),
@@ -128,6 +138,12 @@ def test_regime_ml_flags_rows_with_missing_features_as_unsupported() -> None:
     flagged = result.regime_confidence.loc[result.regime_confidence["fallback_reason"] == "unsupported"]
     assert not flagged.empty
     assert result.diagnostics["missing_features"]["row_count"] == 1
+    imputation = result.diagnostics["feature_imputation"]
+    assert imputation["method"] == "median"
+    assert imputation["missing_count_by_feature"]["feature_b"] == 1
+    assert imputation["rows_with_any_missing_feature"] == 1
+    assert sorted(imputation["values"]) == ["feature_a", "feature_b", "feature_c"]
+    assert result.manifest["feature_imputation"] == imputation
 
 
 def test_regime_ml_rejects_insufficient_class_coverage() -> None:
@@ -141,7 +157,7 @@ def test_regime_ml_rejects_insufficient_class_coverage() -> None:
 def test_regime_ml_marks_unseen_evaluation_labels_as_unsupported() -> None:
     frame = _regime_ml_frame()
     extra_label = "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined"
-    frame.loc[frame["ts_utc"] >= pd.Timestamp("2026-01-15", tz="UTC"), "regime_label"] = extra_label
+    frame.loc[frame["ts_utc"] >= pd.Timestamp("2026-01-16", tz="UTC"), "regime_label"] = extra_label
 
     result = run_regime_ml_pipeline(
         frame,
@@ -151,3 +167,56 @@ def test_regime_ml_marks_unseen_evaluation_labels_as_unsupported() -> None:
     assert extra_label in result.diagnostics["unseen_labels"]
     unsupported = result.regime_confidence.loc[result.regime_confidence["regime_label"] == extra_label]
     assert unsupported["fallback_reason"].eq("unsupported").all()
+
+
+@pytest.mark.parametrize(
+    ("feature_columns", "message"),
+    [
+        ([], "at least one feature"),
+        (["feature_a", "feature_a", "feature_b"], "must not contain duplicates"),
+    ],
+)
+def test_regime_ml_rejects_invalid_feature_column_inputs(
+    feature_columns: list[str],
+    message: str,
+) -> None:
+    with pytest.raises(RegimeMLError, match=message):
+        run_regime_ml_pipeline(_regime_ml_frame(), feature_columns=feature_columns)
+
+
+@pytest.mark.parametrize(
+    ("config", "message"),
+    [
+        ({"validation_fraction": 0.0}, "validation_fraction"),
+        ({"test_fraction": 0.0}, "test_fraction"),
+        ({"validation_fraction": 0.60, "test_fraction": 0.40}, "validation_fraction \\+ test_fraction < 1"),
+        ({"confidence_thresholds": {"high": 0.7}}, "missing required keys"),
+        ({"confidence_thresholds": {"medium": 0.8, "high": 0.7}}, "medium <= high"),
+        ({"confidence_thresholds": {"medium": -0.1, "high": 0.7}}, "between 0 and 1"),
+        ({"n_clusters": 0}, "positive integer"),
+        ({"model_version": ""}, "model_version"),
+    ],
+)
+def test_regime_ml_rejects_invalid_config_values(config: dict[str, object], message: str) -> None:
+    with pytest.raises(RegimeMLError, match=message):
+        run_regime_ml_pipeline(
+            _regime_ml_frame(),
+            feature_columns=["feature_a", "feature_b", "feature_c"],
+            config=config,
+        )
+
+
+def test_regime_ml_rejects_unseen_validation_labels_before_calibration() -> None:
+    frame = _regime_ml_frame()
+    extra_label = "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined"
+    frame.loc[frame["ts_utc"] == pd.Timestamp("2026-01-13", tz="UTC"), "regime_label"] = extra_label
+    frame.loc[frame["ts_utc"] == pd.Timestamp("2026-01-14", tz="UTC"), "regime_label"] = extra_label
+
+    with pytest.raises(
+        RegimeMLError,
+        match="Validation labels contain classes not seen during training",
+    ):
+        run_regime_ml_pipeline(
+            frame,
+            feature_columns=["feature_a", "feature_b", "feature_c"],
+        )

@@ -37,8 +37,8 @@ def write_regime_ml_artifacts(
     cluster_diagnostics_path = resolved_output_dir / REGIME_CLUSTER_DIAGNOSTICS_FILENAME
     label_mapping_path = resolved_output_dir / REGIME_LABEL_MAPPING_FILENAME
 
-    regime_confidence.to_csv(confidence_path, index=False)
-    cluster_map.to_csv(cluster_map_path, index=False)
+    regime_confidence.to_csv(confidence_path, index=False, lineterminator="\n")
+    cluster_map.to_csv(cluster_map_path, index=False, lineterminator="\n")
     _write_json(diagnostics_path, diagnostics)
     _write_json(cluster_diagnostics_path, cluster_diagnostics)
     _write_json(label_mapping_path, label_mapping)

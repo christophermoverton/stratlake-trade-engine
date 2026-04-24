@@ -6,8 +6,19 @@ import math
 from typing import Any
 
 import pandas as pd
-from sklearn.cluster import KMeans
-from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+
+from src.research.regime_ml.base import RegimeMLError
+
+try:
+    from sklearn.cluster import KMeans
+    from sklearn.metrics import adjusted_rand_score, normalized_mutual_info_score
+except ImportError as exc:  # pragma: no cover - exercised only in missing-dependency environments
+    KMeans = None  # type: ignore[assignment]
+    adjusted_rand_score = None  # type: ignore[assignment]
+    normalized_mutual_info_score = None  # type: ignore[assignment]
+    _SKLEARN_IMPORT_ERROR = exc
+else:
+    _SKLEARN_IMPORT_ERROR = None
 
 from src.research.registry import canonicalize_value
 
@@ -27,6 +38,7 @@ def compute_cluster_diagnostics(
     n_clusters: int,
     weak_alignment_purity_threshold: float = 0.60,
 ) -> ClusterDiagnosticsResult:
+    _require_sklearn()
     resolved_clusters = max(1, min(int(n_clusters), int(len(X)), int(labels.astype("string").nunique())))
     estimator = KMeans(n_clusters=resolved_clusters, n_init=10, random_state=random_seed)
     assignments = pd.Series(estimator.fit_predict(X), index=X.index, dtype="int64", name="cluster_id")
@@ -74,3 +86,10 @@ def compute_cluster_diagnostics(
         }
     )
     return ClusterDiagnosticsResult(assignments=assignments, cluster_map=cluster_map, diagnostics=diagnostics)
+
+
+def _require_sklearn() -> None:
+    if KMeans is None or adjusted_rand_score is None or normalized_mutual_info_score is None:
+        raise RegimeMLError(
+            "scikit-learn is required for regime ML. Install project ML dependencies before running this pipeline."
+        ) from _SKLEARN_IMPORT_ERROR

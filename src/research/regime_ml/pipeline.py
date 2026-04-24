@@ -57,8 +57,18 @@ def run_regime_ml_pipeline(
     output_dir: str | Path | None = None,
 ) -> RegimeMLResult:
     resolved_config = resolve_regime_ml_config(config)
-    frame = _normalize_dataset(dataset, feature_columns=feature_columns, config=resolved_config)
-    diagnostics = _base_diagnostics(frame=frame, feature_columns=list(feature_columns), config=resolved_config)
+    resolved_feature_columns = _resolve_feature_columns(feature_columns)
+    frame, preprocessing_metadata = _normalize_dataset(
+        dataset,
+        feature_columns=resolved_feature_columns,
+        config=resolved_config,
+    )
+    diagnostics = _base_diagnostics(
+        frame=frame,
+        feature_columns=resolved_feature_columns,
+        preprocessing_metadata=preprocessing_metadata,
+        config=resolved_config,
+    )
 
     split_index = _build_temporal_splits(frame[resolved_config.time_column], config=resolved_config)
     diagnostics["leakage_risks"] = {
@@ -93,21 +103,30 @@ def run_regime_ml_pipeline(
 
     model = LogisticRegressionRegimeModel(random_seed=resolved_config.random_seed)
     model.fit(
-        train_frame.loc[:, list(feature_columns)],
+        train_frame.loc[:, resolved_feature_columns],
         train_frame[resolved_config.label_column],
         metadata={
             "label_column": resolved_config.label_column,
             "taxonomy_version": TAXONOMY_VERSION,
+            "feature_columns": list(resolved_feature_columns),
         },
     )
 
-    validation_raw = model.predict_proba(validation_frame.loc[:, list(feature_columns)])
-    calibrator = PlattCalibrator.fit(validation_raw, validation_frame[resolved_config.label_column])
-    validation_calibrated = calibrator.transform(validation_raw)
-    pre_brier = multiclass_brier_score(validation_raw, validation_frame[resolved_config.label_column])
-    post_brier = multiclass_brier_score(validation_calibrated, validation_frame[resolved_config.label_column])
+    validation_labels = validation_frame[resolved_config.label_column].astype("string")
+    unseen_validation_labels = sorted(set(validation_labels.tolist()) - set(model.classes_))
+    if unseen_validation_labels:
+        raise RegimeMLError(
+            "Validation labels contain classes not seen during training and cannot be used for Platt calibration. "
+            f"Unseen labels: {unseen_validation_labels}."
+        )
 
-    full_raw = model.predict_proba(frame.loc[:, list(feature_columns)])
+    validation_raw = model.predict_proba(validation_frame.loc[:, resolved_feature_columns])
+    calibrator = PlattCalibrator.fit(validation_raw, validation_labels)
+    validation_calibrated = calibrator.transform(validation_raw)
+    pre_brier = multiclass_brier_score(validation_raw, validation_labels)
+    post_brier = multiclass_brier_score(validation_calibrated, validation_labels)
+
+    full_raw = model.predict_proba(frame.loc[:, resolved_feature_columns])
     full_probabilities = calibrator.transform(full_raw)
     predicted_labels = pd.Series(
         full_probabilities.idxmax(axis=1),
@@ -142,7 +161,7 @@ def run_regime_ml_pipeline(
     }
 
     cluster_result = compute_cluster_diagnostics(
-        frame.loc[:, list(feature_columns)],
+        frame.loc[:, resolved_feature_columns],
         frame[resolved_config.label_column],
         random_seed=resolved_config.random_seed,
         n_clusters=resolved_config.n_clusters or int(frame[resolved_config.label_column].astype("string").nunique()),
@@ -162,12 +181,13 @@ def run_regime_ml_pipeline(
                 "start": test_frame[resolved_config.time_column].min().isoformat().replace("+00:00", "Z"),
                 "end": test_frame[resolved_config.time_column].max().isoformat().replace("+00:00", "Z"),
             },
-            "feature_columns": list(feature_columns),
+            "feature_columns": list(resolved_feature_columns),
             "label_column": resolved_config.label_column,
             "n_classes": int(len(model.classes_)),
             "class_distribution": {label: int((training_labels == label).sum()) for label in sorted(train_distribution)},
             "taxonomy_version": TAXONOMY_VERSION,
             "window_semantics": "contiguous chronological split",
+            "feature_imputation": preprocessing_metadata["feature_imputation"],
             "metadata": dict(sorted(resolved_config.metadata.items())),
         }
     )
@@ -208,8 +228,11 @@ def run_regime_ml_pipeline(
 
 def resolve_regime_ml_config(payload: RegimeMLConfig | dict[str, Any] | None) -> RegimeMLConfig:
     if payload is None:
-        return RegimeMLConfig()
+        resolved = RegimeMLConfig()
+        _validate_regime_ml_config(resolved)
+        return resolved
     if isinstance(payload, RegimeMLConfig):
+        _validate_regime_ml_config(payload)
         return payload
     if not isinstance(payload, dict):
         raise TypeError("Regime ML config must be a RegimeMLConfig or dictionary.")
@@ -218,12 +241,76 @@ def resolve_regime_ml_config(payload: RegimeMLConfig | dict[str, Any] | None) ->
     if unknown:
         raise RegimeMLError(f"Regime ML config contains unsupported fields: {unknown}.")
     resolved = RegimeMLConfig(**payload)
-    if resolved.calibration_method != "platt":
-        raise RegimeMLError("Regime ML currently supports only platt calibration.")
+    _validate_regime_ml_config(resolved)
     return resolved
 
 
-def _normalize_dataset(dataset: pd.DataFrame, *, feature_columns: list[str] | tuple[str, ...], config: RegimeMLConfig) -> pd.DataFrame:
+def _validate_regime_ml_config(config: RegimeMLConfig) -> None:
+    if not isinstance(config.random_seed, int):
+        raise RegimeMLError("Regime ML config field 'random_seed' must be an integer.")
+    for field_name in ("label_column", "time_column", "symbol_column", "model_version"):
+        value = getattr(config, field_name)
+        if not isinstance(value, str) or not value.strip():
+            raise RegimeMLError(f"Regime ML config field '{field_name}' must be a non-empty string.")
+    for field_name in ("validation_fraction", "test_fraction"):
+        value = getattr(config, field_name)
+        if not isinstance(value, int | float) or not (0.0 < float(value) < 1.0):
+            raise RegimeMLError(f"Regime ML config field '{field_name}' must be between 0 and 1.")
+    if float(config.validation_fraction) + float(config.test_fraction) >= 1.0:
+        raise RegimeMLError("Regime ML config requires validation_fraction + test_fraction < 1.")
+    for field_name in (
+        "ambiguous_margin_threshold",
+        "class_imbalance_warning_threshold",
+        "weak_alignment_purity_threshold",
+    ):
+        value = getattr(config, field_name)
+        if not isinstance(value, int | float) or not (0.0 <= float(value) <= 1.0):
+            raise RegimeMLError(f"Regime ML config field '{field_name}' must be between 0 and 1.")
+    if config.calibration_method != "platt":
+        raise RegimeMLError("Regime ML currently supports only platt calibration.")
+    thresholds = config.confidence_thresholds
+    if not isinstance(thresholds, dict):
+        raise RegimeMLError("Regime ML config field 'confidence_thresholds' must be a mapping.")
+    missing = sorted({"high", "medium"} - set(thresholds))
+    if missing:
+        raise RegimeMLError(f"Regime ML config field 'confidence_thresholds' is missing required keys: {missing}.")
+    medium = thresholds["medium"]
+    high = thresholds["high"]
+    for name, value in (("medium", medium), ("high", high)):
+        if not isinstance(value, int | float) or not (0.0 <= float(value) <= 1.0):
+            raise RegimeMLError(
+                f"Regime ML confidence threshold '{name}' must be between 0 and 1."
+            )
+    if float(medium) > float(high):
+        raise RegimeMLError("Regime ML confidence thresholds require medium <= high.")
+    if config.n_clusters is not None and (not isinstance(config.n_clusters, int) or config.n_clusters <= 0):
+        raise RegimeMLError("Regime ML config field 'n_clusters' must be a positive integer when provided.")
+
+
+def _resolve_feature_columns(feature_columns: list[str] | tuple[str, ...]) -> list[str]:
+    if not isinstance(feature_columns, (list, tuple)):
+        raise TypeError("Regime ML feature_columns must be a list or tuple.")
+    if not feature_columns:
+        raise RegimeMLError("Regime ML feature_columns must contain at least one feature.")
+    normalized: list[str] = []
+    seen: set[str] = set()
+    for column in feature_columns:
+        if not isinstance(column, str) or not column.strip():
+            raise RegimeMLError("Regime ML feature_columns entries must be non-empty strings.")
+        stripped = column.strip()
+        if stripped in seen:
+            raise RegimeMLError(f"Regime ML feature_columns must not contain duplicates. Found duplicate: {stripped!r}.")
+        normalized.append(stripped)
+        seen.add(stripped)
+    return sorted(normalized)
+
+
+def _normalize_dataset(
+    dataset: pd.DataFrame,
+    *,
+    feature_columns: list[str],
+    config: RegimeMLConfig,
+) -> tuple[pd.DataFrame, dict[str, Any]]:
     if not isinstance(dataset, pd.DataFrame):
         raise TypeError("Regime ML dataset must be a pandas DataFrame.")
     if dataset.empty:
@@ -240,25 +327,48 @@ def _normalize_dataset(dataset: pd.DataFrame, *, feature_columns: list[str] | tu
         raise RegimeMLError(f"Regime ML dataset contains invalid timestamps in {config.time_column!r}.")
     frame[config.symbol_column] = frame[config.symbol_column].astype("string")
     frame[config.label_column] = frame[config.label_column].astype("string")
-    frame["_has_missing_features"] = frame.loc[:, list(feature_columns)].isna().any(axis=1)
-    medians = frame.loc[:, list(feature_columns)].median(numeric_only=True)
+    numeric_features = frame.loc[:, feature_columns].apply(pd.to_numeric, errors="coerce").astype("float64")
+    missing_count_by_feature = {
+        column: int(numeric_features[column].isna().sum())
+        for column in feature_columns
+    }
+    frame["_has_missing_features"] = numeric_features.isna().any(axis=1)
+    medians = numeric_features.median(numeric_only=True)
+    imputation_values: dict[str, float] = {}
     for column in feature_columns:
-        frame[column] = pd.to_numeric(frame[column], errors="coerce").astype("float64")
         median = medians.get(column)
         if pd.isna(median):
             raise RegimeMLError(f"Feature column {column!r} cannot be entirely missing.")
-        frame[column] = frame[column].fillna(float(median))
+        imputation_values[column] = float(median)
+        frame[column] = numeric_features[column].fillna(float(median))
     frame = frame.sort_values([config.time_column, config.symbol_column], kind="stable").reset_index(drop=True)
-    return frame
+    preprocessing_metadata = canonicalize_value(
+        {
+            "feature_imputation": {
+                "method": "median",
+                "values": imputation_values,
+                "missing_count_by_feature": missing_count_by_feature,
+                "rows_with_any_missing_feature": int(frame["_has_missing_features"].sum()),
+            }
+        }
+    )
+    return frame, preprocessing_metadata
 
 
-def _base_diagnostics(frame: pd.DataFrame, *, feature_columns: list[str], config: RegimeMLConfig) -> dict[str, Any]:
+def _base_diagnostics(
+    frame: pd.DataFrame,
+    *,
+    feature_columns: list[str],
+    preprocessing_metadata: dict[str, Any],
+    config: RegimeMLConfig,
+) -> dict[str, Any]:
     missing_feature_rows = frame.loc[frame["_has_missing_features"], [config.symbol_column, config.time_column]]
     return canonicalize_value(
         {
             "taxonomy_version": TAXONOMY_VERSION,
             "row_count": int(len(frame)),
             "feature_columns": feature_columns,
+            **preprocessing_metadata,
             "missing_features": {
                 "row_count": int(len(missing_feature_rows)),
                 "rows": [

@@ -5,7 +5,16 @@ import math
 
 import numpy as np
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
+
+from src.research.regime_ml.base import RegimeMLError
+
+try:
+    from sklearn.linear_model import LogisticRegression
+except ImportError as exc:  # pragma: no cover - exercised only in missing-dependency environments
+    LogisticRegression = None  # type: ignore[assignment]
+    _SKLEARN_IMPORT_ERROR = exc
+else:
+    _SKLEARN_IMPORT_ERROR = None
 
 
 def multiclass_brier_score(probabilities: pd.DataFrame, labels: pd.Series) -> float:
@@ -40,6 +49,7 @@ class PlattCalibrator:
 
     @classmethod
     def fit(cls, probabilities: pd.DataFrame, labels: pd.Series) -> "PlattCalibrator":
+        _require_sklearn()
         scalers: dict[str, _BinaryPlattScaler] = {}
         normalized_labels = labels.astype("string")
         for label in probabilities.columns:
@@ -68,3 +78,10 @@ class PlattCalibrator:
             frame.loc[zero_total_mask, :] = uniform_value
             totals = frame.sum(axis=1)
         return frame.div(totals, axis=0).astype("float64")
+
+
+def _require_sklearn() -> None:
+    if LogisticRegression is None:
+        raise RegimeMLError(
+            "scikit-learn is required for regime ML. Install project ML dependencies before running this pipeline."
+        ) from _SKLEARN_IMPORT_ERROR

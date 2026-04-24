@@ -149,6 +149,7 @@ from src.research.regimes.sensitivity_artifacts import (
 )
 from src.research.regimes.policy import (
     DEFAULT_POLICY_RETURN_COLUMNS,
+    MIN_EFFECTIVE_COMPONENT_WEIGHT,
     PolicySurface,
     RegimePolicyAlias,
     RegimePolicyConfidenceConfig,
@@ -234,6 +235,7 @@ __all__ = [
     "ADAPTIVE_POLICY_MANIFEST_FILENAME",
     "CALIBRATION_PROFILE_RESULTS_FILENAME",
     "DEFAULT_POLICY_RETURN_COLUMNS",
+    "MIN_EFFECTIVE_COMPONENT_WEIGHT",
     "REGIME_AUDIT_COLUMNS",
     "REGIME_DIMENSIONS",
     "REGIME_LABEL_COLUMNS",

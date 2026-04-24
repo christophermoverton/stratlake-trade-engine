@@ -199,6 +199,40 @@ def test_fallback_behavior_handles_undefined_unstable_and_skip_adaptation() -> N
     assert result.decisions["policy_reason"].str.contains("fallback").all()
 
 
+def test_skip_adaptation_uses_true_no_adaptation_behavior_for_non_baseline_defaults() -> None:
+    labels = _labels([_UNDEFINED, _RECOVERY])
+    config = _policy_config()
+    config["regime_policy"]["default"] = {
+        "signal_scale": 0.80,
+        "allocation_scale": 0.70,
+        "alpha_weight_multiplier": 0.60,
+        "volatility_target": 0.10,
+        "gross_exposure_cap": 0.75,
+        "max_component_weight": 0.50,
+        "rebalance_enabled": False,
+        "optimizer_override": "risk_parity",
+        "allocation_rule_override": "constrained",
+        "fallback_policy": "skip_adaptation",
+    }
+
+    result = apply_regime_policy(
+        labels,
+        config=config,
+        eligible_for_downstream_decisioning=False,
+    )
+
+    assert result.decisions.loc[0, "fallback_policy_applied"] == "skip_adaptation"
+    assert result.decisions.loc[0, "signal_scale"] == 1.0
+    assert result.decisions.loc[0, "allocation_scale"] == 1.0
+    assert result.decisions.loc[0, "alpha_weight_multiplier"] == 1.0
+    assert result.decisions.loc[0, "gross_exposure_cap"] == 1.0
+    assert result.decisions.loc[0, "max_component_weight"] == 1.0
+    assert bool(result.decisions.loc[0, "rebalance_enabled"]) is True
+    assert result.decisions.loc[0, "optimizer_override"] is None
+    assert result.decisions.loc[0, "allocation_rule_override"] is None
+    assert result.decisions.loc[0, "volatility_target"] == 0.10
+
+
 def test_confidence_gated_routing_works_with_and_without_confidence_frame() -> None:
     labels = _labels([_RISK_ON, _RISK_OFF, _RECOVERY], include_symbol=True)
     with_confidence = apply_regime_policy(labels, config=_policy_config(), confidence_frame=_confidence(labels))
@@ -210,6 +244,28 @@ def test_confidence_gated_routing_works_with_and_without_confidence_frame() -> N
     assert with_confidence.decisions.loc[2, "fallback_policy_applied"] == "reduce_exposure"
     assert without_confidence.decisions["confidence_score"].isna().all()
     assert without_confidence.decisions["matched_policy_key"].tolist() == ["risk_on", "risk_off", "default"]
+
+
+def test_market_level_labels_reject_symbol_level_confidence_duplicates() -> None:
+    labels = _labels([_RISK_ON, _RISK_OFF], include_symbol=False)
+    confidence = pd.DataFrame(
+        {
+            "symbol": ["SPY", "QQQ", "SPY", "QQQ"],
+            "ts_utc": [
+                pd.Timestamp("2026-02-01", tz="UTC"),
+                pd.Timestamp("2026-02-01", tz="UTC"),
+                pd.Timestamp("2026-02-02", tz="UTC"),
+                pd.Timestamp("2026-02-02", tz="UTC"),
+            ],
+            "confidence_score": [0.9, 0.8, 0.7, 0.6],
+            "confidence_bucket": ["high", "high", "medium", "medium"],
+            "fallback_flag": [False, False, False, False],
+            "fallback_reason": [None, None, None, None],
+        }
+    )
+
+    with pytest.raises(RegimePolicyError, match="unique on its policy join keys"):
+        apply_regime_policy(labels, config=_policy_config(), confidence_frame=confidence)
 
 
 def test_adaptive_comparison_is_deterministic_for_strategy_and_portfolio_surfaces() -> None:

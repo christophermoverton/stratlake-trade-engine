@@ -123,10 +123,28 @@ Supported fallback policies:
 * `neutral`: zero-out adaptive scales and exposure
 * `cash_proxy`: route to a cash-like zero-exposure decision without inventing a new asset
 * `reduce_exposure`: clamp scales and caps to reduced values
-* `skip_adaptation`: preserve baseline row behavior
+* `skip_adaptation`: apply no adaptive overlay for that row
 
 Fallback behavior is always recorded in `fallback_policy_applied` and
 `policy_reason`.
+
+`fallback_policy_applied = null` means no fallback was applied and the row used
+its matched policy rule directly.
+
+`skip_adaptation` is explicit no-adaptation behavior. It sets:
+
+* `signal_scale = 1.0`
+* `allocation_scale = 1.0`
+* `alpha_weight_multiplier = 1.0`
+* `gross_exposure_cap = 1.0`
+* `max_component_weight = 1.0`
+* `rebalance_enabled = true`
+* `optimizer_override = null`
+* `allocation_rule_override = null`
+
+`neutral` and `cash_proxy` set exposure and adaptive scales to zero. Their
+`max_component_weight` is represented as a near-zero positive value because
+policy rules require positive component caps.
 
 ## Confidence-Gated Adaptation
 
@@ -141,6 +159,16 @@ When an ML confidence frame is present, policy routing uses:
 Rows can be rerouted through explicit low-confidence, ambiguous, or unsupported
 fallback behavior. Without a confidence frame, the policy layer still operates
 from regime labels alone.
+
+When regime labels include `symbol`, confidence inputs are joined by
+`symbol + ts_utc`.
+
+When regime labels are market-level and do not include `symbol`, confidence
+inputs are joined by `ts_utc` only.
+
+Confidence inputs must be unique on the selected join keys. Symbol-level
+confidence frames cannot be joined directly to market-level regime labels
+unless they are first aggregated to one row per `ts_utc`.
 
 ## Adaptive Comparison
 

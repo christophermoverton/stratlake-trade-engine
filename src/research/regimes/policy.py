@@ -30,6 +30,7 @@ SUPPORTED_FALLBACK_POLICIES: tuple[str, ...] = (
     "skip_adaptation",
 )
 SUPPORTED_CONFIDENCE_REASONS: tuple[str, ...] = ("ambiguous", "low_confidence", "unsupported")
+MIN_EFFECTIVE_COMPONENT_WEIGHT = 1.0e-12
 DEFAULT_POLICY_RETURN_COLUMNS: dict[str, str] = {
     "alpha": "alpha_return",
     "portfolio": "portfolio_return",
@@ -745,14 +746,7 @@ def _apply_fallback_policy(
     if fallback_policy is None or fallback_policy == "baseline":
         return default_rule if fallback_policy == "baseline" else rule
     if fallback_policy == "skip_adaptation":
-        return replace(
-            default_rule,
-            signal_scale=1.0,
-            allocation_scale=1.0,
-            alpha_weight_multiplier=1.0,
-            optimizer_override=None,
-            allocation_rule_override=None,
-        )
+        return _baseline_no_adaptation_rule(default_rule)
     if fallback_policy == "neutral":
         return replace(
             default_rule,
@@ -760,7 +754,7 @@ def _apply_fallback_policy(
             allocation_scale=0.0,
             alpha_weight_multiplier=0.0,
             gross_exposure_cap=0.0,
-            max_component_weight=1.0e-12,
+            max_component_weight=MIN_EFFECTIVE_COMPONENT_WEIGHT,
             rebalance_enabled=False,
             optimizer_override=None,
             allocation_rule_override=None,
@@ -772,7 +766,7 @@ def _apply_fallback_policy(
             allocation_scale=0.0,
             alpha_weight_multiplier=0.0,
             gross_exposure_cap=0.0,
-            max_component_weight=1.0e-12,
+            max_component_weight=MIN_EFFECTIVE_COMPONENT_WEIGHT,
             rebalance_enabled=True,
             optimizer_override="equal_weight" if default_rule.optimizer_override is not None else None,
             allocation_rule_override=None,
@@ -788,6 +782,20 @@ def _apply_fallback_policy(
             max_component_weight=min(rule.max_component_weight, 0.5),
         )
     raise RegimePolicyError(f"Unsupported fallback policy {fallback_policy!r}.")
+
+
+def _baseline_no_adaptation_rule(default_rule: RegimePolicyRule) -> RegimePolicyRule:
+    return replace(
+        default_rule,
+        signal_scale=1.0,
+        allocation_scale=1.0,
+        alpha_weight_multiplier=1.0,
+        gross_exposure_cap=1.0,
+        max_component_weight=1.0,
+        rebalance_enabled=True,
+        optimizer_override=None,
+        allocation_rule_override=None,
+    )
 
 
 def _match_alias(row: pd.Series, aliases: Mapping[str, RegimePolicyAlias]) -> str | None:
@@ -1155,6 +1163,7 @@ def _coerce_finite_float(value: Any, *, field_name: str) -> float:
 
 __all__ = [
     "DEFAULT_POLICY_RETURN_COLUMNS",
+    "MIN_EFFECTIVE_COMPONENT_WEIGHT",
     "PolicySurface",
     "RegimePolicyAlias",
     "RegimePolicyConfidenceConfig",

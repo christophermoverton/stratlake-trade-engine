@@ -1,0 +1,32 @@
+{
+  "artifact_type": "regime_labels",
+  "artifacts": {
+    "manifest_json": "manifest.json",
+    "regime_labels_csv": "regime_labels.csv",
+    "regime_summary_json": "regime_summary.json"
+  },
+  "file_inventory": {
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "regime_labels.csv": {
+      "path": "regime_labels.csv",
+      "rows": 24,
+      "sha256": "a5a0447198837527a789ebf60045399f99a5004e5550a4211abc07a19cc2f5c2"
+    },
+    "regime_summary.json": {
+      "path": "regime_summary.json",
+      "sha256": "b090a55947baf8907f8d9050925462da93cc06a6b5276d6b533db083077547e3"
+    }
+  },
+  "run_id": "regime_bundle",
+  "schema_version": 1,
+  "summary": {
+    "defined_row_count": 22,
+    "row_count": 24,
+    "ts_utc_end": "2025-01-24T00:00:00Z",
+    "ts_utc_start": "2025-01-01T00:00:00Z",
+    "undefined_row_count": 2
+  },
+  "taxonomy_version": "regime_taxonomy_v1"
+}

@@ -1,0 +1,44 @@
+{
+  "artifact_type": "regime_transition_analysis",
+  "artifacts": {
+    "regime_transition_events_csv": "regime_transition_events.csv",
+    "regime_transition_manifest_json": "regime_transition_manifest.json",
+    "regime_transition_summary_json": "regime_transition_summary.json",
+    "regime_transition_windows_csv": "regime_transition_windows.csv"
+  },
+  "file_inventory": {
+    "regime_transition_events.csv": {
+      "path": "regime_transition_events.csv",
+      "rows": 35,
+      "sha256": "8b2909933b1c0aabc808042f138ed0f32e3fb516dad3b5374752fed6fdcb7837"
+    },
+    "regime_transition_manifest.json": {
+      "path": "regime_transition_manifest.json"
+    },
+    "regime_transition_summary.json": {
+      "path": "regime_transition_summary.json",
+      "sha256": "a057ad1540e40491c4470c88044bec244fb94efe39d153348af00b76e3ca49ca"
+    },
+    "regime_transition_windows.csv": {
+      "path": "regime_transition_windows.csv",
+      "rows": 103,
+      "sha256": "c407a26bc4bb4eab6f7b80177355ddf9bc3b89ddd22b702b322e679e0e6d0797"
+    }
+  },
+  "metadata": {
+    "surface": "strategy"
+  },
+  "run_id": "strategy_bundle",
+  "schema_version": 1,
+  "summary": {
+    "coverage_counts": {
+      "sparse": 2,
+      "sufficient": 33
+    },
+    "event_count": 35,
+    "stress_transition_count": 2,
+    "window_row_count": 103
+  },
+  "surface": "strategy",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

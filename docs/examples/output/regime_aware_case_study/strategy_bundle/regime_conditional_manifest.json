@@ -1,0 +1,18 @@
+{
+  "artifacts": {
+    "metrics_by_regime_csv": "metrics_by_regime.csv",
+    "regime_conditional_manifest_json": "regime_conditional_manifest.json",
+    "regime_conditional_summary_json": "regime_conditional_summary.json"
+  },
+  "dimensions": [
+    "composite",
+    "drawdown_recovery",
+    "stress",
+    "trend",
+    "volatility"
+  ],
+  "run_id": "strategy_bundle",
+  "schema_version": 1,
+  "surface": "strategy",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

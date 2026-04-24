@@ -1,0 +1,111 @@
+{
+  "alpha_variant": "baseline",
+  "artifact_type": "regime_comparison_summary",
+  "dimension": "composite",
+  "interpretation_highlights": [
+    "Comparison is aligned on shared regime dimension `composite`.",
+    "Runs leading in more than one regime: `alpha_baseline`, `alpha_defensive`."
+  ],
+  "metadata": {
+    "case_study": "m24_7_regime_aware_case_study"
+  },
+  "regime_count": 17,
+  "regime_winners": [
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=underwater|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": 0.04,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=underwater|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": 0.037500000000000006,
+      "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress",
+      "run_id": "alpha_defensive"
+    },
+    {
+      "primary_metric_value": 0.025,
+      "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": 0.04,
+      "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": 0.0225,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress",
+      "run_id": "alpha_defensive"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=recovery|stress=dispersion_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=underwater|stress=correlation_stress",
+      "run_id": "alpha_baseline"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=underwater|stress=dispersion_stress",
+      "run_id": "alpha_baseline"
+    }
+  ],
+  "robust_run_ids": [
+    "alpha_baseline",
+    "alpha_defensive"
+  ],
+  "run_count": 2,
+  "schema_version": 1,
+  "surface": "alpha",
+  "winner_counts_by_run": {
+    "alpha_baseline": 15,
+    "alpha_defensive": 2
+  }
+}

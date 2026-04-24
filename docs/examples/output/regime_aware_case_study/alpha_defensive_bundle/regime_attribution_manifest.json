@@ -1,0 +1,40 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 6819,
+      "path": "regime_attribution_report.md",
+      "sha256": "e3ae2e3cc5918629f58186179665f63cc8803d549d2975e748d0509cf7f8ed88"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "3fdcea35d261614001db92b93b45050c8eedf81e9220f3f19d663f8982ed021c"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 17,
+      "sha256": "cc869ad96b1c7ce3ec12baeb56625ca01c048e24f3059b3ac74cb5a3c5eaf7ef"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "alpha_variant": "defensive",
+    "surface": "alpha"
+  },
+  "run_id": "alpha_defensive_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": false,
+    "dominant_regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress",
+    "fragility_flag": false,
+    "regime_count": 17
+  },
+  "surface": "alpha",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

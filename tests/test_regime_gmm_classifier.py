@@ -92,11 +92,11 @@ def test_gmm_classifier_is_deterministic_and_preserves_input() -> None:
     shuffled = features.sample(frac=1.0, random_state=7).reset_index(drop=True)
     first = classify_regime_shifts_with_gmm(
         shuffled,
-        config={"n_components": 2, "random_state": 31, "feature_columns": REGIME_AUDIT_COLUMNS},
+        config={"n_components": 2, "random_state": 31, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
     )
     second = classify_regime_shifts_with_gmm(
         shuffled,
-        config={"n_components": 2, "random_state": 31, "feature_columns": REGIME_AUDIT_COLUMNS},
+        config={"n_components": 2, "random_state": 31, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
     )
 
     pd.testing.assert_frame_equal(features, original)
@@ -116,7 +116,7 @@ def test_gmm_classifier_is_deterministic_and_preserves_input() -> None:
 def test_gmm_posterior_probabilities_confidence_and_entropy_contract() -> None:
     result = classify_regime_shifts_with_gmm(
         _gmm_input(),
-        config={"n_components": 3, "random_state": 19, "feature_columns": REGIME_AUDIT_COLUMNS},
+        config={"n_components": 3, "random_state": 19, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
     )
 
     posterior_columns = [column for column in result.posterior_probabilities.columns if column.startswith("posterior_cluster_")]
@@ -142,6 +142,7 @@ def test_gmm_detects_cluster_shift_events() -> None:
         config={
             "n_components": 2,
             "random_state": 11,
+            "min_observations": 5,
             "min_shift_probability": 0.5,
             "shift_probability_delta_threshold": 0.05,
             "feature_columns": REGIME_AUDIT_COLUMNS,
@@ -157,7 +158,7 @@ def test_gmm_detects_cluster_shift_events() -> None:
 def test_gmm_artifacts_manifest_and_inventory_are_deterministic(tmp_path: Path) -> None:
     result = classify_regime_shifts_with_gmm(
         _gmm_input(),
-        config={"n_components": 2, "random_state": 13, "feature_columns": REGIME_AUDIT_COLUMNS},
+        config={"n_components": 2, "random_state": 13, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
     )
     output_dir = tmp_path / "regimes" / "gmm_case"
 
@@ -200,7 +201,7 @@ def test_gmm_confidence_integrates_with_calibration_and_policy() -> None:
     features = labels.loc[:, ["ts_utc", *list(REGIME_AUDIT_COLUMNS)]].copy(deep=True)
     gmm_result = classify_regime_shifts_with_gmm(
         features,
-        config={"n_components": 2, "random_state": 23, "feature_columns": REGIME_AUDIT_COLUMNS},
+        config={"n_components": 2, "random_state": 23, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
     )
 
     labels_with_confidence = labels.merge(
@@ -244,3 +245,264 @@ def test_gmm_confidence_integrates_with_calibration_and_policy() -> None:
 def test_gmm_rejects_invalid_config(config: dict[str, object], message: str) -> None:
     with pytest.raises(RegimeGMMClassifierError, match=message):
         classify_regime_shifts_with_gmm(_synthetic_shift_features(), config=config)
+
+
+def test_gmm_standardization_enabled_produces_deterministic_output() -> None:
+    features = _gmm_input()
+    result_enabled = classify_regime_shifts_with_gmm(
+        features.copy(deep=True),
+        config={
+            "n_components": 3,
+            "random_state": 42,
+            "standardize_features": True,
+            "standardization_epsilon": 1.0e-12,
+            "min_observations": 10,
+            "feature_columns": REGIME_AUDIT_COLUMNS,
+        },
+    )
+    result_enabled_repeat = classify_regime_shifts_with_gmm(
+        features.copy(deep=True),
+        config={
+            "n_components": 3,
+            "random_state": 42,
+            "standardize_features": True,
+            "standardization_epsilon": 1.0e-12,
+            "min_observations": 10,
+            "feature_columns": REGIME_AUDIT_COLUMNS,
+        },
+    )
+
+    assert result_enabled.summary["feature_scaling"]["enabled"] is True
+    assert result_enabled.summary["feature_scaling"]["epsilon"] == 1.0e-12
+    assert result_enabled.summary["feature_scaling"]["feature_means"] is not None
+    assert result_enabled.summary["feature_scaling"]["feature_stds"] is not None
+    pd.testing.assert_frame_equal(
+        result_enabled.labels,
+        result_enabled_repeat.labels,
+        check_exact=False,
+        rtol=1e-12,
+        atol=1e-12,
+    )
+
+
+def test_gmm_standardization_disabled_preserves_raw_features() -> None:
+    features = _gmm_input()
+    result_disabled = classify_regime_shifts_with_gmm(
+        features.copy(deep=True),
+        config={
+            "n_components": 3,
+            "random_state": 42,
+            "standardize_features": False,
+            "min_observations": 10,
+            "feature_columns": REGIME_AUDIT_COLUMNS,
+        },
+    )
+
+    assert result_disabled.summary["feature_scaling"]["enabled"] is False
+    assert result_disabled.summary["feature_scaling"]["feature_means"] is None
+    assert result_disabled.summary["feature_scaling"]["feature_stds"] is None
+
+
+def test_gmm_does_not_mutate_input_frame() -> None:
+    features = _gmm_input()
+    original = features.copy(deep=True)
+
+    classify_regime_shifts_with_gmm(
+        features,
+        config={"n_components": 2, "random_state": 31, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+    )
+
+    pd.testing.assert_frame_equal(features, original)
+
+
+def test_gmm_sorts_unsorted_input_and_returns_sorted_output() -> None:
+    features = _gmm_input()
+    shuffled = features.sample(frac=1.0, random_state=42).reset_index(drop=True)
+    result = classify_regime_shifts_with_gmm(
+        shuffled,
+        config={"n_components": 2, "random_state": 31, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+    )
+
+    assert result.labels["ts_utc"].is_monotonic_increasing
+    assert result.posterior_probabilities["ts_utc"].is_monotonic_increasing
+    if not result.shift_events.empty:
+        assert result.shift_events["ts_utc"].is_monotonic_increasing
+
+
+def test_gmm_rejects_duplicate_timestamps() -> None:
+    features = _gmm_input()
+    duplicated = pd.concat([features, features.iloc[[0]]], ignore_index=True)
+
+    with pytest.raises(RegimeGMMClassifierError, match="duplicate timestamps"):
+        classify_regime_shifts_with_gmm(
+            duplicated,
+            config={"n_components": 2, "random_state": 31, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+        )
+
+
+def test_gmm_rejects_missing_feature_columns() -> None:
+    features = _gmm_input().drop(columns=["volatility_metric"])
+
+    with pytest.raises(RegimeGMMClassifierError, match="missing required columns"):
+        classify_regime_shifts_with_gmm(
+            features,
+            config={"n_components": 2, "random_state": 31, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+        )
+
+
+def test_gmm_rejects_nonfinite_feature_values() -> None:
+    features = _gmm_input()
+    features.loc[5, "volatility_metric"] = float("inf")
+
+    with pytest.raises(RegimeGMMClassifierError, match="finite values"):
+        classify_regime_shifts_with_gmm(
+            features,
+            config={"n_components": 2, "random_state": 31, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+        )
+
+
+def test_gmm_rejects_missing_feature_values() -> None:
+    features = _gmm_input()
+    features.loc[3, "trend_metric"] = None
+
+    with pytest.raises(RegimeGMMClassifierError, match="must not contain missing values"):
+        classify_regime_shifts_with_gmm(
+            features,
+            config={"n_components": 2, "random_state": 31, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+        )
+
+
+def test_gmm_rejects_insufficient_observations_by_default() -> None:
+    features = _gmm_input().iloc[:10]
+
+    with pytest.raises(RegimeGMMClassifierError, match="at least 30 observations"):
+        classify_regime_shifts_with_gmm(
+            features,
+            config={
+                "n_components": 2,
+                "random_state": 31,
+                "min_observations": 30,
+                "feature_columns": REGIME_AUDIT_COLUMNS,
+            },
+        )
+
+
+def test_gmm_allows_lowered_min_observations_for_small_fixtures() -> None:
+    small_features = _synthetic_shift_features()
+    result = classify_regime_shifts_with_gmm(
+        small_features,
+        config={
+            "n_components": 2,
+            "random_state": 11,
+            "min_observations": 5,
+            "feature_columns": REGIME_AUDIT_COLUMNS,
+        },
+    )
+
+    assert len(result.labels) == len(small_features)
+    assert result.summary["row_count"] == len(small_features)
+
+
+def test_gmm_summary_includes_stable_cluster_mapping_metadata() -> None:
+    result = classify_regime_shifts_with_gmm(
+        _gmm_input(),
+        config={"n_components": 3, "random_state": 19, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+    )
+
+    assert "stable_cluster_mapping" in result.summary
+    mapping = result.summary["stable_cluster_mapping"]
+    assert len(mapping) == 3
+    for stable_idx in range(3):
+        key = f"gmm_cluster_{stable_idx}"
+        assert key in mapping
+        assert "sklearn_component" in mapping[key]
+        assert isinstance(mapping[key]["sklearn_component"], int)
+
+
+def test_gmm_summary_includes_feature_scaling_metadata() -> None:
+    result = classify_regime_shifts_with_gmm(
+        _gmm_input(),
+        config={
+            "n_components": 3,
+            "random_state": 42,
+            "standardize_features": True,
+            "min_observations": 10,
+            "feature_columns": REGIME_AUDIT_COLUMNS,
+        },
+    )
+
+    assert "feature_scaling" in result.summary
+    scaling = result.summary["feature_scaling"]
+    assert "enabled" in scaling
+    assert "epsilon" in scaling
+    assert "feature_means" in scaling
+    assert "feature_stds" in scaling
+    assert isinstance(scaling["enabled"], bool)
+    assert isinstance(scaling["epsilon"], float)
+
+
+def test_gmm_manifest_file_inventory_has_relative_paths_only(tmp_path: Path) -> None:
+    result = classify_regime_shifts_with_gmm(
+        _gmm_input(),
+        config={"n_components": 2, "random_state": 13, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+    )
+    output_dir = tmp_path / "regimes" / "gmm_test"
+
+    write_regime_gmm_artifacts(output_dir, result)
+    manifest = load_regime_gmm_manifest(output_dir)
+
+    for filename, file_metadata in manifest["file_inventory"].items():
+        path = file_metadata.get("path")
+        assert path is not None
+        assert "/" not in path or "\\" not in path
+        assert not Path(path).is_absolute()
+
+
+def test_gmm_loaded_timestamps_are_utc(tmp_path: Path) -> None:
+    result = classify_regime_shifts_with_gmm(
+        _gmm_input(),
+        config={"n_components": 2, "random_state": 13, "min_observations": 10, "feature_columns": REGIME_AUDIT_COLUMNS},
+    )
+    output_dir = tmp_path / "regimes" / "gmm_utc"
+
+    write_regime_gmm_artifacts(output_dir, result)
+
+    loaded_labels = load_regime_gmm_labels(output_dir)
+    loaded_posterior = load_regime_gmm_posteriors(output_dir)
+    loaded_events = load_regime_gmm_shift_events(output_dir)
+
+    assert loaded_labels["ts_utc"].dtype.name.startswith("datetime64")
+    assert "UTC" in str(loaded_labels["ts_utc"].dtype)
+    assert loaded_posterior["ts_utc"].dtype.name.startswith("datetime64")
+    assert "UTC" in str(loaded_posterior["ts_utc"].dtype)
+    if not loaded_events.empty:
+        assert loaded_events["ts_utc"].dtype.name.startswith("datetime64")
+        assert "UTC" in str(loaded_events["ts_utc"].dtype)
+
+
+def test_gmm_posterior_l1_delta_is_in_labels() -> None:
+    result = classify_regime_shifts_with_gmm(
+        _synthetic_shift_features(),
+        config={"n_components": 2, "random_state": 11, "min_observations": 5, "feature_columns": REGIME_AUDIT_COLUMNS},
+    )
+
+    assert "gmm_posterior_l1_delta" in result.labels.columns
+    assert result.labels["gmm_posterior_l1_delta"].isna().iloc[0]
+    assert result.labels["gmm_posterior_l1_delta"].notna().iloc[1:].all()
+
+
+def test_gmm_posterior_l1_delta_is_in_shift_events() -> None:
+    result = classify_regime_shifts_with_gmm(
+        _synthetic_shift_features(),
+        config={
+            "n_components": 2,
+            "random_state": 11,
+            "min_observations": 5,
+            "min_shift_probability": 0.5,
+            "shift_probability_delta_threshold": 0.05,
+            "feature_columns": REGIME_AUDIT_COLUMNS,
+        },
+    )
+
+    if not result.shift_events.empty:
+        assert "posterior_l1_delta" in result.shift_events.columns

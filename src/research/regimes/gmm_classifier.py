@@ -29,6 +29,7 @@ GMM_LABEL_COLUMNS: tuple[str, ...] = (
     "gmm_previous_cluster_label",
     "gmm_shift_flag",
     "gmm_shift_probability_delta",
+    "gmm_posterior_l1_delta",
     "gmm_posterior_probability",
     "gmm_confidence_score",
     "gmm_posterior_entropy",
@@ -48,6 +49,7 @@ GMM_SHIFT_EVENT_COLUMNS: tuple[str, ...] = (
     "previous_cluster_label",
     "current_cluster_label",
     "shift_probability_delta",
+    "posterior_l1_delta",
     "confidence_score",
     "is_low_confidence",
     "taxonomy_version",
@@ -77,6 +79,9 @@ class RegimeGMMClassifierConfig:
     min_shift_probability: float = 0.55
     shift_probability_delta_threshold: float = 0.15
     shift_requires_not_low_confidence: bool = True
+    standardize_features: bool = True
+    standardization_epsilon: float = 1.0e-12
+    min_observations: int = 30
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -89,12 +94,15 @@ class RegimeGMMClassifierConfig:
                 "low_confidence_threshold": self.low_confidence_threshold,
                 "max_iter": self.max_iter,
                 "metadata": dict(sorted(self.metadata.items())),
+                "min_observations": self.min_observations,
                 "min_shift_probability": self.min_shift_probability,
                 "n_components": self.n_components,
                 "n_init": self.n_init,
                 "random_state": self.random_state,
                 "shift_probability_delta_threshold": self.shift_probability_delta_threshold,
                 "shift_requires_not_low_confidence": self.shift_requires_not_low_confidence,
+                "standardization_epsilon": self.standardization_epsilon,
+                "standardize_features": self.standardize_features,
                 "time_column": self.time_column,
             }
         )
@@ -144,6 +152,27 @@ def classify_regime_shifts_with_gmm(
     _require_sklearn()
     normalized = _normalize_features(features, config=resolved_config)
 
+    feature_data = normalized.loc[:, list(resolved_config.feature_columns)].copy(deep=True)
+    feature_scaling_metadata: dict[str, Any] = {
+        "enabled": bool(resolved_config.standardize_features),
+        "epsilon": float(resolved_config.standardization_epsilon),
+    }
+
+    if resolved_config.standardize_features:
+        feature_means = feature_data.mean(axis=0).to_numpy(dtype="float64", copy=True)
+        feature_stds = feature_data.std(axis=0, ddof=0).to_numpy(dtype="float64", copy=True)
+        feature_stds = np.where(
+            feature_stds > resolved_config.standardization_epsilon,
+            feature_stds,
+            resolved_config.standardization_epsilon,
+        )
+        feature_data = (feature_data.to_numpy(dtype="float64", copy=True) - feature_means) / feature_stds
+        feature_scaling_metadata["feature_means"] = [float(v) for v in feature_means]
+        feature_scaling_metadata["feature_stds"] = [float(v) for v in feature_stds]
+    else:
+        feature_scaling_metadata["feature_means"] = None
+        feature_scaling_metadata["feature_stds"] = None
+
     estimator = GaussianMixture(
         covariance_type=resolved_config.covariance_type,
         max_iter=resolved_config.max_iter,
@@ -151,8 +180,8 @@ def classify_regime_shifts_with_gmm(
         n_init=resolved_config.n_init,
         random_state=resolved_config.random_state,
     )
-    estimator.fit(normalized.loc[:, list(resolved_config.feature_columns)])
-    probabilities = estimator.predict_proba(normalized.loc[:, list(resolved_config.feature_columns)])
+    estimator.fit(feature_data)
+    probabilities = estimator.predict_proba(feature_data)
 
     component_order = _stable_component_order(estimator.means_)
     ordered_probabilities = probabilities[:, component_order]
@@ -170,6 +199,13 @@ def classify_regime_shifts_with_gmm(
         previous_probability = previous_probabilities.loc[row_index, f"posterior_cluster_{int(cluster_code)}"]
         if pd.notna(previous_probability):
             shift_probability_delta.loc[row_index] = abs(float(max_probability.loc[row_index]) - float(previous_probability))
+
+    posterior_l1_delta = pd.Series(np.nan, index=normalized.index, dtype="float64")
+    for row_index in range(1, len(posterior_frame)):
+        current_posterior = posterior_frame.iloc[row_index].to_numpy(dtype="float64", copy=True)
+        prev_posterior = posterior_frame.iloc[row_index - 1].to_numpy(dtype="float64", copy=True)
+        l1_distance = float(np.sum(np.abs(current_posterior - prev_posterior)))
+        posterior_l1_delta.iloc[row_index] = l1_distance
 
     entropy = posterior_frame.apply(
         lambda row: _entropy(row.to_numpy(dtype="float64", copy=True)),
@@ -210,6 +246,7 @@ def classify_regime_shifts_with_gmm(
             "gmm_previous_cluster_label": previous_cluster.astype("Int64").astype("object"),
             "gmm_shift_flag": shift_flag.to_numpy(copy=True),
             "gmm_shift_probability_delta": shift_probability_delta.to_numpy(copy=True),
+            "gmm_posterior_l1_delta": posterior_l1_delta.to_numpy(copy=True),
             "gmm_posterior_probability": max_probability.to_numpy(copy=True),
             "gmm_confidence_score": max_probability.to_numpy(copy=True),
             "gmm_posterior_entropy": entropy.to_numpy(copy=True),
@@ -238,6 +275,7 @@ def classify_regime_shifts_with_gmm(
         posterior=posterior_frame,
         config=resolved_config,
         component_order=component_order,
+        feature_scaling_metadata=feature_scaling_metadata,
     )
 
     return RegimeGMMClassifierResult(
@@ -258,6 +296,8 @@ def _validate_config(config: RegimeGMMClassifierConfig) -> None:
         raise RegimeGMMClassifierError("Regime GMM config field 'max_iter' must be a positive integer.")
     if not isinstance(config.n_init, int) or config.n_init < 1:
         raise RegimeGMMClassifierError("Regime GMM config field 'n_init' must be a positive integer.")
+    if not isinstance(config.min_observations, int) or config.min_observations < 1:
+        raise RegimeGMMClassifierError("Regime GMM config field 'min_observations' must be a positive integer.")
     if config.covariance_type not in {"full", "tied", "diag", "spherical"}:
         raise RegimeGMMClassifierError(
             "Regime GMM config field 'covariance_type' must be one of: full, tied, diag, spherical."
@@ -279,6 +319,12 @@ def _validate_config(config: RegimeGMMClassifierConfig) -> None:
             raise RegimeGMMClassifierError(
                 "Regime GMM config field 'shift_probability_delta_threshold' must be non-negative."
             )
+    if not isinstance(config.standardize_features, bool):
+        raise RegimeGMMClassifierError("Regime GMM config field 'standardize_features' must be a boolean.")
+    if not isinstance(config.standardization_epsilon, int | float) or float(config.standardization_epsilon) <= 0.0:
+        raise RegimeGMMClassifierError(
+            "Regime GMM config field 'standardization_epsilon' must be a positive number."
+        )
     if not isinstance(config.feature_columns, tuple | list) or len(config.feature_columns) == 0:
         raise RegimeGMMClassifierError("Regime GMM config field 'feature_columns' must contain at least one column.")
     normalized_columns = [str(column).strip() for column in config.feature_columns]
@@ -341,6 +387,16 @@ def _normalize_features(frame: pd.DataFrame, *, config: RegimeGMMClassifierConfi
             raise RegimeGMMClassifierError(
                 f"Regime GMM feature column {column!r} must contain only finite values."
             )
+
+    if len(normalized) < config.n_components:
+        raise RegimeGMMClassifierError(
+            f"Regime GMM requires at least {config.n_components} observations (got {len(normalized)})."
+        )
+    if len(normalized) < config.min_observations:
+        raise RegimeGMMClassifierError(
+            f"Regime GMM requires at least {config.min_observations} observations (got {len(normalized)})."
+        )
+
     return normalized.loc[:, [config.time_column, *list(config.feature_columns)]]
 
 
@@ -411,6 +467,9 @@ def _build_shift_events(labels: pd.DataFrame) -> pd.DataFrame:
                 "shift_probability_delta": None
                 if pd.isna(row.gmm_shift_probability_delta)
                 else float(row.gmm_shift_probability_delta),
+                "posterior_l1_delta": None
+                if pd.isna(row.gmm_posterior_l1_delta)
+                else float(row.gmm_posterior_l1_delta),
                 "confidence_score": float(row.gmm_confidence_score),
                 "is_low_confidence": bool(row.gmm_is_low_confidence),
                 "taxonomy_version": TAXONOMY_VERSION,
@@ -425,11 +484,16 @@ def _build_summary(
     posterior: pd.DataFrame,
     config: RegimeGMMClassifierConfig,
     component_order: list[int],
+    feature_scaling_metadata: dict[str, Any],
 ) -> dict[str, Any]:
     cluster_distribution = (
         labels["gmm_cluster_label"].value_counts(sort=False).sort_index().astype("int64")
     )
     confidence_distribution = labels["confidence_bucket"].value_counts(sort=False).astype("int64")
+    stable_cluster_mapping = {
+        f"gmm_cluster_{stable_idx}": {"sklearn_component": int(original_component)}
+        for stable_idx, original_component in enumerate(component_order)
+    }
     return canonicalize_value(
         {
             "artifact_type": "regime_gmm_classifier",
@@ -437,7 +501,9 @@ def _build_summary(
             "row_count": int(len(labels)),
             "cluster_count": int(len(component_order)),
             "cluster_order": [int(value) for value in component_order],
+            "stable_cluster_mapping": stable_cluster_mapping,
             "feature_columns": list(config.feature_columns),
+            "feature_scaling": feature_scaling_metadata,
             "cluster_distribution": {
                 f"cluster_{int(index)}": int(cluster_distribution.get(index, 0))
                 for index in range(len(component_order))

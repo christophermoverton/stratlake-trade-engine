@@ -44,6 +44,11 @@ on top of existing Milestone 24 regime outputs, adds profile-driven smoothing
 and minimum-duration gating, computes stability metrics, and persists
 calibration artifacts without redefining the taxonomy.
 
+Milestone 25 also adds a deterministic Gaussian Mixture Model (GMM)
+regime-shift classifier that complements taxonomy labels with posterior
+probabilities, confidence, entropy, and cluster-transition events on canonical
+regime feature columns.
+
 Milestone 25 Issue 4 adds a deterministic regime-aware policy optimization
 layer. It consumes the existing taxonomy, calibration profile and stability
 metadata, optional ML confidence, and emits config-driven policy decisions plus
@@ -53,6 +58,7 @@ research surfaces.
 Start with:
 
 * [docs/regime_calibration.md](docs/regime_calibration.md)
+* [docs/regime_gmm_classifier.md](docs/regime_gmm_classifier.md)
 * [docs/regime_policy_optimization.md](docs/regime_policy_optimization.md)
 
 ## Milestone 24 Summary

@@ -1,0 +1,182 @@
+{
+  "dimensions": [
+    "composite",
+    "drawdown_recovery",
+    "stress",
+    "trend",
+    "volatility"
+  ],
+  "dimensions_summary": {
+    "composite": {
+      "alignment_summary": {
+        "matched_defined": 43,
+        "matched_undefined": 20,
+        "regime_labels_unavailable": 0,
+        "total_rows": 63,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=near_peak|stress=dispersion_stress": "sparse",
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress": "sparse",
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress": "sufficient",
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=dispersion_stress": "sparse",
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress": "sufficient",
+        "volatility=high_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=dispersion_stress": "sparse",
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress": "sufficient",
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress": "sufficient",
+        "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=normal_stress": "sparse",
+        "volatility=low_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress": "sparse",
+        "volatility=low_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=normal_stress": "sparse",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress": "sparse",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress": "sparse",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress": "sufficient",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress": "sparse",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress": "sparse",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress": "sufficient"
+      },
+      "observation_counts": {
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=near_peak|stress=dispersion_stress": 1,
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress": 2,
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress": 4,
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=dispersion_stress": 2,
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress": 4,
+        "volatility=high_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=dispersion_stress": 1,
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress": 5,
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress": 5,
+        "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=normal_stress": 1,
+        "volatility=low_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress": 2,
+        "volatility=low_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=normal_stress": 1,
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress": 2,
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress": 1,
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress": 5,
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress": 2,
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress": 1,
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress": 4
+      },
+      "regime_label_count": 17,
+      "regime_labels": [
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=near_peak|stress=dispersion_stress",
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress",
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=dispersion_stress",
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+        "volatility=high_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=dispersion_stress",
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+        "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=normal_stress",
+        "volatility=low_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+        "volatility=low_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=normal_stress",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress"
+      ]
+    },
+    "drawdown_recovery": {
+      "alignment_summary": {
+        "matched_defined": 43,
+        "matched_undefined": 20,
+        "regime_labels_unavailable": 0,
+        "total_rows": 63,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "near_peak": "sufficient",
+        "recovery": "sufficient",
+        "underwater": "sufficient"
+      },
+      "observation_counts": {
+        "near_peak": 4,
+        "recovery": 16,
+        "underwater": 23
+      },
+      "regime_label_count": 3,
+      "regime_labels": [
+        "near_peak",
+        "recovery",
+        "underwater"
+      ]
+    },
+    "stress": {
+      "alignment_summary": {
+        "matched_defined": 43,
+        "matched_undefined": 20,
+        "regime_labels_unavailable": 0,
+        "total_rows": 63,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "dispersion_stress": "sufficient",
+        "normal_stress": "sufficient"
+      },
+      "observation_counts": {
+        "dispersion_stress": 9,
+        "normal_stress": 34
+      },
+      "regime_label_count": 2,
+      "regime_labels": [
+        "dispersion_stress",
+        "normal_stress"
+      ]
+    },
+    "trend": {
+      "alignment_summary": {
+        "matched_defined": 43,
+        "matched_undefined": 20,
+        "regime_labels_unavailable": 0,
+        "total_rows": 63,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "downtrend": "sufficient",
+        "sideways": "sufficient",
+        "uptrend": "sparse"
+      },
+      "observation_counts": {
+        "downtrend": 18,
+        "sideways": 23,
+        "uptrend": 2
+      },
+      "regime_label_count": 3,
+      "regime_labels": [
+        "downtrend",
+        "sideways",
+        "uptrend"
+      ]
+    },
+    "volatility": {
+      "alignment_summary": {
+        "matched_defined": 43,
+        "matched_undefined": 20,
+        "regime_labels_unavailable": 0,
+        "total_rows": 63,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "high_volatility": "sufficient",
+        "low_volatility": "sufficient",
+        "normal_volatility": "sufficient"
+      },
+      "observation_counts": {
+        "high_volatility": 14,
+        "low_volatility": 14,
+        "normal_volatility": 15
+      },
+      "regime_label_count": 3,
+      "regime_labels": [
+        "high_volatility",
+        "low_volatility",
+        "normal_volatility"
+      ]
+    }
+  },
+  "min_observations": 3,
+  "periods_per_year": 252,
+  "run_id": "strategy_bundle",
+  "schema_version": 1,
+  "strategy_name": "mean_reversion_v1_safe_2026_q1",
+  "surface": "strategy",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

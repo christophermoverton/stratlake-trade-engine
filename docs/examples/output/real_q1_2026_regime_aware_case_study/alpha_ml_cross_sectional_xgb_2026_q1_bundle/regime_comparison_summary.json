@@ -1,0 +1,66 @@
+{
+  "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+  "artifact_type": "regime_comparison_summary",
+  "comparison_host": true,
+  "dimension": "composite",
+  "interpretation_highlights": [
+    "Comparison is aligned on shared regime dimension `composite`.",
+    "Runs leading in more than one regime: `ml_cross_sectional_lgbm_2026_q1`."
+  ],
+  "metadata": {
+    "case_study": "m24_8_real_q1_2026_regime_aware_case_study"
+  },
+  "regime_count": 8,
+  "regime_winners": [
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+      "run_id": "ml_cross_sectional_lgbm_2026_q1"
+    },
+    {
+      "primary_metric_value": 0.3045042306277388,
+      "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+      "run_id": "ml_cross_sectional_xgb_2026_q1"
+    },
+    {
+      "primary_metric_value": 0.18100386004270075,
+      "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "ml_cross_sectional_lgbm_2026_q1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+      "run_id": "ml_cross_sectional_lgbm_2026_q1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress",
+      "run_id": "ml_cross_sectional_lgbm_2026_q1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "ml_cross_sectional_lgbm_2026_q1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+      "run_id": "ml_cross_sectional_lgbm_2026_q1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "ml_cross_sectional_lgbm_2026_q1"
+    }
+  ],
+  "robust_run_ids": [
+    "ml_cross_sectional_lgbm_2026_q1"
+  ],
+  "run_count": 3,
+  "schema_version": 1,
+  "surface": "alpha",
+  "winner_counts_by_run": {
+    "ml_cross_sectional_lgbm_2026_q1": 7,
+    "ml_cross_sectional_xgb_2026_q1": 1
+  }
+}

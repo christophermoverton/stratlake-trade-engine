@@ -1,0 +1,19 @@
+{
+  "alpha_name": "rank_composite_momentum_2026_q1",
+  "artifacts": {
+    "metrics_by_regime_csv": "metrics_by_regime.csv",
+    "regime_conditional_manifest_json": "regime_conditional_manifest.json",
+    "regime_conditional_summary_json": "regime_conditional_summary.json"
+  },
+  "dimensions": [
+    "composite",
+    "drawdown_recovery",
+    "stress",
+    "trend",
+    "volatility"
+  ],
+  "run_id": "rank_composite_momentum_2026_q1_bundle",
+  "schema_version": 1,
+  "surface": "alpha",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

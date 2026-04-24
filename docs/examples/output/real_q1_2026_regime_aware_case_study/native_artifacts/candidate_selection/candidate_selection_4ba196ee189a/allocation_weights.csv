@@ -1,0 +1,3 @@
+candidate_id,alpha_name,sleeve_run_id,allocation_weight,allocation_method,pre_constraint_weight,constraint_adjusted_flag
+ml_cross_sectional_xgb_2026_q1_alpha_eval_1221fcf40775,ml_cross_sectional_xgb_2026_q1,,0.5,equal_weight,0.5,False
+rank_composite_momentum_2026_q1_alpha_eval_46aa308ef0e5,rank_composite_momentum_2026_q1,,0.5,equal_weight,0.5,False

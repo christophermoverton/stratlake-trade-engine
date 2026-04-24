@@ -1,0 +1,40 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 6563,
+      "path": "regime_attribution_report.md",
+      "sha256": "4199cead2fe213aaba5e39a0ab33a931d8b900414f3819121c3b1ea9d085d35d"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "165d55185215562ad57288571b1bdfecde7c78502ebb12a0c609cbb803304b2f"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 8,
+      "sha256": "eadb8917532375e67bee4cdc21f7fa818511b7080e3ade1929060979dcc900d9"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "alpha_name": "ml_cross_sectional_lgbm_2026_q1",
+    "surface": "alpha"
+  },
+  "run_id": "ml_cross_sectional_lgbm_2026_q1_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": false,
+    "dominant_regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+    "fragility_flag": false,
+    "regime_count": 8
+  },
+  "surface": "alpha",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

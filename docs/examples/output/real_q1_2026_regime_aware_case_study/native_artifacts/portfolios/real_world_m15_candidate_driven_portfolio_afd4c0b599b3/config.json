@@ -1,0 +1,139 @@
+{
+  "alignment_policy": "intersection",
+  "allocator": "equal_weight",
+  "evaluation_config_path": null,
+  "execution": {
+    "enabled": false,
+    "execution_delay": 1,
+    "fixed_fee": 0.0,
+    "fixed_fee_model": "per_rebalance",
+    "slippage_bps": 0.0,
+    "slippage_model": "constant",
+    "slippage_turnover_scale": 1.0,
+    "slippage_volatility_scale": 1.0,
+    "transaction_cost_bps": 0.0
+  },
+  "initial_capital": 1.0,
+  "optimizer": {
+    "covariance_ridge": 1e-08,
+    "full_investment": true,
+    "leverage_ceiling": 1.0,
+    "long_only": true,
+    "max_iterations": 500,
+    "max_single_weight": null,
+    "max_turnover": null,
+    "max_weight": null,
+    "method": "equal_weight",
+    "min_weight": 0.0,
+    "risk_free_rate": 0.0,
+    "target_weight_sum": 1.0,
+    "tolerance": 1e-08
+  },
+  "portfolio_name": "real_world_m15_candidate_driven",
+  "risk": {
+    "allow_scale_up": false,
+    "cvar_confidence_level": 0.95,
+    "max_volatility_scale": 1.0,
+    "min_volatility_scale": 0.0,
+    "periods_per_year_override": null,
+    "target_volatility": null,
+    "var_confidence_level": 0.95,
+    "volatility_epsilon": 1e-12,
+    "volatility_window": 20
+  },
+  "runtime": {
+    "execution": {
+      "enabled": false,
+      "execution_delay": 1,
+      "fixed_fee": 0.0,
+      "fixed_fee_model": "per_rebalance",
+      "slippage_bps": 0.0,
+      "slippage_model": "constant",
+      "slippage_turnover_scale": 1.0,
+      "slippage_volatility_scale": 1.0,
+      "transaction_cost_bps": 0.0
+    },
+    "portfolio_validation": {
+      "long_only": true,
+      "max_abs_period_return": 1.0,
+      "max_equity_multiple": 1000000.0,
+      "max_gross_exposure": 1.0,
+      "max_leverage": 1.0,
+      "max_single_sleeve_weight": 1.0,
+      "min_single_sleeve_weight": 0.0,
+      "net_exposure_tolerance": 1e-08,
+      "strict_sanity_checks": false,
+      "target_net_exposure": 1.0,
+      "target_weight_sum": 1.0,
+      "weight_sum_tolerance": 1e-08
+    },
+    "risk": {
+      "allow_scale_up": false,
+      "cvar_confidence_level": 0.95,
+      "max_volatility_scale": 1.0,
+      "min_volatility_scale": 0.0,
+      "periods_per_year_override": null,
+      "target_volatility": null,
+      "var_confidence_level": 0.95,
+      "volatility_epsilon": 1e-12,
+      "volatility_window": 20
+    },
+    "sanity": {
+      "max_abs_period_return": 1.0,
+      "max_annualized_return": 25.0,
+      "max_equity_multiple": 1000000.0,
+      "max_sharpe_ratio": 10.0,
+      "min_annualized_volatility_floor": 0.02,
+      "min_volatility_trigger_annualized_return": 1.0,
+      "min_volatility_trigger_sharpe": 4.0,
+      "smoothness_max_drawdown": 0.02,
+      "smoothness_min_annualized_return": 0.75,
+      "smoothness_min_positive_return_fraction": 0.95,
+      "smoothness_min_sharpe": 3.0,
+      "strict_sanity_checks": false
+    },
+    "strict_mode": {
+      "enabled": false,
+      "source": "default"
+    }
+  },
+  "sanity": {
+    "max_abs_period_return": 1.0,
+    "max_annualized_return": 25.0,
+    "max_equity_multiple": 1000000.0,
+    "max_sharpe_ratio": 10.0,
+    "min_annualized_volatility_floor": 0.02,
+    "min_volatility_trigger_annualized_return": 1.0,
+    "min_volatility_trigger_sharpe": 4.0,
+    "smoothness_max_drawdown": 0.02,
+    "smoothness_min_annualized_return": 0.75,
+    "smoothness_min_positive_return_fraction": 0.95,
+    "smoothness_min_sharpe": 3.0,
+    "strict_sanity_checks": false
+  },
+  "strict_mode": {
+    "enabled": false,
+    "source": "default"
+  },
+  "timeframe": "1D",
+  "validation": {
+    "long_only": true,
+    "max_abs_period_return": 1.0,
+    "max_equity_multiple": 1000000.0,
+    "max_gross_exposure": 1.0,
+    "max_leverage": 1.0,
+    "max_single_sleeve_weight": 1.0,
+    "min_single_sleeve_weight": 0.0,
+    "net_exposure_tolerance": 1e-08,
+    "strict_sanity_checks": false,
+    "target_net_exposure": 1.0,
+    "target_weight_sum": 1.0,
+    "weight_sum_tolerance": 1e-08
+  },
+  "volatility_targeting": {
+    "enabled": false,
+    "lookback_periods": 20,
+    "target_volatility": null,
+    "volatility_epsilon": 1e-12
+  }
+}

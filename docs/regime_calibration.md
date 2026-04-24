@@ -12,6 +12,10 @@ Use calibration when the first-pass regime output is too reactive for a
 downstream consumer, when transitions need to be smoothed, or when attribution
 and comparison workflows need explicit stability gates.
 
+When one profile is not enough, use the sensitivity layer documented in
+`docs/regime_sensitivity_matrix.md` to compare multiple profiles on the same
+input and rank them deterministically.
+
 For the conceptual design behind the layer, including the operating hypothesis
 and the calibration model, see
 `docs/regime_calibration_hypothesis_and_model.md`.

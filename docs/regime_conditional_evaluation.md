@@ -310,7 +310,7 @@ Regime-conditional metrics show how a strategy, alpha, or portfolio performs *in
 
 ### What conditional metrics do not tell you
 
-- **Transition effects.** A strategy may behave differently *around* regime changes. M24.4 adds deterministic transition analysis in [docs/regime_transition_analysis.md](/C:/Users/christophermoverton/stratlake-trade-engine/docs/regime_transition_analysis.md), but those outputs remain separate from the static regime-conditioned layer documented here.
+- **Transition effects.** A strategy may behave differently *around* regime changes. M24.4 adds deterministic transition analysis in [docs/regime_transition_analysis.md](docs/regime_transition_analysis.md), but those outputs remain separate from the static regime-conditioned layer documented here.
 - **Statistical significance.** A high `mean_ic` in a regime with sparse observations (coverage status `sparse`) may reflect noise. The `observation_count` and `coverage_status` columns exist precisely to flag this.
 - **Causality.** Conditional metrics describe association, not regime-driven causality. Use them alongside narrative analysis.
 

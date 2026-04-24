@@ -36,6 +36,26 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+## Milestone 24 Summary
+
+Milestone 24 introduces a full regime-aware research interpretation surface
+across strategy, alpha, and portfolio workflows. It adds deterministic regime
+classification and taxonomy artifacts, conditional evaluation by regime,
+transition and stress-state analysis, attribution and fragility detection,
+cross-run regime comparison surfaces, notebook inspection helpers, and both
+canonical and real-data Q1 2026 case studies.
+
+Start with:
+
+* [docs/regime_taxonomy.md](docs/regime_taxonomy.md)
+* [docs/regime_conditional_evaluation.md](docs/regime_conditional_evaluation.md)
+* [docs/regime_transition_analysis.md](docs/regime_transition_analysis.md)
+* [docs/regime_attribution_and_comparison.md](docs/regime_attribution_and_comparison.md)
+* [docs/examples/regime_notebook_review_examples.md](docs/examples/regime_notebook_review_examples.md)
+* [docs/examples/regime_aware_case_study.md](docs/examples/regime_aware_case_study.md)
+* [docs/examples/real_q1_2026_regime_aware_case_study.md](docs/examples/real_q1_2026_regime_aware_case_study.md)
+* [docs/examples/real_q1_2026_regime_aware_case_study_report.md](docs/examples/real_q1_2026_regime_aware_case_study_report.md)
+
 ## Milestone 23 Summary
 
 Milestone 23 makes the repository's deterministic execution workflows

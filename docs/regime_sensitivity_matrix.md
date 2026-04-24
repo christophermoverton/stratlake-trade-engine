@@ -94,6 +94,7 @@ Core columns include:
 * `attribution_ineligible_regime_count`
 * `warning_count`
 * `fallback_rows_total`
+* `fallback_unique_rows`
 * `unknown_fallback_rows`
 * `low_confidence_fallback_rows`
 * `unstable_profile_fallback_rows`
@@ -104,6 +105,18 @@ Core columns include:
 * `stability_score`
 * `eligible_for_downstream_decisioning`
 * `is_recommended_profile`
+
+### Fallback Count Semantics
+
+`fallback_rows_total` counts fallback applications, not unique affected rows.
+A single row can be counted more than once if it is first routed through
+unknown or low-confidence fallback and then later through unstable-profile
+fallback.
+
+Use `fallback_rows_total` to measure total fallback activity.
+
+`fallback_unique_rows` counts the number of unique rows where at least one
+fallback action was applied.
 
 ## Ranking Logic
 
@@ -160,6 +173,10 @@ Return-based surfaces expose profile summaries such as:
 
 These summaries are descriptive only. They help compare how calibration choices
 change the distribution of observations across regime buckets.
+
+Profile-level performance summaries are sorted deterministically by
+`profile_name` for stable artifact output. The sensitivity matrix itself
+retains caller profile order plus ranking fields for review.
 
 ## Artifact Contract
 

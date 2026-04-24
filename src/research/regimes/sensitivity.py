@@ -54,6 +54,7 @@ _MATRIX_COLUMNS: tuple[str, ...] = (
     "has_unstable_runs",
     "warning_count",
     "fallback_rows_total",
+    "fallback_unique_rows",
     "unknown_fallback_rows",
     "low_confidence_fallback_rows",
     "unstable_profile_fallback_rows",
@@ -339,6 +340,7 @@ def _resolve_profiles(
 
 def _matrix_row_for_result(result: RegimeCalibrationResult) -> dict[str, Any]:
     labels = result.labels.copy(deep=True)
+    audit = result.audit.copy(deep=True)
     counts = labels["regime_label"].astype("string").value_counts(sort=False)
     if counts.empty:
         dominant_regime_label = None
@@ -352,6 +354,12 @@ def _matrix_row_for_result(result: RegimeCalibrationResult) -> dict[str, Any]:
         + result.fallback_summary.get("low_confidence_fallback_rows", 0)
         + result.fallback_summary.get("unstable_profile_fallback_rows", 0)
     )
+    fallback_columns = [
+        "used_unknown_fallback",
+        "used_low_confidence_fallback",
+        "used_unstable_profile_fallback",
+    ]
+    fallback_unique_rows = int(audit.loc[:, fallback_columns].astype("bool").any(axis=1).sum())
     metrics = dict(result.stability_metrics)
     flags = dict(result.profile_flags)
     return canonicalize_value(
@@ -378,6 +386,7 @@ def _matrix_row_for_result(result: RegimeCalibrationResult) -> dict[str, Any]:
             "has_unstable_runs": bool(flags.get("has_unstable_runs", False)),
             "warning_count": int(len(result.warnings)),
             "fallback_rows_total": fallback_rows_total,
+            "fallback_unique_rows": fallback_unique_rows,
             "unknown_fallback_rows": int(result.fallback_summary.get("unknown_fallback_rows", 0)),
             "low_confidence_fallback_rows": int(result.fallback_summary.get("low_confidence_fallback_rows", 0)),
             "unstable_profile_fallback_rows": int(result.fallback_summary.get("unstable_profile_fallback_rows", 0)),

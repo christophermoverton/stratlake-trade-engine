@@ -97,6 +97,7 @@ def test_multi_profile_sensitivity_run_is_deterministic_and_exposes_required_col
         "attribution_ineligible_regime_count",
         "warning_count",
         "fallback_rows_total",
+        "fallback_unique_rows",
         "stable_profile_rank",
         "stability_score",
         "eligible_for_downstream_decisioning",
@@ -110,8 +111,10 @@ def test_stable_profile_ranking_prefers_stable_profiles_and_uses_input_order_tie
     result = run_regime_calibration_sensitivity(
         labels,
         profiles=[
+            # When profiles tie on stability metrics, caller-supplied profile
+            # order wins before profile-name alphabetical order.
             {
-                "name": "tie_second",
+                "name": "ordered_first",
                 "min_regime_duration_days": 2,
                 "transition_smoothing_window": 1,
                 "allow_single_day_flips": False,
@@ -125,7 +128,7 @@ def test_stable_profile_ranking_prefers_stable_profiles_and_uses_input_order_tie
                 "require_stability_for_attribution": True,
             },
             {
-                "name": "tie_first",
+                "name": "ordered_second",
                 "min_regime_duration_days": 2,
                 "transition_smoothing_window": 1,
                 "allow_single_day_flips": False,
@@ -156,8 +159,8 @@ def test_stable_profile_ranking_prefers_stable_profiles_and_uses_input_order_tie
     )
 
     ranked = result.matrix.set_index("profile_name")
-    assert int(ranked.loc["tie_second", "stable_profile_rank"]) == 1
-    assert int(ranked.loc["tie_first", "stable_profile_rank"]) == 2
+    assert int(ranked.loc["ordered_first", "stable_profile_rank"]) == 1
+    assert int(ranked.loc["ordered_second", "stable_profile_rank"]) == 2
     assert int(ranked.loc["unstable_last", "stable_profile_rank"]) == 3
 
 
@@ -226,10 +229,15 @@ def test_fallback_row_counts_are_surfaced_in_matrix() -> None:
     )
 
     row = result.matrix.iloc[0]
+    # fallback_rows_total counts fallback applications, not unique rows, so the
+    # same row can contribute more than once before/after unstable-profile
+    # fallback is applied across the full output.
     assert int(row["unknown_fallback_rows"]) == 1
     assert int(row["low_confidence_fallback_rows"]) == 2
     assert int(row["unstable_profile_fallback_rows"]) == 5
     assert int(row["fallback_rows_total"]) == 8
+    assert int(row["fallback_unique_rows"]) == 5
+    assert int(row["fallback_unique_rows"]) <= len(labels)
 
 
 def test_optional_performance_attribution_emits_deterministic_profile_summaries() -> None:

@@ -209,9 +209,10 @@ Missing/partial-overlap semantics:
 ## Deferred Work
 
 This foundation intentionally does not implement regime-aware strategy
-adaptation, portfolio reallocation, attribution reports, transition event
-analysis, notebook-specific renderers, macro data ingestion, clustering, or
-hidden-state models. Later M24 work should preserve taxonomy versioning,
+adaptation, portfolio reallocation, attribution reports, notebook-specific
+renderers, macro data ingestion, clustering, or hidden-state models.
+Transition event analysis now lives in `docs/regime_transition_analysis.md`.
+Later M24 work should preserve taxonomy versioning,
 canonical output schemas, exact-timestamp alignment semantics, composite-label
 order, and explicit `undefined` handling unless a deliberate taxonomy migration
 is introduced.

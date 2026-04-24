@@ -1,0 +1,149 @@
+{
+  "alpha_name": "ml_cross_sectional_lgbm_2026_q1",
+  "dimensions": [
+    "composite",
+    "drawdown_recovery",
+    "stress",
+    "trend",
+    "volatility"
+  ],
+  "dimensions_summary": {
+    "composite": {
+      "alignment_summary": {
+        "matched_defined": 19,
+        "matched_undefined": 0,
+        "regime_labels_unavailable": 0,
+        "total_rows": 19,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress": "sparse",
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress": "sufficient",
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress": "sufficient",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress": "sparse",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress": "sparse",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress": "sparse",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress": "sparse",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress": "sparse"
+      },
+      "observation_counts": {
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress": 1,
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress": 5,
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress": 5,
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress": 2,
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress": 1,
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress": 2,
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress": 1,
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress": 2
+      },
+      "regime_label_count": 8,
+      "regime_labels": [
+        "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+        "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress",
+        "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+        "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress"
+      ]
+    },
+    "drawdown_recovery": {
+      "alignment_summary": {
+        "matched_defined": 19,
+        "matched_undefined": 0,
+        "regime_labels_unavailable": 0,
+        "total_rows": 19,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "recovery": "sufficient",
+        "underwater": "sufficient"
+      },
+      "observation_counts": {
+        "recovery": 9,
+        "underwater": 10
+      },
+      "regime_label_count": 2,
+      "regime_labels": [
+        "recovery",
+        "underwater"
+      ]
+    },
+    "stress": {
+      "alignment_summary": {
+        "matched_defined": 19,
+        "matched_undefined": 0,
+        "regime_labels_unavailable": 0,
+        "total_rows": 19,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "dispersion_stress": "sufficient",
+        "normal_stress": "sufficient"
+      },
+      "observation_counts": {
+        "dispersion_stress": 3,
+        "normal_stress": 16
+      },
+      "regime_label_count": 2,
+      "regime_labels": [
+        "dispersion_stress",
+        "normal_stress"
+      ]
+    },
+    "trend": {
+      "alignment_summary": {
+        "matched_defined": 19,
+        "matched_undefined": 0,
+        "regime_labels_unavailable": 0,
+        "total_rows": 19,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "downtrend": "sufficient",
+        "sideways": "sufficient"
+      },
+      "observation_counts": {
+        "downtrend": 15,
+        "sideways": 4
+      },
+      "regime_label_count": 2,
+      "regime_labels": [
+        "downtrend",
+        "sideways"
+      ]
+    },
+    "volatility": {
+      "alignment_summary": {
+        "matched_defined": 19,
+        "matched_undefined": 0,
+        "regime_labels_unavailable": 0,
+        "total_rows": 19,
+        "unmatched_timestamp": 0
+      },
+      "coverage_breakdown": {
+        "high_volatility": "sparse",
+        "low_volatility": "sufficient",
+        "normal_volatility": "sufficient"
+      },
+      "observation_counts": {
+        "high_volatility": 1,
+        "low_volatility": 10,
+        "normal_volatility": 8
+      },
+      "regime_label_count": 3,
+      "regime_labels": [
+        "high_volatility",
+        "low_volatility",
+        "normal_volatility"
+      ]
+    }
+  },
+  "min_observations": 3,
+  "periods_per_year": 252,
+  "run_id": "ml_cross_sectional_lgbm_2026_q1_bundle",
+  "schema_version": 1,
+  "surface": "alpha",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

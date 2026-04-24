@@ -1,0 +1,36 @@
+{
+  "components": [
+    {
+      "artifact_type": "alpha_sleeve",
+      "provenance": {
+        "allocation_weight": 0.5,
+        "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+        "alpha_run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_1221fcf40775",
+        "candidate_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_1221fcf40775",
+        "candidate_selection_run_id": "candidate_selection_4ba196ee189a",
+        "mapping_name": "top_bottom_quantile_q20",
+        "selection_rank": 1,
+        "sleeve_run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_1221fcf40775"
+      },
+      "run_id": "ml_cross_sectional_xgb_2026_q1_alpha_eval_1221fcf40775",
+      "source_artifact_path": "docs/examples/output/real_q1_2026_regime_aware_case_study/native_artifacts/alpha/ml_cross_sectional_xgb_2026_q1_alpha_eval_1221fcf40775",
+      "strategy_name": "ml_cross_sectional_xgb_2026_q1__ml_cross_sectional_xgb_2026_q1_alpha_eval_1221fcf40775"
+    },
+    {
+      "artifact_type": "alpha_sleeve",
+      "provenance": {
+        "allocation_weight": 0.5,
+        "alpha_name": "rank_composite_momentum_2026_q1",
+        "alpha_run_id": "rank_composite_momentum_2026_q1_alpha_eval_46aa308ef0e5",
+        "candidate_id": "rank_composite_momentum_2026_q1_alpha_eval_46aa308ef0e5",
+        "candidate_selection_run_id": "candidate_selection_4ba196ee189a",
+        "mapping_name": "top_bottom_quantile_q20",
+        "selection_rank": 3,
+        "sleeve_run_id": "rank_composite_momentum_2026_q1_alpha_eval_46aa308ef0e5"
+      },
+      "run_id": "rank_composite_momentum_2026_q1_alpha_eval_46aa308ef0e5",
+      "source_artifact_path": "docs/examples/output/real_q1_2026_regime_aware_case_study/native_artifacts/alpha/rank_composite_momentum_2026_q1_alpha_eval_46aa308ef0e5",
+      "strategy_name": "rank_composite_momentum_2026_q1__rank_composite_momentum_2026_q1_alpha_eval_46aa308ef0e5"
+    }
+  ]
+}

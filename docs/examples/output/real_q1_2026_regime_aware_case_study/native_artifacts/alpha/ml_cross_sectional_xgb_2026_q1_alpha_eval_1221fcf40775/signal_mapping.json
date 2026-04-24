@@ -1,0 +1,30 @@
+{
+  "config": {
+    "metadata": {
+      "case_study": "q1_2026_ml_xgb_features_daily",
+      "name": "top_bottom_quantile_q20"
+    },
+    "output_column": "signal",
+    "policy": "top_bottom_quantile",
+    "position_constructor": {
+      "name": "top_bottom_equal_weight",
+      "params": {
+        "gross_long": 0.5,
+        "gross_short": 0.5
+      }
+    },
+    "prediction_column": "prediction_score",
+    "quantile": 0.2,
+    "signal_params": {
+      "quantile": 0.2
+    },
+    "signal_type": "ternary_quantile"
+  },
+  "cross_section_key": "ts_utc",
+  "row_count": 1200,
+  "signal_type": "ternary_quantile",
+  "signal_version": "1.0.0",
+  "symbol_count": 50,
+  "tie_breaker": "prediction_score then symbol ascending",
+  "timestamp_count": 24
+}

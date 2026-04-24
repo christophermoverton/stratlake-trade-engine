@@ -1,0 +1,32 @@
+{
+  "artifact_type": "regime_labels",
+  "artifacts": {
+    "manifest_json": "manifest.json",
+    "regime_labels_csv": "regime_labels.csv",
+    "regime_summary_json": "regime_summary.json"
+  },
+  "file_inventory": {
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "regime_labels.csv": {
+      "path": "regime_labels.csv",
+      "rows": 63,
+      "sha256": "595578e56b4ee6f2810f6e0fee3519503d295396376ceefa365e0f004563c09a"
+    },
+    "regime_summary.json": {
+      "path": "regime_summary.json",
+      "sha256": "6648f00dc0b6a1ae5096be8fc9bfafea75fc4414d24bdfdcf21791bb163a71ab"
+    }
+  },
+  "run_id": "alpha_ml_cross_sectional_lgbm_2026_q1_bundle",
+  "schema_version": 1,
+  "summary": {
+    "defined_row_count": 43,
+    "row_count": 63,
+    "ts_utc_end": "2026-04-02T04:00:00Z",
+    "ts_utc_start": "2026-01-02T05:00:00Z",
+    "undefined_row_count": 20
+  },
+  "taxonomy_version": "regime_taxonomy_v1"
+}

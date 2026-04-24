@@ -1,0 +1,463 @@
+{
+  "alpha": {
+    "comparison_host_alpha": "ml_cross_sectional_xgb_2026_q1",
+    "runs": [
+      {
+        "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+        "ic_ir": 1.9198107890623903,
+        "mean_ic": 0.2546042594447913,
+        "selected_in_portfolio": true
+      },
+      {
+        "alpha_name": "ml_cross_sectional_lgbm_2026_q1",
+        "ic_ir": 1.589418842850813,
+        "mean_ic": 0.24848289027411252,
+        "selected_in_portfolio": false
+      },
+      {
+        "alpha_name": "rank_composite_momentum_2026_q1",
+        "ic_ir": -0.04543185604194747,
+        "mean_ic": -0.007925863633708358,
+        "selected_in_portfolio": true
+      }
+    ],
+    "surface": "included"
+  },
+  "alpha_comparison": {
+    "best_run": {
+      "run_id": "ml_cross_sectional_lgbm_2026_q1",
+      "winner_count": 7
+    },
+    "regime_winners": [
+      {
+        "primary_metric_value": null,
+        "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+        "run_id": "ml_cross_sectional_lgbm_2026_q1"
+      },
+      {
+        "primary_metric_value": 0.3045042306277388,
+        "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+        "run_id": "ml_cross_sectional_xgb_2026_q1"
+      },
+      {
+        "primary_metric_value": 0.18100386004270075,
+        "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+        "run_id": "ml_cross_sectional_lgbm_2026_q1"
+      },
+      {
+        "primary_metric_value": null,
+        "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+        "run_id": "ml_cross_sectional_lgbm_2026_q1"
+      },
+      {
+        "primary_metric_value": null,
+        "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress",
+        "run_id": "ml_cross_sectional_lgbm_2026_q1"
+      },
+      {
+        "primary_metric_value": null,
+        "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+        "run_id": "ml_cross_sectional_lgbm_2026_q1"
+      },
+      {
+        "primary_metric_value": null,
+        "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+        "run_id": "ml_cross_sectional_lgbm_2026_q1"
+      },
+      {
+        "primary_metric_value": null,
+        "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+        "run_id": "ml_cross_sectional_lgbm_2026_q1"
+      }
+    ],
+    "robust_run_ids": [
+      "ml_cross_sectional_lgbm_2026_q1"
+    ],
+    "warning_row_count": 24
+  },
+  "artifact_tree": [
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/manifest.json",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/metrics_by_regime.csv",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_attribution_manifest.json",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_attribution_report.md",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_attribution_summary.json",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_attribution_table.csv",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_conditional_manifest.json",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_conditional_summary.json",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_labels.csv",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_summary.json",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_transition_events.csv",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_transition_manifest.json",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_transition_summary.json",
+    "alpha_ml_cross_sectional_lgbm_2026_q1_bundle/regime_transition_windows.csv",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/manifest.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/metrics_by_regime.csv",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_attribution_manifest.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_attribution_report.md",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_attribution_summary.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_attribution_table.csv",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_comparison_summary.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_comparison_table.csv",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_conditional_manifest.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_conditional_summary.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_labels.csv",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_summary.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_transition_events.csv",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_transition_manifest.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_transition_summary.json",
+    "alpha_ml_cross_sectional_xgb_2026_q1_bundle/regime_transition_windows.csv",
+    "alpha_rank_composite_momentum_2026_q1_bundle/manifest.json",
+    "alpha_rank_composite_momentum_2026_q1_bundle/metrics_by_regime.csv",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_attribution_manifest.json",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_attribution_report.md",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_attribution_summary.json",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_attribution_table.csv",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_conditional_manifest.json",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_conditional_summary.json",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_labels.csv",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_summary.json",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_transition_events.csv",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_transition_manifest.json",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_transition_summary.json",
+    "alpha_rank_composite_momentum_2026_q1_bundle/regime_transition_windows.csv",
+    "final_interpretation.md",
+    "notebook_review/alpha_comparison_summary.md",
+    "notebook_review/ml_cross_sectional_lgbm_2026_q1_attribution_summary.md",
+    "notebook_review/ml_cross_sectional_lgbm_2026_q1_inventory.md",
+    "notebook_review/ml_cross_sectional_lgbm_2026_q1_transition_highlights.md",
+    "notebook_review/ml_cross_sectional_xgb_2026_q1_attribution_summary.md",
+    "notebook_review/ml_cross_sectional_xgb_2026_q1_inventory.md",
+    "notebook_review/ml_cross_sectional_xgb_2026_q1_transition_highlights.md",
+    "notebook_review/portfolio_attribution_summary.md",
+    "notebook_review/portfolio_inventory.md",
+    "notebook_review/portfolio_transition_highlights.md",
+    "notebook_review/rank_composite_momentum_2026_q1_attribution_summary.md",
+    "notebook_review/rank_composite_momentum_2026_q1_inventory.md",
+    "notebook_review/rank_composite_momentum_2026_q1_transition_highlights.md",
+    "notebook_review/strategy_attribution_summary.md",
+    "notebook_review/strategy_inventory.md",
+    "notebook_review/strategy_transition_highlights.md",
+    "portfolio_bundle/manifest.json",
+    "portfolio_bundle/metrics_by_regime.csv",
+    "portfolio_bundle/regime_attribution_manifest.json",
+    "portfolio_bundle/regime_attribution_report.md",
+    "portfolio_bundle/regime_attribution_summary.json",
+    "portfolio_bundle/regime_attribution_table.csv",
+    "portfolio_bundle/regime_conditional_manifest.json",
+    "portfolio_bundle/regime_conditional_summary.json",
+    "portfolio_bundle/regime_labels.csv",
+    "portfolio_bundle/regime_summary.json",
+    "portfolio_bundle/regime_transition_events.csv",
+    "portfolio_bundle/regime_transition_manifest.json",
+    "portfolio_bundle/regime_transition_summary.json",
+    "portfolio_bundle/regime_transition_windows.csv",
+    "regime_bundle/manifest.json",
+    "regime_bundle/regime_labels.csv",
+    "regime_bundle/regime_summary.json",
+    "strategy_bundle/manifest.json",
+    "strategy_bundle/metrics_by_regime.csv",
+    "strategy_bundle/regime_attribution_manifest.json",
+    "strategy_bundle/regime_attribution_report.md",
+    "strategy_bundle/regime_attribution_summary.json",
+    "strategy_bundle/regime_attribution_table.csv",
+    "strategy_bundle/regime_conditional_manifest.json",
+    "strategy_bundle/regime_conditional_summary.json",
+    "strategy_bundle/regime_labels.csv",
+    "strategy_bundle/regime_summary.json",
+    "strategy_bundle/regime_transition_events.csv",
+    "strategy_bundle/regime_transition_manifest.json",
+    "strategy_bundle/regime_transition_summary.json",
+    "strategy_bundle/regime_transition_windows.csv"
+  ],
+  "candidate_selection": {
+    "allocation_weight_sum": 1.0,
+    "rejected_count": 1,
+    "selected_alpha_names": [
+      "ml_cross_sectional_xgb_2026_q1",
+      "rank_composite_momentum_2026_q1"
+    ],
+    "selected_count": 2
+  },
+  "case_study": {
+    "extends": [
+      "docs/examples/real_world_candidate_selection_portfolio_case_study.py",
+      "docs/examples/real_world_campaign_case_study.py",
+      "docs/examples/regime_aware_case_study.py"
+    ],
+    "milestone": "M24.8",
+    "name": "real_q1_2026_regime_aware_case_study"
+  },
+  "classification": {
+    "defined_row_count": 43,
+    "label_preview": [
+      {
+        "drawdown_recovery_state": "undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2026-01-02T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2026-01-05T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2026-01-06T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2026-01-07T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2026-01-08T05:00:00Z",
+        "volatility_state": "undefined"
+      }
+    ],
+    "state_distribution": {
+      "drawdown_recovery": {
+        "near_peak": 22,
+        "recovery": 16,
+        "undefined": 1,
+        "underwater": 24
+      },
+      "stress": {
+        "dispersion_stress": 9,
+        "normal_stress": 34,
+        "undefined": 20
+      },
+      "trend": {
+        "downtrend": 18,
+        "sideways": 23,
+        "undefined": 20,
+        "uptrend": 2
+      },
+      "volatility": {
+        "high_volatility": 14,
+        "low_volatility": 14,
+        "normal_volatility": 15,
+        "undefined": 20
+      }
+    },
+    "undefined_row_count": 20
+  },
+  "commands": [
+    "python docs/examples/real_q1_2026_regime_aware_case_study.py",
+    "python docs/examples/real_q1_2026_regime_aware_case_study.py --output-root docs/examples/output/real_q1_2026_regime_aware_case_study"
+  ],
+  "input_path": {
+    "alpha_names": [
+      "ml_cross_sectional_xgb_2026_q1",
+      "ml_cross_sectional_lgbm_2026_q1",
+      "rank_composite_momentum_2026_q1"
+    ],
+    "dataset": "features_daily",
+    "date_window": {
+      "end_exclusive": "2026-04-03",
+      "start": "2026-01-01"
+    },
+    "features_root": "data/curated/features_daily",
+    "market_symbols": [
+      "AAPL",
+      "ABBV",
+      "ADBE",
+      "AMD",
+      "AMZN",
+      "AVGO",
+      "BA",
+      "BAC",
+      "C",
+      "CAT",
+      "COP",
+      "COST"
+    ],
+    "portfolio_name": "real_world_m15_candidate_driven",
+    "strategy_name": "mean_reversion_v1_safe_2026_q1"
+  },
+  "limitations": [
+    "The market regime surface is built from a deterministic fixed basket of repository-available Q1 2026 `features_daily` symbols rather than a bespoke benchmark index series.",
+    "The strategy surface is a direct real-data strategy run, while the alpha and portfolio surfaces extend the prior real-world candidate-selection workflow.",
+    "Interpretation is descriptive and evidence-based; sparse and empty slices should limit confidence."
+  ],
+  "notebook_review": {
+    "alpha_comparison_summary": "notebook_review/alpha_comparison_summary.md",
+    "ml_cross_sectional_lgbm_2026_q1_attribution_summary": "notebook_review/ml_cross_sectional_lgbm_2026_q1_attribution_summary.md",
+    "ml_cross_sectional_lgbm_2026_q1_inventory": "notebook_review/ml_cross_sectional_lgbm_2026_q1_inventory.md",
+    "ml_cross_sectional_lgbm_2026_q1_transition_highlights": "notebook_review/ml_cross_sectional_lgbm_2026_q1_transition_highlights.md",
+    "ml_cross_sectional_xgb_2026_q1_attribution_summary": "notebook_review/ml_cross_sectional_xgb_2026_q1_attribution_summary.md",
+    "ml_cross_sectional_xgb_2026_q1_inventory": "notebook_review/ml_cross_sectional_xgb_2026_q1_inventory.md",
+    "ml_cross_sectional_xgb_2026_q1_transition_highlights": "notebook_review/ml_cross_sectional_xgb_2026_q1_transition_highlights.md",
+    "portfolio_attribution_summary": "notebook_review/portfolio_attribution_summary.md",
+    "portfolio_inventory": "notebook_review/portfolio_inventory.md",
+    "portfolio_transition_highlights": "notebook_review/portfolio_transition_highlights.md",
+    "rank_composite_momentum_2026_q1_attribution_summary": "notebook_review/rank_composite_momentum_2026_q1_attribution_summary.md",
+    "rank_composite_momentum_2026_q1_inventory": "notebook_review/rank_composite_momentum_2026_q1_inventory.md",
+    "rank_composite_momentum_2026_q1_transition_highlights": "notebook_review/rank_composite_momentum_2026_q1_transition_highlights.md",
+    "strategy_attribution_summary": "notebook_review/strategy_attribution_summary.md",
+    "strategy_inventory": "notebook_review/strategy_inventory.md",
+    "strategy_transition_highlights": "notebook_review/strategy_transition_highlights.md"
+  },
+  "paths": {
+    "alpha_bundles": {
+      "ml_cross_sectional_lgbm_2026_q1": "alpha_ml_cross_sectional_lgbm_2026_q1_bundle",
+      "ml_cross_sectional_xgb_2026_q1": "alpha_ml_cross_sectional_xgb_2026_q1_bundle",
+      "rank_composite_momentum_2026_q1": "alpha_rank_composite_momentum_2026_q1_bundle"
+    },
+    "final_interpretation": "final_interpretation.md",
+    "notebook_review_dir": "notebook_review",
+    "output_root": ".",
+    "portfolio_bundle": "portfolio_bundle",
+    "regime_bundle": "regime_bundle",
+    "strategy_bundle": "strategy_bundle"
+  },
+  "portfolio": {
+    "alignment_preview": [
+      {
+        "portfolio_return": 0.0,
+        "regime_alignment_status": "matched_defined",
+        "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+        "ts_utc": "2026-03-02T05:00:00Z"
+      },
+      {
+        "portfolio_return": 0.0015166930926314,
+        "regime_alignment_status": "matched_defined",
+        "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress",
+        "ts_utc": "2026-03-03T05:00:00Z"
+      },
+      {
+        "portfolio_return": -0.0017381082148809,
+        "regime_alignment_status": "matched_defined",
+        "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=dispersion_stress",
+        "ts_utc": "2026-03-04T05:00:00Z"
+      },
+      {
+        "portfolio_return": 0.0014633017420486,
+        "regime_alignment_status": "matched_defined",
+        "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+        "ts_utc": "2026-03-05T05:00:00Z"
+      },
+      {
+        "portfolio_return": 0.0018450220768839,
+        "regime_alignment_status": "matched_defined",
+        "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+        "ts_utc": "2026-03-06T05:00:00Z"
+      }
+    ],
+    "attribution": {
+      "best_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": 0.015174656275256826,
+        "observation_count": 5,
+        "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress"
+      },
+      "fragility_flag": false,
+      "fragility_reason": "no deterministic fragility heuristic triggered",
+      "primary_metric": "total_return",
+      "worst_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": -0.003646818401148222,
+        "observation_count": 5,
+        "regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress"
+      }
+    },
+    "component_count": 2,
+    "surface": "included",
+    "transition": {
+      "event_count": 45,
+      "most_adverse_category": {
+        "event_count": 2,
+        "metric_value": 0.001337844704837221,
+        "transition_category": "trend_breakdown",
+        "transition_dimension": "trend"
+      },
+      "primary_metric": "post_transition_return"
+    }
+  },
+  "strategy": {
+    "alignment_preview": [
+      {
+        "regime_alignment_status": "matched_undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+        "strategy_return": 0.0,
+        "ts_utc": "2026-01-02T05:00:00Z"
+      },
+      {
+        "regime_alignment_status": "matched_undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "strategy_return": 0.0,
+        "ts_utc": "2026-01-05T05:00:00Z"
+      },
+      {
+        "regime_alignment_status": "matched_undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "strategy_return": 0.0,
+        "ts_utc": "2026-01-06T05:00:00Z"
+      },
+      {
+        "regime_alignment_status": "matched_undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "strategy_return": 0.0,
+        "ts_utc": "2026-01-07T05:00:00Z"
+      },
+      {
+        "regime_alignment_status": "matched_undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "strategy_return": 0.0,
+        "ts_utc": "2026-01-08T05:00:00Z"
+      }
+    ],
+    "attribution": {
+      "best_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": 0.009944287812721608,
+        "observation_count": 4,
+        "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress"
+      },
+      "fragility_flag": true,
+      "fragility_reason": "most positive contribution comes from one dominant regime",
+      "primary_metric": "total_return",
+      "worst_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": -0.0033326061805848406,
+        "observation_count": 4,
+        "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress"
+      }
+    },
+    "conditional_dimensions": [
+      "composite",
+      "drawdown_recovery",
+      "stress",
+      "trend",
+      "volatility"
+    ],
+    "row_count": 63,
+    "surface": "included",
+    "transition": {
+      "event_count": 45,
+      "most_adverse_category": {
+        "event_count": 2,
+        "metric_value": -0.0014651113147232109,
+        "transition_category": "stress_relief",
+        "transition_dimension": "stress"
+      },
+      "primary_metric": "post_transition_return"
+    }
+  }
+}

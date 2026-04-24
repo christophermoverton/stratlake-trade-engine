@@ -1,0 +1,40 @@
+{
+  "compatibility_mode": "managed",
+  "constructor_id": "top_bottom_equal_weight",
+  "constructor_params": {
+    "gross_long": 0.5,
+    "gross_short": 0.5
+  },
+  "definition": {
+    "compatible_position_constructors": [
+      "softmax_long_only"
+    ],
+    "cross_sectional": true,
+    "directional": true,
+    "executable": false,
+    "ordinal": false,
+    "probabilistic": false
+  },
+  "mapping_policy": "top_bottom_quantile",
+  "parameters": {
+    "quantile": 0.2
+  },
+  "signal_type": "ternary_quantile",
+  "source": {
+    "component": "prediction_mapping",
+    "layer": "alpha"
+  },
+  "timestamp_normalization": "UTC",
+  "transformation_history": [
+    {
+      "input_type": "prediction_score",
+      "operation": "score_to_ternary_long_short",
+      "output_type": "ternary_quantile",
+      "parameters": {
+        "quantile": 0.2
+      }
+    }
+  ],
+  "value_column": "signal",
+  "version": "1.0.0"
+}

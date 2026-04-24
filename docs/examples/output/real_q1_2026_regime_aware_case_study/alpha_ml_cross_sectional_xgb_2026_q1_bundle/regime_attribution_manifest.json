@@ -1,0 +1,52 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv",
+    "regime_comparison_summary.json",
+    "regime_comparison_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 9463,
+      "path": "regime_attribution_report.md",
+      "sha256": "72de98b59b8abbc810624a3830945cb68f1072783f77a34e2421ab5a15cd2e06"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "88ea615371487ee1df1c4a544807954dc600614df8de903b4d1643073a20550d"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 8,
+      "sha256": "54e3f3284939b0070e34f3ed9a6ec34218e977a111d0ef40e5183092c0747997"
+    },
+    "regime_comparison_summary.json": {
+      "path": "regime_comparison_summary.json",
+      "sha256": "f80c020663d6dbb35b1d85f60859e8ccab843435f86e6d9be8768c6a85a61e23"
+    },
+    "regime_comparison_table.csv": {
+      "path": "regime_comparison_table.csv",
+      "rows": 24,
+      "sha256": "1daba5b5ad7458e3721c557ee2e33ffdccd5a2c6da8cf552b8cc7b7ef4c19e42"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "alpha_name": "ml_cross_sectional_xgb_2026_q1",
+    "comparison_host": true,
+    "surface": "alpha"
+  },
+  "run_id": "ml_cross_sectional_xgb_2026_q1_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": true,
+    "dominant_regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+    "fragility_flag": true,
+    "regime_count": 8
+  },
+  "surface": "alpha",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

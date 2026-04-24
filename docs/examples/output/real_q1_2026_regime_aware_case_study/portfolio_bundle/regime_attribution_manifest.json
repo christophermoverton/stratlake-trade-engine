@@ -1,0 +1,40 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 6661,
+      "path": "regime_attribution_report.md",
+      "sha256": "6015078b32f26d1290fd1ac84c7233e95aff4f38294694f4435a45242dc712e6"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "e5697b646a3d3582abc926920a5b42dd058c6faffde919ce411d4d0abae548d3"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 10,
+      "sha256": "390a28737580ed44198e532d72462bc8f7c3e0352a9353b462b7ce8c772bc965"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "portfolio_name": "real_world_m15_candidate_driven",
+    "surface": "portfolio"
+  },
+  "run_id": "portfolio_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": false,
+    "dominant_regime_label": "volatility=low_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+    "fragility_flag": false,
+    "regime_count": 10
+  },
+  "surface": "portfolio",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

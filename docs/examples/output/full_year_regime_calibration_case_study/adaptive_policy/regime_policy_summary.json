@@ -1,0 +1,159 @@
+{
+  "artifact_type": "regime_policy_summary",
+  "columns": [
+    "symbol",
+    "ts_utc",
+    "regime_label",
+    "matched_policy_key",
+    "matched_alias",
+    "confidence_score",
+    "confidence_bucket",
+    "confidence_fallback_reason",
+    "fallback_policy_applied",
+    "policy_reason",
+    "signal_scale",
+    "allocation_scale",
+    "alpha_weight_multiplier",
+    "volatility_target",
+    "gross_exposure_cap",
+    "max_component_weight",
+    "rebalance_enabled",
+    "optimizer_override",
+    "allocation_rule_override",
+    "calibration_profile",
+    "is_unstable_profile",
+    "eligible_for_downstream_decisioning",
+    "policy_source",
+    "baseline_weight",
+    "adaptive_weight",
+    "baseline_return",
+    "adaptive_return",
+    "baseline_equity",
+    "adaptive_equity"
+  ],
+  "comparison_metrics": [
+    {
+      "adaptive_max_drawdown": 0.04299676200444813,
+      "adaptive_sharpe": 0.4057155049839299,
+      "adaptive_total_return": 0.016409727339816937,
+      "adaptive_volatility": 0.002688883366495243,
+      "average_allocation_scale": 0.9936000000000001,
+      "average_signal_scale": 0.9936000000000001,
+      "baseline_max_drawdown": 0.04429849250753615,
+      "baseline_sharpe": 0.5210832301794449,
+      "baseline_total_return": 0.022285812055291343,
+      "baseline_volatility": 0.0028057821274173294,
+      "fallback_row_count": 23,
+      "low_confidence_fallback_count": 1,
+      "surface": "portfolio",
+      "unknown_regime_fallback_count": 22
+    }
+  ],
+  "decision_counts_by_policy_key": {
+    "default": 93,
+    "drawdown_watch": 6,
+    "risk_off": 18,
+    "risk_on": 133
+  },
+  "fallback_counts": {
+    "ambiguous": 0,
+    "low_confidence": 1,
+    "policy_fallback_rows": 23,
+    "undefined_regime": 22,
+    "unsupported": 0
+  },
+  "metadata": {
+    "case_study": "full_year_regime_calibration_case_study"
+  },
+  "policy_config": {
+    "metadata": {},
+    "regime_aliases": {
+      "drawdown_watch": {
+        "match": {
+          "drawdown_recovery_state": "drawdown"
+        },
+        "name": "drawdown_watch"
+      },
+      "risk_off": {
+        "match": {
+          "stress_state": "correlation_stress"
+        },
+        "name": "risk_off"
+      },
+      "risk_on": {
+        "match": {
+          "stress_state": "normal_stress",
+          "trend_state": "uptrend"
+        },
+        "name": "risk_on"
+      }
+    },
+    "regime_policy": {
+      "confidence": {
+        "ambiguous_fallback": "reduce_exposure",
+        "low_confidence_fallback": "neutral",
+        "min_confidence": 0.6,
+        "unsupported_fallback": "baseline"
+      },
+      "default": {
+        "allocation_rule_override": null,
+        "allocation_scale": 1.0,
+        "alpha_weight_multiplier": 1.0,
+        "fallback_policy": "baseline",
+        "gross_exposure_cap": 1.0,
+        "max_component_weight": 1.0,
+        "optimizer_override": null,
+        "rebalance_enabled": true,
+        "signal_scale": 1.0,
+        "volatility_target": 0.1
+      },
+      "regimes": {
+        "drawdown_watch": {
+          "allocation_rule_override": null,
+          "allocation_scale": 0.85,
+          "alpha_weight_multiplier": 1.0,
+          "fallback_policy": "reduce_exposure",
+          "gross_exposure_cap": 0.85,
+          "max_component_weight": 0.85,
+          "optimizer_override": "equal_weight",
+          "rebalance_enabled": true,
+          "signal_scale": 0.85,
+          "volatility_target": 0.08
+        },
+        "risk_off": {
+          "allocation_rule_override": null,
+          "allocation_scale": 0.65,
+          "alpha_weight_multiplier": 1.0,
+          "fallback_policy": "reduce_exposure",
+          "gross_exposure_cap": 0.65,
+          "max_component_weight": 0.65,
+          "optimizer_override": "equal_weight",
+          "rebalance_enabled": true,
+          "signal_scale": 0.65,
+          "volatility_target": 0.07
+        },
+        "risk_on": {
+          "allocation_rule_override": null,
+          "allocation_scale": 1.05,
+          "alpha_weight_multiplier": 1.0,
+          "fallback_policy": "baseline",
+          "gross_exposure_cap": 1.0,
+          "max_component_weight": 1.0,
+          "optimizer_override": "equal_weight",
+          "rebalance_enabled": true,
+          "signal_scale": 1.05,
+          "volatility_target": 0.11
+        }
+      }
+    }
+  },
+  "policy_keys": [
+    "default",
+    "drawdown_watch",
+    "risk_off",
+    "risk_on"
+  ],
+  "row_count": 250,
+  "schema_version": 1,
+  "taxonomy_version": "regime_taxonomy_v1"
+}

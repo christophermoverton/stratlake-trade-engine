@@ -1,0 +1,32 @@
+{
+  "artifact_type": "regime_labels",
+  "artifacts": {
+    "manifest_json": "manifest.json",
+    "regime_labels_csv": "regime_labels.csv",
+    "regime_summary_json": "regime_summary.json"
+  },
+  "file_inventory": {
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "regime_labels.csv": {
+      "path": "regime_labels.csv",
+      "rows": 250,
+      "sha256": "66aa9d961f711349b9922d97b32d468263cc5a42d2708cd446135c2f74da1a32"
+    },
+    "regime_summary.json": {
+      "path": "regime_summary.json",
+      "sha256": "700dde5290fef1526be080369b0c0660882aec06cc3aa3a9752bf905d1c8582b"
+    }
+  },
+  "run_id": "strategy_momentum_v1_bundle",
+  "schema_version": 1,
+  "summary": {
+    "defined_row_count": 230,
+    "row_count": 250,
+    "ts_utc_end": "2025-12-31T05:00:00Z",
+    "ts_utc_start": "2025-01-02T05:00:00Z",
+    "undefined_row_count": 20
+  },
+  "taxonomy_version": "regime_taxonomy_v1"
+}

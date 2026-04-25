@@ -1,0 +1,58 @@
+{
+  "artifact_type": "regime_calibration_summary",
+  "fallback_behavior_applied": {
+    "low_confidence_fallback_rows": 0,
+    "unknown_fallback_rows": 20,
+    "unknown_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+    "unstable_profile_fallback_rows": 0,
+    "unstable_regime_fallback": null
+  },
+  "output_row_count": 250,
+  "parameters": {
+    "allow_single_day_flips": true,
+    "low_confidence_share_threshold": 0.4,
+    "max_flip_rate": 0.5,
+    "max_single_day_flip_share": 0.3,
+    "metadata": {
+      "intent": "maximize responsiveness"
+    },
+    "min_observations_for_attribution": 4,
+    "min_observations_per_regime": 2,
+    "min_regime_duration_days": 1,
+    "name": "reactive",
+    "require_stability_for_attribution": false,
+    "transition_smoothing_window": 1,
+    "unknown_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+    "unstable_regime_fallback": null
+  },
+  "profile_flags": {
+    "exceeds_low_confidence_share": false,
+    "exceeds_max_flip_rate": false,
+    "exceeds_max_single_day_flip_share": false,
+    "has_unstable_runs": false,
+    "is_unstable_profile": false
+  },
+  "profile_name": "reactive",
+  "schema_version": 1,
+  "stability_metrics": {
+    "attribution_eligible_regime_count": 20,
+    "attribution_ineligible_regime_count": 17,
+    "average_regime_duration": 2.1739130434782608,
+    "flip_rate": 0.4578313253012048,
+    "low_confidence_share": 0.004,
+    "maximum_regime_duration": 25,
+    "median_regime_duration": 1.0,
+    "minimum_regime_duration": 1,
+    "regime_count": 115,
+    "single_day_flip_count": 19,
+    "single_day_flip_share": 0.16521739130434782,
+    "total_observations": 250,
+    "transition_count": 114,
+    "unstable_regime_share": 0.0
+  },
+  "taxonomy_version": "regime_taxonomy_v1",
+  "warnings": [
+    "17 regime label(s) do not meet attribution eligibility requirements for this profile.",
+    "7 regime label(s) do not meet min_observations_per_regime for stable review."
+  ]
+}

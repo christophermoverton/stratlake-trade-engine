@@ -1,0 +1,154 @@
+{
+  "artifact_type": "data_coverage_summary",
+  "counts": {
+    "detected_symbol_partition_count": 50,
+    "row_count": 12500,
+    "symbol_count": 50,
+    "unique_date_count": 250
+  },
+  "coverage_status": {
+    "failure_reasons": [],
+    "passed": true
+  },
+  "data_source": {
+    "dataset_root": "data/curated/features_daily",
+    "features_root": "data",
+    "mock_or_synthetic_data": false,
+    "real_data_used": true,
+    "type": "downloaded_real_data"
+  },
+  "dataset": "features_daily",
+  "diagnostics": {
+    "large_gap_examples": [],
+    "max_gap_days": 4,
+    "month_presence": {
+      "01": true,
+      "02": true,
+      "03": true,
+      "04": true,
+      "05": true,
+      "06": true,
+      "07": true,
+      "08": true,
+      "09": true,
+      "10": true,
+      "11": true,
+      "12": true
+    },
+    "per_symbol_coverage_preview": [
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "AAPL"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "ABBV"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "ADBE"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "AMD"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "AMZN"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "AVGO"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "BA"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "BAC"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "C"
+      },
+      {
+        "count": 250,
+        "max": "2025-12-31T05:00:00Z",
+        "min": "2025-01-02T05:00:00Z",
+        "symbol": "CAT"
+      }
+    ],
+    "rows_per_symbol_summary": {
+      "max": 250,
+      "median": 250.0,
+      "min": 250
+    }
+  },
+  "market_basket_symbols": [
+    "AAPL",
+    "ABBV",
+    "ADBE",
+    "AMD",
+    "AMZN",
+    "AVGO",
+    "BA",
+    "BAC",
+    "C",
+    "CAT",
+    "COP",
+    "COST"
+  ],
+  "observed_window": {
+    "max_date": "2025-12-31",
+    "max_timestamp": "2025-12-31T05:00:00Z",
+    "min_date": "2025-01-02",
+    "min_timestamp": "2025-01-02T05:00:00Z"
+  },
+  "requested_window": {
+    "end_date": "2025-12-31",
+    "end_exclusive": "2026-01-01",
+    "start_date": "2025-01-01"
+  },
+  "schema": {
+    "columns": [
+      "symbol",
+      "ts_utc",
+      "timeframe",
+      "date",
+      "close",
+      "feature_ret_1d",
+      "feature_ret_5d",
+      "feature_ret_20d",
+      "feature_vol_20d",
+      "feature_sma20",
+      "feature_sma50",
+      "feature_sma_20",
+      "feature_close_to_sma20",
+      "year",
+      "feature_sma_50",
+      "target_ret_1d",
+      "target_ret_5d"
+    ],
+    "has_date": true,
+    "has_ts_utc": true
+  }
+}

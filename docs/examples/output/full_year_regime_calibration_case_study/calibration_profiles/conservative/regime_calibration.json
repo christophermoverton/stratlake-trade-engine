@@ -1,0 +1,105 @@
+{
+  "artifact_type": "regime_calibration",
+  "artifacts": {
+    "regime_calibration_json": "regime_calibration.json",
+    "regime_calibration_summary_json": "regime_calibration_summary.json",
+    "regime_stability_metrics_json": "regime_stability_metrics.json"
+  },
+  "attribution_summary": [
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 250,
+      "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined"
+    }
+  ],
+  "fallback_behavior_applied": {
+    "low_confidence_fallback_rows": 1,
+    "unknown_fallback_rows": 23,
+    "unknown_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+    "unstable_profile_fallback_rows": 250,
+    "unstable_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined"
+  },
+  "file_inventory": {
+    "regime_calibration.json": {
+      "path": "regime_calibration.json"
+    },
+    "regime_calibration_summary.json": {
+      "path": "regime_calibration_summary.json",
+      "sha256": "0a6fb73df5ed174148e459567e231d6efa5b8d73a8aa7d3e79542fa74d09efa9"
+    },
+    "regime_stability_metrics.json": {
+      "path": "regime_stability_metrics.json",
+      "sha256": "8655b48d5aa6840fff9c4fcc3197060d1deb03a41f59c542e4fc2e6e4f42598e"
+    }
+  },
+  "metadata": {
+    "case_study": "full_year_regime_calibration_case_study",
+    "confidence_column": "gmm_confidence_score",
+    "confidence_threshold": 0.6,
+    "input_row_count": 250,
+    "metadata": {
+      "case_study": "full_year_regime_calibration_case_study"
+    },
+    "taxonomy_version": "regime_taxonomy_v1"
+  },
+  "output_row_count": 250,
+  "profile": {
+    "allow_single_day_flips": false,
+    "low_confidence_share_threshold": 0.15,
+    "max_flip_rate": 0.15,
+    "max_single_day_flip_share": 0.05,
+    "metadata": {
+      "intent": "suppress short-lived noise"
+    },
+    "min_observations_for_attribution": 8,
+    "min_observations_per_regime": 5,
+    "min_regime_duration_days": 3,
+    "name": "conservative",
+    "require_stability_for_attribution": true,
+    "transition_smoothing_window": 3,
+    "unknown_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+    "unstable_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined"
+  },
+  "profile_flags": {
+    "exceeds_low_confidence_share": false,
+    "exceeds_max_flip_rate": false,
+    "exceeds_max_single_day_flip_share": false,
+    "has_unstable_runs": true,
+    "is_unstable_profile": true
+  },
+  "profile_name": "conservative",
+  "run_id": "calibration_conservative",
+  "schema_version": 1,
+  "source_regime_artifact_references": {
+    "regime_manifest": "../regime_bundle/regime_manifest.json"
+  },
+  "stability_metrics": {
+    "attribution_eligible_regime_count": 1,
+    "attribution_ineligible_regime_count": 0,
+    "average_regime_duration": 250.0,
+    "flip_rate": 0.0,
+    "low_confidence_share": 0.004,
+    "maximum_regime_duration": 250,
+    "median_regime_duration": 250.0,
+    "minimum_regime_duration": 250,
+    "regime_count": 1,
+    "single_day_flip_count": 0,
+    "single_day_flip_share": 0.0,
+    "total_observations": 250,
+    "transition_count": 0,
+    "unstable_regime_share": 0.0
+  },
+  "summary": {
+    "is_unstable_profile": true,
+    "output_row_count": 250,
+    "profile_name": "conservative",
+    "warning_count": 0
+  },
+  "taxonomy_metadata": {
+    "taxonomy_version": "regime_taxonomy_v1"
+  },
+  "taxonomy_version": "regime_taxonomy_v1",
+  "warnings": []
+}

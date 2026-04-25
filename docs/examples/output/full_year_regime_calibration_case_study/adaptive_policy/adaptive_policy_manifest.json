@@ -1,0 +1,159 @@
+{
+  "artifact_type": "regime_policy",
+  "artifacts": {
+    "adaptive_policy_manifest_json": "adaptive_policy_manifest.json",
+    "adaptive_vs_static_comparison_csv": "adaptive_vs_static_comparison.csv",
+    "regime_policy_decisions_csv": "regime_policy_decisions.csv",
+    "regime_policy_summary_json": "regime_policy_summary.json"
+  },
+  "calibration_profile": "baseline",
+  "confidence_artifact_references": {
+    "gmm_manifest": "../gmm_confidence/regime_gmm_manifest.json"
+  },
+  "decision_counts_by_policy_key": {
+    "default": 93,
+    "drawdown_watch": 6,
+    "risk_off": 18,
+    "risk_on": 133
+  },
+  "fallback_counts": {
+    "ambiguous": 0,
+    "low_confidence": 1,
+    "policy_fallback_rows": 23,
+    "undefined_regime": 22,
+    "unsupported": 0
+  },
+  "file_inventory": {
+    "adaptive_policy_manifest.json": {
+      "path": "adaptive_policy_manifest.json"
+    },
+    "adaptive_vs_static_comparison.csv": {
+      "path": "adaptive_vs_static_comparison.csv",
+      "rows": 1,
+      "sha256": "0780e17e394f8969197e6dc8dbb9555e4c6a8fed7e4d472d86fdc2c8c8cf7ac3"
+    },
+    "regime_policy_decisions.csv": {
+      "path": "regime_policy_decisions.csv",
+      "rows": 250,
+      "sha256": "fdf848100c1a00fadfd2e1ac1a2d40c425006700c9c62508f4c968692ef1e3bf"
+    },
+    "regime_policy_summary.json": {
+      "path": "regime_policy_summary.json",
+      "sha256": "862bbfb719906cb40656c6fbe974188af786e56733bc74079ac73ffa6156a3e1"
+    }
+  },
+  "metadata": {
+    "case_study": "full_year_regime_calibration_case_study"
+  },
+  "policy_config": {
+    "metadata": {},
+    "regime_aliases": {
+      "drawdown_watch": {
+        "match": {
+          "drawdown_recovery_state": "drawdown"
+        },
+        "name": "drawdown_watch"
+      },
+      "risk_off": {
+        "match": {
+          "stress_state": "correlation_stress"
+        },
+        "name": "risk_off"
+      },
+      "risk_on": {
+        "match": {
+          "stress_state": "normal_stress",
+          "trend_state": "uptrend"
+        },
+        "name": "risk_on"
+      }
+    },
+    "regime_policy": {
+      "confidence": {
+        "ambiguous_fallback": "reduce_exposure",
+        "low_confidence_fallback": "neutral",
+        "min_confidence": 0.6,
+        "unsupported_fallback": "baseline"
+      },
+      "default": {
+        "allocation_rule_override": null,
+        "allocation_scale": 1.0,
+        "alpha_weight_multiplier": 1.0,
+        "fallback_policy": "baseline",
+        "gross_exposure_cap": 1.0,
+        "max_component_weight": 1.0,
+        "optimizer_override": null,
+        "rebalance_enabled": true,
+        "signal_scale": 1.0,
+        "volatility_target": 0.1
+      },
+      "regimes": {
+        "drawdown_watch": {
+          "allocation_rule_override": null,
+          "allocation_scale": 0.85,
+          "alpha_weight_multiplier": 1.0,
+          "fallback_policy": "reduce_exposure",
+          "gross_exposure_cap": 0.85,
+          "max_component_weight": 0.85,
+          "optimizer_override": "equal_weight",
+          "rebalance_enabled": true,
+          "signal_scale": 0.85,
+          "volatility_target": 0.08
+        },
+        "risk_off": {
+          "allocation_rule_override": null,
+          "allocation_scale": 0.65,
+          "alpha_weight_multiplier": 1.0,
+          "fallback_policy": "reduce_exposure",
+          "gross_exposure_cap": 0.65,
+          "max_component_weight": 0.65,
+          "optimizer_override": "equal_weight",
+          "rebalance_enabled": true,
+          "signal_scale": 0.65,
+          "volatility_target": 0.07
+        },
+        "risk_on": {
+          "allocation_rule_override": null,
+          "allocation_scale": 1.05,
+          "alpha_weight_multiplier": 1.0,
+          "fallback_policy": "baseline",
+          "gross_exposure_cap": 1.0,
+          "max_component_weight": 1.0,
+          "optimizer_override": "equal_weight",
+          "rebalance_enabled": true,
+          "signal_scale": 1.05,
+          "volatility_target": 0.11
+        }
+      }
+    }
+  },
+  "row_counts": {
+    "comparison_rows": 1,
+    "decision_rows": 250
+  },
+  "run_id": "adaptive_portfolio_policy",
+  "schema_version": 1,
+  "sensitivity_profile": null,
+  "source_regime_artifact_references": {
+    "calibrated_portfolio_bundle": "../calibrated_portfolio_bundle"
+  },
+  "summary_metrics": [
+    {
+      "adaptive_max_drawdown": 0.04299676200444813,
+      "adaptive_sharpe": 0.4057155049839299,
+      "adaptive_total_return": 0.016409727339816937,
+      "adaptive_volatility": 0.002688883366495243,
+      "average_allocation_scale": 0.9936000000000001,
+      "average_signal_scale": 0.9936000000000001,
+      "baseline_max_drawdown": 0.04429849250753615,
+      "baseline_sharpe": 0.5210832301794449,
+      "baseline_total_return": 0.022285812055291343,
+      "baseline_volatility": 0.0028057821274173294,
+      "fallback_row_count": 23,
+      "low_confidence_fallback_count": 1,
+      "surface": "portfolio",
+      "unknown_regime_fallback_count": 22
+    }
+  ],
+  "taxonomy_version": "regime_taxonomy_v1"
+}

@@ -1,0 +1,16 @@
+{
+  "components": [
+    {
+      "artifact_type": "strategy",
+      "run_id": "mean_reversion_v1_single_58940e389ffa",
+      "source_artifact_path": "artifacts/strategies/mean_reversion_v1_single_58940e389ffa",
+      "strategy_name": "mean_reversion_v1"
+    },
+    {
+      "artifact_type": "strategy",
+      "run_id": "momentum_v1_single_1c70116e0f7c",
+      "source_artifact_path": "artifacts/strategies/momentum_v1_single_1c70116e0f7c",
+      "strategy_name": "momentum_v1"
+    }
+  ]
+}

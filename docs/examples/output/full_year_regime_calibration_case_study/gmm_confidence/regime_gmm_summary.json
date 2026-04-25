@@ -1,0 +1,97 @@
+{
+  "artifact_type": "regime_gmm_classifier",
+  "cluster_count": 3,
+  "cluster_distribution": {
+    "cluster_0": 153,
+    "cluster_1": 34,
+    "cluster_2": 43
+  },
+  "cluster_order": [
+    1,
+    0,
+    2
+  ],
+  "confidence_bucket_distribution": {
+    "high": 229,
+    "low": 0,
+    "medium": 1
+  },
+  "config": {
+    "ambiguous_margin_threshold": 0.1,
+    "confidence_thresholds": {
+      "high": 0.75,
+      "medium": 0.5
+    },
+    "covariance_type": "full",
+    "feature_columns": [
+      "volatility_metric",
+      "trend_metric",
+      "drawdown_metric",
+      "stress_correlation_metric",
+      "stress_dispersion_metric"
+    ],
+    "low_confidence_threshold": 0.55,
+    "max_iter": 200,
+    "metadata": {
+      "case_study": "full_year_regime_calibration_case_study"
+    },
+    "min_observations": 30,
+    "min_shift_probability": 0.55,
+    "n_components": 3,
+    "n_init": 1,
+    "random_state": 42,
+    "shift_probability_delta_threshold": 0.15,
+    "shift_requires_not_low_confidence": true,
+    "standardization_epsilon": 1e-12,
+    "standardize_features": true,
+    "time_column": "ts_utc"
+  },
+  "feature_columns": [
+    "volatility_metric",
+    "trend_metric",
+    "drawdown_metric",
+    "stress_correlation_metric",
+    "stress_dispersion_metric"
+  ],
+  "feature_scaling": {
+    "enabled": true,
+    "epsilon": 1e-12,
+    "feature_means": [
+      0.01224742659831127,
+      0.02169269272500775,
+      0.036426908088354894,
+      0.2502683344694743,
+      0.016872423855254174
+    ],
+    "feature_stds": [
+      0.008685093945463305,
+      0.059531282345524975,
+      0.0501721806079996,
+      0.21425405571041006,
+      0.002463242214020386
+    ]
+  },
+  "low_confidence_share": 0.0,
+  "mean_entropy": 0.01440882049387428,
+  "metadata": {
+    "case_study": "full_year_regime_calibration_case_study"
+  },
+  "posterior_shape": [
+    230,
+    3
+  ],
+  "row_count": 230,
+  "shift_event_count": 3,
+  "stable_cluster_mapping": {
+    "gmm_cluster_0": {
+      "sklearn_component": 1
+    },
+    "gmm_cluster_1": {
+      "sklearn_component": 0
+    },
+    "gmm_cluster_2": {
+      "sklearn_component": 2
+    }
+  },
+  "taxonomy_version": "regime_taxonomy_v1"
+}

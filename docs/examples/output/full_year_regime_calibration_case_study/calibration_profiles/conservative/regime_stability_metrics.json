@@ -1,0 +1,16 @@
+{
+  "attribution_eligible_regime_count": 1,
+  "attribution_ineligible_regime_count": 0,
+  "average_regime_duration": 250.0,
+  "flip_rate": 0.0,
+  "low_confidence_share": 0.004,
+  "maximum_regime_duration": 250,
+  "median_regime_duration": 250.0,
+  "minimum_regime_duration": 250,
+  "regime_count": 1,
+  "single_day_flip_count": 0,
+  "single_day_flip_share": 0.0,
+  "total_observations": 250,
+  "transition_count": 0,
+  "unstable_regime_share": 0.0
+}

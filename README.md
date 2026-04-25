@@ -36,6 +36,32 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+## Milestone 25 Summary
+
+Milestone 25 extends the regime-aware evaluation layer with deterministic
+regime calibration profiles and stability controls. The calibration layer works
+on top of existing Milestone 24 regime outputs, adds profile-driven smoothing
+and minimum-duration gating, computes stability metrics, and persists
+calibration artifacts without redefining the taxonomy.
+
+Milestone 25 also adds a deterministic Gaussian Mixture Model (GMM)
+regime-shift classifier that complements taxonomy labels with posterior
+probabilities, confidence, entropy, and cluster-transition events on canonical
+regime feature columns.
+
+Milestone 25 Issue 4 adds a deterministic regime-aware policy optimization
+layer. It consumes the existing taxonomy, calibration profile and stability
+metadata, optional ML confidence, and emits config-driven policy decisions plus
+adaptive-vs-static comparison artifacts for strategy, alpha, and portfolio
+research surfaces.
+
+Start with:
+
+* [docs/regime_calibration.md](docs/regime_calibration.md)
+* [docs/regime_gmm_classifier.md](docs/regime_gmm_classifier.md)
+* [docs/regime_policy_optimization.md](docs/regime_policy_optimization.md)
+* [docs/examples/full_year_regime_calibration_case_study.md](docs/examples/full_year_regime_calibration_case_study.md)
+
 ## Milestone 24 Summary
 
 Milestone 24 introduces a full regime-aware research interpretation surface
@@ -627,6 +653,7 @@ python docs/examples/real_world_campaign_case_study.py
 python docs/examples/real_world_resume_workflow_case_study.py
 python docs/examples/regime_aware_case_study.py
 python docs/examples/real_q1_2026_regime_aware_case_study.py
+python docs/examples/full_year_regime_calibration_case_study.py
 ```
 
 ## Cross-Sectional Utilities

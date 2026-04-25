@@ -1,0 +1,45 @@
+{
+  "artifact_type": "regime_transition_analysis",
+  "artifacts": {
+    "regime_transition_events_csv": "regime_transition_events.csv",
+    "regime_transition_manifest_json": "regime_transition_manifest.json",
+    "regime_transition_summary_json": "regime_transition_summary.json",
+    "regime_transition_windows_csv": "regime_transition_windows.csv"
+  },
+  "file_inventory": {
+    "regime_transition_events.csv": {
+      "path": "regime_transition_events.csv",
+      "rows": 139,
+      "sha256": "41838cf4eb344979b4aa02bee6ba0fc04d8287a1111c0c5b3decfc70cdcdb817"
+    },
+    "regime_transition_manifest.json": {
+      "path": "regime_transition_manifest.json"
+    },
+    "regime_transition_summary.json": {
+      "path": "regime_transition_summary.json",
+      "sha256": "9df9b8c7d139faaa856a976d63c35201ba509d0113a0f2ec34906d9e6bf212cb"
+    },
+    "regime_transition_windows.csv": {
+      "path": "regime_transition_windows.csv",
+      "rows": 967,
+      "sha256": "deb8aa61beedc2bb6040853787ae1f89266efa6aec5cff33cd154baf9e9f130c"
+    }
+  },
+  "metadata": {
+    "strategy_name": "momentum_v1",
+    "surface": "strategy"
+  },
+  "run_id": "momentum_v1_bundle",
+  "schema_version": 1,
+  "summary": {
+    "coverage_counts": {
+      "sparse": 2,
+      "sufficient": 137
+    },
+    "event_count": 139,
+    "stress_transition_count": 13,
+    "window_row_count": 967
+  },
+  "surface": "strategy",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

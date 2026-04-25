@@ -1,0 +1,32 @@
+{
+  "artifact_type": "regime_labels",
+  "artifacts": {
+    "manifest_json": "manifest.json",
+    "regime_labels_csv": "regime_labels.csv",
+    "regime_summary_json": "regime_summary.json"
+  },
+  "file_inventory": {
+    "manifest.json": {
+      "path": "manifest.json"
+    },
+    "regime_labels.csv": {
+      "path": "regime_labels.csv",
+      "rows": 250,
+      "sha256": "025ac90d8a0626da554d1f2166a2c86948882cc7a95c45fa99b00d8b78f71ce8"
+    },
+    "regime_summary.json": {
+      "path": "regime_summary.json",
+      "sha256": "0db7d639bc4b514f58af49990be2ad5724ca4fa8ab16c79910dc704632406d51"
+    }
+  },
+  "run_id": "calibrated_portfolio_bundle",
+  "schema_version": 1,
+  "summary": {
+    "defined_row_count": 228,
+    "row_count": 250,
+    "ts_utc_end": "2025-12-31T05:00:00Z",
+    "ts_utc_start": "2025-01-02T05:00:00Z",
+    "undefined_row_count": 22
+  },
+  "taxonomy_version": "regime_taxonomy_v1"
+}

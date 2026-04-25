@@ -196,11 +196,18 @@ def _dataset_root(features_root: Path) -> Path:
 
 
 def _discover_2025_symbols(dataset_root: Path) -> list[str]:
-    return sorted(
-        path.name.split("symbol=", 1)[1]
-        for path in dataset_root.glob("symbol=*")
-        if path.is_dir() and (path / "year=2025" / "part-0.parquet").exists()
-    )
+    detected: set[str] = set()
+    for symbol_dir in sorted(dataset_root.glob("symbol=*")):
+        if not symbol_dir.is_dir():
+            continue
+        year_dir = symbol_dir / "year=2025"
+        if not year_dir.is_dir():
+            continue
+        parquet_files = sorted(path for path in year_dir.glob("**/*.parquet") if path.is_file())
+        if not parquet_files:
+            continue
+        detected.add(symbol_dir.name.split("symbol=", 1)[1])
+    return sorted(detected)
 
 
 def validate_real_2025_data_coverage(
@@ -279,6 +286,13 @@ def validate_real_2025_data_coverage(
     else:
         is_fixture_root = True
     data_source_type = "real_data_fixture" if is_fixture_root else "downloaded_real_data"
+    fixture_mode_enabled = bool(is_fixture_root and allow_real_data_fixture)
+    fixture_scope = "tests-only explicit fixture root" if is_fixture_root else None
+    fixture_data_source_notes = (
+        "Explicit real-data fixture roots are accepted only when allow_real_data_fixture=True."
+        if is_fixture_root
+        else "Production case study expects repository-local downloaded 2025 features_daily coverage."
+    )
 
     failure_reasons: list[str] = []
     if not dataset_root.exists():
@@ -318,8 +332,14 @@ def validate_real_2025_data_coverage(
             "features_root": _relative_to_repo(resolved_features_root),
             "dataset_root": _relative_to_repo(dataset_root),
             "type": data_source_type,
+            "downloaded_real_data": not is_fixture_root,
+            "real_data_fixture": is_fixture_root,
             "real_data_used": True,
             "mock_or_synthetic_data": False,
+            "allow_real_data_fixture": bool(allow_real_data_fixture),
+            "fixture_mode_enabled": fixture_mode_enabled,
+            "fixture_scope": fixture_scope,
+            "fixture_data_source_notes": fixture_data_source_notes,
         },
         "requested_window": {
             "start_date": REQUESTED_START_DATE,

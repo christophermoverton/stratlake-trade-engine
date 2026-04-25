@@ -31,9 +31,20 @@ This workflow is intentionally strict:
 - it does not silently fall back to fixture data
 - it fails fast if full-year 2025 coverage is missing or incomplete
 
+For the production path, only downloaded real 2025 `features_daily` coverage is
+supported by default.
+
 Tests may call the example with an explicit real-data fixture root only when
 that path is marked as fixture coverage and `allow_real_data_fixture=True`.
 The default production path requires the repository's downloaded 2025 data.
+
+CI or local environments that do not ship the real full-year 2025 repository
+data should expect one of two outcomes:
+
+- the end-to-end smoke test skips with a clear reason
+- the production script fails fast with `RealDataCoverageError`
+
+No mock or synthetic fallback is provided.
 
 ## Data Coverage Validation
 
@@ -44,10 +55,19 @@ Before any regime workflow runs, the script validates:
 - row count is non-zero
 - symbol count is non-zero
 - 2025 symbol partitions exist
+- at least one real parquet file exists somewhere under `symbol=*/year=2025/`
 - observed coverage reaches early January 2025 and late December 2025
 - all 12 calendar months are present
 - unique-date coverage is large enough for a real full-year study
 - large date gaps are surfaced as diagnostics
+
+Parquet partition discovery accepts arbitrary parquet filenames under the 2025
+partition, including nested layouts such as:
+
+- `symbol=*/year=2025/*.parquet`
+- `symbol=*/year=2025/**/*.parquet`
+
+Empty `year=2025` directories do not count as valid coverage.
 
 Coverage is persisted to:
 
@@ -64,6 +84,8 @@ That artifact records:
 - coverage-gap diagnostics
 - pass/fail status
 - whether the data source was downloaded real data or an explicit real-data fixture
+- whether fixture mode was enabled
+- that `mock_or_synthetic_data` remains `false`
 
 ## Input Assumptions
 

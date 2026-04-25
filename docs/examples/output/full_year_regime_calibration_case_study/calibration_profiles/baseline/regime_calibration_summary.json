@@ -1,0 +1,57 @@
+{
+  "artifact_type": "regime_calibration_summary",
+  "fallback_behavior_applied": {
+    "low_confidence_fallback_rows": 0,
+    "unknown_fallback_rows": 22,
+    "unknown_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+    "unstable_profile_fallback_rows": 0,
+    "unstable_regime_fallback": null
+  },
+  "output_row_count": 250,
+  "parameters": {
+    "allow_single_day_flips": false,
+    "low_confidence_share_threshold": 0.25,
+    "max_flip_rate": 0.25,
+    "max_single_day_flip_share": 0.1,
+    "metadata": {
+      "intent": "balanced default sensitivity"
+    },
+    "min_observations_for_attribution": 5,
+    "min_observations_per_regime": 3,
+    "min_regime_duration_days": 2,
+    "name": "baseline",
+    "require_stability_for_attribution": true,
+    "transition_smoothing_window": 1,
+    "unknown_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+    "unstable_regime_fallback": null
+  },
+  "profile_flags": {
+    "exceeds_low_confidence_share": false,
+    "exceeds_max_flip_rate": false,
+    "exceeds_max_single_day_flip_share": false,
+    "has_unstable_runs": false,
+    "is_unstable_profile": false
+  },
+  "profile_name": "baseline",
+  "schema_version": 1,
+  "stability_metrics": {
+    "attribution_eligible_regime_count": 17,
+    "attribution_ineligible_regime_count": 5,
+    "average_regime_duration": 6.097560975609756,
+    "flip_rate": 0.1606425702811245,
+    "low_confidence_share": 0.004,
+    "maximum_regime_duration": 29,
+    "median_regime_duration": 4.0,
+    "minimum_regime_duration": 2,
+    "regime_count": 41,
+    "single_day_flip_count": 0,
+    "single_day_flip_share": 0.0,
+    "total_observations": 250,
+    "transition_count": 40,
+    "unstable_regime_share": 0.0
+  },
+  "taxonomy_version": "regime_taxonomy_v1",
+  "warnings": [
+    "5 regime label(s) do not meet attribution eligibility requirements for this profile."
+  ]
+}

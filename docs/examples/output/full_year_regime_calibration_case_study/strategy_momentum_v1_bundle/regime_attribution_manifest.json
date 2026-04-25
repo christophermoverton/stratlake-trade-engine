@@ -1,0 +1,51 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv",
+    "regime_comparison_summary.json",
+    "regime_comparison_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 9757,
+      "path": "regime_attribution_report.md",
+      "sha256": "18542babe3ca3a92fa0a29891045f910536c38f1cf11d914b4e4c3fd8786e777"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "a84f55790bce72940fdebf7fd00b093b96bd3013086f7fa1788dae74caea1e3d"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 36,
+      "sha256": "dc4f66ca69a8a869e510a02f1ca6ecb73743406511e2345831b3d50bdcb53759"
+    },
+    "regime_comparison_summary.json": {
+      "path": "regime_comparison_summary.json",
+      "sha256": "6131951af3232036b2aa75e16f28eddbce3a0da1ba29fb8cab3521e298d5483d"
+    },
+    "regime_comparison_table.csv": {
+      "path": "regime_comparison_table.csv",
+      "rows": 72,
+      "sha256": "1dbd2d906557736356b5a3cb19db60433369cc1a7e725a6b25bdcdc647a609f5"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "strategy_name": "momentum_v1",
+    "surface": "strategy"
+  },
+  "run_id": "momentum_v1_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": true,
+    "dominant_regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=normal_stress",
+    "fragility_flag": false,
+    "regime_count": 36
+  },
+  "surface": "strategy",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

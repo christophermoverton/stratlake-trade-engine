@@ -1,0 +1,206 @@
+{
+  "artifact_type": "regime_comparison_summary",
+  "dimension": "composite",
+  "interpretation_highlights": [
+    "Comparison is aligned on shared regime dimension `composite`.",
+    "Runs leading in more than one regime: `mean_reversion_v1`, `momentum_v1`."
+  ],
+  "metadata": {
+    "case_study": "full_year_regime_calibration_case_study"
+  },
+  "regime_count": 36,
+  "regime_winners": [
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.08345979366503453,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=normal_stress",
+      "run_id": "momentum_v1"
+    },
+    {
+      "primary_metric_value": 0.031307946709894896,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=correlation_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.11403850481207312,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.008015807017252907,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=correlation_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=drawdown|stress=correlation_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=drawdown|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.00430170683910247,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=dispersion_stress",
+      "run_id": "momentum_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": -0.03380344391508927,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=recovery|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=underwater|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.01289201896064851,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.005095170640346147,
+      "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.007316158240230797,
+      "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "momentum_v1"
+    },
+    {
+      "primary_metric_value": -0.005768868900693391,
+      "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=normal_stress",
+      "run_id": "momentum_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=recovery|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.024015938802844916,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.00341243258710322,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=near_peak|stress=normal_stress",
+      "run_id": "momentum_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.0030211922543830205,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.0013593667619016259,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=normal_stress",
+      "run_id": "momentum_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=recovery|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.020954910590854636,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=recovery|stress=normal_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": null,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=underwater|stress=dispersion_stress",
+      "run_id": "mean_reversion_v1"
+    },
+    {
+      "primary_metric_value": 0.026103263015835765,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=underwater|stress=normal_stress",
+      "run_id": "momentum_v1"
+    }
+  ],
+  "robust_run_ids": [
+    "mean_reversion_v1",
+    "momentum_v1"
+  ],
+  "run_count": 2,
+  "schema_version": 1,
+  "strategy_name": "momentum_v1",
+  "surface": "strategy",
+  "winner_counts_by_run": {
+    "mean_reversion_v1": 29,
+    "momentum_v1": 7
+  }
+}

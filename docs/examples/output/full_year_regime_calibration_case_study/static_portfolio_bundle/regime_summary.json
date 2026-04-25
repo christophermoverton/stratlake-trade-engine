@@ -1,0 +1,322 @@
+{
+  "artifact_type": "regime_labels",
+  "columns": [
+    "ts_utc",
+    "volatility_state",
+    "trend_state",
+    "drawdown_recovery_state",
+    "stress_state",
+    "regime_label",
+    "is_defined",
+    "volatility_metric",
+    "trend_metric",
+    "drawdown_metric",
+    "stress_correlation_metric",
+    "stress_dispersion_metric"
+  ],
+  "defined_row_count": 230,
+  "label_columns": [
+    "ts_utc",
+    "volatility_state",
+    "trend_state",
+    "drawdown_recovery_state",
+    "stress_state",
+    "regime_label",
+    "is_defined"
+  ],
+  "metadata": {
+    "case_study": "full_year_regime_calibration_case_study",
+    "config": {
+      "drawdown_threshold": 0.1,
+      "metadata": {
+        "case_study": "full_year_regime_calibration_case_study",
+        "market_symbols": [
+          "AAPL",
+          "ABBV",
+          "ADBE",
+          "AMD",
+          "AMZN",
+          "AVGO",
+          "BA",
+          "BAC",
+          "C",
+          "CAT",
+          "COP",
+          "COST"
+        ],
+        "source_dataset": "features_daily"
+      },
+      "min_cross_section_size": 2,
+      "near_peak_drawdown_threshold": 0.01,
+      "price_column": "close",
+      "return_column": null,
+      "stress_correlation_threshold": 0.75,
+      "stress_dispersion_quantile": 0.8,
+      "stress_window": 20,
+      "symbol_column": "symbol",
+      "time_column": "ts_utc",
+      "trend_return_threshold": 0.02,
+      "trend_window": 20,
+      "volatility_high_quantile": 0.67,
+      "volatility_low_quantile": 0.33,
+      "volatility_window": 20
+    },
+    "date_window": {
+      "end_exclusive": "2026-01-01",
+      "start": "2025-01-01"
+    },
+    "defined_counts": {
+      "drawdown_recovery": 249,
+      "stress": 230,
+      "trend": 230,
+      "volatility": 230
+    },
+    "dimensions": [
+      "volatility",
+      "trend",
+      "drawdown_recovery",
+      "stress"
+    ],
+    "input": {
+      "row_count": 250,
+      "symbol_count": 12,
+      "symbols": [
+        "AAPL",
+        "ABBV",
+        "ADBE",
+        "AMD",
+        "AMZN",
+        "AVGO",
+        "BA",
+        "BAC",
+        "C",
+        "CAT",
+        "COP",
+        "COST"
+      ],
+      "ts_utc_end": "2025-12-31T05:00:00Z",
+      "ts_utc_start": "2025-01-02T05:00:00Z"
+    },
+    "label_columns": [
+      "ts_utc",
+      "volatility_state",
+      "trend_state",
+      "drawdown_recovery_state",
+      "stress_state",
+      "regime_label",
+      "is_defined",
+      "volatility_metric",
+      "trend_metric",
+      "drawdown_metric",
+      "stress_correlation_metric",
+      "stress_dispersion_metric"
+    ],
+    "market_symbols": [
+      "AAPL",
+      "ABBV",
+      "ADBE",
+      "AMD",
+      "AMZN",
+      "AVGO",
+      "BA",
+      "BAC",
+      "C",
+      "CAT",
+      "COP",
+      "COST"
+    ],
+    "portfolio_name": "full_year_regime_static_portfolio_2025",
+    "source_dataset": "features_daily",
+    "surface": "portfolio",
+    "taxonomy": {
+      "dimensions": {
+        "drawdown_recovery": {
+          "dimension": "drawdown_recovery",
+          "metric_columns": [
+            "drawdown_metric"
+          ],
+          "purpose": "Describe whether the market equity curve is near a high, underwater, in drawdown, or recovering.",
+          "state_column": "drawdown_recovery_state",
+          "states": [
+            {
+              "description": "Current return cannot produce an auditable drawdown state.",
+              "label": "undefined"
+            },
+            {
+              "description": "Drawdown is at or below the near-peak threshold.",
+              "label": "near_peak"
+            },
+            {
+              "description": "Drawdown is positive but below the drawdown threshold and not improving.",
+              "label": "underwater"
+            },
+            {
+              "description": "Drawdown is at or above the drawdown threshold and not improving.",
+              "label": "drawdown"
+            },
+            {
+              "description": "Drawdown is positive and improving relative to the prior timestamp.",
+              "label": "recovery"
+            }
+          ]
+        },
+        "stress": {
+          "dimension": "stress",
+          "metric_columns": [
+            "stress_correlation_metric",
+            "stress_dispersion_metric"
+          ],
+          "purpose": "Flag cross-sectional correlation or dispersion stress when enough symbols are available.",
+          "state_column": "stress_state",
+          "states": [
+            {
+              "description": "Insufficient cross-section, history, or usable returns.",
+              "label": "undefined"
+            },
+            {
+              "description": "Correlation and dispersion metrics are below stress thresholds.",
+              "label": "normal_stress"
+            },
+            {
+              "description": "Average pairwise rolling correlation is at or above threshold.",
+              "label": "correlation_stress"
+            },
+            {
+              "description": "Cross-sectional dispersion is at or above threshold.",
+              "label": "dispersion_stress"
+            }
+          ]
+        },
+        "trend": {
+          "dimension": "trend",
+          "metric_columns": [
+            "trend_metric"
+          ],
+          "purpose": "Classify rolling compounded market return into up, down, or sideways trend.",
+          "state_column": "trend_state",
+          "states": [
+            {
+              "description": "Insufficient history or unusable returns.",
+              "label": "undefined"
+            },
+            {
+              "description": "Rolling compounded return is at or below the negative trend threshold.",
+              "label": "downtrend"
+            },
+            {
+              "description": "Rolling compounded return is inside the trend threshold band.",
+              "label": "sideways"
+            },
+            {
+              "description": "Rolling compounded return is at or above the positive trend threshold.",
+              "label": "uptrend"
+            }
+          ]
+        },
+        "volatility": {
+          "dimension": "volatility",
+          "metric_columns": [
+            "volatility_metric"
+          ],
+          "purpose": "Bucket rolling realized market volatility into deterministic low, normal, and high states.",
+          "state_column": "volatility_state",
+          "states": [
+            {
+              "description": "Insufficient history or unusable returns.",
+              "label": "undefined"
+            },
+            {
+              "description": "Rolling realized volatility is at or below the low threshold.",
+              "label": "low_volatility"
+            },
+            {
+              "description": "Rolling realized volatility is between the configured thresholds.",
+              "label": "normal_volatility"
+            },
+            {
+              "description": "Rolling realized volatility is at or above the high threshold.",
+              "label": "high_volatility"
+            }
+          ]
+        }
+      },
+      "label_columns": [
+        "ts_utc",
+        "volatility_state",
+        "trend_state",
+        "drawdown_recovery_state",
+        "stress_state",
+        "regime_label",
+        "is_defined"
+      ],
+      "metric_columns": [
+        "volatility_metric",
+        "trend_metric",
+        "drawdown_metric",
+        "stress_correlation_metric",
+        "stress_dispersion_metric"
+      ],
+      "version": "regime_taxonomy_v1"
+    },
+    "taxonomy_version": "regime_taxonomy_v1",
+    "thresholds": {
+      "drawdown": {
+        "drawdown_threshold": 0.1,
+        "near_peak_drawdown_threshold": 0.01
+      },
+      "stress": {
+        "correlation_threshold": 0.75,
+        "dispersion_quantile": 0.8,
+        "dispersion_threshold": 0.01934136906252712
+      },
+      "trend": {
+        "negative_threshold": -0.02,
+        "positive_threshold": 0.02
+      },
+      "volatility": {
+        "high_threshold": 0.011923147299381908,
+        "low_threshold": 0.008128007456223503
+      }
+    }
+  },
+  "metric_columns": [
+    "volatility_metric",
+    "trend_metric",
+    "drawdown_metric",
+    "stress_correlation_metric",
+    "stress_dispersion_metric"
+  ],
+  "row_count": 250,
+  "schema_version": 1,
+  "state_distribution": {
+    "drawdown_recovery": {
+      "drawdown": 12,
+      "near_peak": 113,
+      "recovery": 66,
+      "undefined": 1,
+      "underwater": 58
+    },
+    "stress": {
+      "correlation_stress": 18,
+      "dispersion_stress": 33,
+      "normal_stress": 179,
+      "undefined": 20
+    },
+    "trend": {
+      "downtrend": 45,
+      "sideways": 40,
+      "undefined": 20,
+      "uptrend": 145
+    },
+    "volatility": {
+      "high_volatility": 76,
+      "low_volatility": 76,
+      "normal_volatility": 78,
+      "undefined": 20
+    }
+  },
+  "taxonomy_version": "regime_taxonomy_v1",
+  "ts_utc_end": "2025-12-31T05:00:00Z",
+  "ts_utc_start": "2025-01-02T05:00:00Z",
+  "undefined_row_count": 20
+}

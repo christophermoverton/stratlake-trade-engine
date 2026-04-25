@@ -1,0 +1,44 @@
+{
+  "artifact_type": "regime_transition_analysis",
+  "artifacts": {
+    "regime_transition_events_csv": "regime_transition_events.csv",
+    "regime_transition_manifest_json": "regime_transition_manifest.json",
+    "regime_transition_summary_json": "regime_transition_summary.json",
+    "regime_transition_windows_csv": "regime_transition_windows.csv"
+  },
+  "file_inventory": {
+    "regime_transition_events.csv": {
+      "path": "regime_transition_events.csv",
+      "rows": 59,
+      "sha256": "f485d3c33ba49253db8dbf6ea974fa0be98220c485f92a7cec75c364af8e06cf"
+    },
+    "regime_transition_manifest.json": {
+      "path": "regime_transition_manifest.json"
+    },
+    "regime_transition_summary.json": {
+      "path": "regime_transition_summary.json",
+      "sha256": "339f2cb5087fecf09bdd03ebfed0f48e02ef170dc277f1d0d51977ac800c322b"
+    },
+    "regime_transition_windows.csv": {
+      "path": "regime_transition_windows.csv",
+      "rows": 411,
+      "sha256": "d99f4fce4e70a09f0faaffda6a8ab95e016f0c299f00a4947c635b1c52e89b16"
+    }
+  },
+  "metadata": {
+    "portfolio_name": "full_year_regime_static_portfolio_2025",
+    "surface": "portfolio"
+  },
+  "run_id": "static_portfolio_bundle",
+  "schema_version": 1,
+  "summary": {
+    "coverage_counts": {
+      "sufficient": 59
+    },
+    "event_count": 59,
+    "stress_transition_count": 8,
+    "window_row_count": 411
+  },
+  "surface": "portfolio",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

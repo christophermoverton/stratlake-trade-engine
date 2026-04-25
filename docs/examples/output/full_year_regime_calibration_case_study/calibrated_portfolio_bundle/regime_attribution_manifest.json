@@ -1,0 +1,40 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 6886,
+      "path": "regime_attribution_report.md",
+      "sha256": "76a25ae08d457d8337b5d1600c07b8075d61d9dc1f8b708cd16ef37890c6ff3f"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "b75848d22d9d82d30ef4d67d1f9a4dfe4969598345fc0d26706a04653a289440"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 21,
+      "sha256": "e075de3ac4243ba905896b9148f4413906dbeaa4ecb006c6a48d694f434f837f"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "portfolio_name": "full_year_regime_static_portfolio_2025",
+    "surface": "portfolio"
+  },
+  "run_id": "static_portfolio_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": false,
+    "dominant_regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress",
+    "fragility_flag": false,
+    "regime_count": 21
+  },
+  "surface": "portfolio",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

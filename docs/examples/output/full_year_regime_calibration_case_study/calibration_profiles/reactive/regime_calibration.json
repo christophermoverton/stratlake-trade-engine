@@ -1,0 +1,360 @@
+{
+  "artifact_type": "regime_calibration",
+  "artifacts": {
+    "regime_calibration_json": "regime_calibration.json",
+    "regime_calibration_summary_json": "regime_calibration_summary.json",
+    "regime_stability_metrics_json": "regime_stability_metrics.json"
+  },
+  "attribution_summary": [
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 4,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=correlation_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": false,
+      "observation_count": 1,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 5,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 7,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=correlation_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 7,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 5,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 3,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": false,
+      "observation_count": 1,
+      "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 4,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=recovery|stress=correlation_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": false,
+      "observation_count": 1,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": false,
+      "observation_count": 1,
+      "regime_label": "volatility=high_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": false,
+      "observation_count": 1,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=drawdown|stress=correlation_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": false,
+      "observation_count": 1,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=drawdown|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 9,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 2,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=recovery|stress=correlation_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 12,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=recovery|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 2,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=underwater|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 10,
+      "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=underwater|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 5,
+      "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=near_peak|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 6,
+      "regime_label": "volatility=low_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 59,
+      "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 3,
+      "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=recovery|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 3,
+      "regime_label": "volatility=low_volatility|trend=uptrend|drawdown_recovery=underwater|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 2,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 5,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=recovery|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": false,
+      "observation_count": 1,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 4,
+      "regime_label": "volatility=normal_volatility|trend=downtrend|drawdown_recovery=underwater|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 7,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=near_peak|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 2,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=recovery|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 14,
+      "regime_label": "volatility=normal_volatility|trend=sideways|drawdown_recovery=underwater|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 3,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 17,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=near_peak|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 2,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=recovery|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 11,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=recovery|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": false,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 2,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=underwater|stress=dispersion_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 8,
+      "regime_label": "volatility=normal_volatility|trend=uptrend|drawdown_recovery=underwater|stress=normal_stress"
+    },
+    {
+      "has_unstable_run": false,
+      "is_attribution_eligible": true,
+      "meets_min_observations_per_regime": true,
+      "observation_count": 20,
+      "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined"
+    }
+  ],
+  "fallback_behavior_applied": {
+    "low_confidence_fallback_rows": 0,
+    "unknown_fallback_rows": 20,
+    "unknown_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+    "unstable_profile_fallback_rows": 0,
+    "unstable_regime_fallback": null
+  },
+  "file_inventory": {
+    "regime_calibration.json": {
+      "path": "regime_calibration.json"
+    },
+    "regime_calibration_summary.json": {
+      "path": "regime_calibration_summary.json",
+      "sha256": "34441ac7a005d413757a27e013ec00a047d15dd148119a7adebcc45fc3ae09fd"
+    },
+    "regime_stability_metrics.json": {
+      "path": "regime_stability_metrics.json",
+      "sha256": "086373572dd1f085148f8a71c675dd8cbe2922ab4add2bc105a4382525e6a58a"
+    }
+  },
+  "metadata": {
+    "case_study": "full_year_regime_calibration_case_study",
+    "confidence_column": "gmm_confidence_score",
+    "confidence_threshold": 0.6,
+    "input_row_count": 250,
+    "metadata": {
+      "case_study": "full_year_regime_calibration_case_study"
+    },
+    "taxonomy_version": "regime_taxonomy_v1"
+  },
+  "output_row_count": 250,
+  "profile": {
+    "allow_single_day_flips": true,
+    "low_confidence_share_threshold": 0.4,
+    "max_flip_rate": 0.5,
+    "max_single_day_flip_share": 0.3,
+    "metadata": {
+      "intent": "maximize responsiveness"
+    },
+    "min_observations_for_attribution": 4,
+    "min_observations_per_regime": 2,
+    "min_regime_duration_days": 1,
+    "name": "reactive",
+    "require_stability_for_attribution": false,
+    "transition_smoothing_window": 1,
+    "unknown_regime_fallback": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+    "unstable_regime_fallback": null
+  },
+  "profile_flags": {
+    "exceeds_low_confidence_share": false,
+    "exceeds_max_flip_rate": false,
+    "exceeds_max_single_day_flip_share": false,
+    "has_unstable_runs": false,
+    "is_unstable_profile": false
+  },
+  "profile_name": "reactive",
+  "run_id": "calibration_reactive",
+  "schema_version": 1,
+  "source_regime_artifact_references": {
+    "regime_manifest": "../regime_bundle/regime_manifest.json"
+  },
+  "stability_metrics": {
+    "attribution_eligible_regime_count": 20,
+    "attribution_ineligible_regime_count": 17,
+    "average_regime_duration": 2.1739130434782608,
+    "flip_rate": 0.4578313253012048,
+    "low_confidence_share": 0.004,
+    "maximum_regime_duration": 25,
+    "median_regime_duration": 1.0,
+    "minimum_regime_duration": 1,
+    "regime_count": 115,
+    "single_day_flip_count": 19,
+    "single_day_flip_share": 0.16521739130434782,
+    "total_observations": 250,
+    "transition_count": 114,
+    "unstable_regime_share": 0.0
+  },
+  "summary": {
+    "is_unstable_profile": false,
+    "output_row_count": 250,
+    "profile_name": "reactive",
+    "warning_count": 2
+  },
+  "taxonomy_metadata": {
+    "taxonomy_version": "regime_taxonomy_v1"
+  },
+  "taxonomy_version": "regime_taxonomy_v1",
+  "warnings": [
+    "17 regime label(s) do not meet attribution eligibility requirements for this profile.",
+    "7 regime label(s) do not meet min_observations_per_regime for stable review."
+  ]
+}

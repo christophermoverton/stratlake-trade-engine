@@ -1,0 +1,4 @@
+event_id,event_order,ts_utc,previous_cluster_label,current_cluster_label,shift_probability_delta,posterior_l1_delta,confidence_score,is_low_confidence,taxonomy_version
+gmm_shift:0001,1,2025-03-03T05:00:00Z,0,2,0.7534016795753092,1.5068040012944186,0.7541013939593669,False,regime_taxonomy_v1
+gmm_shift:0002,2,2025-05-02T04:00:00Z,2,1,0.9999999700958082,1.9999999401916169,0.9999999830641145,False,regime_taxonomy_v1
+gmm_shift:0003,3,2025-06-23T04:00:00Z,1,0,0.4895366068140216,0.9790733639881335,0.5747337396051178,False,regime_taxonomy_v1

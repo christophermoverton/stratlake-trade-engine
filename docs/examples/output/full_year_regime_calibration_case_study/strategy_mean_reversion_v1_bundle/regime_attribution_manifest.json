@@ -1,0 +1,40 @@
+{
+  "artifact_files": [
+    "regime_attribution_manifest.json",
+    "regime_attribution_report.md",
+    "regime_attribution_summary.json",
+    "regime_attribution_table.csv"
+  ],
+  "artifact_type": "regime_attribution_bundle",
+  "artifacts": {
+    "regime_attribution_report.md": {
+      "bytes": 6976,
+      "path": "regime_attribution_report.md",
+      "sha256": "76ec95cf35e9c85111493fc9f789ceed0499cc71a04e6e86605e86626c79f018"
+    },
+    "regime_attribution_summary.json": {
+      "path": "regime_attribution_summary.json",
+      "sha256": "5d9b11247d018371624589fc354b9e04e453bf350f8b5e5dfeac2de8dd202e1c"
+    },
+    "regime_attribution_table.csv": {
+      "path": "regime_attribution_table.csv",
+      "rows": 36,
+      "sha256": "8b0c08d9b64e1993026c298395e059b6be64d2d631c88b17f5db7af8482647d6"
+    }
+  },
+  "dimension": "composite",
+  "metadata": {
+    "strategy_name": "mean_reversion_v1",
+    "surface": "strategy"
+  },
+  "run_id": "mean_reversion_v1_bundle",
+  "schema_version": 1,
+  "summary": {
+    "comparison_included": false,
+    "dominant_regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress",
+    "fragility_flag": false,
+    "regime_count": 36
+  },
+  "surface": "strategy",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

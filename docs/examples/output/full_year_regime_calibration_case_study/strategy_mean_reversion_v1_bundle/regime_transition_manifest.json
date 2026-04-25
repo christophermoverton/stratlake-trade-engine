@@ -1,0 +1,45 @@
+{
+  "artifact_type": "regime_transition_analysis",
+  "artifacts": {
+    "regime_transition_events_csv": "regime_transition_events.csv",
+    "regime_transition_manifest_json": "regime_transition_manifest.json",
+    "regime_transition_summary_json": "regime_transition_summary.json",
+    "regime_transition_windows_csv": "regime_transition_windows.csv"
+  },
+  "file_inventory": {
+    "regime_transition_events.csv": {
+      "path": "regime_transition_events.csv",
+      "rows": 139,
+      "sha256": "41838cf4eb344979b4aa02bee6ba0fc04d8287a1111c0c5b3decfc70cdcdb817"
+    },
+    "regime_transition_manifest.json": {
+      "path": "regime_transition_manifest.json"
+    },
+    "regime_transition_summary.json": {
+      "path": "regime_transition_summary.json",
+      "sha256": "c6bc5026f988bb947365092ea49580064215622ead630ef1a84d3f0ada994759"
+    },
+    "regime_transition_windows.csv": {
+      "path": "regime_transition_windows.csv",
+      "rows": 967,
+      "sha256": "1a5258f17cfd4b4e66b85a834150dd282f5c3ffd5a2c486783ada48801632083"
+    }
+  },
+  "metadata": {
+    "strategy_name": "mean_reversion_v1",
+    "surface": "strategy"
+  },
+  "run_id": "mean_reversion_v1_bundle",
+  "schema_version": 1,
+  "summary": {
+    "coverage_counts": {
+      "sparse": 2,
+      "sufficient": 137
+    },
+    "event_count": 139,
+    "stress_transition_count": 13,
+    "window_row_count": 967
+  },
+  "surface": "strategy",
+  "taxonomy_version": "regime_taxonomy_v1"
+}

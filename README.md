@@ -60,6 +60,7 @@ Start with:
 * [docs/regime_calibration.md](docs/regime_calibration.md)
 * [docs/regime_gmm_classifier.md](docs/regime_gmm_classifier.md)
 * [docs/regime_policy_optimization.md](docs/regime_policy_optimization.md)
+* [docs/examples/full_year_regime_calibration_case_study.md](docs/examples/full_year_regime_calibration_case_study.md)
 
 ## Milestone 24 Summary
 
@@ -652,6 +653,7 @@ python docs/examples/real_world_campaign_case_study.py
 python docs/examples/real_world_resume_workflow_case_study.py
 python docs/examples/regime_aware_case_study.py
 python docs/examples/real_q1_2026_regime_aware_case_study.py
+python docs/examples/full_year_regime_calibration_case_study.py
 ```
 
 ## Cross-Sectional Utilities

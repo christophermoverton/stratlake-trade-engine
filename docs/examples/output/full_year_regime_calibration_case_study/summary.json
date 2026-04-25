@@ -1,0 +1,1396 @@
+{
+  "adaptive_policy": {
+    "comparison_metrics": {
+      "adaptive_max_drawdown": 0.04299676200444813,
+      "adaptive_sharpe": 0.4057155049839299,
+      "adaptive_total_return": 0.016409727339816937,
+      "adaptive_volatility": 0.002688883366495243,
+      "average_allocation_scale": 0.9936000000000001,
+      "average_signal_scale": 0.9936000000000001,
+      "baseline_max_drawdown": 0.04429849250753615,
+      "baseline_sharpe": 0.5210832301794449,
+      "baseline_total_return": 0.022285812055291343,
+      "baseline_volatility": 0.0028057821274173294,
+      "fallback_row_count": 23,
+      "low_confidence_fallback_count": 1,
+      "surface": "portfolio",
+      "unknown_regime_fallback_count": 22
+    },
+    "policy_artifact_manifest": {
+      "artifact_type": "regime_policy",
+      "artifacts": {
+        "adaptive_policy_manifest_json": "adaptive_policy_manifest.json",
+        "adaptive_vs_static_comparison_csv": "adaptive_vs_static_comparison.csv",
+        "regime_policy_decisions_csv": "regime_policy_decisions.csv",
+        "regime_policy_summary_json": "regime_policy_summary.json"
+      },
+      "calibration_profile": "baseline",
+      "confidence_artifact_references": {
+        "gmm_manifest": "../gmm_confidence/regime_gmm_manifest.json"
+      },
+      "decision_counts_by_policy_key": {
+        "default": 93,
+        "drawdown_watch": 6,
+        "risk_off": 18,
+        "risk_on": 133
+      },
+      "fallback_counts": {
+        "ambiguous": 0,
+        "low_confidence": 1,
+        "policy_fallback_rows": 23,
+        "undefined_regime": 22,
+        "unsupported": 0
+      },
+      "file_inventory": {
+        "adaptive_policy_manifest.json": {
+          "path": "adaptive_policy_manifest.json"
+        },
+        "adaptive_vs_static_comparison.csv": {
+          "path": "adaptive_vs_static_comparison.csv",
+          "rows": 1,
+          "sha256": "0780e17e394f8969197e6dc8dbb9555e4c6a8fed7e4d472d86fdc2c8c8cf7ac3"
+        },
+        "regime_policy_decisions.csv": {
+          "path": "regime_policy_decisions.csv",
+          "rows": 250,
+          "sha256": "fdf848100c1a00fadfd2e1ac1a2d40c425006700c9c62508f4c968692ef1e3bf"
+        },
+        "regime_policy_summary.json": {
+          "path": "regime_policy_summary.json",
+          "sha256": "862bbfb719906cb40656c6fbe974188af786e56733bc74079ac73ffa6156a3e1"
+        }
+      },
+      "metadata": {
+        "case_study": "full_year_regime_calibration_case_study"
+      },
+      "policy_config": {
+        "metadata": {},
+        "regime_aliases": {
+          "drawdown_watch": {
+            "match": {
+              "drawdown_recovery_state": "drawdown"
+            },
+            "name": "drawdown_watch"
+          },
+          "risk_off": {
+            "match": {
+              "stress_state": "correlation_stress"
+            },
+            "name": "risk_off"
+          },
+          "risk_on": {
+            "match": {
+              "stress_state": "normal_stress",
+              "trend_state": "uptrend"
+            },
+            "name": "risk_on"
+          }
+        },
+        "regime_policy": {
+          "confidence": {
+            "ambiguous_fallback": "reduce_exposure",
+            "low_confidence_fallback": "neutral",
+            "min_confidence": 0.6,
+            "unsupported_fallback": "baseline"
+          },
+          "default": {
+            "allocation_rule_override": null,
+            "allocation_scale": 1.0,
+            "alpha_weight_multiplier": 1.0,
+            "fallback_policy": "baseline",
+            "gross_exposure_cap": 1.0,
+            "max_component_weight": 1.0,
+            "optimizer_override": null,
+            "rebalance_enabled": true,
+            "signal_scale": 1.0,
+            "volatility_target": 0.1
+          },
+          "regimes": {
+            "drawdown_watch": {
+              "allocation_rule_override": null,
+              "allocation_scale": 0.85,
+              "alpha_weight_multiplier": 1.0,
+              "fallback_policy": "reduce_exposure",
+              "gross_exposure_cap": 0.85,
+              "max_component_weight": 0.85,
+              "optimizer_override": "equal_weight",
+              "rebalance_enabled": true,
+              "signal_scale": 0.85,
+              "volatility_target": 0.08
+            },
+            "risk_off": {
+              "allocation_rule_override": null,
+              "allocation_scale": 0.65,
+              "alpha_weight_multiplier": 1.0,
+              "fallback_policy": "reduce_exposure",
+              "gross_exposure_cap": 0.65,
+              "max_component_weight": 0.65,
+              "optimizer_override": "equal_weight",
+              "rebalance_enabled": true,
+              "signal_scale": 0.65,
+              "volatility_target": 0.07
+            },
+            "risk_on": {
+              "allocation_rule_override": null,
+              "allocation_scale": 1.05,
+              "alpha_weight_multiplier": 1.0,
+              "fallback_policy": "baseline",
+              "gross_exposure_cap": 1.0,
+              "max_component_weight": 1.0,
+              "optimizer_override": "equal_weight",
+              "rebalance_enabled": true,
+              "signal_scale": 1.05,
+              "volatility_target": 0.11
+            }
+          }
+        }
+      },
+      "row_counts": {
+        "comparison_rows": 1,
+        "decision_rows": 250
+      },
+      "run_id": "adaptive_portfolio_policy",
+      "schema_version": 1,
+      "sensitivity_profile": null,
+      "source_regime_artifact_references": {
+        "calibrated_portfolio_bundle": "../calibrated_portfolio_bundle"
+      },
+      "summary_metrics": [
+        {
+          "adaptive_max_drawdown": 0.04299676200444813,
+          "adaptive_sharpe": 0.4057155049839299,
+          "adaptive_total_return": 0.016409727339816937,
+          "adaptive_volatility": 0.002688883366495243,
+          "average_allocation_scale": 0.9936000000000001,
+          "average_signal_scale": 0.9936000000000001,
+          "baseline_max_drawdown": 0.04429849250753615,
+          "baseline_sharpe": 0.5210832301794449,
+          "baseline_total_return": 0.022285812055291343,
+          "baseline_volatility": 0.0028057821274173294,
+          "fallback_row_count": 23,
+          "low_confidence_fallback_count": 1,
+          "surface": "portfolio",
+          "unknown_regime_fallback_count": 22
+        }
+      ],
+      "taxonomy_version": "regime_taxonomy_v1"
+    },
+    "policy_summary": {
+      "artifact_type": "regime_policy_summary",
+      "columns": [
+        "symbol",
+        "ts_utc",
+        "regime_label",
+        "matched_policy_key",
+        "matched_alias",
+        "confidence_score",
+        "confidence_bucket",
+        "confidence_fallback_reason",
+        "fallback_policy_applied",
+        "policy_reason",
+        "signal_scale",
+        "allocation_scale",
+        "alpha_weight_multiplier",
+        "volatility_target",
+        "gross_exposure_cap",
+        "max_component_weight",
+        "rebalance_enabled",
+        "optimizer_override",
+        "allocation_rule_override",
+        "calibration_profile",
+        "is_unstable_profile",
+        "eligible_for_downstream_decisioning",
+        "policy_source",
+        "baseline_weight",
+        "adaptive_weight",
+        "baseline_return",
+        "adaptive_return",
+        "baseline_equity",
+        "adaptive_equity"
+      ],
+      "comparison_metrics": [
+        {
+          "adaptive_max_drawdown": 0.04299676200444813,
+          "adaptive_sharpe": 0.4057155049839299,
+          "adaptive_total_return": 0.016409727339816937,
+          "adaptive_volatility": 0.002688883366495243,
+          "average_allocation_scale": 0.9936000000000001,
+          "average_signal_scale": 0.9936000000000001,
+          "baseline_max_drawdown": 0.04429849250753615,
+          "baseline_sharpe": 0.5210832301794449,
+          "baseline_total_return": 0.022285812055291343,
+          "baseline_volatility": 0.0028057821274173294,
+          "fallback_row_count": 23,
+          "low_confidence_fallback_count": 1,
+          "surface": "portfolio",
+          "unknown_regime_fallback_count": 22
+        }
+      ],
+      "decision_counts_by_policy_key": {
+        "default": 93,
+        "drawdown_watch": 6,
+        "risk_off": 18,
+        "risk_on": 133
+      },
+      "fallback_counts": {
+        "ambiguous": 0,
+        "low_confidence": 1,
+        "policy_fallback_rows": 23,
+        "undefined_regime": 22,
+        "unsupported": 0
+      },
+      "metadata": {
+        "case_study": "full_year_regime_calibration_case_study"
+      },
+      "policy_config": {
+        "metadata": {},
+        "regime_aliases": {
+          "drawdown_watch": {
+            "match": {
+              "drawdown_recovery_state": "drawdown"
+            },
+            "name": "drawdown_watch"
+          },
+          "risk_off": {
+            "match": {
+              "stress_state": "correlation_stress"
+            },
+            "name": "risk_off"
+          },
+          "risk_on": {
+            "match": {
+              "stress_state": "normal_stress",
+              "trend_state": "uptrend"
+            },
+            "name": "risk_on"
+          }
+        },
+        "regime_policy": {
+          "confidence": {
+            "ambiguous_fallback": "reduce_exposure",
+            "low_confidence_fallback": "neutral",
+            "min_confidence": 0.6,
+            "unsupported_fallback": "baseline"
+          },
+          "default": {
+            "allocation_rule_override": null,
+            "allocation_scale": 1.0,
+            "alpha_weight_multiplier": 1.0,
+            "fallback_policy": "baseline",
+            "gross_exposure_cap": 1.0,
+            "max_component_weight": 1.0,
+            "optimizer_override": null,
+            "rebalance_enabled": true,
+            "signal_scale": 1.0,
+            "volatility_target": 0.1
+          },
+          "regimes": {
+            "drawdown_watch": {
+              "allocation_rule_override": null,
+              "allocation_scale": 0.85,
+              "alpha_weight_multiplier": 1.0,
+              "fallback_policy": "reduce_exposure",
+              "gross_exposure_cap": 0.85,
+              "max_component_weight": 0.85,
+              "optimizer_override": "equal_weight",
+              "rebalance_enabled": true,
+              "signal_scale": 0.85,
+              "volatility_target": 0.08
+            },
+            "risk_off": {
+              "allocation_rule_override": null,
+              "allocation_scale": 0.65,
+              "alpha_weight_multiplier": 1.0,
+              "fallback_policy": "reduce_exposure",
+              "gross_exposure_cap": 0.65,
+              "max_component_weight": 0.65,
+              "optimizer_override": "equal_weight",
+              "rebalance_enabled": true,
+              "signal_scale": 0.65,
+              "volatility_target": 0.07
+            },
+            "risk_on": {
+              "allocation_rule_override": null,
+              "allocation_scale": 1.05,
+              "alpha_weight_multiplier": 1.0,
+              "fallback_policy": "baseline",
+              "gross_exposure_cap": 1.0,
+              "max_component_weight": 1.0,
+              "optimizer_override": "equal_weight",
+              "rebalance_enabled": true,
+              "signal_scale": 1.05,
+              "volatility_target": 0.11
+            }
+          }
+        }
+      },
+      "policy_keys": [
+        "default",
+        "drawdown_watch",
+        "risk_off",
+        "risk_on"
+      ],
+      "row_count": 250,
+      "schema_version": 1,
+      "taxonomy_version": "regime_taxonomy_v1"
+    }
+  },
+  "artifact_tree": [
+    "adaptive_policy/adaptive_policy_manifest.json",
+    "adaptive_policy/adaptive_vs_static_comparison.csv",
+    "adaptive_policy/regime_policy_decisions.csv",
+    "adaptive_policy/regime_policy_summary.json",
+    "artifact_manifest.json",
+    "calibrated_portfolio_bundle/manifest.json",
+    "calibrated_portfolio_bundle/metrics_by_regime.csv",
+    "calibrated_portfolio_bundle/regime_attribution_manifest.json",
+    "calibrated_portfolio_bundle/regime_attribution_report.md",
+    "calibrated_portfolio_bundle/regime_attribution_summary.json",
+    "calibrated_portfolio_bundle/regime_attribution_table.csv",
+    "calibrated_portfolio_bundle/regime_conditional_manifest.json",
+    "calibrated_portfolio_bundle/regime_conditional_summary.json",
+    "calibrated_portfolio_bundle/regime_labels.csv",
+    "calibrated_portfolio_bundle/regime_summary.json",
+    "calibrated_portfolio_bundle/regime_transition_events.csv",
+    "calibrated_portfolio_bundle/regime_transition_manifest.json",
+    "calibrated_portfolio_bundle/regime_transition_summary.json",
+    "calibrated_portfolio_bundle/regime_transition_windows.csv",
+    "calibration_profiles/baseline/regime_calibration.json",
+    "calibration_profiles/baseline/regime_calibration_summary.json",
+    "calibration_profiles/baseline/regime_stability_metrics.json",
+    "calibration_profiles/conservative/regime_calibration.json",
+    "calibration_profiles/conservative/regime_calibration_summary.json",
+    "calibration_profiles/conservative/regime_stability_metrics.json",
+    "calibration_profiles/crisis_sensitive/regime_calibration.json",
+    "calibration_profiles/crisis_sensitive/regime_calibration_summary.json",
+    "calibration_profiles/crisis_sensitive/regime_stability_metrics.json",
+    "calibration_profiles/reactive/regime_calibration.json",
+    "calibration_profiles/reactive/regime_calibration_summary.json",
+    "calibration_profiles/reactive/regime_stability_metrics.json",
+    "data_coverage_summary.json",
+    "final_interpretation.md",
+    "gmm_confidence/regime_gmm_labels.csv",
+    "gmm_confidence/regime_gmm_manifest.json",
+    "gmm_confidence/regime_gmm_posteriors.csv",
+    "gmm_confidence/regime_gmm_shift_events.csv",
+    "gmm_confidence/regime_gmm_summary.json",
+    "native_artifacts/portfolios/full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e/components.json",
+    "native_artifacts/portfolios/full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e/config.json",
+    "native_artifacts/portfolios/full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e/manifest.json",
+    "native_artifacts/portfolios/full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e/metrics.json",
+    "native_artifacts/portfolios/full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e/portfolio_equity_curve.csv",
+    "native_artifacts/portfolios/full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e/portfolio_returns.csv",
+    "native_artifacts/portfolios/full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e/qa_summary.json",
+    "native_artifacts/portfolios/full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e/weights.csv",
+    "native_artifacts/portfolios/registry.jsonl",
+    "regime_bundle/manifest.json",
+    "regime_bundle/regime_labels.csv",
+    "regime_bundle/regime_summary.json",
+    "static_portfolio_bundle/manifest.json",
+    "static_portfolio_bundle/metrics_by_regime.csv",
+    "static_portfolio_bundle/regime_attribution_manifest.json",
+    "static_portfolio_bundle/regime_attribution_report.md",
+    "static_portfolio_bundle/regime_attribution_summary.json",
+    "static_portfolio_bundle/regime_attribution_table.csv",
+    "static_portfolio_bundle/regime_conditional_manifest.json",
+    "static_portfolio_bundle/regime_conditional_summary.json",
+    "static_portfolio_bundle/regime_labels.csv",
+    "static_portfolio_bundle/regime_summary.json",
+    "static_portfolio_bundle/regime_transition_events.csv",
+    "static_portfolio_bundle/regime_transition_manifest.json",
+    "static_portfolio_bundle/regime_transition_summary.json",
+    "static_portfolio_bundle/regime_transition_windows.csv",
+    "strategy_mean_reversion_v1_bundle/manifest.json",
+    "strategy_mean_reversion_v1_bundle/metrics_by_regime.csv",
+    "strategy_mean_reversion_v1_bundle/regime_attribution_manifest.json",
+    "strategy_mean_reversion_v1_bundle/regime_attribution_report.md",
+    "strategy_mean_reversion_v1_bundle/regime_attribution_summary.json",
+    "strategy_mean_reversion_v1_bundle/regime_attribution_table.csv",
+    "strategy_mean_reversion_v1_bundle/regime_conditional_manifest.json",
+    "strategy_mean_reversion_v1_bundle/regime_conditional_summary.json",
+    "strategy_mean_reversion_v1_bundle/regime_labels.csv",
+    "strategy_mean_reversion_v1_bundle/regime_summary.json",
+    "strategy_mean_reversion_v1_bundle/regime_transition_events.csv",
+    "strategy_mean_reversion_v1_bundle/regime_transition_manifest.json",
+    "strategy_mean_reversion_v1_bundle/regime_transition_summary.json",
+    "strategy_mean_reversion_v1_bundle/regime_transition_windows.csv",
+    "strategy_momentum_v1_bundle/manifest.json",
+    "strategy_momentum_v1_bundle/metrics_by_regime.csv",
+    "strategy_momentum_v1_bundle/regime_attribution_manifest.json",
+    "strategy_momentum_v1_bundle/regime_attribution_report.md",
+    "strategy_momentum_v1_bundle/regime_attribution_summary.json",
+    "strategy_momentum_v1_bundle/regime_attribution_table.csv",
+    "strategy_momentum_v1_bundle/regime_comparison_summary.json",
+    "strategy_momentum_v1_bundle/regime_comparison_table.csv",
+    "strategy_momentum_v1_bundle/regime_conditional_manifest.json",
+    "strategy_momentum_v1_bundle/regime_conditional_summary.json",
+    "strategy_momentum_v1_bundle/regime_labels.csv",
+    "strategy_momentum_v1_bundle/regime_summary.json",
+    "strategy_momentum_v1_bundle/regime_transition_events.csv",
+    "strategy_momentum_v1_bundle/regime_transition_manifest.json",
+    "strategy_momentum_v1_bundle/regime_transition_summary.json",
+    "strategy_momentum_v1_bundle/regime_transition_windows.csv",
+    "summary.json"
+  ],
+  "calibrated_regime_evaluation": {
+    "downstream_calibration_artifact": {
+      "is_unstable_profile": false,
+      "manifest_path": "calibration_profiles/baseline/regime_calibration.json",
+      "profile_name": "baseline"
+    },
+    "downstream_profile": "baseline",
+    "interpretation_change": {
+      "portfolio_best_regime_changed": true,
+      "portfolio_worst_regime_changed": false
+    },
+    "portfolio": {
+      "best_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": 0.013406260045398355,
+        "observation_count": 14,
+        "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress"
+      },
+      "fragility_flag": false,
+      "transition_worst_category": {
+        "event_count": 4,
+        "metric_value": -0.004824314489469739,
+        "transition_category": "stress_relief",
+        "transition_dimension": "stress"
+      },
+      "worst_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": -0.02382557116266204,
+        "observation_count": 12,
+        "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=recovery|stress=normal_stress"
+      }
+    }
+  },
+  "calibration_profile_evaluation": {
+    "downstream_profile": "baseline",
+    "profiles": {
+      "baseline": {
+        "profile_flags": {
+          "exceeds_low_confidence_share": false,
+          "exceeds_max_flip_rate": false,
+          "exceeds_max_single_day_flip_share": false,
+          "has_unstable_runs": false,
+          "is_unstable_profile": false
+        },
+        "stability_metrics": {
+          "attribution_eligible_regime_count": 17,
+          "attribution_ineligible_regime_count": 5,
+          "average_regime_duration": 6.097560975609756,
+          "flip_rate": 0.1606425702811245,
+          "low_confidence_share": 0.004,
+          "maximum_regime_duration": 29,
+          "median_regime_duration": 4.0,
+          "minimum_regime_duration": 2,
+          "regime_count": 41,
+          "single_day_flip_count": 0,
+          "single_day_flip_share": 0.0,
+          "total_observations": 250,
+          "transition_count": 40,
+          "unstable_regime_share": 0.0
+        },
+        "warning_count": 1,
+        "warnings": [
+          "5 regime label(s) do not meet attribution eligibility requirements for this profile."
+        ]
+      },
+      "conservative": {
+        "profile_flags": {
+          "exceeds_low_confidence_share": false,
+          "exceeds_max_flip_rate": false,
+          "exceeds_max_single_day_flip_share": false,
+          "has_unstable_runs": true,
+          "is_unstable_profile": true
+        },
+        "stability_metrics": {
+          "attribution_eligible_regime_count": 1,
+          "attribution_ineligible_regime_count": 0,
+          "average_regime_duration": 250.0,
+          "flip_rate": 0.0,
+          "low_confidence_share": 0.004,
+          "maximum_regime_duration": 250,
+          "median_regime_duration": 250.0,
+          "minimum_regime_duration": 250,
+          "regime_count": 1,
+          "single_day_flip_count": 0,
+          "single_day_flip_share": 0.0,
+          "total_observations": 250,
+          "transition_count": 0,
+          "unstable_regime_share": 0.0
+        },
+        "warning_count": 0,
+        "warnings": []
+      },
+      "crisis_sensitive": {
+        "profile_flags": {
+          "exceeds_low_confidence_share": false,
+          "exceeds_max_flip_rate": false,
+          "exceeds_max_single_day_flip_share": false,
+          "has_unstable_runs": false,
+          "is_unstable_profile": false
+        },
+        "stability_metrics": {
+          "attribution_eligible_regime_count": 17,
+          "attribution_ineligible_regime_count": 20,
+          "average_regime_duration": 2.1739130434782608,
+          "flip_rate": 0.4578313253012048,
+          "low_confidence_share": 0.004,
+          "maximum_regime_duration": 25,
+          "median_regime_duration": 1.0,
+          "minimum_regime_duration": 1,
+          "regime_count": 115,
+          "single_day_flip_count": 19,
+          "single_day_flip_share": 0.16521739130434782,
+          "total_observations": 250,
+          "transition_count": 114,
+          "unstable_regime_share": 0.0
+        },
+        "warning_count": 2,
+        "warnings": [
+          "20 regime label(s) do not meet attribution eligibility requirements for this profile.",
+          "7 regime label(s) do not meet min_observations_per_regime for stable review."
+        ]
+      },
+      "reactive": {
+        "profile_flags": {
+          "exceeds_low_confidence_share": false,
+          "exceeds_max_flip_rate": false,
+          "exceeds_max_single_day_flip_share": false,
+          "has_unstable_runs": false,
+          "is_unstable_profile": false
+        },
+        "stability_metrics": {
+          "attribution_eligible_regime_count": 20,
+          "attribution_ineligible_regime_count": 17,
+          "average_regime_duration": 2.1739130434782608,
+          "flip_rate": 0.4578313253012048,
+          "low_confidence_share": 0.004,
+          "maximum_regime_duration": 25,
+          "median_regime_duration": 1.0,
+          "minimum_regime_duration": 1,
+          "regime_count": 115,
+          "single_day_flip_count": 19,
+          "single_day_flip_share": 0.16521739130434782,
+          "total_observations": 250,
+          "transition_count": 114,
+          "unstable_regime_share": 0.0
+        },
+        "warning_count": 2,
+        "warnings": [
+          "17 regime label(s) do not meet attribution eligibility requirements for this profile.",
+          "7 regime label(s) do not meet min_observations_per_regime for stable review."
+        ]
+      }
+    }
+  },
+  "case_study": {
+    "milestone": "M25",
+    "name": "full_year_regime_calibration_case_study",
+    "objective": "Full-year 2025 real-data regime calibration, confidence, and adaptive portfolio case study."
+  },
+  "classification": {
+    "defined_row_count": 230,
+    "label_preview": [
+      {
+        "drawdown_recovery_state": "undefined",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=undefined|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2025-01-02T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2025-01-03T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2025-01-06T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2025-01-07T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "near_peak",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=near_peak|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2025-01-08T05:00:00Z",
+        "volatility_state": "undefined"
+      },
+      {
+        "drawdown_recovery_state": "underwater",
+        "regime_label": "volatility=undefined|trend=undefined|drawdown_recovery=underwater|stress=undefined",
+        "stress_state": "undefined",
+        "trend_state": "undefined",
+        "ts_utc": "2025-01-10T05:00:00Z",
+        "volatility_state": "undefined"
+      }
+    ],
+    "state_distribution": {
+      "drawdown_recovery": {
+        "drawdown": 12,
+        "near_peak": 113,
+        "recovery": 66,
+        "undefined": 1,
+        "underwater": 58
+      },
+      "stress": {
+        "correlation_stress": 18,
+        "dispersion_stress": 33,
+        "normal_stress": 179,
+        "undefined": 20
+      },
+      "trend": {
+        "downtrend": 45,
+        "sideways": 40,
+        "undefined": 20,
+        "uptrend": 145
+      },
+      "volatility": {
+        "high_volatility": 76,
+        "low_volatility": 76,
+        "normal_volatility": 78,
+        "undefined": 20
+      }
+    },
+    "undefined_row_count": 20
+  },
+  "data_coverage": {
+    "artifact_type": "data_coverage_summary",
+    "counts": {
+      "detected_symbol_partition_count": 50,
+      "row_count": 12500,
+      "symbol_count": 50,
+      "unique_date_count": 250
+    },
+    "coverage_status": {
+      "failure_reasons": [],
+      "passed": true
+    },
+    "data_source": {
+      "dataset_root": "data/curated/features_daily",
+      "features_root": "data",
+      "mock_or_synthetic_data": false,
+      "real_data_used": true,
+      "type": "downloaded_real_data"
+    },
+    "dataset": "features_daily",
+    "diagnostics": {
+      "large_gap_examples": [],
+      "max_gap_days": 4,
+      "month_presence": {
+        "01": true,
+        "02": true,
+        "03": true,
+        "04": true,
+        "05": true,
+        "06": true,
+        "07": true,
+        "08": true,
+        "09": true,
+        "10": true,
+        "11": true,
+        "12": true
+      },
+      "per_symbol_coverage_preview": [
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "AAPL"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "ABBV"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "ADBE"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "AMD"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "AMZN"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "AVGO"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "BA"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "BAC"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "C"
+        },
+        {
+          "count": 250,
+          "max": "2025-12-31T05:00:00Z",
+          "min": "2025-01-02T05:00:00Z",
+          "symbol": "CAT"
+        }
+      ],
+      "rows_per_symbol_summary": {
+        "max": 250,
+        "median": 250.0,
+        "min": 250
+      }
+    },
+    "market_basket_symbols": [
+      "AAPL",
+      "ABBV",
+      "ADBE",
+      "AMD",
+      "AMZN",
+      "AVGO",
+      "BA",
+      "BAC",
+      "C",
+      "CAT",
+      "COP",
+      "COST"
+    ],
+    "observed_window": {
+      "max_date": "2025-12-31",
+      "max_timestamp": "2025-12-31T05:00:00Z",
+      "min_date": "2025-01-02",
+      "min_timestamp": "2025-01-02T05:00:00Z"
+    },
+    "requested_window": {
+      "end_date": "2025-12-31",
+      "end_exclusive": "2026-01-01",
+      "start_date": "2025-01-01"
+    },
+    "schema": {
+      "columns": [
+        "symbol",
+        "ts_utc",
+        "timeframe",
+        "date",
+        "close",
+        "feature_ret_1d",
+        "feature_ret_5d",
+        "feature_ret_20d",
+        "feature_vol_20d",
+        "feature_sma20",
+        "feature_sma50",
+        "feature_sma_20",
+        "feature_close_to_sma20",
+        "year",
+        "feature_sma_50",
+        "target_ret_1d",
+        "target_ret_5d"
+      ],
+      "has_date": true,
+      "has_ts_utc": true
+    }
+  },
+  "gmm_confidence": {
+    "label_column_contract": [
+      "ts_utc",
+      "gmm_cluster_label",
+      "gmm_previous_cluster_label",
+      "gmm_shift_flag",
+      "gmm_shift_probability_delta",
+      "gmm_posterior_l1_delta",
+      "gmm_posterior_probability",
+      "gmm_confidence_score",
+      "gmm_posterior_entropy",
+      "gmm_entropy_confidence",
+      "gmm_is_low_confidence",
+      "confidence_score",
+      "confidence_bucket",
+      "fallback_flag",
+      "fallback_reason",
+      "predicted_label"
+    ],
+    "low_confidence_preview": [],
+    "low_confidence_row_count": 0,
+    "manifest": {
+      "artifact_type": "regime_gmm_classifier",
+      "artifacts": {
+        "regime_gmm_labels_csv": "regime_gmm_labels.csv",
+        "regime_gmm_manifest_json": "regime_gmm_manifest.json",
+        "regime_gmm_posteriors_csv": "regime_gmm_posteriors.csv",
+        "regime_gmm_shift_events_csv": "regime_gmm_shift_events.csv",
+        "regime_gmm_summary_json": "regime_gmm_summary.json"
+      },
+      "file_inventory": {
+        "regime_gmm_labels.csv": {
+          "path": "regime_gmm_labels.csv",
+          "rows": 230,
+          "sha256": "882179e078dcd7f23719c7408c2ef0ab846cc8025853716208abf89bd6b25511"
+        },
+        "regime_gmm_manifest.json": {
+          "path": "regime_gmm_manifest.json"
+        },
+        "regime_gmm_posteriors.csv": {
+          "path": "regime_gmm_posteriors.csv",
+          "rows": 230,
+          "sha256": "81022cf2d71b3ff87570cfaa7b374bedf6e0d3c9d36e5495e74d96b84cbab843"
+        },
+        "regime_gmm_shift_events.csv": {
+          "path": "regime_gmm_shift_events.csv",
+          "rows": 3,
+          "sha256": "6d68b2a49ba80c82da3b51c16a0416fa537406403c4047c1644a2e52fca10d24"
+        },
+        "regime_gmm_summary.json": {
+          "path": "regime_gmm_summary.json",
+          "sha256": "1d0899acca5febd418c7ab1757c229378b3f13aa1ec59c7c0789b966c0f56fe6"
+        }
+      },
+      "metadata": {
+        "case_study": "full_year_regime_calibration_case_study"
+      },
+      "run_id": "full_year_2025_gmm",
+      "schema_version": 1,
+      "source_regime_artifact_references": {
+        "regime_manifest": "../regime_bundle/regime_manifest.json"
+      },
+      "summary": {
+        "cluster_count": 3,
+        "feature_columns": [
+          "volatility_metric",
+          "trend_metric",
+          "drawdown_metric",
+          "stress_correlation_metric",
+          "stress_dispersion_metric"
+        ],
+        "posterior_row_count": 230,
+        "row_count": 230,
+        "shift_event_count": 3
+      },
+      "taxonomy_version": "regime_taxonomy_v1"
+    },
+    "shift_event_count": 3,
+    "summary": {
+      "artifact_type": "regime_gmm_classifier",
+      "cluster_count": 3,
+      "cluster_distribution": {
+        "cluster_0": 153,
+        "cluster_1": 34,
+        "cluster_2": 43
+      },
+      "cluster_order": [
+        1,
+        0,
+        2
+      ],
+      "confidence_bucket_distribution": {
+        "high": 229,
+        "low": 0,
+        "medium": 1
+      },
+      "config": {
+        "ambiguous_margin_threshold": 0.1,
+        "confidence_thresholds": {
+          "high": 0.75,
+          "medium": 0.5
+        },
+        "covariance_type": "full",
+        "feature_columns": [
+          "volatility_metric",
+          "trend_metric",
+          "drawdown_metric",
+          "stress_correlation_metric",
+          "stress_dispersion_metric"
+        ],
+        "low_confidence_threshold": 0.55,
+        "max_iter": 200,
+        "metadata": {
+          "case_study": "full_year_regime_calibration_case_study"
+        },
+        "min_observations": 30,
+        "min_shift_probability": 0.55,
+        "n_components": 3,
+        "n_init": 1,
+        "random_state": 42,
+        "shift_probability_delta_threshold": 0.15,
+        "shift_requires_not_low_confidence": true,
+        "standardization_epsilon": 1e-12,
+        "standardize_features": true,
+        "time_column": "ts_utc"
+      },
+      "feature_columns": [
+        "volatility_metric",
+        "trend_metric",
+        "drawdown_metric",
+        "stress_correlation_metric",
+        "stress_dispersion_metric"
+      ],
+      "feature_scaling": {
+        "enabled": true,
+        "epsilon": 1e-12,
+        "feature_means": [
+          0.01224742659831127,
+          0.02169269272500775,
+          0.036426908088354894,
+          0.2502683344694743,
+          0.016872423855254174
+        ],
+        "feature_stds": [
+          0.008685093945463305,
+          0.059531282345524975,
+          0.0501721806079996,
+          0.21425405571041006,
+          0.002463242214020386
+        ]
+      },
+      "low_confidence_share": 0.0,
+      "mean_entropy": 0.01440882049387428,
+      "posterior_shape": [
+        230,
+        3
+      ],
+      "row_count": 230,
+      "shift_event_count": 3,
+      "stable_cluster_mapping": {
+        "gmm_cluster_0": {
+          "sklearn_component": 1
+        },
+        "gmm_cluster_1": {
+          "sklearn_component": 0
+        },
+        "gmm_cluster_2": {
+          "sklearn_component": 2
+        }
+      },
+      "taxonomy_version": "regime_taxonomy_v1"
+    }
+  },
+  "input_path": {
+    "dataset": "features_daily",
+    "features_dataset_root": "data/curated/features_daily",
+    "features_root": "data",
+    "market_symbols": [
+      "AAPL",
+      "ABBV",
+      "ADBE",
+      "AMD",
+      "AMZN",
+      "AVGO",
+      "BA",
+      "BAC",
+      "C",
+      "CAT",
+      "COP",
+      "COST"
+    ],
+    "portfolio_name": "full_year_regime_static_portfolio_2025",
+    "requested_window": {
+      "end_date": "2025-12-31",
+      "end_exclusive": "2026-01-01",
+      "start_date": "2025-01-01"
+    },
+    "strategy_names": [
+      "momentum_v1",
+      "mean_reversion_v1"
+    ]
+  },
+  "limitations": [
+    "The regime surface is derived from a deterministic basket of repository-available features_daily symbols rather than an external benchmark index.",
+    "GMM confidence is a diagnostic overlay and does not replace the Milestone 24 taxonomy labels.",
+    "Adaptive comparison is a deterministic research diagnostic that rescales baseline returns; it is not live trading logic.",
+    "Policy parameters are intentionally conservative and illustrative rather than tuned to force adaptive outperformance."
+  ],
+  "paths": {
+    "adaptive_policy": "adaptive_policy",
+    "artifact_manifest": "artifact_manifest.json",
+    "calibrated_portfolio_bundle": "calibrated_portfolio_bundle",
+    "calibration_profiles": "calibration_profiles",
+    "data_coverage_summary": "data_coverage_summary.json",
+    "final_interpretation": "final_interpretation.md",
+    "gmm_confidence": "gmm_confidence",
+    "output_root": ".",
+    "regime_bundle": "regime_bundle",
+    "static_portfolio_bundle": "static_portfolio_bundle"
+  },
+  "raw_regime_evaluation": {
+    "portfolio": {
+      "best_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": 0.02959202835706698,
+        "observation_count": 7,
+        "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=correlation_stress"
+      },
+      "fragility_flag": false,
+      "transition_worst_category": {
+        "event_count": 6,
+        "metric_value": -0.002555464578369915,
+        "transition_category": "stress_relief",
+        "transition_dimension": "stress"
+      },
+      "worst_regime": {
+        "coverage_status": "sufficient",
+        "metric_value": -0.04123519382774821,
+        "observation_count": 12,
+        "regime_label": "volatility=high_volatility|trend=uptrend|drawdown_recovery=recovery|stress=normal_stress"
+      }
+    },
+    "strategies": {
+      "mean_reversion_v1": {
+        "best_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": 0.11403850481207312,
+          "observation_count": 7,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress"
+        },
+        "fragility_flag": false,
+        "metrics": {
+          "annualized_return": 0.036950532618512,
+          "annualized_volatility": 0.11707002416766117,
+          "average_execution_friction_per_trade": 0.0,
+          "average_trade_size": 1.0150037509377345,
+          "average_turnover": 0.21648,
+          "benchmark_correlation": 0.5792677842560449,
+          "benchmark_total_return": 0.17912153275054643,
+          "cumulative_return": 0.03665196491792755,
+          "excess_return": -0.14246956783261888,
+          "exposure_pct": 48.056,
+          "hit_rate": 0.6902133922001472,
+          "max_drawdown": 0.07555849582472829,
+          "percent_periods_traded": 21.328,
+          "plausibility_flags": {
+            "beta_dominated_strategy": false,
+            "high_benchmark_correlation": false,
+            "high_turnover_low_edge": false,
+            "low_excess_return": false
+          },
+          "profit_factor": 1.1096870742278835,
+          "rebalance_count": 2666.0,
+          "relative_drawdown": -0.12148349035370398,
+          "sanity_issue_count": 0.0,
+          "sanity_status": "pass",
+          "sanity_strict_mode": false,
+          "sanity_warning_count": 0.0,
+          "sharpe_ratio": 0.36650480049511874,
+          "total_execution_friction": 0.0,
+          "total_return": 0.03665196491792755,
+          "total_slippage_cost": 0.0,
+          "total_transaction_cost": 0.0,
+          "total_turnover": 2706.0,
+          "trade_count": 2666.0,
+          "turnover": 0.21648,
+          "volatility": 0.007374718331617925,
+          "win_rate": 0.46
+        },
+        "run_id": "mean_reversion_v1_single_58940e389ffa",
+        "worst_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": -0.07377887551507267,
+          "observation_count": 5,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=normal_stress"
+        }
+      },
+      "momentum_v1": {
+        "best_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": 0.08345979366503453,
+          "observation_count": 5,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=normal_stress"
+        },
+        "fragility_flag": false,
+        "metrics": {
+          "annualized_return": -0.005603399294263345,
+          "annualized_volatility": 0.13360627029442543,
+          "average_execution_friction_per_trade": 0.0,
+          "average_trade_size": 1.9793899422918384,
+          "average_turnover": 0.38416,
+          "benchmark_correlation": -0.5767650345873682,
+          "benchmark_total_return": 0.17912153275054643,
+          "cumulative_return": -0.005559051711371055,
+          "excess_return": -0.18468058446191749,
+          "exposure_pct": 92.0,
+          "hit_rate": 0.39257731958762887,
+          "max_drawdown": 0.12096151131095656,
+          "percent_periods_traded": 19.408,
+          "plausibility_flags": {
+            "beta_dominated_strategy": false,
+            "high_benchmark_correlation": false,
+            "high_turnover_low_edge": false,
+            "low_excess_return": false
+          },
+          "profit_factor": 0.9846258771325715,
+          "rebalance_count": 2426.0,
+          "relative_drawdown": -0.07608047486747571,
+          "sanity_issue_count": 0.0,
+          "sanity_status": "pass",
+          "sanity_strict_mode": false,
+          "sanity_warning_count": 0.0,
+          "sharpe_ratio": 0.02628466497513488,
+          "total_execution_friction": 0.0,
+          "total_return": -0.005559051711371055,
+          "total_slippage_cost": 0.0,
+          "total_transaction_cost": 0.0,
+          "total_turnover": 4802.0,
+          "trade_count": 2426.0,
+          "turnover": 0.38416,
+          "volatility": 0.008416403923760146,
+          "win_rate": 0.476
+        },
+        "run_id": "momentum_v1_single_1c70116e0f7c",
+        "worst_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": -0.06436579733115655,
+          "observation_count": 7,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress"
+        }
+      }
+    }
+  },
+  "static_baseline": {
+    "portfolio_run": {
+      "component_count": 2,
+      "metrics": {
+        "annualized_return": 0.022466086479133063,
+        "annualized_volatility": 0.04454041045305634,
+        "average_execution_friction_per_trade": 0.0,
+        "average_fixed_fee_per_trade": 0.0,
+        "average_gross_exposure": 1.0,
+        "average_leverage": 1.0,
+        "average_net_exposure": 1.0,
+        "average_trade_size": 1.0,
+        "average_turnover": 0.004,
+        "conditional_value_at_risk": 0.007086055769004863,
+        "conditional_value_at_risk_confidence_level": 0.95,
+        "cumulative_return": 0.022285812055292897,
+        "current_drawdown": 0.021529485599930953,
+        "current_drawdown_duration": 165.0,
+        "estimated_post_target_volatility": null,
+        "estimated_pre_target_volatility": 0.018253800438549864,
+        "execution_drag_total_return": 0.0,
+        "exposure_pct": 100.0,
+        "gross_annualized_return": 0.022466086479133063,
+        "gross_cumulative_return": 0.022285812055292897,
+        "gross_total_return": 0.022285812055292897,
+        "hit_rate": 0.496,
+        "latest_rolling_volatility": 0.018253800438549864,
+        "max_drawdown": 0.04429849250753637,
+        "max_drawdown_duration": 165.0,
+        "max_gross_exposure": 1.0,
+        "max_leverage": 1.0,
+        "max_net_exposure": 1.0,
+        "max_single_weight": 0.5,
+        "max_weight_sum_deviation": 0.0,
+        "min_net_exposure": 1.0,
+        "net_total_return": 0.022285812055292897,
+        "percent_periods_traded": 0.4,
+        "profit_factor": 1.1153951311819357,
+        "realized_volatility": 0.04454041045305634,
+        "rebalance_count": 1.0,
+        "rolling_volatility_latest": 0.018253800438549864,
+        "rolling_volatility_max": 0.10460961254813193,
+        "rolling_volatility_mean": 0.039389202458651074,
+        "rolling_volatility_window": 20.0,
+        "sanity_issue_count": 0.0,
+        "sanity_status": "pass",
+        "sanity_strict_mode": false,
+        "sanity_warning_count": 0.0,
+        "sharpe_ratio": 0.5210832301794475,
+        "target_volatility": null,
+        "total_execution_friction": 0.0,
+        "total_fixed_fee": 0.0,
+        "total_return": 0.022285812055292897,
+        "total_slippage_cost": 0.0,
+        "total_transaction_cost": 0.0,
+        "total_turnover": 1.0,
+        "trade_count": 1.0,
+        "turnover": 0.004,
+        "validation_issue_count": 0.0,
+        "value_at_risk": 0.0034253772790232674,
+        "value_at_risk_confidence_level": 0.95,
+        "volatility": 0.0028057821274173524,
+        "volatility_scaling_factor": null,
+        "volatility_target_scale": null,
+        "volatility_target_scale_capped": 0.0,
+        "volatility_targeting_enabled": 0.0,
+        "win_rate": 0.496
+      },
+      "portfolio_return_preview": [
+        {
+          "portfolio_return": 0.0,
+          "ts_utc": "2025-01-02T05:00:00Z"
+        },
+        {
+          "portfolio_return": 0.0,
+          "ts_utc": "2025-01-03T05:00:00Z"
+        },
+        {
+          "portfolio_return": 0.0,
+          "ts_utc": "2025-01-06T05:00:00Z"
+        },
+        {
+          "portfolio_return": 0.0,
+          "ts_utc": "2025-01-07T05:00:00Z"
+        },
+        {
+          "portfolio_return": 0.0,
+          "ts_utc": "2025-01-08T05:00:00Z"
+        }
+      ],
+      "run_id": "full_year_regime_static_portfolio_2025_portfolio_3710e9360f9e"
+    },
+    "strategy_comparison": {
+      "best_run": {
+        "run_id": "mean_reversion_v1",
+        "winner_count": 29
+      },
+      "robust_run_ids": [
+        "mean_reversion_v1",
+        "momentum_v1"
+      ],
+      "warning_row_count": 40
+    },
+    "strategy_runs": {
+      "mean_reversion_v1": {
+        "best_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": 0.11403850481207312,
+          "observation_count": 7,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress"
+        },
+        "fragility_flag": false,
+        "metrics": {
+          "annualized_return": 0.036950532618512,
+          "annualized_volatility": 0.11707002416766117,
+          "average_execution_friction_per_trade": 0.0,
+          "average_trade_size": 1.0150037509377345,
+          "average_turnover": 0.21648,
+          "benchmark_correlation": 0.5792677842560449,
+          "benchmark_total_return": 0.17912153275054643,
+          "cumulative_return": 0.03665196491792755,
+          "excess_return": -0.14246956783261888,
+          "exposure_pct": 48.056,
+          "hit_rate": 0.6902133922001472,
+          "max_drawdown": 0.07555849582472829,
+          "percent_periods_traded": 21.328,
+          "plausibility_flags": {
+            "beta_dominated_strategy": false,
+            "high_benchmark_correlation": false,
+            "high_turnover_low_edge": false,
+            "low_excess_return": false
+          },
+          "profit_factor": 1.1096870742278835,
+          "rebalance_count": 2666.0,
+          "relative_drawdown": -0.12148349035370398,
+          "sanity_issue_count": 0.0,
+          "sanity_status": "pass",
+          "sanity_strict_mode": false,
+          "sanity_warning_count": 0.0,
+          "sharpe_ratio": 0.36650480049511874,
+          "total_execution_friction": 0.0,
+          "total_return": 0.03665196491792755,
+          "total_slippage_cost": 0.0,
+          "total_transaction_cost": 0.0,
+          "total_turnover": 2706.0,
+          "trade_count": 2666.0,
+          "turnover": 0.21648,
+          "volatility": 0.007374718331617925,
+          "win_rate": 0.46
+        },
+        "run_id": "mean_reversion_v1_single_58940e389ffa",
+        "worst_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": -0.07377887551507267,
+          "observation_count": 5,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=normal_stress"
+        }
+      },
+      "momentum_v1": {
+        "best_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": 0.08345979366503453,
+          "observation_count": 5,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=drawdown|stress=normal_stress"
+        },
+        "fragility_flag": false,
+        "metrics": {
+          "annualized_return": -0.005603399294263345,
+          "annualized_volatility": 0.13360627029442543,
+          "average_execution_friction_per_trade": 0.0,
+          "average_trade_size": 1.9793899422918384,
+          "average_turnover": 0.38416,
+          "benchmark_correlation": -0.5767650345873682,
+          "benchmark_total_return": 0.17912153275054643,
+          "cumulative_return": -0.005559051711371055,
+          "excess_return": -0.18468058446191749,
+          "exposure_pct": 92.0,
+          "hit_rate": 0.39257731958762887,
+          "max_drawdown": 0.12096151131095656,
+          "percent_periods_traded": 19.408,
+          "plausibility_flags": {
+            "beta_dominated_strategy": false,
+            "high_benchmark_correlation": false,
+            "high_turnover_low_edge": false,
+            "low_excess_return": false
+          },
+          "profit_factor": 0.9846258771325715,
+          "rebalance_count": 2426.0,
+          "relative_drawdown": -0.07608047486747571,
+          "sanity_issue_count": 0.0,
+          "sanity_status": "pass",
+          "sanity_strict_mode": false,
+          "sanity_warning_count": 0.0,
+          "sharpe_ratio": 0.02628466497513488,
+          "total_execution_friction": 0.0,
+          "total_return": -0.005559051711371055,
+          "total_slippage_cost": 0.0,
+          "total_transaction_cost": 0.0,
+          "total_turnover": 4802.0,
+          "trade_count": 2426.0,
+          "turnover": 0.38416,
+          "volatility": 0.008416403923760146,
+          "win_rate": 0.476
+        },
+        "run_id": "momentum_v1_single_1c70116e0f7c",
+        "worst_regime": {
+          "coverage_status": "sufficient",
+          "metric_value": -0.06436579733115655,
+          "observation_count": 7,
+          "regime_label": "volatility=high_volatility|trend=downtrend|drawdown_recovery=recovery|stress=dispersion_stress"
+        }
+      }
+    }
+  }
+}

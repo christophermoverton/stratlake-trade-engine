@@ -1,0 +1,56 @@
+{
+  "artifact_type": "regime_gmm_classifier",
+  "artifacts": {
+    "regime_gmm_labels_csv": "regime_gmm_labels.csv",
+    "regime_gmm_manifest_json": "regime_gmm_manifest.json",
+    "regime_gmm_posteriors_csv": "regime_gmm_posteriors.csv",
+    "regime_gmm_shift_events_csv": "regime_gmm_shift_events.csv",
+    "regime_gmm_summary_json": "regime_gmm_summary.json"
+  },
+  "file_inventory": {
+    "regime_gmm_labels.csv": {
+      "path": "regime_gmm_labels.csv",
+      "rows": 230,
+      "sha256": "882179e078dcd7f23719c7408c2ef0ab846cc8025853716208abf89bd6b25511"
+    },
+    "regime_gmm_manifest.json": {
+      "path": "regime_gmm_manifest.json"
+    },
+    "regime_gmm_posteriors.csv": {
+      "path": "regime_gmm_posteriors.csv",
+      "rows": 230,
+      "sha256": "81022cf2d71b3ff87570cfaa7b374bedf6e0d3c9d36e5495e74d96b84cbab843"
+    },
+    "regime_gmm_shift_events.csv": {
+      "path": "regime_gmm_shift_events.csv",
+      "rows": 3,
+      "sha256": "6d68b2a49ba80c82da3b51c16a0416fa537406403c4047c1644a2e52fca10d24"
+    },
+    "regime_gmm_summary.json": {
+      "path": "regime_gmm_summary.json",
+      "sha256": "1d0899acca5febd418c7ab1757c229378b3f13aa1ec59c7c0789b966c0f56fe6"
+    }
+  },
+  "metadata": {
+    "case_study": "full_year_regime_calibration_case_study"
+  },
+  "run_id": "full_year_2025_gmm",
+  "schema_version": 1,
+  "source_regime_artifact_references": {
+    "regime_manifest": "../regime_bundle/regime_manifest.json"
+  },
+  "summary": {
+    "cluster_count": 3,
+    "feature_columns": [
+      "volatility_metric",
+      "trend_metric",
+      "drawdown_metric",
+      "stress_correlation_metric",
+      "stress_dispersion_metric"
+    ],
+    "posterior_row_count": 230,
+    "row_count": 230,
+    "shift_event_count": 3
+  },
+  "taxonomy_version": "regime_taxonomy_v1"
+}

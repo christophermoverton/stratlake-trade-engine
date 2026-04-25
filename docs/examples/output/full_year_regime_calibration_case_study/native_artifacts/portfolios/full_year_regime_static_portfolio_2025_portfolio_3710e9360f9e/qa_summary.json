@@ -1,0 +1,92 @@
+{
+  "allocator": "equal_weight",
+  "date_range": [
+    "2025-01-02T05:00:00Z",
+    "2025-12-31T05:00:00Z"
+  ],
+  "diagnostics": {
+    "max_gross_exposure": 1.0,
+    "max_leverage": 1.0,
+    "max_net_exposure": 1.0,
+    "max_single_weight": 0.5,
+    "max_weight_sum_deviation": 0.0,
+    "min_net_exposure": 1.0,
+    "optimizer_method": "equal_weight",
+    "validation_issue_count": 0.0
+  },
+  "ending_equity": 1.022285812055293,
+  "execution": {
+    "enabled": false,
+    "execution_drag_total_return": 0.0,
+    "fixed_fee": 0.0,
+    "fixed_fee_model": "per_rebalance",
+    "slippage_bps": 0.0,
+    "slippage_model": "constant",
+    "total_execution_friction": 0.0,
+    "total_fixed_fee": 0.0,
+    "total_slippage_cost": 0.0,
+    "total_transaction_cost": 0.0,
+    "transaction_cost_bps": 0.0
+  },
+  "issues": [],
+  "metrics": {
+    "conditional_value_at_risk": 0.007086055769004863,
+    "exposure_pct": 100.0,
+    "gross_total_return": 0.022285812055292897,
+    "max_drawdown": 0.04429849250753637,
+    "net_total_return": 0.022285812055292897,
+    "realized_volatility": 0.04454041045305634,
+    "sharpe_ratio": 0.5210832301794475,
+    "total_execution_friction": 0.0,
+    "total_return": 0.022285812055292897,
+    "trade_count": 1.0,
+    "turnover": 0.004,
+    "value_at_risk": 0.0034253772790232674
+  },
+  "optimizer_method": "equal_weight",
+  "portfolio_name": "full_year_regime_static_portfolio_2025",
+  "return_summary": {
+    "max": 0.009780735797742302,
+    "mean": 9.210024187459135e-05,
+    "min": -0.020584665515385504
+  },
+  "risk": {
+    "conditional_value_at_risk": 0.007086055769004863,
+    "conditional_value_at_risk_confidence_level": 0.95,
+    "config": {
+      "allow_scale_up": false,
+      "cvar_confidence_level": 0.95,
+      "max_volatility_scale": 1.0,
+      "min_volatility_scale": 0.0,
+      "periods_per_year_override": null,
+      "target_volatility": null,
+      "var_confidence_level": 0.95,
+      "volatility_epsilon": 1e-12,
+      "volatility_window": 20
+    },
+    "current_drawdown": 0.021529485599930953,
+    "current_drawdown_duration": 165.0,
+    "max_drawdown_duration": 165.0,
+    "realized_volatility": 0.04454041045305634,
+    "rolling_volatility_latest": 0.018253800438549864,
+    "rolling_volatility_mean": 0.039389202458651074,
+    "rolling_volatility_window": 20.0,
+    "target_volatility": null,
+    "value_at_risk": 0.0034253772790232674,
+    "value_at_risk_confidence_level": 0.95,
+    "volatility_target_scale": null,
+    "volatility_target_scale_capped": 0.0
+  },
+  "row_count": 250,
+  "run_id": null,
+  "sanity": {
+    "issue_count": 0,
+    "issues": [],
+    "status": "pass",
+    "strict_sanity_checks": false,
+    "warning_count": 0
+  },
+  "strategy_count": 2,
+  "timeframe": "1D",
+  "validation_status": "pass"
+}

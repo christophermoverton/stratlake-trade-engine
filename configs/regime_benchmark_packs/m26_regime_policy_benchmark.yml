@@ -1,0 +1,48 @@
+benchmark_name: m26_regime_policy_benchmark
+dataset: features_daily
+timeframe: 1D
+start: "2026-01-01"
+end: "2026-12-31"
+features_root: data
+output_root: artifacts/regime_benchmarks
+
+variants:
+  - name: static_baseline
+    regime_source: static
+
+  - name: taxonomy_only
+    regime_source: taxonomy
+
+  - name: calibrated_taxonomy
+    regime_source: taxonomy
+    calibration_profile: baseline
+
+  - name: gmm_classifier
+    regime_source: gmm
+
+  - name: gmm_calibrated_overlay
+    regime_source: gmm
+    calibration_profile: baseline
+
+  - name: policy_optimized
+    regime_source: policy
+    calibration_profile: baseline
+    policy_config: ../regime_policies/m25_policy_default.yml
+
+metrics:
+  include_transition_metrics: true
+  include_stability_metrics: true
+  include_policy_metrics: true
+  include_conditional_performance: true
+  high_entropy_threshold: 0.75
+
+gmm:
+  n_components: 3
+  random_state: 42
+  min_observations: 30
+  feature_columns:
+    - volatility_metric
+    - trend_metric
+    - drawdown_metric
+    - stress_correlation_metric
+    - stress_dispersion_metric

@@ -66,6 +66,10 @@ variants:
 Variant order is preserved in the benchmark matrix and is part of the
 deterministic run identity.
 
+When `policy_config` is provided as a relative path, the benchmark pack keeps
+that relative form in persisted `config.json` and related metadata while still
+resolving it internally for file access.
+
 ## Artifacts
 
 Each run writes:
@@ -75,6 +79,7 @@ Each run writes:
 * `model_comparison.csv`
 * `calibration_comparison.csv`
 * `policy_comparison.csv`
+* `conditional_performance_summary.json`
 * `stability_summary.json`
 * `transition_summary.json`
 * `config.json`
@@ -108,11 +113,22 @@ it compares taxonomy regime changes against GMM cluster changes on shared
 timestamps. It is not a direct label-equality score because GMM cluster labels
 are not canonical taxonomy labels.
 
+`include_conditional_performance` is currently reserved for a follow-up issue.
+When enabled, the benchmark pack emits
+`conditional_performance_summary.json` as an explicit placeholder instead of
+silently pretending a dedicated conditional-performance comparison artifact
+exists.
+
 ## CLI
 
 ```powershell
 python -m src.cli.run_regime_benchmark_pack --config configs/regime_benchmark_packs/m26_regime_policy_benchmark.yml
 ```
+
+The checked-in full-year style config may require local `features_daily`
+coverage for its selected evaluation window. If that local dataset is absent
+or incomplete, the run is expected to fail fast rather than fall back to
+synthetic data.
 
 ## Interpretation Guidance
 

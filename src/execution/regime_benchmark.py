@@ -34,6 +34,7 @@ def run_regime_benchmark_pack(
             "model_comparison_csv": raw_result.model_comparison_csv_path,
             "calibration_comparison_csv": raw_result.calibration_comparison_csv_path,
             "policy_comparison_csv": raw_result.policy_comparison_csv_path,
+            "conditional_performance_summary_json": raw_result.conditional_performance_summary_path,
             "stability_summary_json": raw_result.stability_summary_path,
             "transition_summary_json": raw_result.transition_summary_path,
             "manifest_json": raw_result.manifest_path,

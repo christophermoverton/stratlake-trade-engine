@@ -62,6 +62,7 @@ class RegimeBenchmarkVariantConfig:
     regime_source: str
     calibration_profile: str | None = None
     policy_config: str | None = None
+    resolved_policy_config: str | None = None
 
     def to_dict(self) -> dict[str, Any]:
         return {
@@ -133,6 +134,85 @@ class RegimeBenchmarkPackConfig:
             }
         )
 
+    @classmethod
+    def from_mapping(
+        cls,
+        payload: Mapping[str, Any],
+        *,
+        config_dir: Path | None = None,
+    ) -> "RegimeBenchmarkPackConfig":
+        unknown_keys = sorted(set(payload) - _ROOT_KEYS)
+        if unknown_keys:
+            raise RegimeBenchmarkPackConfigError(
+                f"Regime benchmark-pack config contains unsupported keys: {unknown_keys}."
+            )
+
+        variants = _resolve_variants(payload.get("variants"), config_dir=config_dir)
+        if len(variants) < 1:
+            raise RegimeBenchmarkPackConfigError(
+                "Regime benchmark-pack config must define at least one variant."
+            )
+
+        benchmark_name = _normalize_required_string(
+            payload.get("benchmark_name"),
+            field_name="benchmark_name",
+        )
+        dataset = _normalize_required_string(payload.get("dataset"), field_name="dataset")
+        timeframe = _normalize_required_string(payload.get("timeframe"), field_name="timeframe")
+        start = _normalize_required_string(payload.get("start"), field_name="start")
+        end = _normalize_required_string(payload.get("end"), field_name="end")
+        features_root = _normalize_relative_path_string(
+            payload.get("features_root", "data"),
+            field_name="features_root",
+        )
+        output_root = _normalize_relative_path_string(
+            payload.get("output_root", "artifacts/regime_benchmarks"),
+            field_name="output_root",
+        )
+        symbols = _normalize_optional_string_sequence(payload.get("symbols"), field_name="symbols")
+        metrics = _resolve_metrics(payload.get("metrics"))
+        classification = _resolve_optional_mapping(payload.get("classification"), field_name="classification")
+        gmm = _resolve_optional_mapping(payload.get("gmm"), field_name="gmm")
+        transition = _resolve_optional_mapping(payload.get("transition"), field_name="transition")
+        policy_surface = _normalize_required_string(
+            payload.get("policy_surface", "portfolio"),
+            field_name="policy_surface",
+        )
+        if policy_surface not in _SUPPORTED_POLICY_SURFACES:
+            expected = ", ".join(sorted(_SUPPORTED_POLICY_SURFACES))
+            raise RegimeBenchmarkPackConfigError(
+                f"Regime benchmark-pack field 'policy_surface' must be one of: {expected}."
+            )
+        policy_return_column = _normalize_optional_string(
+            payload.get("policy_return_column", "portfolio_return"),
+            field_name="policy_return_column",
+        )
+        policy_weight_column = _normalize_optional_string(
+            payload.get("policy_weight_column", "weight"),
+            field_name="policy_weight_column",
+        )
+        metadata = _resolve_optional_mapping(payload.get("metadata"), field_name="metadata")
+
+        return cls(
+            benchmark_name=benchmark_name,
+            dataset=dataset,
+            timeframe=timeframe,
+            start=start,
+            end=end,
+            symbols=symbols,
+            variants=variants,
+            metrics=metrics,
+            features_root=features_root,
+            output_root=output_root,
+            classification=classification,
+            gmm=gmm,
+            transition=transition,
+            policy_surface=policy_surface,
+            policy_return_column=policy_return_column,
+            policy_weight_column=policy_weight_column,
+            metadata=metadata,
+        )
+
 
 def load_regime_benchmark_pack_config(path: Path) -> RegimeBenchmarkPackConfig:
     if not path.exists():
@@ -157,89 +237,6 @@ def load_regime_benchmark_pack_config(path: Path) -> RegimeBenchmarkPackConfig:
             "Regime benchmark-pack config must contain a top-level mapping."
         )
     return RegimeBenchmarkPackConfig.from_mapping(payload, config_dir=path.parent)
-
-
-@classmethod
-def _from_mapping(
-    cls,
-    payload: Mapping[str, Any],
-    *,
-    config_dir: Path | None = None,
-) -> RegimeBenchmarkPackConfig:
-    unknown_keys = sorted(set(payload) - _ROOT_KEYS)
-    if unknown_keys:
-        raise RegimeBenchmarkPackConfigError(
-            f"Regime benchmark-pack config contains unsupported keys: {unknown_keys}."
-        )
-
-    variants = _resolve_variants(payload.get("variants"), config_dir=config_dir)
-    if len(variants) < 1:
-        raise RegimeBenchmarkPackConfigError(
-            "Regime benchmark-pack config must define at least one variant."
-        )
-
-    benchmark_name = _normalize_required_string(
-        payload.get("benchmark_name"),
-        field_name="benchmark_name",
-    )
-    dataset = _normalize_required_string(payload.get("dataset"), field_name="dataset")
-    timeframe = _normalize_required_string(payload.get("timeframe"), field_name="timeframe")
-    start = _normalize_required_string(payload.get("start"), field_name="start")
-    end = _normalize_required_string(payload.get("end"), field_name="end")
-    features_root = _normalize_relative_path_string(
-        payload.get("features_root", "data"),
-        field_name="features_root",
-    )
-    output_root = _normalize_relative_path_string(
-        payload.get("output_root", "artifacts/regime_benchmarks"),
-        field_name="output_root",
-    )
-    symbols = _normalize_optional_string_sequence(payload.get("symbols"), field_name="symbols")
-    metrics = _resolve_metrics(payload.get("metrics"))
-    classification = _resolve_optional_mapping(payload.get("classification"), field_name="classification")
-    gmm = _resolve_optional_mapping(payload.get("gmm"), field_name="gmm")
-    transition = _resolve_optional_mapping(payload.get("transition"), field_name="transition")
-    policy_surface = _normalize_required_string(
-        payload.get("policy_surface", "portfolio"),
-        field_name="policy_surface",
-    )
-    if policy_surface not in _SUPPORTED_POLICY_SURFACES:
-        expected = ", ".join(sorted(_SUPPORTED_POLICY_SURFACES))
-        raise RegimeBenchmarkPackConfigError(
-            f"Regime benchmark-pack field 'policy_surface' must be one of: {expected}."
-        )
-    policy_return_column = _normalize_optional_string(
-        payload.get("policy_return_column", "portfolio_return"),
-        field_name="policy_return_column",
-    )
-    policy_weight_column = _normalize_optional_string(
-        payload.get("policy_weight_column", "weight"),
-        field_name="policy_weight_column",
-    )
-    metadata = _resolve_optional_mapping(payload.get("metadata"), field_name="metadata")
-
-    return RegimeBenchmarkPackConfig(
-        benchmark_name=benchmark_name,
-        dataset=dataset,
-        timeframe=timeframe,
-        start=start,
-        end=end,
-        symbols=symbols,
-        variants=variants,
-        metrics=metrics,
-        features_root=features_root,
-        output_root=output_root,
-        classification=classification,
-        gmm=gmm,
-        transition=transition,
-        policy_surface=policy_surface,
-        policy_return_column=policy_return_column,
-        policy_weight_column=policy_weight_column,
-        metadata=metadata,
-    )
-
-
-RegimeBenchmarkPackConfig.from_mapping = _from_mapping  # type: ignore[attr-defined]
 
 
 def _resolve_variants(
@@ -286,7 +283,10 @@ def _resolve_variants(
             item.get("calibration_profile"),
             field_name=f"variants[{index}].calibration_profile",
         )
-        policy_config = item.get("policy_config")
+        policy_config = _normalize_optional_string(
+            item.get("policy_config"),
+            field_name=f"variants[{index}].policy_config",
+        )
         resolved_policy_config = None
         if policy_config is not None:
             resolved_policy_config = _normalize_existing_path_string(
@@ -304,7 +304,8 @@ def _resolve_variants(
                 name=name,
                 regime_source=regime_source,
                 calibration_profile=calibration_profile,
-                policy_config=resolved_policy_config,
+                policy_config=None if policy_config is None else Path(policy_config).as_posix(),
+                resolved_policy_config=resolved_policy_config,
             )
         )
     return tuple(variants)

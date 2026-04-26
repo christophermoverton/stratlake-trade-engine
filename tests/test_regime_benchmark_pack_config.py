@@ -60,7 +60,35 @@ variants:
     assert config.benchmark_name == "test_regime_pack"
     assert config.features_root == "data"
     assert config.output_root == "artifacts/regime_benchmarks"
-    assert config.variants[1].policy_config == policy_path.resolve().as_posix()
+    assert config.variants[1].policy_config == "policy.yml"
+    assert config.variants[1].resolved_policy_config == policy_path.resolve().as_posix()
+
+
+def test_from_mapping_is_available_as_normal_classmethod(tmp_path: Path) -> None:
+    policy_path = tmp_path / "policy.yml"
+    policy_path.write_text("regime_policy:\n  default: {}\n  confidence: {}\n  regimes: {}\n", encoding="utf-8")
+    payload = {
+        "benchmark_name": "test_regime_pack",
+        "dataset": "features_daily",
+        "timeframe": "1D",
+        "start": "2026-01-01",
+        "end": "2026-02-28",
+        "variants": [
+            {"name": "static_baseline", "regime_source": "static"},
+            {
+                "name": "policy_variant",
+                "regime_source": "policy",
+                "policy_config": "./policy.yml",
+            },
+        ],
+    }
+
+    from src.config.regime_benchmark_pack import RegimeBenchmarkPackConfig
+
+    config = RegimeBenchmarkPackConfig.from_mapping(payload, config_dir=tmp_path)
+
+    assert isinstance(config, RegimeBenchmarkPackConfig)
+    assert config.variants[1].policy_config == "policy.yml"
 
 
 def test_policy_variant_requires_policy_config(tmp_path: Path) -> None:

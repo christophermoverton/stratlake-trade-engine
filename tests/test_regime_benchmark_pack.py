@@ -105,7 +105,13 @@ def _write_config(
     policy_path: Path,
     variants: list[dict[str, object]] | None = None,
     periods: int = 60,
+    relative_policy_path: bool = False,
 ) -> Path:
+    policy_value = (
+        Path(policy_path.name).as_posix()
+        if relative_policy_path
+        else policy_path.as_posix()
+    )
     config = {
         "benchmark_name": "test_regime_policy_benchmark",
         "dataset": "features_daily",
@@ -123,7 +129,7 @@ def _write_config(
                 "name": "policy_optimized",
                 "regime_source": "policy",
                 "calibration_profile": "baseline",
-                "policy_config": policy_path.as_posix(),
+                "policy_config": policy_value,
             },
         ],
         "gmm": {
@@ -147,7 +153,12 @@ def _write_config(
 def test_regime_benchmark_pack_generates_multi_variant_matrix_and_manifest(tmp_path: Path) -> None:
     features_root = _write_feature_fixture(tmp_path / "features")
     policy_path = _write_policy_config(tmp_path / "policy.yml")
-    config_path = _write_config(tmp_path, features_root=features_root, policy_path=policy_path)
+    config_path = _write_config(
+        tmp_path,
+        features_root=features_root,
+        policy_path=policy_path,
+        relative_policy_path=True,
+    )
 
     config = load_regime_benchmark_pack_config(config_path)
     result = run_regime_benchmark_pack(config)
@@ -156,6 +167,10 @@ def test_regime_benchmark_pack_generates_multi_variant_matrix_and_manifest(tmp_p
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
     stability = json.loads(result.stability_summary_path.read_text(encoding="utf-8"))
     transition = json.loads(result.transition_summary_path.read_text(encoding="utf-8"))
+    persisted_config = json.loads(result.config_path.read_text(encoding="utf-8"))
+    conditional = json.loads(result.conditional_performance_summary_path.read_text(encoding="utf-8"))
+    summary = json.loads(result.summary_path.read_text(encoding="utf-8"))
+    provenance = json.loads(result.provenance_path.read_text(encoding="utf-8"))
 
     assert matrix["variant_name"].tolist() == [
         "static_baseline",
@@ -172,6 +187,12 @@ def test_regime_benchmark_pack_generates_multi_variant_matrix_and_manifest(tmp_p
     assert len(transition["variants"]) == 3
     assert matrix.loc[matrix["variant_name"].eq("static_baseline"), "regime_count"].isna().all()
     assert matrix.loc[matrix["variant_name"].eq("policy_optimized"), "policy_turnover"].notna().all()
+    assert persisted_config["variants"][-1]["policy_config"] == "policy.yml"
+    assert conditional["enabled"] is True
+    assert conditional["emitted"] is False
+    assert "follow-up issue" in conditional["reason"]
+    assert summary["warnings"]
+    assert provenance["conditional_performance"]["emitted"] is False
 
 
 def test_regime_benchmark_pack_is_deterministic_for_same_config(tmp_path: Path) -> None:
@@ -212,7 +233,12 @@ def test_regime_benchmark_pack_fails_fast_when_gmm_inputs_are_insufficient(tmp_p
 def test_regime_benchmark_cli_smoke(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
     features_root = _write_feature_fixture(tmp_path / "features")
     policy_path = _write_policy_config(tmp_path / "policy.yml")
-    config_path = _write_config(tmp_path, features_root=features_root, policy_path=policy_path)
+    config_path = _write_config(
+        tmp_path,
+        features_root=features_root,
+        policy_path=policy_path,
+        relative_policy_path=True,
+    )
 
     result = run_cli(["--config", config_path.as_posix()])
     captured = capsys.readouterr()

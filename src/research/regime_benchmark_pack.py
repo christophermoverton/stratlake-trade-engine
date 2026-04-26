@@ -110,6 +110,7 @@ POLICY_COMPARISON_COLUMNS = (
     "warnings",
 )
 STATIC_VARIANT_SUMMARY_FILENAME = "static_variant_summary.json"
+CONDITIONAL_PERFORMANCE_SUMMARY_FILENAME = "conditional_performance_summary.json"
 
 
 @dataclass(frozen=True)
@@ -124,6 +125,7 @@ class RegimeBenchmarkPackRunResult:
     model_comparison_csv_path: Path
     calibration_comparison_csv_path: Path
     policy_comparison_csv_path: Path
+    conditional_performance_summary_path: Path
     stability_summary_path: Path
     transition_summary_path: Path
     summary_path: Path
@@ -176,6 +178,7 @@ def run_regime_benchmark_pack(
     model_comparison_csv_path = resolved_output_root / "model_comparison.csv"
     calibration_comparison_csv_path = resolved_output_root / "calibration_comparison.csv"
     policy_comparison_csv_path = resolved_output_root / "policy_comparison.csv"
+    conditional_performance_summary_path = resolved_output_root / CONDITIONAL_PERFORMANCE_SUMMARY_FILENAME
     stability_summary_path = resolved_output_root / "stability_summary.json"
     transition_summary_path = resolved_output_root / "transition_summary.json"
     summary_path = resolved_output_root / "benchmark_summary.json"
@@ -248,6 +251,9 @@ def run_regime_benchmark_pack(
     )
     _write_csv(policy_comparison_csv_path, policy_rows, fieldnames=POLICY_COMPARISON_COLUMNS)
 
+    conditional_performance_summary = _conditional_performance_summary(config)
+    _write_json(conditional_performance_summary_path, conditional_performance_summary)
+
     stability_summary = {
         "benchmark_name": config.benchmark_name,
         "benchmark_run_id": benchmark_run_id,
@@ -272,6 +278,7 @@ def run_regime_benchmark_pack(
     provenance = {
         "benchmark_name": config.benchmark_name,
         "benchmark_run_id": benchmark_run_id,
+        "conditional_performance": conditional_performance_summary,
         "variant_provenance": [
             {
                 "variant_name": artifact.row["variant_name"],
@@ -294,12 +301,14 @@ def run_regime_benchmark_pack(
             "matrix_row_count": len(matrix_rows),
             "source_artifact_paths": [artifact.source_artifact_path for artifact in variant_artifacts],
             "warning_count": int(sum(len(artifact.warnings) for artifact in variant_artifacts)),
+            "warnings": _summary_warnings(config),
             "paths": {
                 "benchmark_matrix_csv": "benchmark_matrix.csv",
                 "benchmark_matrix_json": "benchmark_matrix.json",
                 "model_comparison_csv": "model_comparison.csv",
                 "calibration_comparison_csv": "calibration_comparison.csv",
                 "policy_comparison_csv": "policy_comparison.csv",
+                "conditional_performance_summary_json": CONDITIONAL_PERFORMANCE_SUMMARY_FILENAME,
                 "stability_summary_json": "stability_summary.json",
                 "transition_summary_json": "transition_summary.json",
                 "config_json": "config.json",
@@ -330,6 +339,7 @@ def run_regime_benchmark_pack(
         model_comparison_csv_path=model_comparison_csv_path,
         calibration_comparison_csv_path=calibration_comparison_csv_path,
         policy_comparison_csv_path=policy_comparison_csv_path,
+        conditional_performance_summary_path=conditional_performance_summary_path,
         stability_summary_path=stability_summary_path,
         transition_summary_path=transition_summary_path,
         summary_path=summary_path,
@@ -722,9 +732,10 @@ def _run_policy_variant(
     labels: pd.DataFrame,
     config: RegimeBenchmarkPackConfig,
 ):
-    if variant.policy_config is None:
+    resolved_policy_config = variant.resolved_policy_config or variant.policy_config
+    if resolved_policy_config is None:
         raise ValueError(f"Variant {variant.name!r} requires a policy_config path.")
-    payload = yaml.safe_load(Path(variant.policy_config).read_text(encoding="utf-8")) or {}
+    payload = yaml.safe_load(Path(resolved_policy_config).read_text(encoding="utf-8")) or {}
     policy_config = resolve_regime_policy_config(payload)
     confidence_frame = None
     if shared.gmm_result is not None:
@@ -1105,6 +1116,7 @@ def _build_manifest(
                 "policy_comparison": int(
                     sum(1 for artifact in variant_artifacts if artifact.row.get("policy_name") is not None)
                 ),
+                "conditional_performance_summary": 1,
             },
             "source_artifact_paths": [artifact.source_artifact_path for artifact in variant_artifacts],
             "variant_warnings": {
@@ -1209,3 +1221,28 @@ def _delta(left: Any, right: Any) -> float | None:
 
 
 __all__ = ["RegimeBenchmarkPackRunResult", "run_regime_benchmark_pack"]
+
+
+def _conditional_performance_summary(config: RegimeBenchmarkPackConfig) -> dict[str, Any]:
+    enabled = bool(config.metrics.include_conditional_performance)
+    return canonicalize_value(
+        {
+            "source": "regime benchmark pack",
+            "enabled": enabled,
+            "emitted": False,
+            "reason": (
+                "Dedicated conditional-performance comparison is reserved for a follow-up issue."
+                if enabled
+                else "Conditional-performance comparison was disabled in the benchmark-pack config."
+            ),
+        }
+    )
+
+
+def _summary_warnings(config: RegimeBenchmarkPackConfig) -> list[str]:
+    warnings: list[str] = []
+    if config.metrics.include_conditional_performance:
+        warnings.append(
+            "include_conditional_performance is enabled, but dedicated conditional-performance comparison remains reserved for a follow-up issue."
+        )
+    return warnings

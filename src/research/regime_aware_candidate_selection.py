@@ -154,12 +154,14 @@ def run_regime_aware_candidate_selection(
     regime_rows = _mark_regime_rows(regime_rows, selected_lookup)
     transition_rows = _build_transition_rows(enriched, selected_lookup)
     defensive_rows = _build_defensive_rows(enriched, selected_lookup)
+    low_confidence_selected = _low_confidence_selected_candidates(selected_entries, config)
     candidate_selection_rows = _build_candidate_selection_rows(
         enriched,
         selected_entries,
         config=config,
         source_review_run_id=source_review_run_id,
         source_benchmark_run_id=source_benchmark_run_id,
+        low_confidence_candidate_ids={item["candidate_id"] for item in low_confidence_selected},
     )
 
     generated_files = [
@@ -200,6 +202,9 @@ def run_regime_aware_candidate_selection(
         output_dir=output_dir,
         generated_files=generated_files,
         limitations=limitations,
+        regime_rows=regime_rows,
+        redundancy_rows=redundancy_rows,
+        low_confidence_selected=low_confidence_selected,
     )
     manifest = _build_manifest(
         selection_run_id=selection_run_id,
@@ -220,6 +225,8 @@ def run_regime_aware_candidate_selection(
         },
         selected_entries=selected_entries,
         warning_count=len(limitations),
+        low_confidence_selected=low_confidence_selected,
+        redundancy_rows=redundancy_rows,
     )
 
     paths = {
@@ -565,6 +572,7 @@ def _build_candidate_selection_rows(
     config: RegimeAwareCandidateSelectionConfig,
     source_review_run_id: str,
     source_benchmark_run_id: str,
+    low_confidence_candidate_ids: set[str],
 ) -> list[dict[str, Any]]:
     selected_by_id: dict[str, list[dict[str, Any]]] = {}
     for entry in selected_entries:
@@ -593,10 +601,10 @@ def _build_candidate_selection_rows(
                 "regime_confidence_observed": row.get("regime_confidence_observed"),
                 "redundancy_group": row.get("redundancy_group"),
                 "redundancy_action": "retained" if entries else "not_selected",
-                "selection_reason": (
-                    f"Selected for {', '.join(categories)}."
-                    if categories
-                    else "Not selected by configured category thresholds, limits, or redundancy pruning."
+                "selection_reason": _candidate_selection_reason(
+                    categories=categories,
+                    candidate_id=row["candidate_id"],
+                    low_confidence_candidate_ids=low_confidence_candidate_ids,
                 ),
                 "source_review_run_id": source_review_run_id,
                 "source_benchmark_run_id": source_benchmark_run_id,
@@ -669,6 +677,9 @@ def _build_allocation_hints(
 def _build_summary(**kwargs: Any) -> dict[str, Any]:
     selected_entries = kwargs["selected_entries"]
     by_category = {category: sum(1 for entry in selected_entries if entry["category"] == category) for category in CATEGORIES}
+    multi_category_candidates = _multi_category_candidates(selected_entries)
+    low_confidence = kwargs["low_confidence_selected"]
+    redundancy_summary = _redundancy_summary(kwargs["redundancy_rows"])
     top = {
         category: [
             {"candidate_id": entry["candidate_id"], "category_score": entry["category_score"]}
@@ -690,6 +701,16 @@ def _build_summary(**kwargs: Any) -> dict[str, Any]:
             "selected_count_by_category": by_category,
             "rejected_or_not_selected_count": max(0, kwargs["candidate_count"] - len({entry["candidate_id"] for entry in selected_entries})),
             "warning_count": len(kwargs["limitations"]),
+            "multi_category_selection_enabled": True,
+            "multi_category_candidate_count": len(multi_category_candidates),
+            "multi_category_candidates": multi_category_candidates,
+            "low_confidence_selected_count": len(low_confidence),
+            "low_confidence_selected_candidates": low_confidence,
+            "regime_candidate_score_count": len(kwargs["regime_rows"]),
+            "regime_specialist_selected_count": by_category["regime_specialist"],
+            "redundancy_pruned_count": redundancy_summary["redundancy_pruned_count"],
+            "redundancy_pruned_candidates": redundancy_summary["redundancy_pruned_candidates"],
+            "redundancy_warning_count": sum(1 for item in kwargs["limitations"] if "redundancy" in str(item).lower()),
             "source_review_pack_path": _rel(kwargs["source_review_pack_path"]),
             "output_root": _rel(kwargs["output_dir"]),
             "generated_artifacts": kwargs["generated_files"],
@@ -702,6 +723,8 @@ def _build_summary(**kwargs: Any) -> dict[str, Any]:
 def _build_manifest(**kwargs: Any) -> dict[str, Any]:
     selected_entries = kwargs["selected_entries"]
     category_counts = {category: sum(1 for entry in selected_entries if entry["category"] == category) for category in CATEGORIES}
+    multi_category_candidates = _multi_category_candidates(selected_entries)
+    redundancy_summary = _redundancy_summary(kwargs["redundancy_rows"])
     return canonicalize_value(
         {
             "artifact_type": "regime_aware_candidate_selection",
@@ -720,6 +743,13 @@ def _build_manifest(**kwargs: Any) -> dict[str, Any]:
                 "unique_candidates": len({entry["candidate_id"] for entry in selected_entries}),
                 "category_assignments": len(selected_entries),
             },
+            "multi_category_selection_enabled": True,
+            "multi_category_candidate_count": len(multi_category_candidates),
+            "multi_category_candidates": multi_category_candidates,
+            "low_confidence_selected_count": len(kwargs["low_confidence_selected"]),
+            "low_confidence_selected_candidates": kwargs["low_confidence_selected"],
+            "redundancy_pruned_count": redundancy_summary["redundancy_pruned_count"],
+            "redundancy_pruned_candidates": redundancy_summary["redundancy_pruned_candidates"],
             "category_counts": category_counts,
             "warning_count": kwargs["warning_count"],
             "file_inventory": {
@@ -801,6 +831,83 @@ def _source_metric_names(category: str) -> tuple[str, ...]:
         "transition_resilient": ("transition_score", "transition_window_return", "transition_window_drawdown"),
         "defensive_fallback": ("defensive_score", "high_vol_drawdown", "volatility", "correlation_to_selected"),
     }[category]
+
+
+def _candidate_selection_reason(
+    *,
+    categories: list[str],
+    candidate_id: str,
+    low_confidence_candidate_ids: set[str],
+) -> str:
+    if not categories:
+        return "Not selected by configured category thresholds, limits, or redundancy pruning."
+    reason = f"Selected for {', '.join(categories)}."
+    if candidate_id in low_confidence_candidate_ids:
+        reason += " Advisory warning: regime_confidence_observed is below configured min_regime_confidence."
+    return reason
+
+
+def _multi_category_candidates(selected_entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    categories_by_candidate: dict[str, set[str]] = {}
+    for entry in selected_entries:
+        categories_by_candidate.setdefault(str(entry["candidate_id"]), set()).add(str(entry["category"]))
+    return [
+        {"candidate_id": candidate_id, "selection_categories": sorted(categories)}
+        for candidate_id, categories in sorted(categories_by_candidate.items())
+        if len(categories) > 1
+    ]
+
+
+def _low_confidence_selected_candidates(
+    selected_entries: list[dict[str, Any]],
+    config: RegimeAwareCandidateSelectionConfig,
+) -> list[dict[str, Any]]:
+    by_candidate: dict[str, dict[str, Any]] = {}
+    threshold = config.regime_context.min_regime_confidence
+    for entry in selected_entries:
+        observed = _float_or_none(entry.get("regime_confidence_observed"))
+        if observed is None or observed >= threshold:
+            continue
+        candidate_id = str(entry["candidate_id"])
+        record = by_candidate.setdefault(
+            candidate_id,
+            {
+                "candidate_id": candidate_id,
+                "regime_confidence_observed": observed,
+                "regime_confidence_required": threshold,
+                "selection_categories": set(),
+            },
+        )
+        record["selection_categories"].add(str(entry["category"]))
+    return [
+        {
+            "candidate_id": item["candidate_id"],
+            "regime_confidence_observed": item["regime_confidence_observed"],
+            "regime_confidence_required": item["regime_confidence_required"],
+            "selection_categories": sorted(item["selection_categories"]),
+        }
+        for item in sorted(by_candidate.values(), key=lambda value: str(value["candidate_id"]))
+    ]
+
+
+def _redundancy_summary(redundancy_rows: list[dict[str, Any]]) -> dict[str, Any]:
+    pruned = [
+        {
+            "candidate_id": str(row["candidate_id"]),
+            "category": str(row["category"]),
+            "redundancy_action": str(row["redundancy_action"]),
+            "reason": str(row["reason"]),
+        }
+        for row in redundancy_rows
+        if row.get("redundancy_action") == "pruned"
+    ]
+    return {
+        "redundancy_pruned_count": len(pruned),
+        "redundancy_pruned_candidates": sorted(
+            pruned,
+            key=lambda item: (item["category"], item["candidate_id"], item["reason"]),
+        ),
+    }
 
 
 def _build_selection_run_id(

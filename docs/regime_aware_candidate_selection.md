@@ -12,6 +12,8 @@ The workflow consumes:
 
 The first implementation is file-backed. The candidate metrics file must include `candidate_id`, `candidate_name`, and `artifact_type`. Other metrics are optional and are recorded as warnings when absent.
 
+Config paths are interpreted from the current working directory, normally the repository root. The checked-in example uses fixture paths under `configs/candidate_selection/fixtures/` and assumes the CLI is run from the repo root. Use `--source-review-pack`, `--candidate-metrics-path`, or `--output-root` when running from another directory or when passing explicit artifact paths.
+
 ## Config
 
 Example:
@@ -54,6 +56,10 @@ output_root: artifacts/candidate_selection
 
 `defensive_fallback` selects candidates with strong defensive score or high-volatility drawdown containment, and respects `max_correlation_to_selected` when `correlation_to_selected` is supplied.
 
+A candidate may be selected into more than one category. `candidate_selection.csv` stores these roles as pipe-delimited values in `selection_category`, and `allocation_hints.json` can include one row per selected candidate/category role. This is intentional: the workflow records why a candidate is useful, not only whether it appears once in a final pool.
+
+`regime_context.min_regime_confidence` is advisory in this Issue 4 implementation. It is written as provenance, and selected candidates with `regime_confidence_observed` below the configured value are reported in `selection_summary.json` and `manifest.json` under `low_confidence_selected_*` fields. It does not currently hard-gate regime-specialist selection.
+
 ## Scoring
 
 Explicit score columns are used when present. Missing scores are computed deterministically from raw metrics:
@@ -67,7 +73,21 @@ Fallback scores are clipped to `0.0` through `1.0`.
 
 ## Redundancy
 
-When `redundancy_group` is supplied, the workflow keeps the highest-scoring candidate per group within each category. When `correlation_to_selected` is supplied, candidates above `max_pairwise_correlation` can be pruned. If no redundancy data is available, selection continues and the limitation is written to the summary and manifest.
+When `redundancy_group` is supplied, the workflow keeps the highest-scoring candidate per group within the configured pruning scope. `apply_within_category` controls category-local group pruning. `apply_across_categories` currently controls whether `correlation_to_selected` can prune across category selections; it does not force a candidate into only one category. Candidates can still appear in multiple roles when they pass multiple category rules.
+
+When `correlation_to_selected` is supplied, candidates above `max_pairwise_correlation` can be pruned. If no redundancy data is available, selection continues and the limitation is written to the summary and manifest. `selection_summary.json` also records `redundancy_pruned_count`, `redundancy_pruned_candidates`, and `redundancy_warning_count`.
+
+## Audit Surfaces
+
+`regime_candidate_scores.csv` is the primary audit surface for regime-specialist scoring and `selected_for_regime` status. `category_assignments.csv` summarizes category-level assignments and may not enumerate every non-selected candidate/regime combination.
+
+`selection_summary.json` and `manifest.json` include explicit multi-category fields:
+
+- `multi_category_selection_enabled`
+- `multi_category_candidate_count`
+- `multi_category_candidates`
+
+They also include regime and confidence audit fields such as `regime_candidate_score_count`, `regime_specialist_selected_count`, `low_confidence_selected_count`, and `low_confidence_selected_candidates`.
 
 ## Artifacts
 

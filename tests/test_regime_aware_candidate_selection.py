@@ -48,6 +48,7 @@ def _candidate_rows() -> list[dict[str, object]]:
             "high_vol_drawdown": -0.15,
             "correlation_to_selected": 0.30,
             "redundancy_group": "carry",
+            "regime_confidence_observed": 0.40,
         },
         {
             "candidate_id": "alpha_redundant",
@@ -65,6 +66,7 @@ def _candidate_rows() -> list[dict[str, object]]:
             "high_vol_drawdown": -0.16,
             "correlation_to_selected": 0.31,
             "redundancy_group": "carry",
+            "regime_confidence_observed": 0.70,
         },
         {
             "candidate_id": "strategy_chop",
@@ -82,6 +84,7 @@ def _candidate_rows() -> list[dict[str, object]]:
             "high_vol_drawdown": -0.08,
             "correlation_to_selected": 0.40,
             "redundancy_group": "chop",
+            "regime_confidence_observed": 0.72,
         },
         {
             "candidate_id": "portfolio_transition",
@@ -99,6 +102,7 @@ def _candidate_rows() -> list[dict[str, object]]:
             "high_vol_drawdown": -0.05,
             "correlation_to_selected": 0.22,
             "redundancy_group": "transition",
+            "regime_confidence_observed": 0.65,
         },
         {
             "candidate_id": "raw_fallback",
@@ -122,6 +126,7 @@ def _candidate_rows() -> list[dict[str, object]]:
             "volatility": 0.10,
             "correlation_to_selected": 0.25,
             "redundancy_group": "raw",
+            "regime_confidence_observed": 0.68,
         },
     ]
 
@@ -185,7 +190,13 @@ def test_regime_aware_candidate_selection_generates_artifacts(tmp_path: Path) ->
     assert "regime_score" in regime_scores.columns
     assert "pruned" in redundancy["redundancy_action"].tolist()
     assert summary["source_review_run_id"] == "review_001"
+    assert summary["multi_category_selection_enabled"] is True
+    assert summary["multi_category_candidate_count"] > 0
+    assert summary["regime_candidate_score_count"] == len(regime_scores)
+    assert summary["regime_specialist_selected_count"] > 0
+    assert summary["redundancy_pruned_count"] > 0
     assert manifest["artifact_type"] == "regime_aware_candidate_selection"
+    assert manifest["multi_category_selection_enabled"] is True
     assert allocation["candidate_weight_hints"]
 
 
@@ -228,6 +239,49 @@ def test_regime_aware_candidate_selection_category_limits_and_ranking_are_determ
     assignments = pd.read_csv(first.category_assignments_path)
     selected_global = assignments[(assignments["category"] == "global_performer") & assignments["selected"]]
     assert len(selected_global) <= 3
+
+
+def test_regime_aware_candidate_selection_reports_multi_category_roles(tmp_path: Path) -> None:
+    result = run_regime_aware_candidate_selection(
+        _config(tmp_path, _write_review_pack(tmp_path), _write_candidates_csv(tmp_path))
+    )
+
+    selection = pd.read_csv(result.candidate_selection_csv_path)
+    allocation = json.loads(result.allocation_hints_path.read_text(encoding="utf-8"))
+    summary = result.selection_summary
+    multi_category_ids = {item["candidate_id"] for item in summary["multi_category_candidates"]}
+
+    assert multi_category_ids
+    assert any("|" in value for value in selection["selection_category"].dropna().astype(str))
+    assert any(
+        hint["candidate_id"] in multi_category_ids and hint["category"] == "global_performer"
+        for hint in allocation["candidate_weight_hints"]
+    )
+    assert any(
+        hint["candidate_id"] in multi_category_ids and hint["category"] != "global_performer"
+        for hint in allocation["candidate_weight_hints"]
+    )
+
+
+def test_regime_aware_candidate_selection_reports_advisory_low_confidence(tmp_path: Path) -> None:
+    result = run_regime_aware_candidate_selection(
+        _config(tmp_path, _write_review_pack(tmp_path), _write_candidates_csv(tmp_path))
+    )
+
+    selection = pd.read_csv(result.candidate_selection_csv_path)
+    low_confidence = result.selection_summary["low_confidence_selected_candidates"]
+
+    assert result.selection_summary["low_confidence_selected_count"] == len(low_confidence)
+    assert low_confidence == [
+        {
+            "candidate_id": "alpha_global",
+            "regime_confidence_observed": 0.4,
+            "regime_confidence_required": 0.55,
+            "selection_categories": ["global_performer", "regime_specialist"],
+        }
+    ]
+    reason = selection.loc[selection["candidate_id"] == "alpha_global", "selection_reason"].iloc[0]
+    assert "Advisory warning" in reason
 
 
 def test_regime_aware_candidate_selection_no_redundancy_data_warning(tmp_path: Path) -> None:

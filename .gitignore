@@ -81,3 +81,6 @@ Thumbs.db
 # ===============================
 .vscode/
 .idea/
+
+#Benchmark case study outputs
+docs/examples/output/full_year_regime_policy_benchmark_case_study/

@@ -36,6 +36,52 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+## Milestone 26 Summary
+
+Milestone 26 adds a governed adaptive regime-policy research workflow above the
+Milestone 24 and 25 regime surfaces. It compares deterministic regime benchmark
+variants, evaluates configurable promotion gates, packages review evidence and
+decision logs, selects regime-aware candidates, stress tests adaptive policies,
+and stitches those outputs into a fixture-backed full-year case study.
+
+The Milestone 26 layer is artifact-first and research-governance oriented. It
+writes deterministic manifests, evidence indexes, summaries, and comparison
+tables under stable artifact roots, but it does not claim production or trading
+readiness.
+
+Common Milestone 26 CLI and script entrypoints:
+
+```powershell
+python -m src.cli.run_regime_benchmark_pack --config configs/regime_benchmark_packs/m26_regime_policy_benchmark.yml
+python -m src.cli.run_regime_promotion_gates --benchmark-path artifacts/regime_benchmarks/<benchmark_run_id> --config configs/regime_promotion_gates/m26_regime_policy_gates.yml
+python -m src.cli.generate_regime_review_pack --config configs/regime_reviews/m26_regime_review_pack.yml
+python -m src.cli.run_regime_aware_candidate_selection --config configs/candidate_selection/m26_regime_aware_candidate_selection.yml
+python -m src.cli.run_regime_policy_stress_tests --config configs/regime_stress_tests/m26_adaptive_policy_stress.yml
+python docs/examples/full_year_regime_policy_benchmark_case_study.py
+```
+
+Start with:
+
+* [docs/regime_benchmark_packs.md](docs/regime_benchmark_packs.md)
+* [docs/regime_promotion_gates.md](docs/regime_promotion_gates.md)
+* [docs/regime_review_packs.md](docs/regime_review_packs.md)
+* [docs/regime_aware_candidate_selection.md](docs/regime_aware_candidate_selection.md)
+* [docs/regime_policy_stress_testing.md](docs/regime_policy_stress_testing.md)
+* [docs/examples/full_year_regime_policy_benchmark_case_study.md](docs/examples/full_year_regime_policy_benchmark_case_study.md)
+* [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
+
+Limitations to keep explicit:
+
+* the flagship full-year case study is fixture-backed for deterministic
+  portability and does not require live market data
+* deterministic stress transforms are governance diagnostics, not empirical
+  market simulations
+* selected file-backed workflows reserve registry-backed expansion for later
+  work
+* generated example outputs under
+  `docs/examples/output/full_year_regime_policy_benchmark_case_study/` are
+  runtime artifacts unless intentionally committed
+
 ## Milestone 25 Summary
 
 Milestone 25 extends the regime-aware evaluation layer with deterministic
@@ -391,6 +437,9 @@ The repository currently supports:
 * candidate-driven portfolio wiring from approved candidate sets
 * candidate review outputs that explain selection and contribution decisions
 * manifest-backed unified research review artifacts with deterministic review summaries
+* governed adaptive regime-policy research workflows with benchmark packs,
+  promotion gates, review packs, decision logs, regime-aware candidate
+  selection, and deterministic stress testing
 * unified runtime configuration with auditable persisted settings
 * unified research campaign configuration for shared dataset, target, comparison,
   candidate-selection, portfolio, review, and output-path settings
@@ -875,6 +924,22 @@ then reruns on the same campaign root to demonstrate partial checkpoint state,
 resume behavior, retry metadata, full-stage reuse, and committed stitched
 summary/manifest/checkpoint snapshots.
 
+### 4h. Run the Milestone 26 regime-policy governance workflow
+
+```powershell
+python -m src.cli.run_regime_benchmark_pack --config configs/regime_benchmark_packs/m26_regime_policy_benchmark.yml
+python -m src.cli.run_regime_promotion_gates --benchmark-path artifacts/regime_benchmarks/<benchmark_run_id> --config configs/regime_promotion_gates/m26_regime_policy_gates.yml
+python -m src.cli.generate_regime_review_pack --config configs/regime_reviews/m26_regime_review_pack.yml
+python -m src.cli.run_regime_aware_candidate_selection --config configs/candidate_selection/m26_regime_aware_candidate_selection.yml
+python -m src.cli.run_regime_policy_stress_tests --config configs/regime_stress_tests/m26_adaptive_policy_stress.yml
+python docs/examples/full_year_regime_policy_benchmark_case_study.py
+```
+
+The standalone CLI configs are intended for benchmark, gate, review,
+candidate-selection, and stress-test runs with explicit artifact paths. The
+full-year case-study script uses deterministic fixtures so the stitched
+workflow can run without live market data or complete local full-year coverage.
+
 ### 5. Run a portfolio
 
 Baseline registry-backed portfolio:
@@ -1109,6 +1174,24 @@ See:
 * [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
 * [docs/portfolio_artifact_logging.md](docs/portfolio_artifact_logging.md)
 
+### Regime-policy governance artifacts
+
+Milestone 26 regime-policy workflows write under these roots:
+
+* `artifacts/regime_benchmarks/<benchmark_run_id>/`
+* `artifacts/regime_benchmarks/<benchmark_run_id>/promotion_gates/`
+* `artifacts/regime_reviews/<review_run_id>/`
+* `artifacts/candidate_selection/<selection_run_id>/` for regime-aware
+  candidate-selection runs
+* `artifacts/regime_stress_tests/<stress_run_id>/`
+* `docs/examples/output/full_year_regime_policy_benchmark_case_study/` when
+  the fixture-backed case-study script is run locally
+
+These artifacts include deterministic configs, manifests, summaries, matrices,
+leaderboards, decision logs, evidence indexes, and source-input inventories.
+The case-study output root is generated at runtime and is normally cleaned
+after validation.
+
 ### Unified review artifacts
 
 Successful unified review runs write under `artifacts/reviews/<review_id>/`.
@@ -1198,8 +1281,14 @@ Start here:
 * [docs/extended_robustness_sweeps.md](docs/extended_robustness_sweeps.md)
 * [docs/pipeline_builder.md](docs/pipeline_builder.md)
 * [docs/milestone_22_benchmark_packs.md](docs/milestone_22_benchmark_packs.md)
+* [docs/regime_benchmark_packs.md](docs/regime_benchmark_packs.md)
+* [docs/regime_promotion_gates.md](docs/regime_promotion_gates.md)
+* [docs/regime_review_packs.md](docs/regime_review_packs.md)
+* [docs/regime_aware_candidate_selection.md](docs/regime_aware_candidate_selection.md)
+* [docs/regime_policy_stress_testing.md](docs/regime_policy_stress_testing.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
+* [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
 * [docs/backfilled_2026_q1_alpha_workflow.md](docs/backfilled_2026_q1_alpha_workflow.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
@@ -1234,6 +1323,7 @@ Examples:
 * [docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md](docs/examples/ml_cross_sectional_lgbm_2026_q1_candidate_driven_workflow.md)
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/examples/scale_repro_benchmark_pack.md](docs/examples/scale_repro_benchmark_pack.md)
+* [docs/examples/full_year_regime_policy_benchmark_case_study.md](docs/examples/full_year_regime_policy_benchmark_case_study.md)
 * [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
@@ -1245,6 +1335,7 @@ Merge-readiness notes:
 * [docs/milestone_13_merge_readiness.md](docs/milestone_13_merge_readiness.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
+* [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
 
 ## Repository Layout
 

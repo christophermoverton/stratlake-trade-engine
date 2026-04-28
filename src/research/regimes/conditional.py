@@ -20,7 +20,6 @@ from src.research.regimes.taxonomy import (
     REGIME_DIMENSIONS,
     REGIME_STATE_COLUMNS,
     TAXONOMY_VERSION,
-    UNDEFINED_REGIME_LABEL,
 )
 
 # ---------------------------------------------------------------------------

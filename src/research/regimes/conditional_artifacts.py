@@ -7,7 +7,6 @@ from typing import Any
 import pandas as pd
 
 from src.research.regimes.conditional import (
-    RegimeConditionalConfig,
     RegimeConditionalResult,
     _ALPHA_METRIC_COLUMNS,
     _PORTFOLIO_METRIC_COLUMNS,

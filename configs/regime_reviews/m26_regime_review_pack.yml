@@ -1,0 +1,26 @@
+review_name: m26_regime_policy_review
+benchmark_path: artifacts/regime_benchmarks/<benchmark_run_id>
+promotion_gates_path: artifacts/regime_benchmarks/<benchmark_run_id>/promotion_gates
+output_root: artifacts/regime_reviews
+
+ranking:
+  decision_order:
+    - accepted
+    - accepted_with_warnings
+    - needs_review
+    - rejected
+  metric_priority:
+    - adaptive_vs_static_sharpe_delta
+    - adaptive_vs_static_return_delta
+    - adaptive_vs_static_max_drawdown_delta
+    - mean_confidence
+    - transition_rate
+    - policy_turnover
+  tie_breakers:
+    - variant_name
+
+report:
+  write_markdown: true
+  include_rejected_candidates: true
+  include_warning_summary: true
+  include_evidence_index: true

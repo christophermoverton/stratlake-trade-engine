@@ -1,0 +1,64 @@
+gate_name: m26_regime_policy_governance
+decision_policy: strict_with_warnings
+
+outcomes:
+  pass: accepted
+  warn: accepted_with_warnings
+  review: needs_review
+  fail: rejected
+
+missing_metric_policy:
+  required_metric_missing: fail
+  optional_metric_missing: warn
+  not_applicable_metric: ignore
+
+confidence:
+  enabled: true
+  required_for_variants:
+    - gmm_classifier
+    - gmm_calibrated_overlay
+    - policy_optimized
+  min_mean_confidence: 0.55
+  min_median_confidence: 0.60
+  max_low_confidence_pct: 0.25
+
+entropy:
+  enabled: true
+  required_for_variants:
+    - gmm_classifier
+    - gmm_calibrated_overlay
+    - policy_optimized
+  max_mean_entropy: 1.10
+  max_high_entropy_pct: 0.20
+
+stability:
+  enabled: true
+  min_avg_regime_duration: 3
+  max_dominant_regime_share: 0.85
+  max_transition_rate: 0.35
+
+transition_behavior:
+  enabled: true
+  max_transition_rate: 0.35
+  max_transition_instability_score: 0.40
+  max_transition_concentration: 0.75
+
+adaptive_uplift:
+  enabled: true
+  required_for_variants:
+    - policy_optimized
+  min_return_delta: 0.00
+  min_sharpe_delta: 0.00
+  min_drawdown_delta: -0.02
+
+drawdown:
+  enabled: true
+  max_allowed_drawdown: -0.25
+  max_high_vol_drawdown: -0.20
+
+policy_turnover:
+  enabled: true
+  required_for_variants:
+    - policy_optimized
+  max_policy_turnover: 0.50
+  max_policy_state_changes: 30

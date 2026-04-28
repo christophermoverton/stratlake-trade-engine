@@ -1,0 +1,49 @@
+regime_aliases:
+  risk_on:
+    match:
+      trend: uptrend
+      stress: normal_stress
+  risk_off:
+    match:
+      stress_state: correlation_stress
+
+regime_policy:
+  default:
+    signal_scale: 1.0
+    allocation_scale: 1.0
+    alpha_weight_multiplier: 1.0
+    volatility_target: 0.10
+    gross_exposure_cap: 1.0
+    max_component_weight: 1.0
+    rebalance_enabled: true
+    optimizer_override: null
+    allocation_rule_override: null
+    fallback_policy: baseline
+  confidence:
+    min_confidence: 0.60
+    low_confidence_fallback: neutral
+    ambiguous_fallback: reduce_exposure
+    unsupported_fallback: baseline
+  regimes:
+    risk_on:
+      signal_scale: 1.10
+      allocation_scale: 1.00
+      alpha_weight_multiplier: 1.05
+      volatility_target: 0.12
+      gross_exposure_cap: 1.0
+      max_component_weight: 1.0
+      rebalance_enabled: true
+      optimizer_override: equal_weight
+      allocation_rule_override: pro_rata
+      fallback_policy: baseline
+    risk_off:
+      signal_scale: 0.50
+      allocation_scale: 0.60
+      alpha_weight_multiplier: 0.75
+      volatility_target: 0.06
+      gross_exposure_cap: 0.60
+      max_component_weight: 0.50
+      rebalance_enabled: true
+      optimizer_override: risk_parity
+      allocation_rule_override: null
+      fallback_policy: reduce_exposure

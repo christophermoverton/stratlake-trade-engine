@@ -1,0 +1,66 @@
+stress_test_name: m26_adaptive_policy_stress
+source_review_pack: configs/regime_stress_tests/fixtures/regime_review_pack
+source_policy_candidates:
+  policy_metrics_path: configs/regime_stress_tests/fixtures/policy_candidates.csv
+  baseline_policy: static_baseline
+  candidate_policy_names:
+    - policy_optimized
+    - gmm_calibrated_overlay
+regime_context:
+  preferred_regime_source: calibrated_taxonomy
+  ml_overlay: gmm_classifier
+  transition_window_bars: 5
+  confidence_floor: 0.55
+  entropy_ceiling: 1.10
+scenarios:
+  - name: transition_shock_low_to_high_vol
+    type: transition_shock
+    from_regime: low_vol
+    to_regime: high_vol
+    shock_start: "2026-03-01"
+    shock_length_bars: 10
+    stress_intensity: 1.00
+  - name: regime_whipsaw
+    type: regime_whipsaw
+    regimes:
+      - low_vol
+      - high_vol
+    cycle_length_bars: 3
+    cycles: 6
+    stress_intensity: 1.00
+  - name: high_vol_persistence
+    type: high_vol_persistence
+    target_regime: high_vol
+    persistence_length_bars: 40
+    stress_intensity: 1.00
+  - name: classifier_uncertainty
+    type: classifier_uncertainty
+    confidence_multiplier: 0.65
+    entropy_multiplier: 1.35
+    stress_intensity: 1.00
+  - name: taxonomy_ml_disagreement
+    type: taxonomy_ml_disagreement
+    disagreement_rate: 0.30
+    conflict_resolution_modes:
+      - taxonomy_precedence
+      - ml_precedence
+      - fallback
+    stress_intensity: 1.00
+  - name: confidence_collapse
+    type: confidence_collapse
+    confidence_floor_override: 0.25
+    collapse_length_bars: 20
+    stress_intensity: 1.00
+metrics:
+  include_policy_turnover: true
+  include_drawdown: true
+  include_transition_windows: true
+  include_fallback_usage: true
+  include_adaptive_vs_static: true
+stress_gates:
+  max_policy_turnover: 0.60
+  max_stress_drawdown: -0.18
+  min_adaptive_vs_static_drawdown_delta: -0.03
+  max_fallback_activation_rate: 0.75
+  max_state_change_count: 40
+output_root: artifacts/regime_stress_tests

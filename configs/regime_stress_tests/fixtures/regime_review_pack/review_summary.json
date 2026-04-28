@@ -1,0 +1,12 @@
+{
+  "review_run_id": "m26_review_fixture_001",
+  "review_name": "m26_regime_policy_review",
+  "source_benchmark_run_id": "m26_benchmark_fixture_001",
+  "variant_count": 2,
+  "decision_counts": {
+    "accepted": 2,
+    "accepted_with_warnings": 0,
+    "needs_review": 0,
+    "rejected": 0
+  }
+}

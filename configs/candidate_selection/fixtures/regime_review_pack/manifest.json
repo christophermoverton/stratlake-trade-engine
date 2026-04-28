@@ -1,0 +1,8 @@
+{
+  "artifact_type": "regime_review_pack",
+  "review_name": "fixture_regime_review",
+  "review_run_id": "fixture_regime_review_001",
+  "schema_version": 1,
+  "source_benchmark_run_id": "fixture_benchmark_001",
+  "source_gate_config_name": "fixture_gates"
+}

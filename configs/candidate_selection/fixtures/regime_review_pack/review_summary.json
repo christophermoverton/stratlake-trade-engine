@@ -1,0 +1,12 @@
+{
+  "review_name": "fixture_regime_review",
+  "review_run_id": "fixture_regime_review_001",
+  "source_benchmark_run_id": "fixture_benchmark_001",
+  "source_gate_config_name": "fixture_gates",
+  "decision_counts": {
+    "accepted": 1,
+    "accepted_with_warnings": 0,
+    "needs_review": 0,
+    "rejected": 0
+  }
+}

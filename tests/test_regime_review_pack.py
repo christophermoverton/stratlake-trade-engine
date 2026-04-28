@@ -11,7 +11,11 @@ import yaml
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.cli.generate_regime_review_pack import run_cli
-from src.config.regime_review_pack import RegimeReviewPackConfig, load_regime_review_pack_config
+from src.config.regime_review_pack import (
+    RegimeReviewPackConfig,
+    RegimeReviewReportConfig,
+    load_regime_review_pack_config,
+)
 from src.research.regime_review_pack import run_regime_review_pack
 
 
@@ -38,7 +42,12 @@ def _base_row(name: str, variant_type: str, decision_metrics: dict[str, object] 
     return row
 
 
-def _write_source_artifacts(tmp_path: Path, *, include_optional: bool = True) -> tuple[Path, Path]:
+def _write_source_artifacts(
+    tmp_path: Path,
+    *,
+    include_optional: bool = True,
+    matrix_format: str = "csv",
+) -> tuple[Path, Path]:
     benchmark_path = tmp_path / "artifacts" / "regime_benchmarks" / "test_run"
     gates_path = benchmark_path / "promotion_gates"
     gates_path.mkdir(parents=True)
@@ -48,7 +57,23 @@ def _write_source_artifacts(tmp_path: Path, *, include_optional: bool = True) ->
         _base_row("review_gmm", "gmm_classifier", {"mean_confidence": 0.62}),
         _base_row("rejected_gmm", "gmm_classifier", {"mean_confidence": 0.40}),
     ]
-    pd.DataFrame(matrix_rows).to_csv(benchmark_path / "benchmark_matrix.csv", index=False)
+    if matrix_format == "json":
+        (benchmark_path / "benchmark_matrix.json").write_text(
+            json.dumps(
+                {
+                    "benchmark_run_id": "test_run",
+                    "columns": list(matrix_rows[0]),
+                    "row_count": len(matrix_rows),
+                    "rows": matrix_rows,
+                },
+                indent=2,
+                sort_keys=True,
+            ),
+            encoding="utf-8",
+            newline="\n",
+        )
+    else:
+        pd.DataFrame(matrix_rows).to_csv(benchmark_path / "benchmark_matrix.csv", index=False)
     (benchmark_path / "benchmark_summary.json").write_text(
         json.dumps({"benchmark_run_id": "test_run", "benchmark_name": "test_benchmark"}, indent=2),
         encoding="utf-8",
@@ -130,6 +155,67 @@ def test_regime_review_pack_generates_review_artifacts(tmp_path: Path) -> None:
     assert "benchmark_matrix" in evidence["source_artifacts"]
     assert manifest["artifact_type"] == "regime_review_pack"
     assert result.report_path is not None and result.report_path.exists()
+
+
+def test_regime_review_pack_evidence_uses_json_matrix_when_csv_absent(tmp_path: Path) -> None:
+    benchmark_path, gates_path = _write_source_artifacts(tmp_path, matrix_format="json")
+
+    result = run_regime_review_pack(_config(tmp_path, benchmark_path, gates_path))
+    evidence = json.loads(result.evidence_index_path.read_text(encoding="utf-8"))
+
+    assert evidence["source_artifacts"]["benchmark_matrix"].endswith("benchmark_matrix.json")
+    assert not evidence["source_artifacts"]["benchmark_matrix"].endswith("benchmark_matrix.csv")
+
+
+def test_regime_review_pack_evidence_lists_all_generated_artifacts(tmp_path: Path) -> None:
+    benchmark_path, gates_path = _write_source_artifacts(tmp_path)
+
+    result = run_regime_review_pack(_config(tmp_path, benchmark_path, gates_path))
+    evidence = json.loads(result.evidence_index_path.read_text(encoding="utf-8"))
+
+    generated = evidence["generated_review_artifacts"]
+    assert "review_inputs.json" in generated
+    assert "report.md" in generated
+    assert set(generated) == set(result.review_summary["generated_artifacts"])
+
+
+def test_regime_review_pack_can_disable_markdown_report(tmp_path: Path) -> None:
+    benchmark_path, gates_path = _write_source_artifacts(tmp_path)
+    config = RegimeReviewPackConfig(
+        review_name="test_review_no_report",
+        benchmark_path=benchmark_path.as_posix(),
+        promotion_gates_path=gates_path.as_posix(),
+        output_root=(tmp_path / "reviews").as_posix(),
+        report=RegimeReviewReportConfig(write_markdown=False),
+    )
+
+    result = run_regime_review_pack(config)
+    evidence = json.loads(result.evidence_index_path.read_text(encoding="utf-8"))
+
+    assert result.report_path is None
+    assert not (result.output_dir / "report.md").exists()
+    assert "report.md" not in evidence["generated_review_artifacts"]
+    assert "review_inputs.json" in evidence["generated_review_artifacts"]
+
+
+def test_regime_review_pack_report_warning_section_toggle(tmp_path: Path) -> None:
+    benchmark_path, gates_path = _write_source_artifacts(tmp_path)
+    default_result = run_regime_review_pack(_config(tmp_path, benchmark_path, gates_path))
+    assert default_result.report_path is not None
+    assert "Warning Variants" in default_result.report_path.read_text(encoding="utf-8")
+
+    config = RegimeReviewPackConfig(
+        review_name="test_review_without_warning_section",
+        benchmark_path=benchmark_path.as_posix(),
+        promotion_gates_path=gates_path.as_posix(),
+        output_root=(tmp_path / "reviews").as_posix(),
+        report=RegimeReviewReportConfig(include_warning_summary=False),
+    )
+
+    result = run_regime_review_pack(config)
+
+    assert result.report_path is not None
+    assert "Warning Variants" not in result.report_path.read_text(encoding="utf-8")
 
 
 def test_regime_review_pack_filtered_variant_files(tmp_path: Path) -> None:

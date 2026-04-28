@@ -59,7 +59,8 @@ report:
 
 The checked-in example is
 `configs/regime_reviews/m26_regime_review_pack.yml`. Replace the placeholder
-benchmark run id or pass explicit CLI paths.
+benchmark run id or pass explicit CLI paths. Config paths are interpreted from
+the current working directory, normally the repository root.
 
 ## Artifacts
 
@@ -126,6 +127,19 @@ review notes. Use `gate_results.csv` for full row-level gate evidence.
 variant decision. Missing optional artifacts are listed explicitly so reviewers
 can distinguish absent evidence from clean evidence.
 
+The `benchmark_matrix` source entry records the actual matrix artifact used by
+the review pack. If only `benchmark_matrix.json` is present, the evidence index
+points to that JSON file instead of a CSV path.
+
+`generated_review_artifacts` includes every generated review file, including
+`review_inputs.json` and `report.md` when Markdown reporting is enabled.
+`report.md` is omitted when `report.write_markdown` is false.
+
+The report options control only Markdown presentation. For example,
+`report.include_warning_summary: false` hides the `Warning Variants` section in
+`report.md`; it does not change `warning_variants.csv`, `review_summary.json`,
+or the underlying decisions.
+
 ## CLI
 
 Explicit paths:
@@ -146,4 +160,3 @@ python -m src.cli.generate_regime_review_pack `
 
 The CLI prints the review run id, output directory, decision counts, and main
 artifact paths. It fails fast when required source artifacts are missing.
-

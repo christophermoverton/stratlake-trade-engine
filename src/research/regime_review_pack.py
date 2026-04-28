@@ -153,19 +153,6 @@ def run_regime_review_pack(config: RegimeReviewPackConfig) -> RegimeReviewPackRu
         source_benchmark_run_id=source_benchmark_run_id,
         source_gate_config_name=source_gate_config_name,
     )
-    evidence = _build_evidence_index(
-        benchmark_root=benchmark_root,
-        gates_root=gates_root,
-        output_dir=output_dir,
-        leaderboard=leaderboard,
-        missing_optional=missing_optional,
-    )
-    decision_log = _build_decision_log(
-        leaderboard,
-        decisions=decisions,
-        gate_rows_by_variant=gate_rows_by_variant,
-        evidence=evidence,
-    )
     generated_files = [
         "leaderboard.csv",
         "leaderboard.json",
@@ -182,6 +169,20 @@ def run_regime_review_pack(config: RegimeReviewPackConfig) -> RegimeReviewPackRu
     ]
     if config.report.write_markdown:
         generated_files.append("report.md")
+    evidence = _build_evidence_index(
+        benchmark_matrix_path=required["benchmark_matrix"],
+        gates_root=gates_root,
+        output_dir=output_dir,
+        leaderboard=leaderboard,
+        generated_files=generated_files,
+        missing_optional=missing_optional,
+    )
+    decision_log = _build_decision_log(
+        leaderboard,
+        decisions=decisions,
+        gate_rows_by_variant=gate_rows_by_variant,
+        evidence=evidence,
+    )
 
     rejected = _build_rejected_rows(leaderboard, gate_rows_by_variant)
     summary = _build_review_summary(
@@ -354,14 +355,15 @@ def _build_decision_log(
 
 def _build_evidence_index(
     *,
-    benchmark_root: Path,
+    benchmark_matrix_path: Path,
     gates_root: Path,
     output_dir: Path,
     leaderboard: list[dict[str, Any]],
+    generated_files: list[str],
     missing_optional: list[str],
 ) -> dict[str, Any]:
     source_artifacts = {
-        "benchmark_matrix": _rel(benchmark_root / "benchmark_matrix.csv"),
+        "benchmark_matrix": _rel(benchmark_matrix_path),
         "gate_results": _rel(gates_root / "gate_results.csv"),
         "decision_summary": _rel(gates_root / "decision_summary.json"),
     }
@@ -373,24 +375,11 @@ def _build_evidence_index(
         }
         for row in leaderboard
     }
-    generated = [
-        "leaderboard.csv",
-        "leaderboard.json",
-        "decision_log.json",
-        "review_summary.json",
-        "accepted_variants.csv",
-        "warning_variants.csv",
-        "needs_review_variants.csv",
-        "rejected_candidates.csv",
-        "evidence_index.json",
-        "config.json",
-        "manifest.json",
-    ]
     return canonicalize_value(
         {
             "source_artifacts": source_artifacts,
             "variant_evidence": variant_evidence,
-            "generated_review_artifacts": {name: _rel(output_dir / name) for name in generated},
+            "generated_review_artifacts": {name: _rel(output_dir / name) for name in generated_files},
             "missing_optional_artifacts": missing_optional,
         }
     )
@@ -535,6 +524,8 @@ def _write_report(
         ("Needs-Review Variants", "needs_review"),
         ("Rejected Variants", "rejected"),
     ):
+        if decision == "accepted_with_warnings" and not config.report.include_warning_summary:
+            continue
         if decision == "rejected" and not config.report.include_rejected_candidates:
             continue
         lines.extend(["", f"## {title}"])

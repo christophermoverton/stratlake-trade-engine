@@ -1,0 +1,45 @@
+selection_name: m26_regime_aware_candidate_selection
+source_review_pack: configs/candidate_selection/fixtures/regime_review_pack
+source_candidate_universe:
+  alpha_registry: artifacts/alpha/registry.jsonl
+  strategy_registry: artifacts/strategies/registry.jsonl
+  portfolio_registry: artifacts/portfolios/registry.jsonl
+  candidate_metrics_path: configs/candidate_selection/fixtures/regime_candidate_metrics.csv
+regime_context:
+  regime_source: calibrated_taxonomy
+  allow_gmm_confidence_overlay: true
+  min_regime_confidence: 0.55
+  transition_window_bars: 5
+selection_categories:
+  global_performer:
+    enabled: true
+    max_candidates: 5
+    min_global_score: 0.60
+  regime_specialist:
+    enabled: true
+    max_candidates_per_regime: 3
+    min_regime_score: 0.65
+    min_regime_observations: 20
+  transition_resilient:
+    enabled: true
+    max_candidates: 5
+    max_transition_drawdown: -0.08
+    min_transition_score: 0.55
+  defensive_fallback:
+    enabled: true
+    max_candidates: 3
+    max_high_vol_drawdown: -0.12
+    max_correlation_to_selected: 0.70
+redundancy:
+  enabled: true
+  max_pairwise_correlation: 0.85
+  apply_within_category: true
+  apply_across_categories: true
+allocation_hints:
+  write_category_weight_hints: true
+  default_category_budget:
+    global_performer: 0.45
+    regime_specialist: 0.30
+    transition_resilient: 0.15
+    defensive_fallback: 0.10
+output_root: artifacts/candidate_selection

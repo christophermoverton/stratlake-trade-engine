@@ -235,13 +235,16 @@ def run_regime_policy_stress_tests(config: RegimePolicyStressTestConfig) -> Regi
         config=config,
         rows=evaluation_rows,
         baseline_policy=baseline_policy_name,
+        leaderboard_rows=leaderboard_rows,
         warnings=warnings,
+        source_review_metadata=source_review_metadata,
     )
     policy_stress_summary = _build_policy_stress_summary(
         stress_run_id=stress_run_id,
         config=config,
         rows=evaluation_rows,
         baseline_policy=baseline_policy_name,
+        leaderboard_rows=leaderboard_rows,
         source_review_metadata=source_review_metadata,
     )
     scenario_results = _build_scenario_results(evaluation_rows)
@@ -796,7 +799,9 @@ def _build_scenario_summary(
     config: RegimePolicyStressTestConfig,
     rows: list[dict[str, Any]],
     baseline_policy: str,
+    leaderboard_rows: list[dict[str, Any]],
     warnings: list[str],
+    source_review_metadata: Mapping[str, Any],
 ) -> dict[str, Any]:
     scenario_types = sorted({str(row["scenario_type"]) for row in rows})
     policy_names = sorted({str(row["policy_name"]) for row in rows})
@@ -814,7 +819,20 @@ def _build_scenario_summary(
     }
 
     worst_scenario_type = _worst_scenario_type(rows)
+    baseline_rank = None
+    for item in leaderboard_rows:
+        if str(item.get("policy_name")) == baseline_policy:
+            baseline_rank = int(item.get("rank")) if item.get("rank") is not None else None
+            break
+
+    adaptive_policy_count = len({
+        str(row["policy_name"])
+        for row in rows
+        if str(row.get("policy_name")) != baseline_policy
+    })
+
     limitations = sorted(set(warnings + [
+        "Derived stress transforms are deterministic approximations, not market simulations.",
         "Deterministic stress transforms are fixture-oriented approximations and not full market simulations.",
         "Registry-backed candidate sourcing is reserved for a future expansion.",
     ]))
@@ -831,6 +849,14 @@ def _build_scenario_summary(
             "scenario_pass_counts": scenario_pass_counts,
             "scenario_failure_counts": scenario_failure_counts,
             "worst_scenario_type": worst_scenario_type,
+            "baseline_included_in_leaderboard": baseline_rank is not None,
+            "baseline_rank": baseline_rank,
+            "adaptive_policy_count": adaptive_policy_count,
+            "provenance": {
+                "source_review_run_id": source_review_metadata.get("review_run_id"),
+                "source_benchmark_run_id": source_review_metadata.get("source_benchmark_run_id"),
+                "source_candidate_selection": _path_or_none(config.source_candidate_selection),
+            },
             "limitations": limitations,
         }
     )
@@ -842,6 +868,7 @@ def _build_policy_stress_summary(
     config: RegimePolicyStressTestConfig,
     rows: list[dict[str, Any]],
     baseline_policy: str,
+    leaderboard_rows: list[dict[str, Any]],
     source_review_metadata: Mapping[str, Any],
 ) -> dict[str, Any]:
     by_policy: dict[str, list[dict[str, Any]]] = {}
@@ -900,6 +927,26 @@ def _build_policy_stress_summary(
             ),
         )[0]["policy_name"]
 
+    most_resilient_adaptive_policy = None
+    adaptive_only = [
+        item for item in policy_results if str(item.get("policy_name")) != baseline_policy
+    ]
+    if adaptive_only:
+        most_resilient_adaptive_policy = sorted(
+            adaptive_only,
+            key=lambda item: (
+                -float(item.get("stress_pass_rate") or 0.0),
+                -(float(item.get("mean_adaptive_vs_static_drawdown_delta") or -1e9)),
+                str(item.get("policy_name")),
+            ),
+        )[0]["policy_name"]
+
+    baseline_rank = None
+    for item in leaderboard_rows:
+        if str(item.get("policy_name")) == baseline_policy:
+            baseline_rank = int(item.get("rank")) if item.get("rank") is not None else None
+            break
+
     return canonicalize_value(
         {
             "stress_run_id": stress_run_id,
@@ -907,14 +954,23 @@ def _build_policy_stress_summary(
             "scenario_count": len({str(row["scenario_id"]) for row in rows}),
             "policy_count": len(policy_results),
             "baseline_policy": baseline_policy,
+            "baseline_rank": baseline_rank,
+            "adaptive_policy_count": len(adaptive_only),
+            "baseline_included_in_leaderboard": baseline_rank is not None,
             "summary": {
                 "stress_passed_count": sum(1 for row in rows if bool(row.get("stress_passed"))),
                 "stress_failed_count": sum(1 for row in rows if not bool(row.get("stress_passed"))),
             },
             "policy_results": policy_results,
             "most_resilient_policy": most_resilient,
+            "most_resilient_adaptive_policy": most_resilient_adaptive_policy,
             "highest_turnover_policy": highest_turnover_policy,
             "worst_scenario_type": _worst_scenario_type(rows),
+            "provenance": {
+                "source_review_run_id": source_review_metadata.get("review_run_id"),
+                "source_benchmark_run_id": source_review_metadata.get("source_benchmark_run_id"),
+                "source_candidate_selection": _path_or_none(config.source_candidate_selection),
+            },
         }
     )
 
@@ -1072,6 +1128,7 @@ def _build_manifest(
                 set(
                     warnings
                     + [
+                        "Derived stress transforms are deterministic approximations, not market simulations.",
                         "Deterministic stress transforms are not full market simulations.",
                         "Inputs are file-backed in this issue implementation.",
                     ]

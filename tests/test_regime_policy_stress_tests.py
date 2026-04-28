@@ -141,6 +141,7 @@ def _config(tmp_path: Path, review: Path, policies: Path) -> RegimePolicyStressT
                 "baseline_policy": "static_baseline",
                 "candidate_policy_names": ["policy_optimized", "gmm_calibrated_overlay"],
             },
+            "source_candidate_selection": "artifacts/candidate_selection/sample_selection_run",
             "regime_context": {
                 "preferred_regime_source": "calibrated_taxonomy",
                 "ml_overlay": "gmm_classifier",
@@ -218,6 +219,53 @@ def test_regime_policy_stress_tests_generates_artifacts(tmp_path: Path) -> None:
     assert result.adaptive_vs_static_comparison_csv_path.exists()
     assert result.config_path.exists()
     assert result.manifest_path.exists()
+
+
+def test_regime_policy_stress_tests_leaderboard_includes_static_baseline(tmp_path: Path) -> None:
+    result = run_regime_policy_stress_tests(
+        _config(tmp_path, _write_review_pack(tmp_path), _write_policy_csv(tmp_path))
+    )
+
+    leaderboard = pd.read_csv(result.stress_leaderboard_csv_path)
+    assert "static_baseline" in set(leaderboard["policy_name"])
+
+
+def test_regime_policy_stress_tests_summary_has_baseline_and_adaptive_metadata(tmp_path: Path) -> None:
+    result = run_regime_policy_stress_tests(
+        _config(tmp_path, _write_review_pack(tmp_path), _write_policy_csv(tmp_path))
+    )
+
+    assert result.policy_stress_summary["baseline_policy"] == "static_baseline"
+    assert result.policy_stress_summary["baseline_included_in_leaderboard"] is True
+    assert result.policy_stress_summary["adaptive_policy_count"] == 2
+    assert result.policy_stress_summary["most_resilient_adaptive_policy"] in {
+        "policy_optimized",
+        "gmm_calibrated_overlay",
+    }
+    assert result.policy_stress_summary["baseline_rank"] is not None
+    assert result.scenario_summary["baseline_included_in_leaderboard"] is True
+    assert result.scenario_summary["adaptive_policy_count"] == 2
+    assert result.scenario_summary["baseline_rank"] is not None
+
+
+def test_regime_policy_stress_tests_records_source_candidate_selection_as_provenance(tmp_path: Path) -> None:
+    result = run_regime_policy_stress_tests(
+        _config(tmp_path, _write_review_pack(tmp_path), _write_policy_csv(tmp_path))
+    )
+
+    assert result.manifest["source_paths"]["source_candidate_selection"] == "artifacts/candidate_selection/sample_selection_run"
+    assert result.scenario_summary["provenance"]["source_candidate_selection"] == "artifacts/candidate_selection/sample_selection_run"
+    assert result.policy_stress_summary["provenance"]["source_candidate_selection"] == "artifacts/candidate_selection/sample_selection_run"
+
+
+def test_regime_policy_stress_tests_includes_deterministic_transform_limitation_text(tmp_path: Path) -> None:
+    result = run_regime_policy_stress_tests(
+        _config(tmp_path, _write_review_pack(tmp_path), _write_policy_csv(tmp_path))
+    )
+
+    expected = "Derived stress transforms are deterministic approximations, not market simulations."
+    assert expected in result.scenario_summary["limitations"]
+    assert expected in result.manifest["limitations"]
 
 
 def test_regime_policy_stress_tests_supports_json_policy_input(tmp_path: Path) -> None:

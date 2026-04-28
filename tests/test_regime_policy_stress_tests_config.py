@@ -150,3 +150,14 @@ def test_regime_policy_stress_test_override_handling(tmp_path: Path) -> None:
     assert updated.source_policy_candidates is not None
     assert updated.source_policy_candidates.policy_metrics_path == "new/policies.csv"
     assert updated.output_root == "new/output"
+
+
+def test_regime_policy_stress_test_config_preserves_source_candidate_selection(tmp_path: Path) -> None:
+    path = _write_config(
+        tmp_path,
+        {"source_candidate_selection": "artifacts/candidate_selection/sample_selection_run"},
+    )
+
+    config = load_regime_policy_stress_test_config(path)
+
+    assert config.source_candidate_selection == "artifacts/candidate_selection/sample_selection_run"

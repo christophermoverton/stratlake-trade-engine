@@ -41,6 +41,15 @@ Key fields:
 - `stress_gates`
 - `output_root`
 
+Path behavior:
+
+- config paths are interpreted from the current working directory, normally the repository root
+- the checked-in fixture config assumes the CLI is run from the repository root
+- when running from another location, provide explicit paths via CLI overrides:
+  - `--source-review-pack`
+  - `--policy-metrics-path`
+  - `--output-root`
+
 ## Scenario Types
 
 Supported deterministic scenario types:
@@ -92,6 +101,10 @@ When scenario-specific rows are unavailable, the runner applies simple determini
 - `confidence_collapse`: forces low-confidence behavior and elevated fallback activation
 
 These transforms are fixture-friendly approximations and are not full market simulations.
+
+Derived stress metrics are deterministic, fixture-friendly approximations intended for governance and behavior testing, not empirical market simulation.
+
+Real-data case studies should clearly separate observed benchmark results from synthetic stress results.
 
 ## Gates
 
@@ -162,6 +175,25 @@ CLI output includes:
 ## Interpretation Guidance
 
 Use `stress_matrix.csv` for row-level audit and `stress_leaderboard.csv` for policy ranking under stress. Inspect `policy_turnover_under_stress.csv` and `fallback_usage.csv` for operational stability concerns. Use `adaptive_vs_static_stress_comparison.csv` to assess whether adaptive behavior remains useful versus static baseline behavior.
+
+`stress_leaderboard.csv` ranks all evaluated policies, including the static baseline.
+
+`policy_stress_summary.json` may report `most_resilient_policy` as the static baseline when it has the strongest stress ranking.
+
+For downstream interpretation, distinguish:
+
+- best overall policy under stress
+- best adaptive policy under stress
+- adaptive-vs-static deltas
+
+Summary metadata includes explicit interpretation helpers such as:
+
+- `most_resilient_adaptive_policy`
+- `baseline_rank`
+- `adaptive_policy_count`
+- `baseline_included_in_leaderboard`
+
+`source_candidate_selection` is provenance-only in Issue 5. When supplied, it is recorded in summary/manifest provenance paths but does not change stress evaluation semantics.
 
 ## Limitations and Non-Goals
 

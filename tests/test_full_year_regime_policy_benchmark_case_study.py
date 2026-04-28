@@ -30,6 +30,7 @@ EXPECTED_OUTPUT_FILES = [
     "policy_variant_comparison.csv",
     "final_interpretation.md",
     "evidence_index.json",
+    "workflow_outputs.json",
 ]
 
 
@@ -62,10 +63,13 @@ def test_full_year_regime_policy_case_study_runs_and_writes_expected_outputs(tmp
     assert set(summary["source_runs"]) == {
         "benchmark_run_id",
         "promotion_gate_run_id",
+        "promotion_gate_source_benchmark_run_id",
+        "promotion_gate_config_name",
         "review_run_id",
         "candidate_selection_run_id",
         "stress_run_id",
     }
+    assert summary["source_runs"]["promotion_gate_run_id"] == summary["source_runs"]["promotion_gate_source_benchmark_run_id"]
 
 
 def test_full_year_regime_policy_case_study_manifest_and_interpretation_have_key_sections(tmp_path: Path) -> None:
@@ -80,6 +84,16 @@ def test_full_year_regime_policy_case_study_manifest_and_interpretation_have_key
     assert "generated_files" in manifest and manifest["generated_files"]
     assert "source_artifacts" in manifest and manifest["source_artifacts"]
     assert set(EXPECTED_OUTPUT_FILES).issubset(set(manifest["generated_files"]))
+
+    workflow_outputs = _read_json(artifacts.output_root / "workflow_outputs.json")
+    assert {
+        "benchmark_artifact_dir",
+        "promotion_gate_artifact_dir",
+        "review_artifact_dir",
+        "candidate_selection_artifact_dir",
+        "stress_artifact_dir",
+        "source_runs",
+    }.issubset(set(workflow_outputs))
 
     assert "## Observed Benchmark Evidence" in interpretation
     assert "## Promotion And Review Governance Evidence" in interpretation
@@ -106,6 +120,34 @@ def test_full_year_regime_policy_case_study_comparison_and_stress_fields(tmp_pat
     if stress_summary.get("adaptive_policy_count", 0) > 0:
         assert stress_summary.get("most_resilient_adaptive_policy") is not None
 
+    comparison_source_paths = comparison["source_artifact_path"].dropna().astype("string").tolist()
+    for value in comparison_source_paths:
+        assert not Path(value).is_absolute()
+
+
+def test_full_year_regime_policy_case_study_evidence_index_has_all_workflow_families(tmp_path: Path) -> None:
+    module = _load_example_module()
+
+    artifacts = module.run_case_study(output_root=tmp_path / "case_study_evidence", verbose=False)
+
+    evidence_index = _read_json(artifacts.output_root / "evidence_index.json")
+    assert "source_artifacts" in evidence_index
+    assert {
+        "benchmark",
+        "promotion_gates",
+        "review",
+        "candidate_selection",
+        "stress",
+    }.issubset(set(evidence_index["source_artifacts"]))
+    assert "generated_case_study_artifacts" in evidence_index
+    assert {
+        "summary",
+        "manifest",
+        "policy_variant_comparison",
+        "final_interpretation",
+        "workflow_outputs",
+    }.issubset(set(evidence_index["generated_case_study_artifacts"]))
+
 
 def test_full_year_regime_policy_case_study_is_deterministic_and_uses_relative_paths(tmp_path: Path) -> None:
     module = _load_example_module()
@@ -128,6 +170,7 @@ def test_full_year_regime_policy_case_study_is_deterministic_and_uses_relative_p
     temp_root_text = tmp_path.as_posix()
     assert temp_root_text not in first.summary_path.read_text(encoding="utf-8")
     assert temp_root_text not in first.manifest_path.read_text(encoding="utf-8")
+    assert temp_root_text not in (first.output_root / "policy_variant_comparison.csv").read_text(encoding="utf-8")
 
     for path_value in first_manifest["generated_files"]:
         assert not Path(path_value).is_absolute()
@@ -135,3 +178,13 @@ def test_full_year_regime_policy_case_study_is_deterministic_and_uses_relative_p
         assert not Path(path_value).is_absolute()
     for path_value in first_manifest["source_configs"].values():
         assert not Path(path_value).is_absolute()
+
+
+def test_portable_path_prefers_repo_relative_before_absolute(tmp_path: Path) -> None:
+    module = _load_example_module()
+
+    repo_file = REPO_ROOT / "README.md"
+    result = module._portable_path(repo_file, output_root=tmp_path / "portable")
+
+    assert not Path(result).is_absolute()
+    assert result == "README.md"

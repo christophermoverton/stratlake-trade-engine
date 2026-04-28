@@ -133,12 +133,20 @@ def _relative_to_repo(path: Path) -> str:
         return path.resolve().as_posix()
 
 
-def _relative_config_path(path: Path, *, output_root: Path) -> str:
+def _portable_path(path: Path, *, output_root: Path) -> str:
     resolved = path.resolve()
     try:
         return resolved.relative_to(output_root.resolve()).as_posix()
     except ValueError:
-        return _relative_to_repo(resolved)
+        pass
+    try:
+        return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
+    except ValueError:
+        return resolved.as_posix()
+
+
+def _relative_config_path(path: Path, *, output_root: Path) -> str:
+    return _portable_path(path, output_root=output_root)
 
 
 def _safe_float(value: Any) -> float | None:
@@ -429,7 +437,10 @@ def _build_policy_variant_comparison(
         relative_source_artifact = None
         source_artifact = str(row.get("source_artifact_path") or "")
         if source_artifact:
-            relative_source_artifact = _relative_to_output(benchmark_result.artifact_dir / source_artifact, output_root)
+            relative_source_artifact = _portable_path(
+                benchmark_result.artifact_dir / source_artifact,
+                output_root=output_root,
+            )
 
         return_delta = _safe_float(row.get("adaptive_vs_static_return_delta"))
         sharpe_delta = _safe_float(row.get("adaptive_vs_static_sharpe_delta"))
@@ -553,6 +564,8 @@ def _build_summary(
         "source_runs": {
             "benchmark_run_id": stage_summaries["benchmark"].get("benchmark_run_id"),
             "promotion_gate_run_id": stage_summaries["promotion_gates"].get("benchmark_run_id"),
+            "promotion_gate_source_benchmark_run_id": stage_summaries["promotion_gates"].get("benchmark_run_id"),
+            "promotion_gate_config_name": stage_summaries["promotion_gates"].get("gate_config_name"),
             "review_run_id": stage_summaries["review"].get("review_run_id"),
             "candidate_selection_run_id": stage_summaries["candidate_selection"].get("selection_run_id"),
             "stress_run_id": stage_summaries["stress"].get("stress_run_id"),
@@ -619,7 +632,7 @@ def _build_manifest(
             for key, path in sorted(source_configs.items())
         },
         "source_artifacts": {
-            key: _relative_to_output(path, output_root)
+            key: _portable_path(path, output_root=output_root)
             for key, path in sorted(source_artifacts.items())
         },
         "source_runs": dict(summary.get("source_runs", {})),
@@ -673,6 +686,11 @@ def _render_final_interpretation(
         f"- Accepted or accepted_with_warnings: {accepted_total}.",
         f"- Rejected: {rejected_total}.",
         f"- Primary top-policy reason: {summary.get('top_policy', {}).get('primary_reason')}.",
+        (
+            "- Promotion-gate source benchmark run: "
+            f"{summary.get('source_runs', {}).get('promotion_gate_source_benchmark_run_id')}"
+            f" (config={summary.get('source_runs', {}).get('promotion_gate_config_name')})."
+        ),
         "",
         "## Candidate-Selection Evidence",
         f"- Selected candidates: {summary.get('candidate_selection', {}).get('selected_count')}.",
@@ -894,48 +912,63 @@ def run_case_study(*, output_root: Path | None = None, verbose: bool = True) -> 
         "stress_policy_fixture": M26_STRESS_POLICY_FIXTURE,
     }
 
+    benchmark_artifacts = {
+        "benchmark_summary": _portable_path(benchmark_summary_path, output_root=resolved_output_root),
+        "benchmark_matrix": _portable_path(source_artifacts["benchmark_matrix"], output_root=resolved_output_root),
+        "benchmark_manifest": _portable_path(source_artifacts["benchmark_manifest"], output_root=resolved_output_root),
+    }
+    promotion_gate_artifacts = {
+        "promotion_gate_summary": _portable_path(promotion_summary_path, output_root=resolved_output_root),
+        "decision_summary": _portable_path(source_artifacts["promotion_gate_decision_summary"], output_root=resolved_output_root),
+        "manifest": _portable_path(source_artifacts["promotion_gate_manifest"], output_root=resolved_output_root),
+    }
+    review_pack_artifacts = {
+        "review_summary": _portable_path(review_summary_path, output_root=resolved_output_root),
+        "leaderboard": _portable_path(source_artifacts["review_leaderboard"], output_root=resolved_output_root),
+        "manifest": _portable_path(source_artifacts["review_manifest"], output_root=resolved_output_root),
+    }
+    candidate_selection_artifacts = {
+        "candidate_selection_summary": _portable_path(candidate_summary_path, output_root=resolved_output_root),
+        "candidate_selection_table": _portable_path(source_artifacts["candidate_selection_table"], output_root=resolved_output_root),
+        "manifest": _portable_path(source_artifacts["candidate_selection_manifest"], output_root=resolved_output_root),
+    }
+    stress_test_artifacts = {
+        "stress_summary": _portable_path(stress_summary_path, output_root=resolved_output_root),
+        "stress_matrix": _portable_path(source_artifacts["stress_matrix"], output_root=resolved_output_root),
+        "manifest": _portable_path(source_artifacts["stress_manifest"], output_root=resolved_output_root),
+        "evidence_type": "deterministic_synthetic_stress",
+    }
+
     evidence_index = {
-        "benchmark_artifacts": {
-            "benchmark_summary": _relative_to_output(benchmark_summary_path, resolved_output_root),
-            "benchmark_matrix": _relative_to_output(source_artifacts["benchmark_matrix"], resolved_output_root),
-            "benchmark_manifest": _relative_to_output(source_artifacts["benchmark_manifest"], resolved_output_root),
+        "source_artifacts": {
+            "benchmark": benchmark_artifacts,
+            "promotion_gates": promotion_gate_artifacts,
+            "review": review_pack_artifacts,
+            "candidate_selection": candidate_selection_artifacts,
+            "stress": stress_test_artifacts,
         },
-        "promotion_gate_artifacts": {
-            "promotion_gate_summary": _relative_to_output(promotion_summary_path, resolved_output_root),
-            "decision_summary": _relative_to_output(source_artifacts["promotion_gate_decision_summary"], resolved_output_root),
-            "manifest": _relative_to_output(source_artifacts["promotion_gate_manifest"], resolved_output_root),
-        },
-        "review_pack_artifacts": {
-            "review_summary": _relative_to_output(review_summary_path, resolved_output_root),
-            "leaderboard": _relative_to_output(source_artifacts["review_leaderboard"], resolved_output_root),
-            "manifest": _relative_to_output(source_artifacts["review_manifest"], resolved_output_root),
-        },
-        "candidate_selection_artifacts": {
-            "candidate_selection_summary": _relative_to_output(candidate_summary_path, resolved_output_root),
-            "candidate_selection_table": _relative_to_output(source_artifacts["candidate_selection_table"], resolved_output_root),
-            "manifest": _relative_to_output(source_artifacts["candidate_selection_manifest"], resolved_output_root),
-        },
-        "stress_test_artifacts": {
-            "stress_summary": _relative_to_output(stress_summary_path, resolved_output_root),
-            "stress_matrix": _relative_to_output(source_artifacts["stress_matrix"], resolved_output_root),
-            "manifest": _relative_to_output(source_artifacts["stress_manifest"], resolved_output_root),
-            "evidence_type": "deterministic_synthetic_stress",
-        },
+        "benchmark_artifacts": benchmark_artifacts,
+        "promotion_gate_artifacts": promotion_gate_artifacts,
+        "review_pack_artifacts": review_pack_artifacts,
+        "candidate_selection_artifacts": candidate_selection_artifacts,
+        "stress_test_artifacts": stress_test_artifacts,
         "generated_case_study_artifacts": {
             "summary": SUMMARY_FILENAME,
             "manifest": MANIFEST_FILENAME,
             "policy_variant_comparison": POLICY_VARIANT_COMPARISON_FILENAME,
             "final_interpretation": FINAL_INTERPRETATION_FILENAME,
+            "workflow_outputs": "workflow_outputs.json",
         },
     }
     _write_json(evidence_index_path, evidence_index)
 
     workflow_outputs = {
-        "benchmark_artifact_dir": _relative_to_output(benchmark_result.artifact_dir, resolved_output_root),
-        "promotion_gate_artifact_dir": _relative_to_output(promotion_result.artifact_dir, resolved_output_root),
-        "review_artifact_dir": _relative_to_output(review_result.artifact_dir, resolved_output_root),
-        "candidate_selection_artifact_dir": _relative_to_output(candidate_result.artifact_dir, resolved_output_root),
-        "stress_artifact_dir": _relative_to_output(stress_result.artifact_dir, resolved_output_root),
+        "benchmark_artifact_dir": _portable_path(benchmark_result.artifact_dir, output_root=resolved_output_root),
+        "promotion_gate_artifact_dir": _portable_path(promotion_result.artifact_dir, output_root=resolved_output_root),
+        "review_artifact_dir": _portable_path(review_result.artifact_dir, output_root=resolved_output_root),
+        "candidate_selection_artifact_dir": _portable_path(candidate_result.artifact_dir, output_root=resolved_output_root),
+        "stress_artifact_dir": _portable_path(stress_result.artifact_dir, output_root=resolved_output_root),
+        "source_runs": summary["source_runs"],
     }
     _write_json(workflow_outputs_path, workflow_outputs)
 

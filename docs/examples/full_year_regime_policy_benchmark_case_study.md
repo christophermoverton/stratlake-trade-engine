@@ -22,6 +22,8 @@ This case study stitches Milestone 26 Issue 1 through Issue 5 evidence into one 
 
 The benchmark layer is executed with deterministic fixture features that mirror the full-year workflow. You can later replace those fixture benchmark inputs with real full-year benchmark outputs while keeping the same downstream stitching pattern.
 
+The current implementation generates deterministic fixture benchmark inputs in the case-study script, then runs downstream promotion, review, candidate-selection, and stress stages through the existing Milestone 26 execution APIs. Real full-year benchmark outputs can be substituted later by replacing the benchmark source/output stage while preserving promotion/review/candidate/stress stitching schemas. Stress evidence remains deterministic synthetic evidence unless explicitly replaced with observed stress or robustness evidence.
+
 ## Policy Variants Compared
 The stitched summary normalizes policy evidence into these conceptual roles:
 
@@ -129,3 +131,4 @@ Running the script writes deterministic stitched outputs to:
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/policy_variant_comparison.csv
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/final_interpretation.md
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/evidence_index.json
+- docs/examples/output/full_year_regime_policy_benchmark_case_study/workflow_outputs.json

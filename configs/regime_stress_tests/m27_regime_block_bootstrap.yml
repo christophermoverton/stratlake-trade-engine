@@ -1,0 +1,43 @@
+simulation_name: m27_regime_block_bootstrap
+output_root: artifacts/regime_stress_tests
+random_seed: 2701
+source_review_pack: artifacts/regime_reviews/<review_run_id>
+baseline_policy: static_baseline
+source_policy_candidates:
+  - hybrid_calibrated_gmm_policy
+  - defensive_transition_policy
+market_simulations:
+  - name: high_vol_regime_bootstrap
+    type: regime_block_bootstrap
+    enabled: true
+    random_seed: 2701
+    path_count: 3
+    notes: Deterministic fixture-backed high-volatility and stress regime block bootstrap.
+    method_config:
+      dataset_path: tests/fixtures/market_simulation/bootstrap_source_fixture.csv
+      timestamp_column: ts_utc
+      symbol_column: symbol
+      return_column: return
+      regime_column: regime_label
+      confidence_column: gmm_confidence
+      entropy_column: gmm_entropy
+      path_count: 3
+      path_length_bars: 8
+      block_length_bars: 2
+      path_start: "2000-01-01"
+      sampling:
+        mode: regime_bucketed
+        target_regimes:
+          - high_vol
+          - stress
+        include_transition_windows: true
+        transition_window_bars: 1
+      output:
+        persist_paths: true
+        persist_path_catalog: true
+        persist_source_block_catalog: true
+        persist_sampled_block_inventory: true
+metadata:
+  milestone: M27
+  issue: "306"
+  purpose: regime_block_bootstrap

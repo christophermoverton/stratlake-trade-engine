@@ -4,7 +4,7 @@
 
 The M27 market simulation framework is the deterministic artifact layer for adaptive policy stress testing. It validates scenario definitions, resolves seeds, assigns stable scenario and path identifiers, and writes catalogs, inventories, normalized config, and manifests.
 
-Historical episode replay and shock overlays are the implemented simulation scenario types. Regime-aware block bootstrap, transition bootstrap, Monte Carlo regime paths, simulation-aware leaderboards, and the end-to-end case study remain reserved for follow-up issues.
+Historical episode replay, regime-aware block bootstrap, and shock overlays are the implemented simulation scenario types. Transition bootstrap as a standalone scenario, Monte Carlo regime paths, simulation-aware leaderboards, and the end-to-end case study remain reserved for follow-up issues.
 
 ## Relationship to M26
 
@@ -23,7 +23,7 @@ The framework recognizes these identifiers:
 
 - `historical_episode_replay`, implemented in Issue #304
 - `shock_overlay`, implemented in Issue #305
-- `regime_block_bootstrap`
+- `regime_block_bootstrap`, implemented in Issue #306
 - `transition_block_bootstrap`
 - `regime_transition_monte_carlo`
 - `hybrid_simulation`
@@ -127,6 +127,53 @@ The overlay summary includes stressed adaptive and static total returns when bot
 
 File input sources are intentionally reserved for a follow-up issue. The implemented source mode consumes historical replay outputs generated in the same run.
 
+## Regime-Aware Block Bootstrap
+
+`regime_block_bootstrap` generates deterministic empirical market-return paths by sampling contiguous source blocks. It differs from historical replay because it creates new path orderings from observed blocks rather than replaying one configured date window. It differs from Monte Carlo because it does not assume Gaussian or parametric returns; every simulated return is copied from the source dataset with provenance fields.
+
+Required `method_config` fields:
+
+```yaml
+method_config:
+  dataset_path: tests/fixtures/market_simulation/bootstrap_source_fixture.csv
+  timestamp_column: ts_utc
+  return_column: return
+  path_length_bars: 60
+  block_length_bars: 5
+```
+
+Optional fields:
+
+- `symbol_column`: when provided, source blocks are built within each symbol.
+- `regime_column`: required for `regime_bucketed` and `stress_regime` sampling.
+- `confidence_column` and `entropy_column`: copied into simulated path rows when present.
+- `path_count`: overrides scenario-level `path_count`; precedence is `method_config.path_count > scenario.path_count > 1`.
+- `path_start`: deterministic synthetic path start date, defaulting to `2000-01-01 UTC`.
+
+Supported sampling modes:
+
+- `fixed`: sample uniformly from all source blocks.
+- `regime_bucketed`: sample blocks whose primary regime is one of `sampling.target_regimes`.
+- `transition_window`: sample blocks that contain transition-window rows.
+- `stress_regime`: alias-style specialization of `regime_bucketed`, defaulting `target_regimes` to `high_vol` and `stress` when not configured.
+
+Transition windows are tagged when a regime column is available. A row is transition-adjacent when it falls within `sampling.transition_window_bars` bars around a regime-label change. If a symbol column is configured, transitions are computed independently within each symbol.
+
+Bootstrap outputs use synthetic `ts_utc` values for path ordering and preserve original timestamps in `source_ts_utc`. Simulated rows also include `sampled_block_id`, `source_regime_label`, `source_symbol`, `source_row_index`, and `is_transition_window` so later stress metrics and shock overlays can trace the source of each bar.
+
+Enabled bootstrap scenarios write:
+
+- `bootstrap_config.json`
+- `source_block_catalog.csv`
+- `sampled_block_inventory.csv`
+- `bootstrap_path_catalog.csv`
+- `simulated_return_paths.parquet`
+- `simulated_regime_paths.parquet`
+- `bootstrap_sampling_summary.json`
+- `bootstrap_manifest.json`
+
+The current shock overlay runner still consumes same-run historical replay outputs only. Bootstrap path artifacts are shaped with stable return, confidence, entropy, and regime columns for a later file-input overlay integration.
+
 ## Config Example
 
 Checked-in example:
@@ -135,6 +182,7 @@ Checked-in example:
 configs/regime_stress_tests/m27_market_simulation_framework.yml
 configs/regime_stress_tests/m27_historical_episode_replay.yml
 configs/regime_stress_tests/m27_shock_overlay.yml
+configs/regime_stress_tests/m27_regime_block_bootstrap.yml
 ```
 
 Minimal shape:
@@ -237,6 +285,19 @@ Generated shock overlay files:
 - `shock_overlay_summary.json`
 - `manifest.json`
 
+Enabled regime block bootstrap scenarios write scenario-level artifacts under the same directory layout.
+
+Generated bootstrap files:
+
+- `bootstrap_config.json`
+- `source_block_catalog.csv`
+- `sampled_block_inventory.csv`
+- `bootstrap_path_catalog.csv`
+- `simulated_return_paths.parquet`
+- `simulated_regime_paths.parquet`
+- `bootstrap_sampling_summary.json`
+- `bootstrap_manifest.json`
+
 The scenario catalog uses stable row ordering and these CSV columns:
 
 ```text
@@ -263,7 +324,7 @@ Unavailable optional columns are emitted as blank values in the stable CSV schem
 
 `generate_scenario_id(...)` hashes the normalized scenario definition, including simulation name, scenario name, simulation type, resolved seed, path count, source windows, and `method_config`.
 
-`generate_path_id(...)` hashes scenario ID, path index, seed, and optional metadata. Path generation is not implemented in this issue; the helper is provided for future simulation methods.
+`generate_path_id(...)` hashes scenario ID, path index, seed, and optional metadata. Regime block bootstrap uses it with normalized sampling metadata so repeated runs produce stable path IDs.
 
 ## CLI
 
@@ -292,6 +353,15 @@ python -m src.cli.run_market_simulation_scenarios `
 
 The CLI writes framework artifacts, the referenced historical replay artifacts, and scenario-level shock overlay artifacts.
 
+For the implemented regime block bootstrap example:
+
+```powershell
+python -m src.cli.run_market_simulation_scenarios `
+  --config configs/regime_stress_tests/m27_regime_block_bootstrap.yml
+```
+
+The CLI writes framework artifacts and scenario-level bootstrap artifacts.
+
 ## Non-Goals
 
-This issue does not implement file-based overlay inputs, block bootstrap generation, transition bootstrap generation, Monte Carlo path generation, simulation-aware stress leaderboards, case studies, broker integrations, live feeds, order-book simulation, or forecasting claims.
+This issue does not implement file-based overlay inputs, transition bootstrap as a separate scenario type, Monte Carlo path generation, simulation-aware stress leaderboards, case studies, broker integrations, live feeds, order-book simulation, or forecasting claims.

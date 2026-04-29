@@ -48,6 +48,7 @@ _REGISTRY: dict[str, SimulationTypeMetadata] = {
         uses_historical_data=True,
         uses_synthetic_generation=True,
         uses_shock_overlay=False,
+        status="implemented",
     ),
     "transition_block_bootstrap": SimulationTypeMetadata(
         simulation_type="transition_block_bootstrap",

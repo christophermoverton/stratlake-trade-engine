@@ -37,6 +37,20 @@ def run_market_simulation_scenarios(
             ("manifest_json", overlay.manifest_path),
         )
     }
+    bootstrap_outputs = {
+        f"regime_block_bootstrap_{index}_{name}": path
+        for index, bootstrap in enumerate(raw_result.block_bootstrap_results, start=1)
+        for name, path in (
+            ("config_json", bootstrap.bootstrap_config_path),
+            ("source_block_catalog_csv", bootstrap.source_block_catalog_path),
+            ("sampled_block_inventory_csv", bootstrap.sampled_block_inventory_path),
+            ("path_catalog_csv", bootstrap.bootstrap_path_catalog_path),
+            ("simulated_return_paths_parquet", bootstrap.simulated_return_paths_path),
+            ("simulated_regime_paths_parquet", bootstrap.simulated_regime_paths_path),
+            ("summary_json", bootstrap.bootstrap_sampling_summary_path),
+            ("manifest_json", bootstrap.manifest_path),
+        )
+    }
     return summarize_execution_result(
         workflow="market_simulation_scenarios",
         raw_result=raw_result,
@@ -57,6 +71,13 @@ def run_market_simulation_scenarios(
             ),
             "shock_overlay_count": len(raw_result.shock_overlay_results),
             "shock_overlay_rows": sum(overlay.row_count for overlay in raw_result.shock_overlay_results),
+            "regime_block_bootstrap_count": len(raw_result.block_bootstrap_results),
+            "regime_block_bootstrap_paths": sum(
+                bootstrap.path_count for bootstrap in raw_result.block_bootstrap_results
+            ),
+            "regime_block_bootstrap_rows": sum(
+                bootstrap.simulated_row_count for bootstrap in raw_result.block_bootstrap_results
+            ),
         },
         output_paths={
             "scenario_catalog_csv": raw_result.scenario_catalog_csv_path,
@@ -65,6 +86,7 @@ def run_market_simulation_scenarios(
             "input_inventory_json": raw_result.input_inventory_path,
             "simulation_manifest_json": raw_result.simulation_manifest_path,
             **historical_outputs,
+            **bootstrap_outputs,
             **shock_outputs,
         },
     )

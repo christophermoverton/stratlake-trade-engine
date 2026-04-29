@@ -8,6 +8,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from src.research.market_simulation.catalog import SCENARIO_CATALOG_COLUMNS, build_scenario_catalog
+from src.research.market_simulation.block_bootstrap import (
+    BlockBootstrapResult,
+    run_regime_block_bootstrap_scenarios,
+)
 from src.research.market_simulation.config import MarketSimulationConfig
 from src.research.market_simulation.historical_replay import (
     HistoricalEpisodeReplayResult,
@@ -31,6 +35,7 @@ class MarketSimulationFrameworkResult:
     input_inventory: dict[str, Any]
     simulation_manifest: dict[str, Any]
     historical_episode_replay_results: list[HistoricalEpisodeReplayResult]
+    block_bootstrap_results: list[BlockBootstrapResult]
     shock_overlay_results: list[ShockOverlayResult]
 
 
@@ -75,6 +80,11 @@ def run_market_simulation_framework(
         simulation_run_id=simulation_run_id,
         market_simulations_output_dir=output_dir,
     )
+    block_bootstrap_results = run_regime_block_bootstrap_scenarios(
+        config,
+        simulation_run_id=simulation_run_id,
+        market_simulations_output_dir=output_dir,
+    )
     shock_overlay_results = run_shock_overlay_scenarios(
         config,
         simulation_run_id=simulation_run_id,
@@ -95,6 +105,7 @@ def run_market_simulation_framework(
         input_inventory=input_inventory,
         simulation_manifest=manifest,
         historical_episode_replay_results=historical_results,
+        block_bootstrap_results=block_bootstrap_results,
         shock_overlay_results=shock_overlay_results,
     )
 
@@ -177,7 +188,7 @@ def build_simulation_manifest(
                 "output_root": _rel(Path(config.output_root)),
             },
             "limitations": [
-                "This framework writes deterministic metadata only; simulation methods are reserved for follow-up issues.",
+                "The framework writes deterministic metadata before method-specific scenario artifacts.",
                 "Artifacts are for research stress testing, not live trading or market forecasting.",
             ],
         }

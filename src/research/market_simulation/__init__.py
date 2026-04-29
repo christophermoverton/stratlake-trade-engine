@@ -4,6 +4,11 @@ from src.research.market_simulation.artifacts import (
     MarketSimulationFrameworkResult,
     run_market_simulation_framework,
 )
+from src.research.market_simulation.block_bootstrap import (
+    BlockBootstrapResult,
+    run_regime_block_bootstrap,
+    run_regime_block_bootstrap_scenarios,
+)
 from src.research.market_simulation.config import (
     MarketSimulationConfig,
     MarketSimulationConfigError,
@@ -28,6 +33,7 @@ __all__ = [
     "MarketSimulationConfigError",
     "MarketSimulationFrameworkResult",
     "MarketSimulationScenarioConfig",
+    "BlockBootstrapResult",
     "HistoricalEpisodeReplayResult",
     "RESERVED_SIMULATION_TYPES",
     "generate_episode_id",
@@ -39,4 +45,6 @@ __all__ = [
     "run_historical_episode_replay",
     "run_historical_episode_replays",
     "run_market_simulation_framework",
+    "run_regime_block_bootstrap",
+    "run_regime_block_bootstrap_scenarios",
 ]

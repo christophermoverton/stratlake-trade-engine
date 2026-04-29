@@ -20,7 +20,12 @@ def _matrix() -> dict:
     }
 
 
-def _payload(output_root: Path, *, threshold_overrides: dict | None = None) -> dict:
+def _payload(
+    output_root: Path,
+    *,
+    threshold_overrides: dict | None = None,
+    ranking_metric: str = "mean_stress_score",
+) -> dict:
     thresholds = {
         "max_drawdown_limit": -0.10,
         "min_total_return": -0.05,
@@ -40,7 +45,7 @@ def _payload(output_root: Path, *, threshold_overrides: dict | None = None) -> d
         "stress_metrics": {
             "enabled": True,
             "failure_thresholds": thresholds,
-            "leaderboard": {"ranking_metric": "mean_stress_score", "ascending": True},
+            "leaderboard": {"ranking_metric": ranking_metric, "ascending": True},
             "stress_regimes": ["stress", "high_vol"],
             "tail_quantile": 0.05,
         },
@@ -150,9 +155,18 @@ def _payload(output_root: Path, *, threshold_overrides: dict | None = None) -> d
     }
 
 
-def _run(tmp_path: Path, *, threshold_overrides: dict | None = None):
+def _run(
+    tmp_path: Path,
+    *,
+    threshold_overrides: dict | None = None,
+    ranking_metric: str = "mean_stress_score",
+):
     config = MarketSimulationConfig.from_mapping(
-        _payload(tmp_path / "outputs", threshold_overrides=threshold_overrides)
+        _payload(
+            tmp_path / "outputs",
+            threshold_overrides=threshold_overrides,
+            ranking_metric=ranking_metric,
+        )
     )
     return run_market_simulation_framework(config)
 
@@ -165,6 +179,7 @@ def test_stress_metrics_config_defaults_load_deterministically(tmp_path: Path) -
     assert config.stress_metrics.enabled is True
     assert config.stress_metrics.output_dir_name == "simulation_metrics"
     assert config.stress_metrics.failure_thresholds["max_drawdown_limit"] == -0.10
+    assert config.stress_metrics.leaderboard["ranking_metric"] == "mean_stress_score"
     assert config.stress_metrics.stress_regimes == ("stress",)
 
 
@@ -235,6 +250,30 @@ def test_leaderboard_ranking_is_deterministic_with_stable_tie_breakers(tmp_path:
     assert first_text == second_text
     assert leaderboard["tie_breaker"].str.contains(r"\|").all()
     assert not leaderboard["tie_breaker"].str.contains("artifacts|tmp", regex=True).any()
+
+
+def test_leaderboard_uses_configured_summary_ranking_metric(tmp_path: Path) -> None:
+    result = _run(tmp_path, ranking_metric="policy_failure_rate")
+    leaderboard = pd.read_csv(result.simulation_stress_metrics_result.leaderboard_path)
+
+    assert set(leaderboard["ranking_metric"]) == {"policy_failure_rate"}
+    assert leaderboard["ranking_value"].tolist() == sorted(leaderboard["ranking_value"].tolist())
+
+
+def test_unavailable_summary_ranking_metric_uses_mean_stress_score_fallback(tmp_path: Path) -> None:
+    result = _run(tmp_path, ranking_metric="mean_total_return")
+    leaderboard = pd.read_csv(result.simulation_stress_metrics_result.leaderboard_path)
+    monte_carlo = leaderboard.loc[
+        leaderboard["simulation_type"] == "regime_transition_monte_carlo"
+    ].iloc[0]
+
+    assert monte_carlo["ranking_metric"] == "mean_total_return"
+    assert monte_carlo["ranking_value"] == pytest.approx(monte_carlo["mean_stress_score"])
+
+
+def test_invalid_leaderboard_ranking_metric_fails_clearly(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="stress_metrics.leaderboard.ranking_metric"):
+        _run(tmp_path, ranking_metric="stress_score")
 
 
 def test_metrics_artifacts_are_written(tmp_path: Path) -> None:

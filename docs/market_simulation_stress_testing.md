@@ -333,7 +333,7 @@ stress_metrics:
     max_stress_regime_share: 0.50
     max_policy_underperformance: -0.02
   leaderboard:
-    ranking_metric: stress_score
+    ranking_metric: mean_stress_score
     ascending: true
   tail_quantile: 0.05
   stress_regimes:
@@ -368,7 +368,11 @@ Generated files:
 
 `simulation_summary.csv` aggregates each scenario with path counts, row counts, return availability, policy failure rate, adaptive-vs-static win rate, mean transition count, mean stress regime share, worst and mean stress score, and notes for unavailable metric families.
 
-`simulation_leaderboard.csv` ranks scenarios deterministically. Ranking uses the configured metric first, then stable tie-breakers:
+`simulation_leaderboard.csv` ranks scenarios deterministically from `simulation_summary.csv` rows. Because the leaderboard is scenario-summary based, `leaderboard.ranking_metric` must name a numeric summary column such as `mean_stress_score`, `policy_failure_rate`, `tail_5pct_total_return`, or `worst_max_drawdown`.
+
+The default and checked-in M27 example use `mean_stress_score` with `ascending: true`, meaning lower average stress ranks better. Unknown ranking metric names fail clearly during metrics generation. If a known summary metric is unavailable for a specific scenario, that scenario uses deterministic `mean_stress_score` fallback for ordering while preserving the configured `ranking_metric` value in the output.
+
+Ranking uses the configured metric first, then stable tie-breakers:
 
 1. `scenario_name`
 2. `simulation_type`

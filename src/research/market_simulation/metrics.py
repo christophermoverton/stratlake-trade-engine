@@ -84,6 +84,30 @@ SUMMARY_COLUMNS = (
     "notes",
 )
 
+LEADERBOARD_RANKING_METRICS = frozenset(
+    {
+        "path_count",
+        "row_count",
+        "paths_with_return_metrics",
+        "paths_with_policy_metrics",
+        "paths_with_regime_metrics",
+        "mean_total_return",
+        "median_total_return",
+        "tail_5pct_total_return",
+        "worst_total_return",
+        "mean_max_drawdown",
+        "worst_max_drawdown",
+        "mean_volatility",
+        "policy_failure_rate",
+        "adaptive_vs_static_win_rate",
+        "mean_adaptive_vs_static_delta",
+        "mean_regime_transition_count",
+        "mean_stress_regime_share",
+        "worst_stress_score",
+        "mean_stress_score",
+    }
+)
+
 LEADERBOARD_COLUMNS = (
     "rank",
     "simulation_run_id",
@@ -455,7 +479,7 @@ def _regime_metrics(values: Any, stress_regimes: Iterable[str]) -> dict[str, Any
 
 def _summary_rows(path_rows: list[dict[str, Any]], config: StressMetricsConfig) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
-    ranking_metric = str(config.leaderboard.get("ranking_metric", "stress_score"))
+    ranking_metric = _ranking_metric(config)
     groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
     for row in path_rows:
         key = (row["scenario_id"], row["scenario_name"], row["simulation_type"])
@@ -505,8 +529,9 @@ def _summary_rows(path_rows: list[dict[str, Any]], config: StressMetricsConfig) 
 
 
 def _leaderboard_rows(summary_rows: list[dict[str, Any]], config: StressMetricsConfig) -> list[dict[str, Any]]:
-    ranking_metric = str(config.leaderboard.get("ranking_metric", "stress_score"))
+    ranking_metric = _ranking_metric(config)
     ascending = bool(config.leaderboard.get("ascending", True))
+
     def ranking_value(row: Mapping[str, Any]) -> float:
         value = _number(row.get(ranking_metric))
         if value is not None:
@@ -549,6 +574,17 @@ def _leaderboard_rows(summary_rows: list[dict[str, Any]], config: StressMetricsC
             }
         )
     return rows
+
+
+def _ranking_metric(config: StressMetricsConfig) -> str:
+    metric = str(config.leaderboard.get("ranking_metric", "mean_stress_score"))
+    if metric not in LEADERBOARD_RANKING_METRICS:
+        expected = ", ".join(sorted(LEADERBOARD_RANKING_METRICS))
+        raise ValueError(
+            "stress_metrics.leaderboard.ranking_metric must be a numeric simulation_summary.csv "
+            f"column. Got {metric!r}; expected one of: {expected}."
+        )
+    return metric
 
 
 def _failure_reasons(row: Mapping[str, Any], thresholds: Mapping[str, float]) -> list[str]:

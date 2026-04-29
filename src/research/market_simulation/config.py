@@ -101,7 +101,7 @@ class StressMetricsConfig:
         }
     )
     leaderboard: dict[str, Any] = field(
-        default_factory=lambda: {"ranking_metric": "stress_score", "ascending": True}
+        default_factory=lambda: {"ranking_metric": "mean_stress_score", "ascending": True}
     )
     tail_quantile: float = 0.05
     stress_regimes: tuple[str, ...] = ("stress",)

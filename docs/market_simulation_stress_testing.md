@@ -4,7 +4,7 @@
 
 The M27 market simulation framework is the deterministic artifact layer for adaptive policy stress testing. It validates scenario definitions, resolves seeds, assigns stable scenario and path identifiers, and writes catalogs, inventories, normalized config, and manifests.
 
-Historical episode replay, regime-aware block bootstrap, regime-transition Monte Carlo, and shock overlays are the implemented simulation scenario types. Transition bootstrap as a standalone scenario, simulation-aware leaderboards, and the end-to-end case study remain reserved for follow-up issues.
+Historical episode replay, regime-aware block bootstrap, regime-transition Monte Carlo, shock overlays, and simulation-aware stress metrics are the implemented M27 layers. Transition bootstrap as a standalone scenario and the end-to-end case study remain reserved for follow-up issues.
 
 ## Relationship to M26
 
@@ -300,7 +300,7 @@ Generated files:
 
 `monte_carlo_regime_paths.parquet` includes stable columns for `scenario_id`, `path_id`, `path_index`, `path_step`, `ts_utc`, `regime_label`, `previous_regime_label`, `transitioned`, `duration_in_regime`, `transition_probability`, `seed`, adjustment flags, initial regime, and matrix source. Repeated runs with the same config, matrix, and seed produce identical path IDs, row ordering, paths, summaries, and manifests.
 
-Limitations: this scenario intentionally simulates regime sequences only. It does not implement live trading, broker APIs, real-time feeds, order-book simulation, full return simulation, predictive market forecasting, simulation-aware leaderboards, or the M27 end-to-end case study.
+Limitations: this scenario intentionally simulates regime sequences only. It does not implement live trading, broker APIs, real-time feeds, order-book simulation, full return simulation, predictive market forecasting, or the M27 end-to-end case study.
 
 ## Monte Carlo and Shock Overlay Compatibility
 
@@ -314,6 +314,98 @@ Future extension, not implemented:
 - overlay application to Monte Carlo paths
 - `input_source.type: file` support
 
+## Simulation-Aware Stress Metrics
+
+`stress_metrics` is the deterministic evaluation layer for generated simulation artifacts. It runs after historical replay, regime block bootstrap, regime-transition Monte Carlo, and shock overlays in the same framework run. It does not add a new generator or scenario type.
+
+Metrics summarize robustness under the configured replayed or simulated scenarios. They are not forecasts of future performance.
+
+Default behavior:
+
+```yaml
+stress_metrics:
+  enabled: true
+  output_dir_name: simulation_metrics
+  failure_thresholds:
+    max_drawdown_limit: -0.10
+    min_total_return: -0.05
+    max_transition_count: 50
+    max_stress_regime_share: 0.50
+    max_policy_underperformance: -0.02
+  leaderboard:
+    ranking_metric: stress_score
+    ascending: true
+  tail_quantile: 0.05
+  stress_regimes:
+    - stress
+```
+
+If the section is absent, safe deterministic defaults are used and metrics are enabled. Set `stress_metrics.enabled: false` to skip metrics artifacts.
+
+Inputs by scenario type:
+
+- Historical replay consumes `episode_policy_comparison.csv` and uses adaptive/static totals, policy deltas, volatility, and drawdown when available.
+- Shock overlay consumes `shock_overlay_results.csv` and prefers stressed return columns such as `stressed_source_return`, `stressed_adaptive_policy_return`, and `stressed_static_baseline_return`.
+- Regime block bootstrap consumes `simulated_return_paths.parquet`, `simulated_regime_paths.parquet`, and `bootstrap_path_catalog.csv` to compute per-path return and regime metrics.
+- Regime-transition Monte Carlo consumes `monte_carlo_regime_paths.parquet` and `monte_carlo_path_catalog.csv` for regime-only metrics. It does not invent returns, so return and policy metric availability flags are false.
+
+Metrics outputs are written under:
+
+```text
+artifacts/regime_stress_tests/<simulation_run_id>/market_simulations/simulation_metrics/
+```
+
+Generated files:
+
+- `simulation_path_metrics.csv`
+- `simulation_summary.csv`
+- `simulation_leaderboard.csv`
+- `policy_failure_summary.json`
+- `simulation_metric_config.json`
+- `manifest.json`
+
+`simulation_path_metrics.csv` has one row per replay episode, overlay episode, bootstrap path, or Monte Carlo regime path. Stable columns include scenario identifiers, path or episode IDs, availability flags, return metrics, adaptive-vs-static deltas, regime transition counts, stress regime share, failure reasons, overlay count, and `stress_score`.
+
+`simulation_summary.csv` aggregates each scenario with path counts, row counts, return availability, policy failure rate, adaptive-vs-static win rate, mean transition count, mean stress regime share, worst and mean stress score, and notes for unavailable metric families.
+
+`simulation_leaderboard.csv` ranks scenarios deterministically. Ranking uses the configured metric first, then stable tie-breakers:
+
+1. `scenario_name`
+2. `simulation_type`
+3. `scenario_id`
+
+Volatile paths and timestamps are not used as tie-breakers.
+
+Policy failure detection is threshold-based. A path is marked as failed when any configured threshold is breached:
+
+- `max_drawdown_limit`: breached when max drawdown is more negative than the limit.
+- `min_total_return`: breached when total return is below the limit.
+- `max_transition_count`: breached when regime transitions exceed the limit.
+- `max_stress_regime_share`: breached when configured stress regimes exceed the share limit.
+- `max_policy_underperformance`: breached when adaptive-vs-static return delta is below the limit.
+
+Failure reasons are deterministic semicolon-separated threshold names.
+
+Stress score is intentionally transparent. Higher `stress_score` means a worse stress outcome:
+
+```text
+stress_score =
+  drawdown_penalty
+  + adaptive_underperformance_penalty
+  + transition_instability_penalty
+  + stress_regime_share_penalty
+  + failure_penalty
+```
+
+Drawdown, underperformance, transition, and stress-regime penalties are scaled by the configured thresholds. A failed path adds a fixed penalty of `1.0`.
+
+Limitations:
+
+- Metrics compare configured artifacts; they do not claim predictive power.
+- Monte Carlo outputs are regime-only until a future return or policy replay layer exists.
+- Policy metrics are available only when source artifacts include adaptive and static policy return columns.
+- Stress score is a simple ranking aid, not an optimized risk model.
+
 ## Config Example
 
 Checked-in example:
@@ -324,6 +416,7 @@ configs/regime_stress_tests/m27_historical_episode_replay.yml
 configs/regime_stress_tests/m27_shock_overlay.yml
 configs/regime_stress_tests/m27_regime_block_bootstrap.yml
 configs/regime_stress_tests/m27_regime_transition_monte_carlo.yml
+configs/regime_stress_tests/m27_simulation_metrics.yml
 ```
 
 Minimal shape:
@@ -503,6 +596,15 @@ python -m src.cli.run_market_simulation_scenarios `
 
 The CLI writes framework artifacts and scenario-level bootstrap artifacts.
 
+For the simulation-aware metrics example:
+
+```powershell
+python -m src.cli.run_market_simulation_scenarios `
+  --config configs/regime_stress_tests/m27_simulation_metrics.yml
+```
+
+The CLI writes all supported scenario artifacts and the run-level `simulation_metrics/` directory. The summary reports the metrics output directory, path metric rows, summary rows, leaderboard rows, and policy failure rate.
+
 ## Non-Goals
 
-This issue does not implement file-based overlay inputs, transition bootstrap as a separate scenario type, Monte Carlo return-path generation, simulation-aware stress leaderboards, case studies, broker integrations, live feeds, order-book simulation, or forecasting claims.
+This issue does not implement file-based overlay inputs, transition bootstrap as a separate scenario type, Monte Carlo return-path generation, case studies, broker integrations, live feeds, order-book simulation, or forecasting claims.

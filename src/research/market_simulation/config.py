@@ -33,6 +33,7 @@ _ROOT_KEYS = frozenset(
         "baseline_policy",
         "source_policy_candidates",
         "market_simulations",
+        "stress_metrics",
         "metadata",
     }
 )
@@ -87,6 +88,73 @@ class MarketSimulationScenarioConfig:
 
 
 @dataclass(frozen=True)
+class StressMetricsConfig:
+    enabled: bool = True
+    output_dir_name: str = "simulation_metrics"
+    failure_thresholds: dict[str, float] = field(
+        default_factory=lambda: {
+            "max_drawdown_limit": -0.10,
+            "min_total_return": -0.05,
+            "max_transition_count": 50.0,
+            "max_stress_regime_share": 0.50,
+            "max_policy_underperformance": -0.02,
+        }
+    )
+    leaderboard: dict[str, Any] = field(
+        default_factory=lambda: {"ranking_metric": "stress_score", "ascending": True}
+    )
+    tail_quantile: float = 0.05
+    stress_regimes: tuple[str, ...] = ("stress",)
+
+    def to_dict(self) -> dict[str, Any]:
+        return canonicalize_value(
+            {
+                "enabled": self.enabled,
+                "output_dir_name": self.output_dir_name,
+                "failure_thresholds": dict(self.failure_thresholds),
+                "leaderboard": dict(self.leaderboard),
+                "tail_quantile": self.tail_quantile,
+                "stress_regimes": list(self.stress_regimes),
+            }
+        )
+
+    @classmethod
+    def from_mapping(cls, payload: Mapping[str, Any] | None) -> "StressMetricsConfig":
+        if payload is None:
+            return cls()
+        mapping = optional_mapping(payload, "stress_metrics")
+        thresholds = dict(cls().failure_thresholds)
+        thresholds.update(
+            {
+                str(key): float(value)
+                for key, value in optional_mapping(
+                    mapping.get("failure_thresholds"), "stress_metrics.failure_thresholds"
+                ).items()
+                if isinstance(value, int | float) and not isinstance(value, bool)
+            }
+        )
+        leaderboard = dict(cls().leaderboard)
+        leaderboard.update(optional_mapping(mapping.get("leaderboard"), "stress_metrics.leaderboard"))
+        output_dir_name = optional_string(
+            mapping.get("output_dir_name"), "stress_metrics.output_dir_name"
+        ) or "simulation_metrics"
+        tail_quantile_raw = mapping.get("tail_quantile", 0.05)
+        if not isinstance(tail_quantile_raw, int | float) or isinstance(tail_quantile_raw, bool):
+            raise MarketSimulationConfigError("stress_metrics.tail_quantile must be numeric.")
+        tail_quantile = float(tail_quantile_raw)
+        if not 0.0 < tail_quantile < 1.0:
+            raise MarketSimulationConfigError("stress_metrics.tail_quantile must be between 0 and 1.")
+        return cls(
+            enabled=bool_value(mapping.get("enabled", True), "stress_metrics.enabled"),
+            output_dir_name=output_dir_name,
+            failure_thresholds=thresholds,
+            leaderboard=leaderboard,
+            tail_quantile=tail_quantile,
+            stress_regimes=string_sequence(mapping.get("stress_regimes", ["stress"]), "stress_metrics.stress_regimes"),
+        )
+
+
+@dataclass(frozen=True)
 class MarketSimulationConfig:
     simulation_name: str
     output_root: str = "artifacts/regime_stress_tests"
@@ -95,6 +163,7 @@ class MarketSimulationConfig:
     baseline_policy: str = ""
     source_policy_candidates: tuple[str, ...] = ()
     market_simulations: tuple[MarketSimulationScenarioConfig, ...] = ()
+    stress_metrics: StressMetricsConfig = field(default_factory=StressMetricsConfig)
     metadata: dict[str, Any] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, Any]:
@@ -109,6 +178,7 @@ class MarketSimulationConfig:
                 "baseline_policy": self.baseline_policy,
                 "source_policy_candidates": list(self.source_policy_candidates),
                 "market_simulations": [scenario.to_dict() for scenario in self.market_simulations],
+                "stress_metrics": self.stress_metrics.to_dict(),
                 "metadata": dict(self.metadata),
             }
         )
@@ -147,6 +217,7 @@ class MarketSimulationConfig:
             baseline_policy=baseline_policy,
             source_policy_candidates=source_policy_candidates,
             market_simulations=scenarios,
+            stress_metrics=StressMetricsConfig.from_mapping(payload.get("stress_metrics")),
             metadata=canonicalize_value(optional_mapping(payload.get("metadata"), "metadata")),
         )
 

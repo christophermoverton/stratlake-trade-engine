@@ -71,6 +71,19 @@ def run_market_simulation_scenarios(
         )
         if path is not None
     }
+    metrics_result = raw_result.simulation_stress_metrics_result
+    metrics_outputs = (
+        {}
+        if metrics_result is None
+        else {
+            "simulation_metrics_path_metrics_csv": metrics_result.path_metrics_path,
+            "simulation_metrics_summary_csv": metrics_result.summary_path,
+            "simulation_metrics_leaderboard_csv": metrics_result.leaderboard_path,
+            "simulation_metrics_policy_failure_summary_json": metrics_result.policy_failure_summary_path,
+            "simulation_metrics_config_json": metrics_result.metric_config_path,
+            "simulation_metrics_manifest_json": metrics_result.manifest_path,
+        }
+    )
     return summarize_execution_result(
         workflow="market_simulation_scenarios",
         raw_result=raw_result,
@@ -105,6 +118,16 @@ def run_market_simulation_scenarios(
             "regime_transition_monte_carlo_rows": sum(
                 monte_carlo.generated_row_count for monte_carlo in raw_result.monte_carlo_results
             ),
+            "simulation_metrics_path_rows": 0
+            if metrics_result is None
+            else metrics_result.path_metric_row_count,
+            "simulation_metrics_summary_rows": 0 if metrics_result is None else metrics_result.summary_row_count,
+            "simulation_metrics_leaderboard_rows": 0
+            if metrics_result is None
+            else metrics_result.leaderboard_row_count,
+            "simulation_metrics_policy_failure_rate": 0.0
+            if metrics_result is None
+            else metrics_result.policy_failure_rate,
         },
         output_paths={
             "scenario_catalog_csv": raw_result.scenario_catalog_csv_path,
@@ -117,6 +140,7 @@ def run_market_simulation_scenarios(
             **monte_carlo_outputs,
             **monte_carlo_optional_outputs,
             **shock_outputs,
+            **metrics_outputs,
         },
     )
 

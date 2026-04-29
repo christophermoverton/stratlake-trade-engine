@@ -54,6 +54,13 @@ def print_summary(result) -> None:
         f"{sum(monte_carlo.generated_row_count for monte_carlo in result.monte_carlo_results)}"
     )
     print(f"Shock overlays: {len(result.shock_overlay_results)}")
+    metrics = result.simulation_stress_metrics_result
+    if metrics is not None:
+        print(f"Metrics output directory: {_display_path(metrics.output_dir)}")
+        print(f"Metrics path rows: {metrics.path_metric_row_count}")
+        print(f"Metrics summary rows: {metrics.summary_row_count}")
+        print(f"Metrics leaderboard rows: {metrics.leaderboard_row_count}")
+        print(f"Metrics policy failure rate: {metrics.policy_failure_rate:.6f}")
     print(f"scenario_catalog.csv: {_display_path(result.scenario_catalog_csv_path)}")
     print(f"simulation_manifest.json: {_display_path(result.simulation_manifest_path)}")
     for replay in result.historical_episode_replay_results:

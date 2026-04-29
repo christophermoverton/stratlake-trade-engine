@@ -5,6 +5,7 @@ from src.research.market_simulation.config import (
     MarketSimulationConfig,
     MarketSimulationConfigError,
     MarketSimulationScenarioConfig,
+    StressMetricsConfig,
     load_market_simulation_config,
 )
 
@@ -13,5 +14,6 @@ __all__ = [
     "MarketSimulationConfig",
     "MarketSimulationConfigError",
     "MarketSimulationScenarioConfig",
+    "StressMetricsConfig",
     "load_market_simulation_config",
 ]

@@ -55,6 +55,22 @@ def test_manifest_records_generated_files_and_row_counts_without_absolute_paths(
     assert str(tmp_path) not in manifest_text
 
 
+def test_external_absolute_paths_are_sanitized_in_inventory(tmp_path: Path) -> None:
+    config = MarketSimulationConfig.from_mapping(
+        {
+            **_config(tmp_path).to_dict(),
+            "output_root": (tmp_path / "outside_repo_outputs").as_posix(),
+        }
+    )
+
+    result = run_market_simulation_framework(config)
+    inventory_text = result.input_inventory_path.read_text(encoding="utf-8")
+    inventory = json.loads(inventory_text)
+
+    assert inventory["output_root"]["configured_path"].startswith("external/outside_repo_outputs_")
+    assert str(tmp_path) not in inventory_text
+
+
 def test_normalized_config_artifact_is_written(tmp_path: Path) -> None:
     result = run_market_simulation_framework(_config(tmp_path))
 
@@ -64,12 +80,15 @@ def test_normalized_config_artifact_is_written(tmp_path: Path) -> None:
     assert payload["market_simulations"][0]["scenario_id"]
 
 
-def test_market_simulation_cli_smoke(tmp_path: Path) -> None:
+def test_market_simulation_cli_smoke(tmp_path: Path, capsys) -> None:
     config = _config(tmp_path)
     config_path = tmp_path / "market.yml"
     config_path.write_text(yaml.safe_dump(config.to_dict(), sort_keys=False), encoding="utf-8", newline="\n")
 
     result = run_cli(["--config", config_path.as_posix()])
+    output = capsys.readouterr().out
 
     assert result.scenario_catalog_csv_path.exists()
     assert result.simulation_manifest_path.exists()
+    assert str(tmp_path) not in output
+    assert "external/" in output

@@ -198,8 +198,8 @@ def _rel(path: Path) -> str:
     try:
         return path.resolve().relative_to(Path.cwd().resolve()).as_posix()
     except ValueError:
-        parts = [part.strip(":\\/") for part in path.resolve().parts if part.strip(":\\/")]
-        return "external/" + "/".join(parts)
+        digest = hashlib.sha256(path.as_posix().encode("utf-8")).hexdigest()[:12]
+        return f"external/{path.name}_{digest}"
 
 
 def _slugify(value: str) -> str:

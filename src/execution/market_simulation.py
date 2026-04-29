@@ -51,6 +51,26 @@ def run_market_simulation_scenarios(
             ("manifest_json", bootstrap.manifest_path),
         )
     }
+    monte_carlo_outputs = {
+        f"regime_transition_monte_carlo_{index}_{name}": path
+        for index, monte_carlo in enumerate(raw_result.monte_carlo_results, start=1)
+        for name, path in (
+            ("transition_matrix_json", monte_carlo.transition_matrix_path),
+            ("regime_paths_parquet", monte_carlo.regime_paths_path),
+            ("path_catalog_csv", monte_carlo.path_catalog_path),
+            ("summary_json", monte_carlo.summary_path),
+            ("manifest_json", monte_carlo.manifest_path),
+        )
+    }
+    monte_carlo_optional_outputs = {
+        f"regime_transition_monte_carlo_{index}_{name}": path
+        for index, monte_carlo in enumerate(raw_result.monte_carlo_results, start=1)
+        for name, path in (
+            ("adjusted_transition_matrix_json", monte_carlo.adjusted_transition_matrix_path),
+            ("transition_counts_csv", monte_carlo.transition_counts_path),
+        )
+        if path is not None
+    }
     return summarize_execution_result(
         workflow="market_simulation_scenarios",
         raw_result=raw_result,
@@ -78,6 +98,13 @@ def run_market_simulation_scenarios(
             "regime_block_bootstrap_rows": sum(
                 bootstrap.simulated_row_count for bootstrap in raw_result.block_bootstrap_results
             ),
+            "regime_transition_monte_carlo_count": len(raw_result.monte_carlo_results),
+            "regime_transition_monte_carlo_paths": sum(
+                monte_carlo.path_count for monte_carlo in raw_result.monte_carlo_results
+            ),
+            "regime_transition_monte_carlo_rows": sum(
+                monte_carlo.generated_row_count for monte_carlo in raw_result.monte_carlo_results
+            ),
         },
         output_paths={
             "scenario_catalog_csv": raw_result.scenario_catalog_csv_path,
@@ -87,6 +114,8 @@ def run_market_simulation_scenarios(
             "simulation_manifest_json": raw_result.simulation_manifest_path,
             **historical_outputs,
             **bootstrap_outputs,
+            **monte_carlo_outputs,
+            **monte_carlo_optional_outputs,
             **shock_outputs,
         },
     )

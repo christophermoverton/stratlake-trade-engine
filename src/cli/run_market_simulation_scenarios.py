@@ -44,6 +44,15 @@ def print_summary(result) -> None:
         "Block bootstrap simulated rows: "
         f"{sum(bootstrap.simulated_row_count for bootstrap in result.block_bootstrap_results)}"
     )
+    print(f"Regime-transition Monte Carlo scenarios: {len(result.monte_carlo_results)}")
+    print(
+        "Regime-transition Monte Carlo generated paths: "
+        f"{sum(monte_carlo.path_count for monte_carlo in result.monte_carlo_results)}"
+    )
+    print(
+        "Regime-transition Monte Carlo generated rows: "
+        f"{sum(monte_carlo.generated_row_count for monte_carlo in result.monte_carlo_results)}"
+    )
     print(f"Shock overlays: {len(result.shock_overlay_results)}")
     print(f"scenario_catalog.csv: {_display_path(result.scenario_catalog_csv_path)}")
     print(f"simulation_manifest.json: {_display_path(result.simulation_manifest_path)}")
@@ -53,6 +62,9 @@ def print_summary(result) -> None:
     for bootstrap in result.block_bootstrap_results:
         print(f"{bootstrap.scenario_id}/bootstrap_path_catalog.csv: {_display_path(bootstrap.bootstrap_path_catalog_path)}")
         print(f"{bootstrap.scenario_id}/bootstrap_sampling_summary.json: {_display_path(bootstrap.bootstrap_sampling_summary_path)}")
+    for monte_carlo in result.monte_carlo_results:
+        print(f"{monte_carlo.scenario_id}/monte_carlo_path_catalog.csv: {_display_path(monte_carlo.path_catalog_path)}")
+        print(f"{monte_carlo.scenario_id}/monte_carlo_summary.json: {_display_path(monte_carlo.summary_path)}")
     for overlay in result.shock_overlay_results:
         print(f"{overlay.scenario_id}/shock_overlay_results.csv: {_display_path(overlay.shock_overlay_results_path)}")
         print(f"{overlay.scenario_id}/shock_overlay_summary.json: {_display_path(overlay.shock_overlay_summary_path)}")

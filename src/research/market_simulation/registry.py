@@ -63,6 +63,7 @@ _REGISTRY: dict[str, SimulationTypeMetadata] = {
         uses_historical_data=False,
         uses_synthetic_generation=True,
         uses_shock_overlay=False,
+        status="implemented",
     ),
     "hybrid_simulation": SimulationTypeMetadata(
         simulation_type="hybrid_simulation",

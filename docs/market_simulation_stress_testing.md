@@ -4,7 +4,7 @@
 
 The M27 market simulation framework is the deterministic artifact layer for adaptive policy stress testing. It validates scenario definitions, resolves seeds, assigns stable scenario and path identifiers, and writes catalogs, inventories, normalized config, and manifests.
 
-Historical episode replay, regime-aware block bootstrap, and shock overlays are the implemented simulation scenario types. Transition bootstrap as a standalone scenario, Monte Carlo regime paths, simulation-aware leaderboards, and the end-to-end case study remain reserved for follow-up issues.
+Historical episode replay, regime-aware block bootstrap, regime-transition Monte Carlo, and shock overlays are the implemented simulation scenario types. Transition bootstrap as a standalone scenario, simulation-aware leaderboards, and the end-to-end case study remain reserved for follow-up issues.
 
 ## Relationship to M26
 
@@ -25,7 +25,7 @@ The framework recognizes these identifiers:
 - `shock_overlay`, implemented in Issue #305
 - `regime_block_bootstrap`, implemented in Issue #306
 - `transition_block_bootstrap`
-- `regime_transition_monte_carlo`
+- `regime_transition_monte_carlo`, implemented in Issue #307
 - `hybrid_simulation`
 
 Unsupported type names fail during config validation, including disabled scenarios. Disabled reserved scenarios are preserved in the catalog with `enabled=false`.
@@ -207,6 +207,93 @@ Future extension, not implemented:
 - `input_source.type: file`
 - overlay applied to bootstrap-generated paths
 
+## Regime-Transition Monte Carlo
+
+`regime_transition_monte_carlo` generates deterministic synthetic regime-label paths from a validated transition matrix. It differs from historical replay because it does not replay fixed historical windows. It differs from regime block bootstrap because it does not resample empirical return blocks or create simulated return paths; the generated artifact is a regime path suitable for later policy stress metrics and replay integrations.
+
+Transition probabilities can be configured inline:
+
+```yaml
+market_simulations:
+  - name: regime_transition_mc
+    type: regime_transition_monte_carlo
+    enabled: true
+    random_seed: 3107
+    path_count: 25
+    method_config:
+      path_count: 25
+      path_length_bars: 120
+      path_start: "2000-01-01"
+      initial_regime: low_vol
+      normalize_transition_rows: false
+      transition_matrix:
+        low_vol:
+          low_vol: 0.70
+          high_vol: 0.20
+          stress: 0.10
+        high_vol:
+          low_vol: 0.30
+          high_vol: 0.50
+          stress: 0.20
+        stress:
+          low_vol: 0.25
+          high_vol: 0.35
+          stress: 0.40
+      duration_constraints:
+        min_duration_bars: 1
+        max_duration_bars: 20
+```
+
+Rows must be non-empty, numeric, non-negative, and sum to 1.0 within tolerance unless `normalize_transition_rows: true` is set. Missing destinations are treated as zero, but destinations outside the known regime set fail validation.
+
+The empirical matrix source builds transition counts by sorting source data deterministically by `symbol_column` then timestamp, or by timestamp alone when no symbol is configured:
+
+```yaml
+method_config:
+  path_count: 25
+  path_length_bars: 120
+  transition_source:
+    dataset_path: tests/fixtures/market_simulation/monte_carlo_regime_source_fixture.csv
+    timestamp_column: ts_utc
+    regime_column: regime_label
+    symbol_column: symbol
+```
+
+`duration_constraints.min_duration_bars` keeps a path in the current regime until the minimum run length is reached. `duration_constraints.max_duration_bars` forces a transition away from the current regime once the maximum is reached when an alternative regime has positive probability.
+
+Optional transition adjustments are applied after base matrix validation and are renormalized row by row:
+
+```yaml
+stress_bias:
+  enabled: true
+  target_regimes:
+    - stress
+  multiplier: 1.25
+sticky_regime:
+  enabled: true
+  self_transition_multiplier: 1.10
+```
+
+Monte Carlo writes scenario-level artifacts under the standard layout:
+
+```text
+artifacts/regime_stress_tests/<simulation_run_id>/market_simulations/<scenario_id>/
+```
+
+Generated files:
+
+- `transition_matrix.json`
+- `adjusted_transition_matrix.json`, when stress or sticky adjustment is enabled
+- `transition_counts.csv`, when the matrix is empirical
+- `monte_carlo_regime_paths.parquet`
+- `monte_carlo_path_catalog.csv`
+- `monte_carlo_summary.json`
+- `manifest.json`
+
+`monte_carlo_regime_paths.parquet` includes stable columns for `scenario_id`, `path_id`, `path_index`, `path_step`, `ts_utc`, `regime_label`, `previous_regime_label`, `transitioned`, `duration_in_regime`, `transition_probability`, `seed`, adjustment flags, initial regime, and matrix source. Repeated runs with the same config, matrix, and seed produce identical path IDs, row ordering, paths, summaries, and manifests.
+
+Limitations: this scenario intentionally simulates regime sequences only. It does not implement live trading, broker APIs, real-time feeds, order-book simulation, full return simulation, predictive market forecasting, simulation-aware leaderboards, or the M27 end-to-end case study.
+
 ## Config Example
 
 Checked-in example:
@@ -216,6 +303,7 @@ configs/regime_stress_tests/m27_market_simulation_framework.yml
 configs/regime_stress_tests/m27_historical_episode_replay.yml
 configs/regime_stress_tests/m27_shock_overlay.yml
 configs/regime_stress_tests/m27_regime_block_bootstrap.yml
+configs/regime_stress_tests/m27_regime_transition_monte_carlo.yml
 ```
 
 Minimal shape:

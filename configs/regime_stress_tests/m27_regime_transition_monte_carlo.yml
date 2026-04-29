@@ -1,0 +1,64 @@
+simulation_name: m27_regime_transition_monte_carlo
+output_root: artifacts/regime_stress_tests
+random_seed: 3107
+source_review_pack: artifacts/regime_reviews/<review_run_id>
+baseline_policy: static_baseline
+source_policy_candidates:
+  - hybrid_calibrated_gmm_policy
+  - defensive_transition_policy
+market_simulations:
+  - name: regime_transition_mc
+    type: regime_transition_monte_carlo
+    enabled: true
+    random_seed: 3107
+    path_count: 3
+    notes: Deterministic inline regime-transition Monte Carlo smoke scenario.
+    method_config:
+      path_count: 3
+      path_length_bars: 12
+      path_start: "2000-01-01"
+      initial_regime: low_vol
+      normalize_transition_rows: false
+      transition_matrix:
+        low_vol:
+          low_vol: 0.70
+          high_vol: 0.20
+          stress: 0.10
+        high_vol:
+          low_vol: 0.30
+          high_vol: 0.50
+          stress: 0.20
+        stress:
+          low_vol: 0.25
+          high_vol: 0.35
+          stress: 0.40
+      duration_constraints:
+        min_duration_bars: 1
+        max_duration_bars: 6
+      stress_bias:
+        enabled: false
+        target_regimes:
+          - stress
+        multiplier: 1.25
+      sticky_regime:
+        enabled: false
+        self_transition_multiplier: 1.10
+  - name: empirical_regime_transition_mc_example
+    type: regime_transition_monte_carlo
+    enabled: false
+    random_seed: 3107
+    path_count: 2
+    notes: Disabled empirical transition matrix example.
+    method_config:
+      path_count: 2
+      path_length_bars: 10
+      path_start: "2000-01-01"
+      transition_source:
+        dataset_path: tests/fixtures/market_simulation/monte_carlo_regime_source_fixture.csv
+        timestamp_column: ts_utc
+        regime_column: regime_label
+        symbol_column: symbol
+metadata:
+  milestone: M27
+  issue: "307"
+  purpose: regime_transition_monte_carlo

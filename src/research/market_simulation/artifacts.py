@@ -17,6 +17,10 @@ from src.research.market_simulation.historical_replay import (
     HistoricalEpisodeReplayResult,
     run_historical_episode_replays,
 )
+from src.research.market_simulation.monte_carlo import (
+    MonteCarloResult,
+    run_regime_transition_monte_carlo_scenarios,
+)
 from src.research.market_simulation.shock_overlay import ShockOverlayResult, run_shock_overlay_scenarios
 from src.research.registry import canonicalize_value, serialize_canonical_json, stable_timestamp_from_run_id
 
@@ -36,6 +40,7 @@ class MarketSimulationFrameworkResult:
     simulation_manifest: dict[str, Any]
     historical_episode_replay_results: list[HistoricalEpisodeReplayResult]
     block_bootstrap_results: list[BlockBootstrapResult]
+    monte_carlo_results: list[MonteCarloResult]
     shock_overlay_results: list[ShockOverlayResult]
 
 
@@ -85,6 +90,11 @@ def run_market_simulation_framework(
         simulation_run_id=simulation_run_id,
         market_simulations_output_dir=output_dir,
     )
+    monte_carlo_results = run_regime_transition_monte_carlo_scenarios(
+        config,
+        simulation_run_id=simulation_run_id,
+        market_simulations_output_dir=output_dir,
+    )
     shock_overlay_results = run_shock_overlay_scenarios(
         config,
         simulation_run_id=simulation_run_id,
@@ -106,6 +116,7 @@ def run_market_simulation_framework(
         simulation_manifest=manifest,
         historical_episode_replay_results=historical_results,
         block_bootstrap_results=block_bootstrap_results,
+        monte_carlo_results=monte_carlo_results,
         shock_overlay_results=shock_overlay_results,
     )
 

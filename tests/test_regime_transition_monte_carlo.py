@@ -217,6 +217,72 @@ def test_artifact_writing_creates_expected_files(tmp_path: Path) -> None:
     assert result.manifest_path.exists()
 
 
+def test_regime_paths_schema_contains_no_return_or_price_columns(tmp_path: Path) -> None:
+    _, _, result = _run_monte_carlo(tmp_path)
+    rows = pd.read_parquet(result.regime_paths_path)
+
+    assert list(rows.columns) == [
+        "scenario_id",
+        "path_id",
+        "path_index",
+        "path_step",
+        "ts_utc",
+        "regime_label",
+        "previous_regime_label",
+        "transitioned",
+        "duration_in_regime",
+        "transition_probability",
+        "seed",
+        "stress_bias_applied",
+        "sticky_adjustment_applied",
+        "initial_regime",
+        "source_matrix_type",
+    ]
+    assert not any(
+        "return" in column.lower() or "price" in column.lower() for column in rows.columns
+    )
+
+
+def test_regime_paths_parquet_exists_and_is_readable(tmp_path: Path) -> None:
+    _, _, result = _run_monte_carlo(tmp_path)
+
+    assert result.regime_paths_path.name == "monte_carlo_regime_paths.parquet"
+    assert result.regime_paths_path.exists()
+    assert len(pd.read_parquet(result.regime_paths_path)) == 16
+
+
+def test_shock_overlay_does_not_resolve_monte_carlo_outputs_as_inputs(tmp_path: Path) -> None:
+    payload = _payload(tmp_path / "outputs")
+    payload["market_simulations"].append(
+        {
+            "name": "monte_carlo_overlay_attempt",
+            "type": "shock_overlay",
+            "enabled": True,
+            "method_config": {
+                "input_source": {
+                    "type": "historical_episode_replay",
+                    "scenario_name": "regime_transition_mc",
+                },
+                "timestamp_column": "ts_utc",
+                "symbol_column": "symbol",
+                "base_return_column": "source_return",
+                "overlays": [
+                    {
+                        "name": "return_drawdown_shock",
+                        "type": "return_bps",
+                        "column": "source_return",
+                        "bps": -50,
+                    }
+                ],
+            },
+        }
+    )
+    config = MarketSimulationConfig.from_mapping(payload)
+
+    with pytest.raises(MarketSimulationConfigError, match="was not found"):
+        run_market_simulation_framework(config)
+
+
 def test_json_artifacts_do_not_leak_absolute_tmp_paths(tmp_path: Path) -> None:
     _, _, result = _run_monte_carlo(tmp_path)
 

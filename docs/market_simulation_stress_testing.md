@@ -186,6 +186,10 @@ Block bootstrap writes:
 - `simulated_return_paths.parquet`
 - `simulated_regime_paths.parquet`
 
+Monte Carlo writes:
+
+- `monte_carlo_regime_paths.parquet`
+
 These require a Parquet backend such as `pyarrow`.
 
 Ensure your environment includes:
@@ -210,6 +214,10 @@ Future extension, not implemented:
 ## Regime-Transition Monte Carlo
 
 `regime_transition_monte_carlo` generates deterministic synthetic regime-label paths from a validated transition matrix. It differs from historical replay because it does not replay fixed historical windows. It differs from regime block bootstrap because it does not resample empirical return blocks or create simulated return paths; the generated artifact is a regime path suitable for later policy stress metrics and replay integrations.
+
+This scenario produces regime sequences suitable for stress testing and policy evaluation. It does NOT generate simulated return paths or price paths.
+
+Monte Carlo outputs are intended for downstream metrics and policy replay, not direct trading or backtesting without additional modeling layers.
 
 Transition probabilities can be configured inline:
 
@@ -293,6 +301,18 @@ Generated files:
 `monte_carlo_regime_paths.parquet` includes stable columns for `scenario_id`, `path_id`, `path_index`, `path_step`, `ts_utc`, `regime_label`, `previous_regime_label`, `transitioned`, `duration_in_regime`, `transition_probability`, `seed`, adjustment flags, initial regime, and matrix source. Repeated runs with the same config, matrix, and seed produce identical path IDs, row ordering, paths, summaries, and manifests.
 
 Limitations: this scenario intentionally simulates regime sequences only. It does not implement live trading, broker APIs, real-time feeds, order-book simulation, full return simulation, predictive market forecasting, simulation-aware leaderboards, or the M27 end-to-end case study.
+
+## Monte Carlo and Shock Overlay Compatibility
+
+Current behavior:
+
+- Shock overlays consume same-run historical replay outputs only.
+- Monte Carlo outputs are not currently used as overlay inputs.
+
+Future extension, not implemented:
+
+- overlay application to Monte Carlo paths
+- `input_source.type: file` support
 
 ## Config Example
 
@@ -485,4 +505,4 @@ The CLI writes framework artifacts and scenario-level bootstrap artifacts.
 
 ## Non-Goals
 
-This issue does not implement file-based overlay inputs, transition bootstrap as a separate scenario type, Monte Carlo path generation, simulation-aware stress leaderboards, case studies, broker integrations, live feeds, order-book simulation, or forecasting claims.
+This issue does not implement file-based overlay inputs, transition bootstrap as a separate scenario type, Monte Carlo return-path generation, simulation-aware stress leaderboards, case studies, broker integrations, live feeds, order-book simulation, or forecasting claims.

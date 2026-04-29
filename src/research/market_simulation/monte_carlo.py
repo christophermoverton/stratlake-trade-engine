@@ -1,4 +1,8 @@
-"""Deterministic regime-transition Monte Carlo simulation."""
+"""Deterministic regime-transition Monte Carlo simulation.
+
+This module generates regime-label paths only. It does not simulate return or
+price paths.
+"""
 
 from __future__ import annotations
 

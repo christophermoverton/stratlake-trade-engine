@@ -25,6 +25,7 @@ def _payload(
     *,
     threshold_overrides: dict | None = None,
     ranking_metric: str = "mean_stress_score",
+    tail_quantile: float = 0.05,
 ) -> dict:
     thresholds = {
         "max_drawdown_limit": -0.10,
@@ -47,7 +48,7 @@ def _payload(
             "failure_thresholds": thresholds,
             "leaderboard": {"ranking_metric": ranking_metric, "ascending": True},
             "stress_regimes": ["stress", "high_vol"],
-            "tail_quantile": 0.05,
+            "tail_quantile": tail_quantile,
         },
         "market_simulations": [
             {
@@ -160,12 +161,14 @@ def _run(
     *,
     threshold_overrides: dict | None = None,
     ranking_metric: str = "mean_stress_score",
+    tail_quantile: float = 0.05,
 ):
     config = MarketSimulationConfig.from_mapping(
         _payload(
             tmp_path / "outputs",
             threshold_overrides=threshold_overrides,
             ranking_metric=ranking_metric,
+            tail_quantile=tail_quantile,
         )
     )
     return run_market_simulation_framework(config)
@@ -180,6 +183,7 @@ def test_stress_metrics_config_defaults_load_deterministically(tmp_path: Path) -
     assert config.stress_metrics.output_dir_name == "simulation_metrics"
     assert config.stress_metrics.failure_thresholds["max_drawdown_limit"] == -0.10
     assert config.stress_metrics.leaderboard["ranking_metric"] == "mean_stress_score"
+    assert config.stress_metrics.tail_quantile == 0.05
     assert config.stress_metrics.stress_regimes == ("stress",)
 
 
@@ -212,7 +216,7 @@ def test_block_bootstrap_metrics_compute_return_drawdown_tail_and_transitions(tm
     assert len(rows) == 2
     assert rows["total_return"].notna().all()
     assert rows["max_drawdown"].notna().all()
-    assert rows["tail_5pct_return"].notna().all()
+    assert rows["tail_quantile_return"].notna().all()
     assert rows["regime_transition_count"].notna().all()
 
 
@@ -258,6 +262,34 @@ def test_leaderboard_uses_configured_summary_ranking_metric(tmp_path: Path) -> N
 
     assert set(leaderboard["ranking_metric"]) == {"policy_failure_rate"}
     assert leaderboard["ranking_value"].tolist() == sorted(leaderboard["ranking_value"].tolist())
+
+
+def test_non_default_tail_quantile_uses_semantic_columns_and_persists_config(tmp_path: Path) -> None:
+    result = _run(tmp_path / "first", ranking_metric="tail_quantile_total_return", tail_quantile=0.10)
+    second = _run(tmp_path / "second", ranking_metric="tail_quantile_total_return", tail_quantile=0.10)
+    metrics = result.simulation_stress_metrics_result
+    path_rows = pd.read_csv(metrics.path_metrics_path)
+    summary_rows = pd.read_csv(metrics.summary_path)
+    leaderboard = pd.read_csv(metrics.leaderboard_path)
+    metric_config = json.loads(metrics.metric_config_path.read_text(encoding="utf-8"))
+
+    assert "tail_quantile_return" in path_rows.columns
+    assert "tail_5pct_return" not in path_rows.columns
+    assert "tail_quantile_total_return" in summary_rows.columns
+    assert "tail_5pct_total_return" not in summary_rows.columns
+    assert "tail_quantile_total_return" in leaderboard.columns
+    assert "tail_5pct_total_return" not in leaderboard.columns
+    assert set(path_rows["tail_quantile"]) == {0.10}
+    assert set(summary_rows["tail_quantile"]) == {0.10}
+    assert set(leaderboard["tail_quantile"]) == {0.10}
+    assert metric_config["tail_quantile"] == 0.10
+    assert set(leaderboard["ranking_metric"]) == {"tail_quantile_total_return"}
+    assert metrics.summary_path.read_text(
+        encoding="utf-8"
+    ) == second.simulation_stress_metrics_result.summary_path.read_text(encoding="utf-8")
+    assert metrics.leaderboard_path.read_text(
+        encoding="utf-8"
+    ) == second.simulation_stress_metrics_result.leaderboard_path.read_text(encoding="utf-8")
 
 
 def test_unavailable_summary_ranking_metric_uses_mean_stress_score_fallback(tmp_path: Path) -> None:

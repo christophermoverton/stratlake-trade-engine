@@ -364,11 +364,11 @@ Generated files:
 - `simulation_metric_config.json`
 - `manifest.json`
 
-`simulation_path_metrics.csv` has one row per replay episode, overlay episode, bootstrap path, or Monte Carlo regime path. Stable columns include scenario identifiers, path or episode IDs, availability flags, return metrics, adaptive-vs-static deltas, regime transition counts, stress regime share, failure reasons, overlay count, and `stress_score`.
+`simulation_path_metrics.csv` has one row per replay episode, overlay episode, bootstrap path, or Monte Carlo regime path. Stable columns include scenario identifiers, path or episode IDs, `tail_quantile`, availability flags, return metrics, adaptive-vs-static deltas, regime transition counts, stress regime share, failure reasons, overlay count, and `stress_score`.
 
-`simulation_summary.csv` aggregates each scenario with path counts, row counts, return availability, policy failure rate, adaptive-vs-static win rate, mean transition count, mean stress regime share, worst and mean stress score, and notes for unavailable metric families.
+`simulation_summary.csv` aggregates each scenario with path counts, row counts, `tail_quantile`, return availability, policy failure rate, adaptive-vs-static win rate, mean transition count, mean stress regime share, worst and mean stress score, and notes for unavailable metric families.
 
-`simulation_leaderboard.csv` ranks scenarios deterministically from `simulation_summary.csv` rows. Because the leaderboard is scenario-summary based, `leaderboard.ranking_metric` must name a numeric summary column such as `mean_stress_score`, `policy_failure_rate`, `tail_5pct_total_return`, or `worst_max_drawdown`.
+`simulation_leaderboard.csv` ranks scenarios deterministically from `simulation_summary.csv` rows. Because the leaderboard is scenario-summary based, `leaderboard.ranking_metric` must name a numeric summary column such as `mean_stress_score`, `policy_failure_rate`, `tail_quantile_total_return`, or `worst_max_drawdown`.
 
 The default and checked-in M27 example use `mean_stress_score` with `ascending: true`, meaning lower average stress ranks better. Unknown ranking metric names fail clearly during metrics generation. If a known summary metric is unavailable for a specific scenario, that scenario uses deterministic `mean_stress_score` fallback for ordering while preserving the configured `ranking_metric` value in the output.
 
@@ -377,6 +377,8 @@ Ranking uses the configured metric first, then stable tie-breakers:
 1. `scenario_name`
 2. `simulation_type`
 3. `scenario_id`
+
+Tail-risk columns are quantile-aware. Earlier drafts used fixed names such as `tail_5pct_return`; the current schema uses `tail_quantile_return` for path-level period returns and `tail_quantile_total_return` for scenario summary and leaderboard total-return tails. The configured `tail_quantile` is persisted in `simulation_metric_config.json` and repeated in path, summary, and leaderboard rows for interpretability.
 
 Volatile paths and timestamps are not used as tie-breakers.
 

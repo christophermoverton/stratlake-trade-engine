@@ -11,6 +11,14 @@ from src.cli.run_market_simulation_scenarios import run_cli
 from src.config.market_simulation import MarketSimulationConfig
 from src.research.market_simulation.artifacts import run_market_simulation_framework
 
+M27_DEFAULT_METRICS_CONFIGS = (
+    "m27_market_simulation_framework.yml",
+    "m27_historical_episode_replay.yml",
+    "m27_shock_overlay.yml",
+    "m27_regime_block_bootstrap.yml",
+    "m27_regime_transition_monte_carlo.yml",
+)
+
 
 def _matrix() -> dict:
     return {
@@ -174,6 +182,13 @@ def _run(
     return run_market_simulation_framework(config)
 
 
+def _checked_in_config_payload(config_name: str, output_root: Path) -> dict:
+    config_path = Path("configs/regime_stress_tests") / config_name
+    payload = yaml.safe_load(config_path.read_text(encoding="utf-8"))
+    payload["output_root"] = output_root.as_posix()
+    return payload
+
+
 def test_stress_metrics_config_defaults_load_deterministically(tmp_path: Path) -> None:
     payload = _payload(tmp_path / "outputs")
     payload.pop("stress_metrics")
@@ -185,6 +200,88 @@ def test_stress_metrics_config_defaults_load_deterministically(tmp_path: Path) -
     assert config.stress_metrics.leaderboard["ranking_metric"] == "mean_stress_score"
     assert config.stress_metrics.tail_quantile == 0.05
     assert config.stress_metrics.stress_regimes == ("stress",)
+
+
+@pytest.mark.parametrize("config_name", M27_DEFAULT_METRICS_CONFIGS)
+def test_existing_m27_configs_generate_default_metrics_artifacts(
+    tmp_path: Path,
+    config_name: str,
+) -> None:
+    config = MarketSimulationConfig.from_mapping(
+        _checked_in_config_payload(config_name, tmp_path / "outputs")
+    )
+
+    result = run_market_simulation_framework(config)
+    metrics = result.simulation_stress_metrics_result
+
+    assert metrics is not None
+    assert metrics.output_dir.name == "simulation_metrics"
+    assert metrics.path_metrics_path.exists()
+    assert metrics.summary_path.exists()
+    assert metrics.leaderboard_path.exists()
+    assert metrics.policy_failure_summary_path.exists()
+    assert metrics.manifest_path.exists()
+
+    manifest = json.loads(metrics.manifest_path.read_text(encoding="utf-8"))
+    assert manifest["artifact_type"] == "simulation_stress_metrics"
+    assert manifest["row_counts"]["simulation_path_metrics_csv"] == metrics.path_metric_row_count
+    assert manifest["ranking_settings"]["ranking_metric"] == "mean_stress_score"
+
+
+def test_framework_only_config_writes_empty_default_metrics_deterministically(tmp_path: Path) -> None:
+    payload = _checked_in_config_payload(
+        "m27_market_simulation_framework.yml", tmp_path / "first" / "outputs"
+    )
+    second_payload = _checked_in_config_payload(
+        "m27_market_simulation_framework.yml", tmp_path / "second" / "outputs"
+    )
+
+    first = run_market_simulation_framework(MarketSimulationConfig.from_mapping(payload))
+    second = run_market_simulation_framework(MarketSimulationConfig.from_mapping(second_payload))
+
+    first_metrics = first.simulation_stress_metrics_result
+    second_metrics = second.simulation_stress_metrics_result
+    assert first_metrics.path_metric_row_count == 0
+    assert first_metrics.summary_row_count == 0
+    assert first_metrics.leaderboard_row_count == 0
+    assert first_metrics.path_metrics_path.read_text(
+        encoding="utf-8"
+    ) == second_metrics.path_metrics_path.read_text(encoding="utf-8")
+    assert first_metrics.summary_path.read_text(
+        encoding="utf-8"
+    ) == second_metrics.summary_path.read_text(encoding="utf-8")
+    assert first_metrics.leaderboard_path.read_text(
+        encoding="utf-8"
+    ) == second_metrics.leaderboard_path.read_text(encoding="utf-8")
+
+
+def test_stress_metrics_can_be_disabled_for_existing_config(tmp_path: Path) -> None:
+    payload = _checked_in_config_payload("m27_historical_episode_replay.yml", tmp_path / "outputs")
+    payload["stress_metrics"] = {"enabled": False}
+    config = MarketSimulationConfig.from_mapping(payload)
+
+    result = run_market_simulation_framework(config)
+
+    assert result.simulation_stress_metrics_result is None
+    assert not (result.output_dir / "simulation_metrics").exists()
+
+
+def test_existing_monte_carlo_config_default_metrics_remain_regime_only(tmp_path: Path) -> None:
+    config = MarketSimulationConfig.from_mapping(
+        _checked_in_config_payload("m27_regime_transition_monte_carlo.yml", tmp_path / "outputs")
+    )
+
+    result = run_market_simulation_framework(config)
+    metrics = pd.read_csv(result.simulation_stress_metrics_result.path_metrics_path)
+    summary = pd.read_csv(result.simulation_stress_metrics_result.summary_path)
+
+    assert len(metrics) == 3
+    assert set(metrics["simulation_type"]) == {"regime_transition_monte_carlo"}
+    assert not metrics["has_return_metrics"].any()
+    assert not metrics["has_policy_metrics"].any()
+    assert metrics["has_regime_metrics"].all()
+    assert metrics["total_return"].isna().all()
+    assert set(summary["notes"]) == {"return_metrics_unavailable;policy_metrics_unavailable"}
 
 
 def test_historical_replay_metrics_compute_policy_delta(tmp_path: Path) -> None:

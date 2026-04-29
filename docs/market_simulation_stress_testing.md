@@ -340,7 +340,14 @@ stress_metrics:
     - stress
 ```
 
-If the section is absent, safe deterministic defaults are used and metrics are enabled. Set `stress_metrics.enabled: false` to skip metrics artifacts.
+If the section is absent, safe deterministic defaults are used and metrics are enabled. This applies to existing M27 generator configs as well as configs that only write framework/catalog artifacts. A framework-only run can therefore emit an empty but schema-valid `simulation_metrics/` directory with zero path, summary, and leaderboard rows.
+
+Set `stress_metrics.enabled: false` to skip metrics artifacts:
+
+```yaml
+stress_metrics:
+  enabled: false
+```
 
 Inputs by scenario type:
 

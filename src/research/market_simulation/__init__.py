@@ -11,6 +11,12 @@ from src.research.market_simulation.config import (
     load_market_simulation_config,
 )
 from src.research.market_simulation.ids import generate_path_id, generate_scenario_id
+from src.research.market_simulation.historical_replay import (
+    HistoricalEpisodeReplayResult,
+    generate_episode_id,
+    run_historical_episode_replay,
+    run_historical_episode_replays,
+)
 from src.research.market_simulation.registry import (
     RESERVED_SIMULATION_TYPES,
     get_simulation_type_metadata,
@@ -22,11 +28,15 @@ __all__ = [
     "MarketSimulationConfigError",
     "MarketSimulationFrameworkResult",
     "MarketSimulationScenarioConfig",
+    "HistoricalEpisodeReplayResult",
     "RESERVED_SIMULATION_TYPES",
+    "generate_episode_id",
     "generate_path_id",
     "generate_scenario_id",
     "get_simulation_type_metadata",
     "is_supported_simulation_type",
     "load_market_simulation_config",
+    "run_historical_episode_replay",
+    "run_historical_episode_replays",
     "run_market_simulation_framework",
 ]

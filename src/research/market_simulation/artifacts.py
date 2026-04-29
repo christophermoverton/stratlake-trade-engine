@@ -9,6 +9,10 @@ from typing import Any, Mapping
 
 from src.research.market_simulation.catalog import SCENARIO_CATALOG_COLUMNS, build_scenario_catalog
 from src.research.market_simulation.config import MarketSimulationConfig
+from src.research.market_simulation.historical_replay import (
+    HistoricalEpisodeReplayResult,
+    run_historical_episode_replays,
+)
 from src.research.registry import canonicalize_value, serialize_canonical_json, stable_timestamp_from_run_id
 
 
@@ -25,6 +29,7 @@ class MarketSimulationFrameworkResult:
     scenario_catalog: list[dict[str, Any]]
     input_inventory: dict[str, Any]
     simulation_manifest: dict[str, Any]
+    historical_episode_replay_results: list[HistoricalEpisodeReplayResult]
 
 
 def run_market_simulation_framework(
@@ -63,6 +68,11 @@ def run_market_simulation_framework(
         config_path=config_path,
     )
     _write_json(paths["simulation_manifest_json"], manifest)
+    historical_results = run_historical_episode_replays(
+        config,
+        simulation_run_id=simulation_run_id,
+        market_simulations_output_dir=output_dir,
+    )
 
     return MarketSimulationFrameworkResult(
         simulation_run_id=simulation_run_id,
@@ -76,6 +86,7 @@ def run_market_simulation_framework(
         scenario_catalog=scenario_catalog,
         input_inventory=input_inventory,
         simulation_manifest=manifest,
+        historical_episode_replay_results=historical_results,
     )
 
 

@@ -27,15 +27,19 @@ def run_cli(argv: Sequence[str] | None = None):
 
 
 def print_summary(result) -> None:
-    print("Market Simulation Scenario Framework Summary")
-    print("--------------------------------------------")
+    print("Market Simulation Scenario Summary")
+    print("----------------------------------")
     print(f"Simulation run id: {result.simulation_run_id}")
     print(f"Output directory: {_display_path(result.output_dir)}")
     print(f"Scenario count: {result.simulation_manifest.get('scenario_count', 0)}")
     print(f"Enabled scenarios: {result.simulation_manifest.get('enabled_scenario_count', 0)}")
     print(f"Disabled scenarios: {result.simulation_manifest.get('disabled_scenario_count', 0)}")
+    print(f"Historical episode replays: {len(result.historical_episode_replay_results)}")
     print(f"scenario_catalog.csv: {_display_path(result.scenario_catalog_csv_path)}")
     print(f"simulation_manifest.json: {_display_path(result.simulation_manifest_path)}")
+    for replay in result.historical_episode_replay_results:
+        print(f"{replay.scenario_id}/historical_episode_catalog.csv: {_display_path(replay.historical_episode_catalog_path)}")
+        print(f"{replay.scenario_id}/episode_policy_comparison.csv: {_display_path(replay.episode_policy_comparison_path)}")
 
 
 def _display_path(path: str | Path) -> str:

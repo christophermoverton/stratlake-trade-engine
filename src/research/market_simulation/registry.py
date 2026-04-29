@@ -32,6 +32,7 @@ _REGISTRY: dict[str, SimulationTypeMetadata] = {
         uses_historical_data=True,
         uses_synthetic_generation=False,
         uses_shock_overlay=False,
+        status="implemented",
     ),
     "shock_overlay": SimulationTypeMetadata(
         simulation_type="shock_overlay",

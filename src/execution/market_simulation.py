@@ -15,6 +15,17 @@ def run_market_simulation_scenarios(
 
     config = load_market_simulation_config(Path(config_path))
     raw_result = run_market_simulation_framework(config, config_path=config_path)
+    historical_outputs = {
+        f"historical_episode_replay_{index}_{name}": path
+        for index, replay in enumerate(raw_result.historical_episode_replay_results, start=1)
+        for name, path in (
+            ("catalog_csv", replay.historical_episode_catalog_path),
+            ("replay_results_csv", replay.episode_replay_results_path),
+            ("policy_comparison_csv", replay.episode_policy_comparison_path),
+            ("summary_json", replay.episode_summary_path),
+            ("manifest_json", replay.manifest_path),
+        )
+    }
     return summarize_execution_result(
         workflow="market_simulation_scenarios",
         raw_result=raw_result,
@@ -26,6 +37,13 @@ def run_market_simulation_scenarios(
             "scenario_count": raw_result.simulation_manifest.get("scenario_count"),
             "enabled_scenario_count": raw_result.simulation_manifest.get("enabled_scenario_count"),
             "disabled_scenario_count": raw_result.simulation_manifest.get("disabled_scenario_count"),
+            "historical_episode_replay_count": len(raw_result.historical_episode_replay_results),
+            "historical_episode_count": sum(
+                replay.episode_count for replay in raw_result.historical_episode_replay_results
+            ),
+            "historical_episode_replayed_rows": sum(
+                replay.replayed_row_count for replay in raw_result.historical_episode_replay_results
+            ),
         },
         output_paths={
             "scenario_catalog_csv": raw_result.scenario_catalog_csv_path,
@@ -33,6 +51,7 @@ def run_market_simulation_scenarios(
             "simulation_config_json": raw_result.simulation_config_path,
             "input_inventory_json": raw_result.input_inventory_path,
             "simulation_manifest_json": raw_result.simulation_manifest_path,
+            **historical_outputs,
         },
     )
 

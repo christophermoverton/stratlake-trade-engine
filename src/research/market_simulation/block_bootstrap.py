@@ -1,3 +1,10 @@
+"""Regime-aware empirical block bootstrap simulation.
+
+This module supports transition-aware sampling via ``sampling.mode`` inside
+``regime_block_bootstrap``. It does not implement ``transition_block_bootstrap``
+as a standalone scenario type.
+"""
+
 from __future__ import annotations
 
 import csv

@@ -165,9 +165,11 @@ def test_transition_window_sampling_uses_transition_blocks(tmp_path: Path) -> No
         tmp_path,
         sampling_overrides={"mode": "transition_window", "target_regimes": []},
     )
+    source_catalog = pd.read_csv(result.source_block_catalog_path)
     inventory = pd.read_csv(result.sampled_block_inventory_path)
     rows = pd.read_parquet(result.simulated_return_paths_path)
 
+    assert source_catalog["contains_transition_window"].any()
     assert inventory["contains_transition_window"].all()
     assert rows["is_transition_window"].any()
 
@@ -196,6 +198,17 @@ def test_artifact_writing_creates_expected_files(tmp_path: Path) -> None:
     assert result.manifest_path.exists()
 
 
+def test_parquet_outputs_are_written_for_return_and_regime_paths(tmp_path: Path) -> None:
+    _, _, result = _run_bootstrap(tmp_path)
+
+    assert result.simulated_return_paths_path.name == "simulated_return_paths.parquet"
+    assert result.simulated_regime_paths_path.name == "simulated_regime_paths.parquet"
+    assert result.simulated_return_paths_path.exists()
+    assert result.simulated_regime_paths_path.exists()
+    assert len(pd.read_parquet(result.simulated_return_paths_path)) == 12
+    assert len(pd.read_parquet(result.simulated_regime_paths_path)) == 12
+
+
 def test_json_artifacts_do_not_leak_absolute_tmp_paths(tmp_path: Path) -> None:
     _, _, result = _run_bootstrap(tmp_path)
 
@@ -211,6 +224,38 @@ def test_framework_and_execution_result_include_bootstrap_outputs(tmp_path: Path
 
     assert len(result.block_bootstrap_results) == 1
     assert result.block_bootstrap_results[0].simulated_row_count == 12
+
+
+def test_shock_overlay_does_not_resolve_bootstrap_outputs_as_inputs(tmp_path: Path) -> None:
+    payload = _payload(tmp_path / "outputs")
+    payload["market_simulations"].append(
+        {
+            "name": "bootstrap_overlay_attempt",
+            "type": "shock_overlay",
+            "enabled": True,
+            "method_config": {
+                "input_source": {
+                    "type": "historical_episode_replay",
+                    "scenario_name": "high_vol_regime_bootstrap",
+                },
+                "timestamp_column": "ts_utc",
+                "symbol_column": "symbol",
+                "base_return_column": "source_return",
+                "overlays": [
+                    {
+                        "name": "return_drawdown_shock",
+                        "type": "return_bps",
+                        "column": "source_return",
+                        "bps": -50,
+                    }
+                ],
+            },
+        }
+    )
+    config = MarketSimulationConfig.from_mapping(payload)
+
+    with pytest.raises(MarketSimulationConfigError, match="was not found"):
+        run_market_simulation_framework(config)
 
 
 def test_manifest_records_relative_paths_and_counts(tmp_path: Path) -> None:

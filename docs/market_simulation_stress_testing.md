@@ -159,6 +159,13 @@ Supported sampling modes:
 
 Transition windows are tagged when a regime column is available. A row is transition-adjacent when it falls within `sampling.transition_window_bars` bars around a regime-label change. If a symbol column is configured, transitions are computed independently within each symbol.
 
+Transition-aware bootstrap terminology:
+
+- `sampling.mode: transition_window` is used inside `regime_block_bootstrap` and selects source blocks containing regime-transition rows.
+- `transition_block_bootstrap` is a standalone future scenario type and is not implemented in M27.
+
+The current implementation supports transition-aware sampling within `regime_block_bootstrap`, but a dedicated `transition_block_bootstrap` scenario remains reserved for future work.
+
 Bootstrap outputs use synthetic `ts_utc` values for path ordering and preserve original timestamps in `source_ts_utc`. Simulated rows also include `sampled_block_id`, `source_regime_label`, `source_symbol`, `source_row_index`, and `is_transition_window` so later stress metrics and shock overlays can trace the source of each bar.
 
 Enabled bootstrap scenarios write:
@@ -172,7 +179,33 @@ Enabled bootstrap scenarios write:
 - `bootstrap_sampling_summary.json`
 - `bootstrap_manifest.json`
 
-The current shock overlay runner still consumes same-run historical replay outputs only. Bootstrap path artifacts are shaped with stable return, confidence, entropy, and regime columns for a later file-input overlay integration.
+## Parquet Output Requirements
+
+Block bootstrap writes:
+
+- `simulated_return_paths.parquet`
+- `simulated_regime_paths.parquet`
+
+These require a Parquet backend such as `pyarrow`.
+
+Ensure your environment includes:
+
+- `pandas`
+- `pyarrow`
+
+If unavailable, Parquet writes will fail.
+
+## Bootstrap and Shock Overlay Compatibility
+
+Current behavior:
+
+- Shock overlays consume same-run historical replay outputs only.
+- Bootstrap outputs are shaped for future compatibility but are not yet used as overlay inputs.
+
+Future extension, not implemented:
+
+- `input_source.type: file`
+- overlay applied to bootstrap-generated paths
 
 ## Config Example
 

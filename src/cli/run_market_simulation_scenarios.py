@@ -35,11 +35,15 @@ def print_summary(result) -> None:
     print(f"Enabled scenarios: {result.simulation_manifest.get('enabled_scenario_count', 0)}")
     print(f"Disabled scenarios: {result.simulation_manifest.get('disabled_scenario_count', 0)}")
     print(f"Historical episode replays: {len(result.historical_episode_replay_results)}")
+    print(f"Shock overlays: {len(result.shock_overlay_results)}")
     print(f"scenario_catalog.csv: {_display_path(result.scenario_catalog_csv_path)}")
     print(f"simulation_manifest.json: {_display_path(result.simulation_manifest_path)}")
     for replay in result.historical_episode_replay_results:
         print(f"{replay.scenario_id}/historical_episode_catalog.csv: {_display_path(replay.historical_episode_catalog_path)}")
         print(f"{replay.scenario_id}/episode_policy_comparison.csv: {_display_path(replay.episode_policy_comparison_path)}")
+    for overlay in result.shock_overlay_results:
+        print(f"{overlay.scenario_id}/shock_overlay_results.csv: {_display_path(overlay.shock_overlay_results_path)}")
+        print(f"{overlay.scenario_id}/shock_overlay_summary.json: {_display_path(overlay.shock_overlay_summary_path)}")
 
 
 def _display_path(path: str | Path) -> str:

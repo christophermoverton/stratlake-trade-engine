@@ -4,7 +4,7 @@
 
 The M27 market simulation framework is the deterministic artifact layer for adaptive policy stress testing. It validates scenario definitions, resolves seeds, assigns stable scenario and path identifiers, and writes catalogs, inventories, normalized config, and manifests.
 
-Historical episode replay is the first implemented simulation scenario type. Shock overlays, regime-aware block bootstrap, transition bootstrap, Monte Carlo regime paths, simulation-aware leaderboards, and the end-to-end case study remain reserved for follow-up issues.
+Historical episode replay and shock overlays are the implemented simulation scenario types. Regime-aware block bootstrap, transition bootstrap, Monte Carlo regime paths, simulation-aware leaderboards, and the end-to-end case study remain reserved for follow-up issues.
 
 ## Relationship to M26
 
@@ -22,7 +22,7 @@ It does not alter M26 stress-test semantics or introduce live trading behavior.
 The framework recognizes these identifiers:
 
 - `historical_episode_replay`, implemented in Issue #304
-- `shock_overlay`
+- `shock_overlay`, implemented in Issue #305
 - `regime_block_bootstrap`
 - `transition_block_bootstrap`
 - `regime_transition_monte_carlo`
@@ -71,6 +71,62 @@ Episodes can be configured inline under `method_config.episodes`. A `method_conf
 
 When both adaptive and static policy return columns are available, the replay writes one comparison row per episode with total return, volatility, max drawdown, adaptive-vs-static return delta, confidence, and entropy summaries. When policy return columns are unavailable, artifacts are still emitted and `episode_policy_comparison.csv` sets `comparison_status` to `insufficient_policy_columns` with a concrete reason.
 
+## Shock Overlays
+
+`shock_overlay` applies deterministic stress transformations to replayed market path rows. It is designed as a composable robustness layer for adaptive policy stress testing, not a future-market prediction engine.
+
+An overlay scenario runs after enabled historical replay scenarios in the same config. Its `method_config.input_source` can reference a replay by `scenario_name` or `scenario_id`:
+
+```yaml
+method_config:
+  input_source:
+    type: historical_episode_replay
+    scenario_name: historical_volatility_episode
+  timestamp_column: ts_utc
+  symbol_column: symbol
+  base_return_column: source_return
+  adaptive_policy_return_column: adaptive_policy_return
+  static_baseline_return_column: static_baseline_return
+  confidence_column: gmm_confidence
+  entropy_column: gmm_entropy
+  overlays:
+    - name: return_drawdown_shock
+      type: return_bps
+      columns:
+        - source_return
+        - adaptive_policy_return
+        - static_baseline_return
+      bps: -50
+    - name: volatility_amplification
+      type: volatility_multiplier
+      columns:
+        - source_return
+        - adaptive_policy_return
+        - static_baseline_return
+      multiplier: 1.50
+```
+
+Supported overlay types:
+
+- `return_bps`: adds `bps / 10000.0` to each configured return column.
+- `volatility_multiplier`: applies `mean + multiplier * (value - mean)` to amplify or dampen dispersion while preserving the sample mean.
+- `transaction_cost_multiplier`: multiplies configured transaction-cost columns.
+- `slippage_multiplier`: multiplies configured slippage columns.
+- `confidence_multiplier`: multiplies classifier confidence and clamps values to `[0, 1]`.
+- `entropy_multiplier`: multiplies entropy and clamps the lower bound at `0`.
+
+Overlays are applied in configured order. The output of one overlay becomes the input to the next for the same `stressed_<column_name>` column. Source columns are preserved, and adjusted values are written to `stressed_*` columns such as `stressed_source_return`, `stressed_gmm_confidence`, and `stressed_gmm_entropy`.
+
+If a configured target column is missing, the default behavior is to fail clearly. An individual overlay can set `missing_column_policy: ignore` to log a skipped row for that column instead.
+
+Enabled shock overlay scenarios write `shock_overlay_config.json`, `shock_overlay_results.csv`, `shock_overlay_log.csv`, `shock_overlay_summary.json`, and `manifest.json`.
+
+`shock_overlay_results.csv` uses a stable schema with source scenario and episode metadata, original return/policy/confidence/entropy columns, stressed counterparts, `overlay_count`, and `overlay_stack`. `shock_overlay_log.csv` records one row per overlay target column with before/after min, max, and mean statistics.
+
+The overlay summary includes stressed adaptive and static total returns when both stressed policy return columns are available. If policy columns are unavailable, artifacts are still written and policy comparison fields are null with `policy_comparison_available=false`.
+
+File input sources are intentionally reserved for a follow-up issue. The implemented source mode consumes historical replay outputs generated in the same run.
+
 ## Config Example
 
 Checked-in example:
@@ -78,6 +134,7 @@ Checked-in example:
 ```text
 configs/regime_stress_tests/m27_market_simulation_framework.yml
 configs/regime_stress_tests/m27_historical_episode_replay.yml
+configs/regime_stress_tests/m27_shock_overlay.yml
 ```
 
 Minimal shape:
@@ -113,7 +170,27 @@ market_simulations:
           end: "2026-01-16"
   - name: volatility_spike_overlay
     type: shock_overlay
-    enabled: false
+    enabled: true
+    method_config:
+      input_source:
+        type: historical_episode_replay
+        scenario_name: historical_volatility_episode
+      timestamp_column: ts_utc
+      symbol_column: symbol
+      base_return_column: source_return
+      adaptive_policy_return_column: adaptive_policy_return
+      static_baseline_return_column: static_baseline_return
+      confidence_column: gmm_confidence
+      entropy_column: gmm_entropy
+      overlays:
+        - name: return_drawdown_shock
+          type: return_bps
+          columns: [source_return, adaptive_policy_return, static_baseline_return]
+          bps: -50
+        - name: confidence_degradation
+          type: confidence_multiplier
+          column: gmm_confidence
+          multiplier: 0.70
 ```
 
 Scenario-level `random_seed` or `seed` overrides the global `random_seed`. When no seed is configured, the deterministic default is `0`.
@@ -148,6 +225,16 @@ Generated replay files:
 - `episode_replay_results.csv`
 - `episode_policy_comparison.csv`
 - `episode_summary.json`
+- `manifest.json`
+
+Enabled shock overlay scenarios write scenario-level artifacts under the same directory layout.
+
+Generated shock overlay files:
+
+- `shock_overlay_config.json`
+- `shock_overlay_results.csv`
+- `shock_overlay_log.csv`
+- `shock_overlay_summary.json`
 - `manifest.json`
 
 The scenario catalog uses stable row ordering and these CSV columns:
@@ -196,6 +283,15 @@ python -m src.cli.run_market_simulation_scenarios `
 
 The CLI writes both framework artifacts and scenario-level historical replay artifacts.
 
+For the implemented shock overlay example:
+
+```powershell
+python -m src.cli.run_market_simulation_scenarios `
+  --config configs/regime_stress_tests/m27_shock_overlay.yml
+```
+
+The CLI writes framework artifacts, the referenced historical replay artifacts, and scenario-level shock overlay artifacts.
+
 ## Non-Goals
 
-This issue does not implement shock mutation logic, block bootstrap generation, transition bootstrap generation, Monte Carlo path generation, simulation-aware stress leaderboards, case studies, broker integrations, live feeds, or forecasting claims.
+This issue does not implement file-based overlay inputs, block bootstrap generation, transition bootstrap generation, Monte Carlo path generation, simulation-aware stress leaderboards, case studies, broker integrations, live feeds, order-book simulation, or forecasting claims.

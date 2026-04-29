@@ -40,6 +40,7 @@ _REGISTRY: dict[str, SimulationTypeMetadata] = {
         uses_historical_data=True,
         uses_synthetic_generation=False,
         uses_shock_overlay=True,
+        status="implemented",
     ),
     "regime_block_bootstrap": SimulationTypeMetadata(
         simulation_type="regime_block_bootstrap",

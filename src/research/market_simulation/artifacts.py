@@ -13,6 +13,7 @@ from src.research.market_simulation.historical_replay import (
     HistoricalEpisodeReplayResult,
     run_historical_episode_replays,
 )
+from src.research.market_simulation.shock_overlay import ShockOverlayResult, run_shock_overlay_scenarios
 from src.research.registry import canonicalize_value, serialize_canonical_json, stable_timestamp_from_run_id
 
 
@@ -30,6 +31,7 @@ class MarketSimulationFrameworkResult:
     input_inventory: dict[str, Any]
     simulation_manifest: dict[str, Any]
     historical_episode_replay_results: list[HistoricalEpisodeReplayResult]
+    shock_overlay_results: list[ShockOverlayResult]
 
 
 def run_market_simulation_framework(
@@ -73,6 +75,12 @@ def run_market_simulation_framework(
         simulation_run_id=simulation_run_id,
         market_simulations_output_dir=output_dir,
     )
+    shock_overlay_results = run_shock_overlay_scenarios(
+        config,
+        simulation_run_id=simulation_run_id,
+        market_simulations_output_dir=output_dir,
+        historical_episode_replay_results=historical_results,
+    )
 
     return MarketSimulationFrameworkResult(
         simulation_run_id=simulation_run_id,
@@ -87,6 +95,7 @@ def run_market_simulation_framework(
         input_inventory=input_inventory,
         simulation_manifest=manifest,
         historical_episode_replay_results=historical_results,
+        shock_overlay_results=shock_overlay_results,
     )
 
 

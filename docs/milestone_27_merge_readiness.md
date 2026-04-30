@@ -102,7 +102,7 @@ Post-merge validation ran on `main` after the no-fast-forward merge.
 | `.\.venv\Scripts\python.exe docs\examples\m27_market_simulation_case_study.py` | Passed |
 | `.\.venv\Scripts\python.exe docs\examples\full_year_regime_policy_benchmark_case_study.py` | Passed; status `success (fixture_backed)` |
 | `git diff --check` | Passed |
-| GitHub Actions merge commit status | Pending remote push |
+| GitHub Actions merge commit status | No commit statuses or workflow runs returned by GitHub connector after push |
 
 ## Merge Procedure
 

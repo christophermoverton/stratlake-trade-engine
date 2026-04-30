@@ -156,6 +156,8 @@ The summary records source run ID, simulation types, path/summary/leaderboard co
 
 M27 market simulation evidence is optional and complementary. Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available. Simulation outputs are not forecasts or trading recommendations.
 
+The full-year M26 regime policy benchmark case study treats the M27 case-study artifacts as optional by default. If the canonical M27 metrics directory is missing, the script still completes, writes a disabled/unavailable `market_simulation_stress_summary.json`, and emits a schema-only empty leaderboard rather than fabricating metrics. Use `--require-market-simulation-stress` with the full-year script when missing M27 evidence should be a hard failure.
+
 ## Gates
 
 Per scenario-policy row gates:

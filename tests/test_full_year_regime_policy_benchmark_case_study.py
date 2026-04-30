@@ -3,9 +3,13 @@ from __future__ import annotations
 from importlib.util import module_from_spec, spec_from_file_location
 import json
 from pathlib import Path
+import shutil
 import sys
 
 import pandas as pd
+import pytest
+
+from tests.test_market_simulation_policy_stress_integration import _write_metrics_dir
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -50,10 +54,30 @@ def _read_json(path: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _write_canonical_m27_case_study_metrics(tmp_path: Path) -> Path:
+    source_metrics_dir = _write_metrics_dir(tmp_path)
+    output_root = tmp_path / "m27_market_simulation_case_study"
+    target_metrics_dir = (
+        output_root
+        / "source_simulation_artifacts"
+        / "sim_fixture_001"
+        / "market_simulations"
+        / "simulation_metrics"
+    )
+    target_metrics_dir.parent.mkdir(parents=True, exist_ok=True)
+    shutil.copytree(source_metrics_dir, target_metrics_dir)
+    return output_root
+
+
+def _run_case_study_with_market_metrics(module, tmp_path: Path, name: str):
+    module.M27_CASE_STUDY_OUTPUT_ROOT = _write_canonical_m27_case_study_metrics(tmp_path)
+    return module.run_case_study(output_root=tmp_path / name, verbose=False)
+
+
 def test_full_year_regime_policy_case_study_runs_and_writes_expected_outputs(tmp_path: Path) -> None:
     module = _load_example_module()
 
-    artifacts = module.run_case_study(output_root=tmp_path / "case_study", verbose=False)
+    artifacts = _run_case_study_with_market_metrics(module, tmp_path, "case_study")
 
     for name in EXPECTED_OUTPUT_FILES:
         path = artifacts.output_root / name
@@ -78,7 +102,7 @@ def test_full_year_regime_policy_case_study_runs_and_writes_expected_outputs(tmp
 def test_full_year_regime_policy_case_study_manifest_and_interpretation_have_key_sections(tmp_path: Path) -> None:
     module = _load_example_module()
 
-    artifacts = module.run_case_study(output_root=tmp_path / "case_study_sections", verbose=False)
+    artifacts = _run_case_study_with_market_metrics(module, tmp_path, "case_study_sections")
 
     manifest = _read_json(artifacts.manifest_path)
     interpretation = artifacts.final_interpretation_path.read_text(encoding="utf-8")
@@ -109,7 +133,7 @@ def test_full_year_regime_policy_case_study_manifest_and_interpretation_have_key
 def test_full_year_regime_policy_case_study_comparison_and_stress_fields(tmp_path: Path) -> None:
     module = _load_example_module()
 
-    artifacts = module.run_case_study(output_root=tmp_path / "case_study_comparison", verbose=False)
+    artifacts = _run_case_study_with_market_metrics(module, tmp_path, "case_study_comparison")
 
     comparison = pd.read_csv(artifacts.output_root / "policy_variant_comparison.csv")
     stress_summary = _read_json(artifacts.output_root / "stress_summary.json")
@@ -125,6 +149,7 @@ def test_full_year_regime_policy_case_study_comparison_and_stress_fields(tmp_pat
     if stress_summary.get("adaptive_policy_count", 0) > 0:
         assert stress_summary.get("most_resilient_adaptive_policy") is not None
     assert market_simulation_summary["market_simulation_enabled"] is True
+    assert market_simulation_summary["market_simulation_available"] is True
     assert market_simulation_summary["regime_only_monte_carlo_note"] == (
         "Monte Carlo paths are regime-only and do not fabricate return or policy metrics."
     )
@@ -137,7 +162,7 @@ def test_full_year_regime_policy_case_study_comparison_and_stress_fields(tmp_pat
 def test_full_year_regime_policy_case_study_evidence_index_has_all_workflow_families(tmp_path: Path) -> None:
     module = _load_example_module()
 
-    artifacts = module.run_case_study(output_root=tmp_path / "case_study_evidence", verbose=False)
+    artifacts = _run_case_study_with_market_metrics(module, tmp_path, "case_study_evidence")
 
     evidence_index = _read_json(artifacts.output_root / "evidence_index.json")
     assert "source_artifacts" in evidence_index
@@ -165,6 +190,7 @@ def test_full_year_regime_policy_case_study_is_deterministic_and_uses_relative_p
     module = _load_example_module()
 
     output_root = tmp_path / "stable"
+    module.M27_CASE_STUDY_OUTPUT_ROOT = _write_canonical_m27_case_study_metrics(tmp_path)
     first = module.run_case_study(output_root=output_root, verbose=False)
     second = module.run_case_study(output_root=output_root, verbose=False)
 
@@ -200,3 +226,41 @@ def test_portable_path_prefers_repo_relative_before_absolute(tmp_path: Path) -> 
 
     assert not Path(result).is_absolute()
     assert result == "README.md"
+
+
+def test_full_year_regime_policy_case_study_succeeds_without_m27_artifacts(tmp_path: Path) -> None:
+    module = _load_example_module()
+    module.M27_CASE_STUDY_OUTPUT_ROOT = tmp_path / "missing_m27_case_study"
+
+    artifacts = module.run_case_study(output_root=tmp_path / "case_study_without_m27", verbose=False)
+
+    summary = _read_json(artifacts.summary_path)
+    market_summary = summary["market_simulation_stress_summary"]
+    assert market_summary["market_simulation_enabled"] is False
+    assert market_summary["market_simulation_available"] is False
+    assert market_summary["market_simulation_mode"] == "not_available"
+    assert market_summary["reason"] == "M27 market simulation metrics artifacts were not found."
+    assert market_summary["path_metric_row_count"] == 0
+    assert market_summary["summary_row_count"] == 0
+    assert market_summary["leaderboard_row_count"] == 0
+    assert market_summary["source_artifact_paths"] == {}
+    assert market_summary["regime_only_monte_carlo_note"] == (
+        "Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available."
+    )
+    assert (artifacts.output_root / "market_simulation_stress_summary.json").exists()
+    empty_leaderboard = pd.read_csv(artifacts.output_root / "market_simulation_stress_leaderboard.csv")
+    assert empty_leaderboard.empty
+
+
+def test_full_year_regime_policy_case_study_required_market_simulation_fails_when_absent(
+    tmp_path: Path,
+) -> None:
+    module = _load_example_module()
+    module.M27_CASE_STUDY_OUTPUT_ROOT = tmp_path / "missing_required_m27_case_study"
+
+    with pytest.raises(FileNotFoundError, match="required but were not found"):
+        module.run_case_study(
+            output_root=tmp_path / "case_study_required_m27",
+            verbose=False,
+            require_market_simulation_stress=True,
+        )

@@ -103,6 +103,7 @@ def load_market_simulation_stress_summary(
     return canonicalize_value(
         {
             "market_simulation_enabled": True,
+            "market_simulation_available": True,
             "market_simulation_mode": mode,
             "source_market_simulation_run_id": _source_run_id(manifest, summary, path_metrics),
             "simulation_type_count": len(simulation_types),
@@ -249,4 +250,3 @@ def _relative_path(path: Path) -> str:
 def read_leaderboard_rows(path: Path) -> list[dict[str, str]]:
     with path.open("r", encoding="utf-8", newline="") as handle:
         return list(csv.DictReader(handle))
-

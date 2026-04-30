@@ -290,6 +290,7 @@ def test_enabled_existing_artifacts_writes_summary_and_leaderboard(tmp_path: Pat
     assert result.market_simulation_stress_leaderboard_path.exists()
     summary = json.loads(result.market_simulation_stress_summary_path.read_text(encoding="utf-8"))
     assert summary["source_market_simulation_run_id"] == "sim_fixture_001"
+    assert summary["market_simulation_available"] is True
     assert summary["simulation_types"] == [
         "historical_episode_replay",
         "regime_transition_monte_carlo",

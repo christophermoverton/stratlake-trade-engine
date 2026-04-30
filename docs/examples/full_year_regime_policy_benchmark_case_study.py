@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import argparse
+import csv
 from dataclasses import dataclass
 import json
 import math
 from pathlib import Path
 import shutil
 import sys
-from typing import Any
+from typing import Any, Mapping
 
 import pandas as pd
 import yaml
@@ -27,6 +28,7 @@ from src.research.market_simulation.policy_stress_integration import (  # noqa: 
     MARKET_SIMULATION_STRESS_SUMMARY_FILENAME,
     load_market_simulation_stress_summary,
 )
+from src.research.market_simulation.metrics import LEADERBOARD_COLUMNS  # noqa: E402
 
 
 CASE_STUDY_NAME = "full_year_regime_policy_benchmark_case_study"
@@ -37,6 +39,14 @@ FINAL_INTERPRETATION_FILENAME = "final_interpretation.md"
 POLICY_VARIANT_COMPARISON_FILENAME = "policy_variant_comparison.csv"
 DEFAULT_OUTPUT_ROOT = Path(__file__).resolve().parent / "output" / CASE_STUDY_NAME
 M27_CASE_STUDY_OUTPUT_ROOT = Path(__file__).resolve().parent / "output" / "m27_market_simulation_case_study"
+MISSING_MARKET_SIMULATION_REASON = "M27 market simulation metrics artifacts were not found."
+REQUIRED_MARKET_SIMULATION_ERROR = (
+    "M27 market simulation metrics artifacts are required but were not found. "
+    "Run docs/examples/m27_market_simulation_case_study.py first."
+)
+REGIME_ONLY_MONTE_CARLO_CASE_STUDY_NOTE = (
+    "Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available."
+)
 
 EVALUATION_WINDOW = {
     "start": "2026-01-01",
@@ -121,6 +131,13 @@ def _write_text(path: Path, text: str) -> None:
     path.write_text(text.rstrip() + "\n", encoding="utf-8", newline="\n")
 
 
+def _write_empty_csv(path: Path, columns: tuple[str, ...]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=list(columns), lineterminator="\n")
+        writer.writeheader()
+
+
 def _relative_to_output(path: Path, output_root: Path) -> str:
     resolved = path.resolve()
     try:
@@ -148,7 +165,7 @@ def _portable_path(path: Path, *, output_root: Path) -> str:
     try:
         return resolved.relative_to(REPO_ROOT.resolve()).as_posix()
     except ValueError:
-        return resolved.as_posix()
+        return f"external/{resolved.name}"
 
 
 def _relative_config_path(path: Path, *, output_root: Path) -> str:
@@ -182,10 +199,76 @@ def _default_m27_simulation_metrics_dir() -> Path:
     )
     if not matches:
         raise FileNotFoundError(
-            "M27 market simulation metrics artifacts are required for the optional case-study bridge. "
-            f"Run docs/examples/m27_market_simulation_case_study.py or restore {M27_CASE_STUDY_OUTPUT_ROOT.as_posix()}."
+            f"{MISSING_MARKET_SIMULATION_REASON} "
+            "Run docs/examples/m27_market_simulation_case_study.py to enable optional evidence."
         )
     return matches[0].parent
+
+
+def _missing_market_simulation_stress_summary(reason: str) -> dict[str, Any]:
+    return _normalize_json_value(
+        {
+            "market_simulation_enabled": False,
+            "market_simulation_available": False,
+            "market_simulation_mode": "not_available",
+            "reason": reason,
+            "source_market_simulation_run_id": None,
+            "simulation_type_count": 0,
+            "simulation_types": [],
+            "path_metric_row_count": 0,
+            "summary_row_count": 0,
+            "leaderboard_row_count": 0,
+            "policy_failure_rate": None,
+            "best_ranked_market_simulation_scenario": {},
+            "worst_ranked_market_simulation_scenario": {},
+            "regime_only_monte_carlo_note": REGIME_ONLY_MONTE_CARLO_CASE_STUDY_NOTE,
+            "source_artifact_paths": {},
+            "include_in_policy_stress_summary": False,
+            "include_in_case_study_report": True,
+            "limitations": [
+                "M27 market simulation stress evidence is optional and was not available for this run.",
+                "No market simulation metrics were fabricated.",
+                REGIME_ONLY_MONTE_CARLO_CASE_STUDY_NOTE,
+            ],
+        }
+    )
+
+
+def _load_optional_market_simulation_stress_summary(
+    *,
+    require: bool = False,
+) -> tuple[dict[str, Any], Path | None]:
+    try:
+        metrics_dir = _default_m27_simulation_metrics_dir()
+    except FileNotFoundError as exc:
+        if require:
+            raise FileNotFoundError(REQUIRED_MARKET_SIMULATION_ERROR) from exc
+        return _missing_market_simulation_stress_summary(MISSING_MARKET_SIMULATION_REASON), None
+    return (
+        load_market_simulation_stress_summary(
+            metrics_dir,
+            mode="existing_artifacts",
+            include_in_policy_stress_summary=False,
+            include_in_case_study_report=True,
+        ),
+        metrics_dir,
+    )
+
+
+def _portable_market_simulation_summary_paths(
+    summary: dict[str, Any],
+    *,
+    output_root: Path,
+) -> dict[str, Any]:
+    payload = dict(summary)
+    source_paths = payload.get("source_artifact_paths")
+    if isinstance(source_paths, dict):
+        payload["source_artifact_paths"] = {
+            key: _portable_path(Path(value), output_root=output_root)
+            for key, value in source_paths.items()
+            if isinstance(value, str)
+        }
+    return _normalize_json_value(payload)
 
 
 def _write_feature_fixture(features_root: Path) -> None:
@@ -625,14 +708,20 @@ def _build_summary(
             ],
             "candidate_selection_evidence": ["candidate_selection_summary.json"],
             "deterministic_synthetic_stress_evidence": ["stress_summary.json"],
-            "market_simulation_stress_evidence": [
-                MARKET_SIMULATION_STRESS_SUMMARY_FILENAME,
-                MARKET_SIMULATION_STRESS_LEADERBOARD_FILENAME,
-            ],
+            "market_simulation_stress_evidence": _market_simulation_evidence_files(
+                market_simulation_stress_summary
+            ),
         },
         "limitations": limitations,
     }
     return _normalize_json_value(summary)
+
+
+def _market_simulation_evidence_files(summary: Mapping[str, Any]) -> list[str]:
+    files = [MARKET_SIMULATION_STRESS_SUMMARY_FILENAME]
+    if summary.get("market_simulation_available", True) is not False:
+        files.append(MARKET_SIMULATION_STRESS_LEADERBOARD_FILENAME)
+    return files
 
 
 def _build_manifest(
@@ -690,6 +779,8 @@ def _render_final_interpretation(
     decisions = summary.get("decision_counts", {})
     accepted_total = int(decisions.get("accepted", 0)) + int(decisions.get("accepted_with_warnings", 0))
     rejected_total = int(decisions.get("rejected", 0))
+    market_summary = summary.get("market_simulation_stress_summary", {})
+    policy_failure_rate = market_summary.get("policy_failure_rate")
 
     lines = [
         "# Full-Year Regime Policy Benchmark Case Study Interpretation",
@@ -748,20 +839,25 @@ def _render_final_interpretation(
         "## Market Simulation Stress Evidence",
         "- M27 market simulation stress evidence is optional and complements the deterministic Issue #299 scenarios.",
         (
+            "- Evidence status: available."
+            if market_summary.get("market_simulation_available", True) is not False
+            else "- Evidence status: unavailable; optional M27 metrics artifacts were not found."
+        ),
+        (
             "- Source market simulation run: "
-            f"{summary.get('market_simulation_stress_summary', {}).get('source_market_simulation_run_id')}."
+            f"{market_summary.get('source_market_simulation_run_id') or 'not_available'}."
         ),
         (
             "- Simulation types: "
-            f"{', '.join(summary.get('market_simulation_stress_summary', {}).get('simulation_types', []))}."
+            f"{', '.join(market_summary.get('simulation_types', [])) or 'not_available'}."
         ),
         (
             "- Best-ranked market simulation scenario: "
-            f"{summary.get('market_simulation_stress_summary', {}).get('best_ranked_market_simulation_scenario', {}).get('scenario_name')}."
+            f"{market_summary.get('best_ranked_market_simulation_scenario', {}).get('scenario_name') or 'not_available'}."
         ),
         (
             "- Policy failure rate under simulation metrics: "
-            f"{summary.get('market_simulation_stress_summary', {}).get('policy_failure_rate')}."
+            f"{policy_failure_rate if policy_failure_rate is not None else 'not_available'}."
         ),
         "- Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available.",
         "",
@@ -815,7 +911,12 @@ def _render_final_interpretation(
     return "\n".join(lines)
 
 
-def run_case_study(*, output_root: Path | None = None, verbose: bool = True) -> CaseStudyArtifacts:
+def run_case_study(
+    *,
+    output_root: Path | None = None,
+    verbose: bool = True,
+    require_market_simulation_stress: bool = False,
+) -> CaseStudyArtifacts:
     resolved_output_root = DEFAULT_OUTPUT_ROOT if output_root is None else Path(output_root)
     if resolved_output_root.exists():
         shutil.rmtree(resolved_output_root)
@@ -876,12 +977,14 @@ def run_case_study(*, output_root: Path | None = None, verbose: bool = True) -> 
     candidate_summary = _read_json(candidate_result.output_path("selection_summary_json"))
     stress_summary = _read_json(stress_result.output_path("policy_stress_summary_json"))
 
-    market_simulation_metrics_dir = _default_m27_simulation_metrics_dir()
-    market_simulation_stress_summary = load_market_simulation_stress_summary(
-        market_simulation_metrics_dir,
-        mode="existing_artifacts",
-        include_in_policy_stress_summary=False,
-        include_in_case_study_report=True,
+    market_simulation_stress_summary, market_simulation_metrics_dir = (
+        _load_optional_market_simulation_stress_summary(
+            require=require_market_simulation_stress,
+        )
+    )
+    market_simulation_stress_summary = _portable_market_simulation_summary_paths(
+        market_simulation_stress_summary,
+        output_root=resolved_output_root,
     )
 
     comparison, static_baseline_comparison = _build_policy_variant_comparison(
@@ -947,10 +1050,13 @@ def run_case_study(*, output_root: Path | None = None, verbose: bool = True) -> 
     _write_json(candidate_summary_path, stage_summaries["candidate_selection"])
     _write_json(stress_summary_path, stage_summaries["stress"])
     _write_json(market_simulation_stress_summary_path, market_simulation_stress_summary)
-    shutil.copyfile(
-        market_simulation_metrics_dir / "simulation_leaderboard.csv",
-        market_simulation_stress_leaderboard_path,
-    )
+    if market_simulation_metrics_dir is None:
+        _write_empty_csv(market_simulation_stress_leaderboard_path, LEADERBOARD_COLUMNS)
+    else:
+        shutil.copyfile(
+            market_simulation_metrics_dir / "simulation_leaderboard.csv",
+            market_simulation_stress_leaderboard_path,
+        )
 
     comparison.to_csv(comparison_path, index=False)
     _write_json(summary_path, summary)
@@ -974,10 +1080,15 @@ def run_case_study(*, output_root: Path | None = None, verbose: bool = True) -> 
         "candidate_selection_table": candidate_result.output_path("candidate_selection_csv"),
         "stress_manifest": stress_result.output_path("manifest_json"),
         "stress_matrix": stress_result.output_path("stress_matrix_csv"),
-        "market_simulation_metrics_manifest": market_simulation_metrics_dir / "manifest.json",
-        "market_simulation_metrics_summary": market_simulation_metrics_dir / "simulation_summary.csv",
-        "market_simulation_metrics_leaderboard": market_simulation_metrics_dir / "simulation_leaderboard.csv",
     }
+    if market_simulation_metrics_dir is not None:
+        source_artifacts.update(
+            {
+                "market_simulation_metrics_manifest": market_simulation_metrics_dir / "manifest.json",
+                "market_simulation_metrics_summary": market_simulation_metrics_dir / "simulation_summary.csv",
+                "market_simulation_metrics_leaderboard": market_simulation_metrics_dir / "simulation_leaderboard.csv",
+            }
+        )
     source_configs = {
         "benchmark_fixture_config": benchmark_config_path,
         "promotion_gates_config": M26_PROMOTION_GATES_CONFIG,
@@ -1022,11 +1133,11 @@ def run_case_study(*, output_root: Path | None = None, verbose: bool = True) -> 
             market_simulation_stress_leaderboard_path,
             output_root=resolved_output_root,
         ),
-        "source_simulation_metrics_dir": _portable_path(
-            market_simulation_metrics_dir,
-            output_root=resolved_output_root,
-        ),
+        "source_simulation_metrics_dir": None
+        if market_simulation_metrics_dir is None
+        else _portable_path(market_simulation_metrics_dir, output_root=resolved_output_root),
         "evidence_type": "optional_m27_market_simulation_stress",
+        "available": market_simulation_metrics_dir is not None,
     }
 
     evidence_index = {
@@ -1062,7 +1173,9 @@ def run_case_study(*, output_root: Path | None = None, verbose: bool = True) -> 
         "review_artifact_dir": _portable_path(review_result.artifact_dir, output_root=resolved_output_root),
         "candidate_selection_artifact_dir": _portable_path(candidate_result.artifact_dir, output_root=resolved_output_root),
         "stress_artifact_dir": _portable_path(stress_result.artifact_dir, output_root=resolved_output_root),
-        "market_simulation_metrics_dir": _portable_path(market_simulation_metrics_dir, output_root=resolved_output_root),
+        "market_simulation_metrics_dir": None
+        if market_simulation_metrics_dir is None
+        else _portable_path(market_simulation_metrics_dir, output_root=resolved_output_root),
         "source_runs": summary["source_runs"],
     }
     _write_json(workflow_outputs_path, workflow_outputs)
@@ -1131,13 +1244,26 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Disable concise status printing.",
     )
+    parser.add_argument(
+        "--require-market-simulation-stress",
+        action="store_true",
+        help="Fail when optional M27 market simulation stress metrics artifacts are unavailable.",
+    )
     return parser.parse_args(argv)
 
 
 def main(argv: list[str] | None = None) -> CaseStudyArtifacts:
     args = parse_args(argv)
-    return run_case_study(output_root=Path(args.output_root), verbose=not args.quiet)
+    return run_case_study(
+        output_root=Path(args.output_root),
+        verbose=not args.quiet,
+        require_market_simulation_stress=args.require_market_simulation_stress,
+    )
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except FileNotFoundError as exc:
+        print(str(exc).strip() or exc.__class__.__name__, file=sys.stderr)
+        raise SystemExit(1) from exc

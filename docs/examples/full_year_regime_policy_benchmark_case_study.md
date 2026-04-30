@@ -104,6 +104,16 @@ The stitched M26 output includes:
 - market_simulation_stress_summary.json
 - market_simulation_stress_leaderboard.csv
 
+When the M27 artifacts are absent, the full-year M26 case study still runs by default. It writes `market_simulation_stress_summary.json` with `market_simulation_enabled=false`, `market_simulation_available=false`, `market_simulation_mode=not_available`, and zero metric row counts. The leaderboard artifact is schema-only and contains no fabricated metric rows.
+
+To require M27 evidence explicitly, run:
+
+```powershell
+python docs\examples\full_year_regime_policy_benchmark_case_study.py --require-market-simulation-stress
+```
+
+Required mode fails clearly if the M27 metrics artifacts have not been generated first.
+
 This evidence complements Issue #299 deterministic adaptive policy stress testing. It does not replace deterministic regime shock, whipsaw, classifier uncertainty, taxonomy/ML disagreement, fallback, turnover, or adaptive-vs-static checks.
 
 Interpretation boundaries:

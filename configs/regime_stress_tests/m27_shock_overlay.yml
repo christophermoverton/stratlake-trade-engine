@@ -1,0 +1,77 @@
+simulation_name: m27_shock_overlay
+output_root: artifacts/regime_stress_tests
+random_seed: 1729
+source_review_pack: artifacts/regime_reviews/<review_run_id>
+baseline_policy: static_baseline
+source_policy_candidates:
+  - hybrid_calibrated_gmm_policy
+  - defensive_transition_policy
+market_simulations:
+  - name: historical_volatility_episode
+    type: historical_episode_replay
+    enabled: true
+    source_window_start: "2026-01-15"
+    source_window_end: "2026-02-15"
+    notes: Fixture-backed historical episode replay source for shock overlays.
+    method_config:
+      dataset_path: tests/fixtures/market_simulation/historical_episode_fixture.csv
+      timestamp_column: ts_utc
+      symbol_column: symbol
+      return_column: return
+      regime_column: regime_label
+      confidence_column: gmm_confidence
+      entropy_column: gmm_entropy
+      adaptive_policy_return_column: adaptive_policy_return
+      static_baseline_return_column: static_baseline_return
+      episodes:
+        - episode_name: volatility_spike_fixture
+          episode_type: volatility_spike
+          start: "2026-01-15"
+          end: "2026-01-16"
+          description: Fixture-backed volatility spike replay window.
+
+  - name: volatility_spike_overlay
+    type: shock_overlay
+    enabled: true
+    notes: Deterministic return, volatility, confidence, and entropy stress overlay.
+    method_config:
+      input_source:
+        type: historical_episode_replay
+        scenario_name: historical_volatility_episode
+      timestamp_column: ts_utc
+      symbol_column: symbol
+      base_return_column: source_return
+      adaptive_policy_return_column: adaptive_policy_return
+      static_baseline_return_column: static_baseline_return
+      confidence_column: gmm_confidence
+      entropy_column: gmm_entropy
+      overlays:
+        - name: return_drawdown_shock
+          type: return_bps
+          columns:
+            - source_return
+            - adaptive_policy_return
+            - static_baseline_return
+          bps: -50
+
+        - name: volatility_amplification
+          type: volatility_multiplier
+          columns:
+            - source_return
+            - adaptive_policy_return
+            - static_baseline_return
+          multiplier: 1.50
+
+        - name: confidence_degradation
+          type: confidence_multiplier
+          column: gmm_confidence
+          multiplier: 0.70
+
+        - name: entropy_amplification
+          type: entropy_multiplier
+          column: gmm_entropy
+          multiplier: 1.25
+metadata:
+  milestone: M27
+  issue: "305"
+  purpose: shock_overlay

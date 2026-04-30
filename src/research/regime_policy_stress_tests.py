@@ -11,6 +11,11 @@ from typing import Any, Mapping
 import pandas as pd
 
 from src.config.regime_policy_stress_tests import RegimePolicyStressScenarioConfig, RegimePolicyStressTestConfig
+from src.research.market_simulation.policy_stress_integration import (
+    MARKET_SIMULATION_STRESS_LEADERBOARD_FILENAME,
+    MARKET_SIMULATION_STRESS_SUMMARY_FILENAME,
+    run_market_simulation_policy_stress_integration,
+)
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 
@@ -134,6 +139,8 @@ class RegimePolicyStressTestRunResult:
     fallback_usage_csv_path: Path
     policy_turnover_csv_path: Path
     adaptive_vs_static_comparison_csv_path: Path
+    market_simulation_stress_summary_path: Path | None
+    market_simulation_stress_leaderboard_path: Path | None
     config_path: Path
     manifest_path: Path
     scenario_summary: dict[str, Any]
@@ -269,6 +276,23 @@ def run_regime_policy_stress_tests(config: RegimePolicyStressTestConfig) -> Regi
         "policy_inventory_json": output_dir / "policy_input_inventory.json",
     }
 
+    market_simulation_stress_result = run_market_simulation_policy_stress_integration(
+        config.market_simulation_stress,
+        output_dir=output_dir,
+    )
+    if market_simulation_stress_result is not None:
+        if config.market_simulation_stress.include_in_policy_stress_summary:
+            policy_stress_summary["market_simulation_stress"] = market_simulation_stress_result.summary
+        scenario_summary["market_simulation_stress"] = {
+            "market_simulation_enabled": True,
+            "market_simulation_mode": market_simulation_stress_result.summary.get("market_simulation_mode"),
+            "summary_path": _rel(market_simulation_stress_result.summary_path),
+            "leaderboard_path": _rel(market_simulation_stress_result.leaderboard_path),
+            "source_market_simulation_run_id": market_simulation_stress_result.summary.get(
+                "source_market_simulation_run_id"
+            ),
+        }
+
     _write_csv(paths["stress_matrix_csv"], evaluation_rows, STRESS_MATRIX_COLUMNS)
     _write_json(paths["stress_matrix_json"], stress_matrix_json)
     _write_csv(paths["stress_leaderboard_csv"], leaderboard_rows, STRESS_LEADERBOARD_COLUMNS)
@@ -299,6 +323,13 @@ def run_regime_policy_stress_tests(config: RegimePolicyStressTestConfig) -> Regi
         "source_regime_review_pack.json",
         "policy_input_inventory.json",
     ]
+    if market_simulation_stress_result is not None:
+        generated_files.extend(
+            [
+                MARKET_SIMULATION_STRESS_SUMMARY_FILENAME,
+                MARKET_SIMULATION_STRESS_LEADERBOARD_FILENAME,
+            ]
+        )
 
     manifest = _build_manifest(
         stress_run_id=stress_run_id,
@@ -311,6 +342,9 @@ def run_regime_policy_stress_tests(config: RegimePolicyStressTestConfig) -> Regi
         source_review_metadata=source_review_metadata,
         source_policy_candidates_path=Path(config.source_policy_candidates.policy_metrics_path),
         scenario_catalog=scenario_catalog,
+        market_simulation_stress_summary=None
+        if market_simulation_stress_result is None
+        else market_simulation_stress_result.summary,
     )
     _write_json(paths["manifest_json"], manifest)
 
@@ -328,6 +362,12 @@ def run_regime_policy_stress_tests(config: RegimePolicyStressTestConfig) -> Regi
         fallback_usage_csv_path=paths["fallback_usage_csv"],
         policy_turnover_csv_path=paths["policy_turnover_csv"],
         adaptive_vs_static_comparison_csv_path=paths["adaptive_vs_static_csv"],
+        market_simulation_stress_summary_path=None
+        if market_simulation_stress_result is None
+        else market_simulation_stress_result.summary_path,
+        market_simulation_stress_leaderboard_path=None
+        if market_simulation_stress_result is None
+        else market_simulation_stress_result.leaderboard_path,
         config_path=paths["config_json"],
         manifest_path=paths["manifest_json"],
         scenario_summary=scenario_summary,
@@ -1086,6 +1126,7 @@ def _build_manifest(
     source_review_metadata: Mapping[str, Any],
     source_policy_candidates_path: Path,
     scenario_catalog: list[dict[str, Any]],
+    market_simulation_stress_summary: Mapping[str, Any] | None = None,
 ) -> dict[str, Any]:
     pass_count = sum(1 for row in rows if bool(row.get("stress_passed")))
     fail_count = len(rows) - pass_count
@@ -1096,8 +1137,31 @@ def _build_manifest(
         }
         for name in generated_files
     }
-    return canonicalize_value(
-        {
+    row_counts = {
+        "stress_matrix": len(rows),
+        "scenario_results": len(rows),
+        "fallback_usage": len(rows),
+        "policy_turnover_under_stress": len(rows),
+        "adaptive_vs_static_stress_comparison": len(rows),
+        "stress_leaderboard": len({str(row['policy_name']) for row in rows}),
+    }
+    source_paths = {
+        "source_review_pack": _path_or_none(config.source_review_pack),
+        "policy_metrics_path": _rel(source_policy_candidates_path),
+        "source_candidate_selection": _path_or_none(config.source_candidate_selection),
+    }
+    if market_simulation_stress_summary is not None:
+        row_counts["market_simulation_stress_leaderboard"] = int(
+            market_simulation_stress_summary.get("leaderboard_row_count", 0) or 0
+        )
+        source_paths["market_simulation_metrics_dir"] = _path_or_none(
+            config.market_simulation_stress.simulation_metrics_dir
+        )
+        source_paths["market_simulation_config_path"] = _path_or_none(
+            config.market_simulation_stress.config_path
+        )
+
+    payload = {
             "artifact_type": "regime_policy_stress_tests",
             "schema_version": "1.0",
             "stress_run_id": stress_run_id,
@@ -1105,20 +1169,9 @@ def _build_manifest(
             "source_review_run_id": source_review_metadata.get("review_run_id"),
             "source_benchmark_run_id": source_review_metadata.get("source_benchmark_run_id"),
             "baseline_policy": baseline_policy,
-            "source_paths": {
-                "source_review_pack": _path_or_none(config.source_review_pack),
-                "policy_metrics_path": _rel(source_policy_candidates_path),
-                "source_candidate_selection": _path_or_none(config.source_candidate_selection),
-            },
+            "source_paths": source_paths,
             "generated_files": generated_files,
-            "row_counts": {
-                "stress_matrix": len(rows),
-                "scenario_results": len(rows),
-                "fallback_usage": len(rows),
-                "policy_turnover_under_stress": len(rows),
-                "adaptive_vs_static_stress_comparison": len(rows),
-                "stress_leaderboard": len({str(row['policy_name']) for row in rows}),
-            },
+            "row_counts": row_counts,
             "scenario_count": len(scenario_catalog),
             "policy_count": len({str(row['policy_name']) for row in rows}),
             "stress_pass_count": pass_count,
@@ -1136,7 +1189,9 @@ def _build_manifest(
             ),
             "file_inventory": file_inventory,
         }
-    )
+    if market_simulation_stress_summary is not None:
+        payload["market_simulation_stress"] = market_simulation_stress_summary
+    return canonicalize_value(payload)
 
 
 def _build_stress_run_id(

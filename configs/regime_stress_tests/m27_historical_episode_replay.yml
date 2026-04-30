@@ -1,0 +1,40 @@
+simulation_name: m27_historical_episode_replay
+output_root: artifacts/regime_stress_tests
+random_seed: 1729
+source_review_pack: artifacts/regime_reviews/<review_run_id>
+baseline_policy: static_baseline
+source_policy_candidates:
+  - hybrid_calibrated_gmm_policy
+  - defensive_transition_policy
+market_simulations:
+  - name: historical_volatility_episode
+    type: historical_episode_replay
+    enabled: true
+    source_window_start: "2026-01-15"
+    source_window_end: "2026-02-15"
+    notes: Fixture-backed historical episode replay for M27 stress testing.
+    method_config:
+      dataset_path: tests/fixtures/market_simulation/historical_episode_fixture.csv
+      timestamp_column: ts_utc
+      symbol_column: symbol
+      return_column: return
+      regime_column: regime_label
+      confidence_column: gmm_confidence
+      entropy_column: gmm_entropy
+      adaptive_policy_return_column: adaptive_policy_return
+      static_baseline_return_column: static_baseline_return
+      episodes:
+        - episode_name: volatility_spike_fixture
+          episode_type: volatility_spike
+          start: "2026-01-15"
+          end: "2026-01-16"
+          description: Fixture-backed volatility spike replay window.
+        - episode_name: sideways_whipsaw_fixture
+          episode_type: sideways_whipsaw
+          start: "2026-02-01"
+          end: "2026-02-02"
+          description: Fixture-backed sideways whipsaw replay window.
+metadata:
+  milestone: M27
+  issue: "304"
+  purpose: historical_episode_replay

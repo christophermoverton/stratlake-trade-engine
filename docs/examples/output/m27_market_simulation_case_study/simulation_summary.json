@@ -1,0 +1,40 @@
+{
+  "best_ranked_scenario": {
+    "ranking_metric": "mean_stress_score",
+    "ranking_value": 0.17999999999999997,
+    "scenario_name": "case_historical_episode",
+    "simulation_type": "historical_episode_replay"
+  },
+  "case_study_name": "m27_market_simulation_case_study",
+  "leaderboard_row_count": 4,
+  "limitations": [
+    "Fixture-backed examples validate deterministic stress-test workflows only.",
+    "Scenario metrics are generated from checked-in fixtures and configured overlays, not live data.",
+    "The leaderboard ranks configured stress artifacts and does not forecast future returns.",
+    "Regime-transition Monte Carlo contributes regime metrics only; returns and policy outcomes are not inferred."
+  ],
+  "metric_availability": {
+    "policy_metric_path_rows": 2,
+    "regime_metric_path_rows": 4,
+    "return_metric_path_rows": 4
+  },
+  "milestone": "M27",
+  "path_metric_row_count": 6,
+  "policy_failure_rate": 0.6666666666666666,
+  "regime_only_monte_carlo_note": "Monte Carlo paths are regime-only and do not fabricate return or policy metrics.",
+  "scenario_count": 4,
+  "simulation_types": [
+    "historical_episode_replay",
+    "regime_block_bootstrap",
+    "regime_transition_monte_carlo",
+    "shock_overlay"
+  ],
+  "source_simulation_run_id": "m27_market_simulation_case_study_b542a0934d5e",
+  "summary_row_count": 4,
+  "worst_ranked_scenario": {
+    "ranking_metric": "mean_stress_score",
+    "ranking_value": 3.4236309600000006,
+    "scenario_name": "case_regime_bootstrap",
+    "simulation_type": "regime_block_bootstrap"
+  }
+}

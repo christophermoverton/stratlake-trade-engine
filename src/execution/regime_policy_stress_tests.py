@@ -39,6 +39,7 @@ def run_regime_policy_stress_tests(
             "policy_count": raw_result.scenario_summary.get("policy_count"),
             "stress_pass_count": raw_result.manifest.get("stress_pass_count"),
             "stress_fail_count": raw_result.manifest.get("stress_fail_count"),
+            "market_simulation_enabled": raw_result.manifest.get("market_simulation_stress") is not None,
         },
         output_paths={
             "stress_matrix_csv": raw_result.stress_matrix_csv_path,
@@ -53,6 +54,14 @@ def run_regime_policy_stress_tests(
             "adaptive_vs_static_stress_comparison_csv": raw_result.adaptive_vs_static_comparison_csv_path,
             "config_json": raw_result.config_path,
             "manifest_json": raw_result.manifest_path,
+            **(
+                {}
+                if raw_result.market_simulation_stress_summary_path is None
+                else {
+                    "market_simulation_stress_summary_json": raw_result.market_simulation_stress_summary_path,
+                    "market_simulation_stress_leaderboard_csv": raw_result.market_simulation_stress_leaderboard_path,
+                }
+            ),
         },
         extra={
             "baseline_policy": raw_result.scenario_summary.get("baseline_policy"),

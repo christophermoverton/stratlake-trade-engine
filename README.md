@@ -36,44 +36,55 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
-## Milestone 27 Summary
+### Milestone 27: Market Simulation Stress Testing Case Study
 
-Milestone 27 adds a full market simulation stress-testing stack on top of the
-Milestone 26 adaptive regime-policy governance layer. It introduces four
-simulation models — historical episode replay, market shock overlay,
-regime-aware block bootstrap, and regime-transition Monte Carlo — and a unified
-simulation metrics and leaderboard layer that ranks policies by their worst-case
-tail behavior across all simulated paths.
+The M27 case study demonstrates fixture-backed adaptive policy stress testing
+across the market simulation scenario framework, historical episode replay,
+shock overlays, regime-aware block bootstrap paths, regime-transition Monte
+Carlo paths, simulation-aware stress metrics, and policy failure leaderboards.
 
-Market simulation evidence complements, but does not replace, the Milestone 26
-deterministic policy stress transforms. An optional integration bridge allows
-the M26 full-year case study to include M27 simulation leaderboard data when
-M27 artifacts are present.
+Run:
 
-Common Milestone 27 CLI and script entrypoints:
-
-```bash
-python docs/examples/m27_market_simulation_case_study.py
-python -m src.cli.run_market_simulation_scenarios \
-  --config configs/regime_stress_tests/m27_market_simulation_case_study.yml
+```powershell
+python docs\examples\m27_market_simulation_case_study.py
 ```
 
-Start with:
+Primary outputs are written to:
 
-* [docs/market_simulation_models_and_integrations.md](docs/market_simulation_models_and_integrations.md)
-* [docs/examples/m27_market_simulation_case_study.md](docs/examples/m27_market_simulation_case_study.md)
-* [docs/examples/full_year_regime_policy_benchmark_case_study.md](docs/examples/full_year_regime_policy_benchmark_case_study.md)
+```text
+docs/examples/output/m27_market_simulation_case_study/
+```
 
-Limitations to keep explicit:
+The case study is deterministic and intended for research workflow validation.
+It does not forecast market returns or provide trading advice.
 
-* simulation paths are fixture-backed synthetic paths, not live or
-  forward-looking market data
-* Monte Carlo paths generate regime-label sequences only; no return metrics
-  are fabricated
-* simulation outputs are for research governance and stress-context review,
-  not trading signals or return forecasts
-* the M26 integration bridge is optional; M26 workflows run unchanged when
-  the bridge is absent or disabled
+M26 adaptive policy stress tests and the full-year regime policy case study can
+optionally consume these M27 `simulation_metrics/` artifacts. The full-year M26
+case study still runs when M27 artifacts are absent and records the optional
+evidence as unavailable with `market_simulation_available=false` and a
+schema-only empty leaderboard. Use `--require-market-simulation-stress` to make
+missing M27 artifacts a hard failure. The bridge supports `existing_artifacts`
+mode for a prebuilt M27 `simulation_metrics/` directory and `run_config` mode
+for fixture-backed configs that already use the M27 execution stack. This
+market simulation evidence complements the deterministic Issue #299 stress
+scenarios; it does not replace regime shock, whipsaw, classifier uncertainty,
+fallback, turnover, or adaptive-vs-static checks. Regime-transition Monte Carlo
+paths are regime-only unless return or policy replay artifacts are explicitly
+available.
+
+Canonical M27 metrics artifacts:
+
+* `simulation_path_metrics.csv`
+* `simulation_summary.csv`
+* `simulation_leaderboard.csv`
+* `policy_failure_summary.json`
+* `simulation_metric_config.json`
+* `manifest.json`
+
+M26 integration artifacts:
+
+* `market_simulation_stress_summary.json`
+* `market_simulation_stress_leaderboard.csv`
 
 ## Milestone 26 Summary
 
@@ -115,6 +126,9 @@ Limitations to keep explicit:
   portability and does not require live market data
 * deterministic stress transforms are governance diagnostics, not empirical
   market simulations
+* optional M27 market simulation stress evidence can be unavailable by default,
+  complements deterministic stress transforms, and is not a forecast or trading
+  recommendation
 * selected file-backed workflows reserve registry-backed expansion for later
   work
 * generated example outputs under
@@ -1226,6 +1240,10 @@ Milestone 26 regime-policy workflows write under these roots:
 * `docs/examples/output/full_year_regime_policy_benchmark_case_study/` when
   the fixture-backed case-study script is run locally
 
+When optional M27 market simulation evidence is enabled, regime stress outputs
+also include `market_simulation_stress_summary.json` and
+`market_simulation_stress_leaderboard.csv`.
+
 These artifacts include deterministic configs, manifests, summaries, matrices,
 leaderboards, decision logs, evidence indexes, and source-input inventories.
 The case-study output root is generated at runtime and is normally cleaned
@@ -1325,6 +1343,8 @@ Start here:
 * [docs/regime_review_packs.md](docs/regime_review_packs.md)
 * [docs/regime_aware_candidate_selection.md](docs/regime_aware_candidate_selection.md)
 * [docs/regime_policy_stress_testing.md](docs/regime_policy_stress_testing.md)
+* [docs/market_simulation_stress_testing.md](docs/market_simulation_stress_testing.md)
+* [docs/market_simulation_models_and_integrations.md](docs/market_simulation_models_and_integrations.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
@@ -1363,6 +1383,8 @@ Examples:
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/examples/scale_repro_benchmark_pack.md](docs/examples/scale_repro_benchmark_pack.md)
 * [docs/examples/full_year_regime_policy_benchmark_case_study.md](docs/examples/full_year_regime_policy_benchmark_case_study.md)
+* [docs/examples/m27_market_simulation_case_study.md](docs/examples/m27_market_simulation_case_study.md)
+* [docs/examples/m27_market_simulation_case_study_report.md](docs/examples/m27_market_simulation_case_study_report.md)
 * [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)
@@ -1375,6 +1397,7 @@ Merge-readiness notes:
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
+* [docs/milestone_27_merge_readiness.md](docs/milestone_27_merge_readiness.md)
 
 ## Repository Layout
 

@@ -1,0 +1,39 @@
+simulation_name: m27_market_simulation_stress
+output_root: artifacts/regime_stress_tests
+random_seed: 1729
+source_review_pack: artifacts/regime_reviews/<review_run_id>
+baseline_policy: static_baseline
+source_policy_candidates:
+  - hybrid_calibrated_gmm_policy
+  - defensive_transition_policy
+market_simulations:
+  - name: historical_volatility_episode
+    type: historical_episode_replay
+    enabled: true
+    source_window_start: "2026-01-15"
+    source_window_end: "2026-02-15"
+    notes: Reserved historical replay scenario; replay logic is implemented by a follow-up issue.
+  - name: volatility_spike_overlay
+    type: shock_overlay
+    enabled: false
+    random_seed: 1730
+    notes: Disabled placeholder preserved in the catalog for future shock overlay implementation.
+    method_config:
+      placeholder_shock_family: volatility_spike
+  - name: regime_bootstrap_paths
+    type: regime_block_bootstrap
+    enabled: true
+    path_count: 100
+    notes: Reserved bootstrap scenario; path generation is intentionally not implemented here.
+  - name: transition_bootstrap_paths
+    type: transition_block_bootstrap
+    enabled: false
+    path_count: 50
+  - name: monte_carlo_transition_paths
+    type: regime_transition_monte_carlo
+    enabled: true
+    path_count: 250
+metadata:
+  milestone: M27
+  issue: "303"
+  purpose: framework_only

@@ -1,0 +1,141 @@
+simulation_name: m27_simulation_metrics
+output_root: artifacts/regime_stress_tests
+random_seed: 308
+source_review_pack: artifacts/regime_reviews/<review_run_id>
+baseline_policy: static_baseline
+source_policy_candidates:
+  - hybrid_calibrated_gmm_policy
+  - defensive_transition_policy
+stress_metrics:
+  enabled: true
+  output_dir_name: simulation_metrics
+  failure_thresholds:
+    max_drawdown_limit: -0.10
+    min_total_return: -0.05
+    max_transition_count: 20
+    max_stress_regime_share: 0.50
+    max_policy_underperformance: -0.02
+  leaderboard:
+    ranking_metric: mean_stress_score
+    ascending: true
+  tail_quantile: 0.05
+  stress_regimes:
+    - stress
+    - high_vol
+market_simulations:
+  - name: metrics_historical_episode
+    type: historical_episode_replay
+    enabled: true
+    random_seed: 308
+    path_count: 1
+    notes: Fixture-backed replay used by the simulation metrics smoke run.
+    method_config:
+      dataset_path: tests/fixtures/market_simulation/historical_episode_fixture.csv
+      timestamp_column: ts_utc
+      symbol_column: symbol
+      return_column: return
+      regime_column: regime_label
+      confidence_column: gmm_confidence
+      entropy_column: gmm_entropy
+      adaptive_policy_return_column: adaptive_policy_return
+      static_baseline_return_column: static_baseline_return
+      episodes:
+        - episode_name: volatility_spike_fixture
+          episode_type: volatility_spike
+          start: "2026-01-15"
+          end: "2026-01-16"
+          description: Fixture-backed volatility spike replay window.
+
+  - name: metrics_regime_bootstrap
+    type: regime_block_bootstrap
+    enabled: true
+    random_seed: 308
+    path_count: 2
+    notes: Small deterministic bootstrap path set for metrics validation.
+    method_config:
+      dataset_path: tests/fixtures/market_simulation/bootstrap_source_fixture.csv
+      timestamp_column: ts_utc
+      symbol_column: symbol
+      return_column: return
+      regime_column: regime_label
+      confidence_column: gmm_confidence
+      entropy_column: gmm_entropy
+      path_count: 2
+      path_length_bars: 6
+      block_length_bars: 2
+      path_start: "2000-01-01"
+      sampling:
+        mode: regime_bucketed
+        target_regimes:
+          - high_vol
+          - stress
+        include_transition_windows: true
+        transition_window_bars: 1
+
+  - name: metrics_regime_transition_mc
+    type: regime_transition_monte_carlo
+    enabled: true
+    random_seed: 308
+    path_count: 2
+    notes: Regime-only Monte Carlo scenario for metrics validation.
+    method_config:
+      path_count: 2
+      path_length_bars: 8
+      path_start: "2000-01-01"
+      initial_regime: low_vol
+      normalize_transition_rows: false
+      transition_matrix:
+        low_vol:
+          low_vol: 0.70
+          high_vol: 0.20
+          stress: 0.10
+        high_vol:
+          low_vol: 0.30
+          high_vol: 0.50
+          stress: 0.20
+        stress:
+          low_vol: 0.25
+          high_vol: 0.35
+          stress: 0.40
+      duration_constraints:
+        min_duration_bars: 1
+        max_duration_bars: 4
+      stress_bias:
+        enabled: false
+        target_regimes:
+          - stress
+        multiplier: 1.25
+
+  - name: metrics_shock_overlay
+    type: shock_overlay
+    enabled: true
+    random_seed: 308
+    path_count: 1
+    notes: Deterministic overlay applied to the replay source for metrics validation.
+    method_config:
+      input_source:
+        type: historical_episode_replay
+        scenario_name: metrics_historical_episode
+      timestamp_column: ts_utc
+      symbol_column: symbol
+      base_return_column: source_return
+      adaptive_policy_return_column: adaptive_policy_return
+      static_baseline_return_column: static_baseline_return
+      confidence_column: gmm_confidence
+      entropy_column: gmm_entropy
+      overlays:
+        - name: return_drawdown_shock
+          type: return_bps
+          columns:
+            - source_return
+            - adaptive_policy_return
+            - static_baseline_return
+          bps: -50
+        - name: confidence_degradation
+          type: confidence_multiplier
+          column: gmm_confidence
+          multiplier: 0.70
+metadata:
+  milestone: M27
+  issue: "308"
+  purpose: simulation_metrics

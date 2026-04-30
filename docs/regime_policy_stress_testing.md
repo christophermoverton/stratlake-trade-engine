@@ -195,6 +195,26 @@ Summary metadata includes explicit interpretation helpers such as:
 
 `source_candidate_selection` is provenance-only in Issue 5. When supplied, it is recorded in summary/manifest provenance paths but does not change stress evaluation semantics.
 
+## M27 Market Simulation Integration
+
+Milestone 27 adds a market simulation stress-testing layer that complements the
+deterministic stress transforms documented here. Simulation-based stress
+evidence is integrated into the M26 full-year case study through an optional
+bridge block.
+
+See:
+
+- [docs/market_simulation_models_and_integrations.md](market_simulation_models_and_integrations.md) — full M27 architecture, models, metrics, and integration
+- [docs/market_simulation_models_and_integrations.md — M26 Integration Bridge](market_simulation_models_and_integrations.md#8-m26-integration-bridge) — how to configure the bridge
+- [docs/examples/m27_market_simulation_case_study.md](examples/m27_market_simulation_case_study.md) — M27 case-study walkthrough
+
+The two stress layers are distinct:
+
+| Layer | Method | Primary artifact |
+|---|---|---|
+| M26 Issue 5 (this doc) | deterministic synthetic transforms | `stress_leaderboard.csv` |
+| M27 market simulation | replay / overlay / bootstrap / Monte Carlo paths | `simulation_leaderboard.csv` |
+
 ## Limitations and Non-Goals
 
 - deterministic transforms are not market simulators

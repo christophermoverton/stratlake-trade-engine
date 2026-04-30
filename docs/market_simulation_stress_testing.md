@@ -4,7 +4,7 @@
 
 The M27 market simulation framework is the deterministic artifact layer for adaptive policy stress testing. It validates scenario definitions, resolves seeds, assigns stable scenario and path identifiers, and writes catalogs, inventories, normalized config, and manifests.
 
-Historical episode replay, regime-aware block bootstrap, regime-transition Monte Carlo, shock overlays, and simulation-aware stress metrics are the implemented M27 layers. Transition bootstrap as a standalone scenario and the end-to-end case study remain reserved for follow-up issues.
+Historical episode replay, regime-aware block bootstrap, regime-transition Monte Carlo, shock overlays, simulation-aware stress metrics, and the end-to-end case study are the implemented M27 layers. Transition bootstrap as a standalone scenario remains reserved for a follow-up issue.
 
 ## Relationship to M26
 
@@ -430,6 +430,7 @@ configs/regime_stress_tests/m27_shock_overlay.yml
 configs/regime_stress_tests/m27_regime_block_bootstrap.yml
 configs/regime_stress_tests/m27_regime_transition_monte_carlo.yml
 configs/regime_stress_tests/m27_simulation_metrics.yml
+configs/regime_stress_tests/m27_market_simulation_case_study.yml
 ```
 
 Minimal shape:
@@ -618,6 +619,20 @@ python -m src.cli.run_market_simulation_scenarios `
 
 The CLI writes all supported scenario artifacts and the run-level `simulation_metrics/` directory. The summary reports the metrics output directory, path metric rows, summary rows, leaderboard rows, and policy failure rate.
 
+For the stitched M27 case study:
+
+```powershell
+python docs/examples/m27_market_simulation_case_study.py
+```
+
+The case study calls the existing framework using
+`configs/regime_stress_tests/m27_market_simulation_case_study.yml`, then writes
+`simulation_summary.json`, `leaderboard.csv`, `case_study_report.md`, and
+`manifest.json` under
+`docs/examples/output/m27_market_simulation_case_study/`. The generated report
+is fixture-backed and does not forecast market returns or provide trading
+advice.
+
 ## Non-Goals
 
-This issue does not implement file-based overlay inputs, transition bootstrap as a separate scenario type, Monte Carlo return-path generation, case studies, broker integrations, live feeds, order-book simulation, or forecasting claims.
+This issue does not implement file-based overlay inputs, transition bootstrap as a separate scenario type, Monte Carlo return-path generation, broker integrations, live feeds, order-book simulation, or forecasting claims.

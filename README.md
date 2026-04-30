@@ -36,6 +36,27 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+### Milestone 27: Market Simulation Stress Testing Case Study
+
+The M27 case study demonstrates fixture-backed adaptive policy stress testing
+across historical replay, block bootstrap paths, regime-transition Monte Carlo
+paths, shock overlays, and simulation-aware stress metrics.
+
+Run:
+
+```powershell
+python docs\examples\m27_market_simulation_case_study.py
+```
+
+Primary outputs are written to:
+
+```text
+docs/examples/output/m27_market_simulation_case_study/
+```
+
+The case study is deterministic and intended for research workflow validation.
+It does not forecast market returns or provide trading advice.
+
 ## Milestone 26 Summary
 
 Milestone 26 adds a governed adaptive regime-policy research workflow above the
@@ -1324,6 +1345,7 @@ Examples:
 * [docs/examples/real_world_candidate_selection_portfolio_case_study.md](docs/examples/real_world_candidate_selection_portfolio_case_study.md)
 * [docs/examples/scale_repro_benchmark_pack.md](docs/examples/scale_repro_benchmark_pack.md)
 * [docs/examples/full_year_regime_policy_benchmark_case_study.md](docs/examples/full_year_regime_policy_benchmark_case_study.md)
+* [docs/examples/m27_market_simulation_case_study.md](docs/examples/m27_market_simulation_case_study.md)
 * [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)

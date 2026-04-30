@@ -1,0 +1,41 @@
+{
+  "artifact_type": "market_simulation_case_study",
+  "case_study_name": "m27_market_simulation_case_study",
+  "generated_timestamp": "2018-12-25T21:11:02Z",
+  "limitations": [
+    "Fixture-backed examples validate deterministic stress-test workflows only.",
+    "Scenario metrics are generated from checked-in fixtures and configured overlays, not live data.",
+    "The leaderboard ranks configured stress artifacts and does not forecast future returns.",
+    "Regime-transition Monte Carlo contributes regime metrics only; returns and policy outcomes are not inferred."
+  ],
+  "output_artifact_paths": {
+    "case_study_report_md": "docs/examples/output/m27_market_simulation_case_study/case_study_report.md",
+    "leaderboard_csv": "docs/examples/output/m27_market_simulation_case_study/leaderboard.csv",
+    "manifest_json": "docs/examples/output/m27_market_simulation_case_study/manifest.json",
+    "simulation_summary_json": "docs/examples/output/m27_market_simulation_case_study/simulation_summary.json"
+  },
+  "row_counts": {
+    "leaderboard": 4,
+    "scenario_catalog": 4,
+    "simulation_path_metrics": 6,
+    "simulation_summary": 4
+  },
+  "schema_version": "1.0",
+  "source_config_path": "configs/regime_stress_tests/m27_market_simulation_case_study.yml",
+  "source_simulation_artifact_paths": {
+    "block_bootstrap_1_manifest_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/case_regime_bootstrap_2bf0fc923c47/bootstrap_manifest.json",
+    "historical_replay_1_manifest_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/case_historical_episode_5f7868e24eeb/manifest.json",
+    "input_inventory_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/input_inventory.json",
+    "monte_carlo_1_manifest_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/case_regime_transition_mc_e83001a03dff/manifest.json",
+    "scenario_catalog_csv": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/scenario_catalog.csv",
+    "scenario_catalog_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/scenario_catalog.json",
+    "shock_overlay_1_manifest_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/case_shock_overlay_b27978a5e06e/manifest.json",
+    "simulation_config_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/simulation_config.json",
+    "simulation_leaderboard_csv": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/simulation_metrics/simulation_leaderboard.csv",
+    "simulation_manifest_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/simulation_manifest.json",
+    "simulation_metrics_manifest_json": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/simulation_metrics/manifest.json",
+    "simulation_path_metrics_csv": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/simulation_metrics/simulation_path_metrics.csv",
+    "simulation_summary_csv": "docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/m27_market_simulation_case_study_b542a0934d5e/market_simulations/simulation_metrics/simulation_summary.csv"
+  },
+  "source_simulation_run_id": "m27_market_simulation_case_study_b542a0934d5e"
+}

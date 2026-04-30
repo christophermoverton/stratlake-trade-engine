@@ -2,13 +2,19 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
-import json
 from pathlib import Path
 import subprocess
 import sys
 import time
 from typing import Any, Sequence
 
+from src.artifacts.safety import (
+    atomic_write_json,
+    atomic_write_text,
+    ensure_output_root_available,
+    mark_run_completed,
+    mark_run_started,
+)
 from src.validation.deterministic_rerun import (
     run_deterministic_rerun_validation,
     write_deterministic_rerun_report,
@@ -38,6 +44,8 @@ def build_milestone_validation_bundle(
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
     bundle = Path(bundle_dir).resolve()
+    ensure_output_root_available(bundle, collision_policy="reuse")
+    mark_run_started(bundle, {"run_type": "milestone_validation_bundle"})
     checks_dir = bundle / "checks"
     checks_dir.mkdir(parents=True, exist_ok=True)
 
@@ -153,7 +161,11 @@ def build_milestone_validation_bundle(
     }
 
     summary_path = bundle / "summary.json"
-    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    atomic_write_json(summary_path, summary, sort_keys=True)
+    mark_run_completed(
+        bundle,
+        {"run_type": "milestone_validation_bundle", "status": summary["status"]},
+    )
     return summary
 
 
@@ -163,7 +175,8 @@ def _run_command(*, name: str, command: list[str], cwd: Path, log_path: Path) ->
     duration = time.perf_counter() - started
 
     log_path.parent.mkdir(parents=True, exist_ok=True)
-    log_path.write_text(
+    atomic_write_text(
+        log_path,
         "\n".join(
             [
                 f"$ {' '.join(command)}",
@@ -178,7 +191,6 @@ def _run_command(*, name: str, command: list[str], cwd: Path, log_path: Path) ->
             ]
         ).strip()
         + "\n",
-        encoding="utf-8",
     )
 
     return CommandResult(

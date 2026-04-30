@@ -32,6 +32,7 @@ operational runs.
 Start with:
 
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
+* [docs/concurrency_and_idempotency.md](docs/concurrency_and_idempotency.md)
 * [docs/examples/notebook_execution_api_examples.md](docs/examples/notebook_execution_api_examples.md)
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)

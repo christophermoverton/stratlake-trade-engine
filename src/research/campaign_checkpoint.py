@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
+from src.artifacts.safety import atomic_write_text
 from src.research.registry import canonicalize_value
 
 CAMPAIGN_CHECKPOINT_SCHEMA_VERSION = 2
@@ -233,7 +234,7 @@ def serialize_campaign_checkpoint(payload: Mapping[str, Any]) -> str:
 def write_campaign_checkpoint(path: Path, payload: Mapping[str, Any]) -> dict[str, Any]:
     validate_campaign_checkpoint_payload(payload)
     canonical_payload = canonicalize_value(dict(payload))
-    path.write_text(serialize_campaign_checkpoint(canonical_payload), encoding="utf-8", newline="\n")
+    atomic_write_text(path, serialize_campaign_checkpoint(canonical_payload))
     return canonical_payload
 
 

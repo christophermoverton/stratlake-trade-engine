@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
-import json
 from pathlib import Path
 import re
 from typing import Any, Sequence
+
+from src.artifacts.safety import atomic_write_json
 
 
 DEFAULT_GUARDED_SURFACES: tuple[str, ...] = (
@@ -63,10 +64,7 @@ def lint_guarded_surfaces(
 
 
 def write_docs_path_lint_report(report: dict[str, Any], output_path: str | Path) -> Path:
-    output = Path(output_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return output
+    return atomic_write_json(output_path, report, sort_keys=True)
 
 
 def _resolve_guarded_files(repo_root: Path, guarded_surfaces: Sequence[str]) -> list[Path]:

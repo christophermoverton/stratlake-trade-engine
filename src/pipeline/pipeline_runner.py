@@ -14,6 +14,13 @@ from typing import Any, Mapping, Sequence
 
 import yaml
 
+from src.artifacts.safety import (
+    atomic_write_json,
+    ensure_output_root_available,
+    mark_run_completed,
+    mark_run_failed,
+    mark_run_started,
+)
 from src.contracts.validate import validate_json
 from src.pipeline.registry import register_pipeline_run
 from src.research.registry import canonicalize_value, serialize_canonical_json
@@ -394,11 +401,25 @@ def _write_pipeline_artifacts(
         metrics_payload=metrics_payload,
         lineage_payload=lineage_payload,
     )
-    result.artifact_dir.mkdir(parents=True, exist_ok=True)
+    ensure_output_root_available(result.artifact_dir, collision_policy="reuse")
+    mark_run_started(
+        result.artifact_dir,
+        {"run_type": "pipeline", "run_id": result.pipeline_run_id, "status": result.status},
+    )
     _write_json(result.manifest_path, manifest_payload)
     _write_json(result.pipeline_metrics_path, metrics_payload)
     _write_json(result.lineage_path, lineage_payload)
     _write_json(result.state_path, state_payload)
+    if result.status == "completed":
+        mark_run_completed(
+            result.artifact_dir,
+            {"run_type": "pipeline", "run_id": result.pipeline_run_id, "status": result.status},
+        )
+    else:
+        mark_run_failed(
+            result.artifact_dir,
+            {"run_type": "pipeline", "run_id": result.pipeline_run_id, "status": result.status},
+        )
 
 
 def _build_pipeline_manifest_payload(
@@ -1002,11 +1023,7 @@ def _extract_path_value(mapping: Mapping[str, Any], *, keys: Sequence[str]) -> s
 
 
 def _write_json(path: Path, payload: Any) -> None:
-    path.write_text(
-        json.dumps(canonicalize_value(payload), indent=2, sort_keys=True),
-        encoding="utf-8",
-        newline="\n",
-    )
+    atomic_write_json(path, canonicalize_value(payload), sort_keys=True)
 
 
 def _validate_pipeline_artifacts(

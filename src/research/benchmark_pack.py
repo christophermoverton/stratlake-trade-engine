@@ -11,6 +11,16 @@ from typing import Any, Callable, Mapping, Sequence
 
 import pandas as pd
 
+from src.artifacts.safety import (
+    FAILED_MARKER,
+    RUNNING_MARKER,
+    SUCCESS_MARKER,
+    atomic_write_json,
+    ensure_output_root_available,
+    mark_run_completed,
+    mark_run_failed,
+    mark_run_started,
+)
 from src.cli.run_research_campaign import (
     _SCENARIO_RANKING_METRIC_PRIORITY,
     _scenario_matrix_fieldnames,
@@ -94,7 +104,11 @@ def run_benchmark_pack(
 ) -> BenchmarkPackRunResult:
     runner = run_research_campaign if campaign_runner is None else campaign_runner
     resolved_output_root = _resolve_output_root(config, output_root=output_root)
-    resolved_output_root.mkdir(parents=True, exist_ok=True)
+    ensure_output_root_available(resolved_output_root, collision_policy="reuse")
+    mark_run_started(
+        resolved_output_root,
+        {"run_type": "benchmark_pack", "pack_id": config.pack_id},
+    )
     _write_json(resolved_output_root / BENCHMARK_CONFIG_FILENAME, config.to_dict())
 
     dataset_summary = _prepare_dataset(config, output_root=resolved_output_root)
@@ -209,7 +223,7 @@ def run_benchmark_pack(
                 inventory_payload=None,
             )
             if stop_after_batches is not None and processed_new_batches >= stop_after_batches:
-                return _finalize_partial_result(
+                partial_result = _finalize_partial_result(
                     config=config,
                     pack_run_id=pack_run_id,
                     output_root=resolved_output_root,
@@ -222,6 +236,16 @@ def run_benchmark_pack(
                     benchmark_matrix_csv_path=benchmark_matrix_csv_path,
                     benchmark_matrix_summary_path=benchmark_matrix_summary_path,
                 )
+                mark_run_failed(
+                    resolved_output_root,
+                    {
+                        "run_type": "benchmark_pack",
+                        "pack_id": config.pack_id,
+                        "run_id": pack_run_id,
+                        "status": "partial",
+                    },
+                )
+                return partial_result
 
     inventory_payload = _build_inventory(
         resolved_output_root,
@@ -263,6 +287,15 @@ def run_benchmark_pack(
     final_checkpoint = _read_json(checkpoint_path)
     final_manifest = _read_json(manifest_path)
     final_summary = _read_json(summary_path)
+    mark_run_completed(
+        resolved_output_root,
+        {
+            "run_type": "benchmark_pack",
+            "pack_id": config.pack_id,
+            "run_id": pack_run_id,
+            "status": str(final_summary.get("status", "unknown")),
+        },
+    )
     return BenchmarkPackRunResult(
         pack_id=config.pack_id,
         pack_run_id=pack_run_id,
@@ -772,6 +805,8 @@ def _build_inventory(output_root: Path, *, exclude_globs: Sequence[str]) -> dict
     for path in sorted(output_root.rglob("*")):
         if not path.is_file():
             continue
+        if path.name in {RUNNING_MARKER, SUCCESS_MARKER, FAILED_MARKER}:
+            continue
         relative_path = path.relative_to(output_root).as_posix()
         if any(fnmatch.fnmatch(relative_path, pattern) for pattern in exclude_globs):
             continue
@@ -899,9 +934,7 @@ def _write_batch_plan_csv(path: Path, batches: Sequence[BenchmarkBatchPlan]) -> 
 
 
 def _write_json(path: Path, payload: Any) -> Path:
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
-    return path
+    return atomic_write_json(path, payload, sort_keys=True)
 
 
 def _read_json(path: Path) -> dict[str, Any]:

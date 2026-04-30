@@ -11,6 +11,13 @@ import sys
 from types import SimpleNamespace
 from typing import Any, Iterator, Mapping, Sequence
 
+from src.artifacts.safety import (
+    atomic_write_json,
+    ensure_output_root_available,
+    mark_run_completed,
+    mark_run_failed,
+    mark_run_started,
+)
 from src.cli import compare_alpha as compare_alpha_cli
 from src.cli import compare_research as compare_research_cli
 from src.cli import compare_strategies as compare_strategies_cli
@@ -413,6 +420,11 @@ def _run_single_research_campaign(
         scenario_context.scenario_artifact_dir
         if scenario_context is not None
         else _campaign_artifact_dir(config, campaign_run_id=campaign_run_id)
+    )
+    ensure_output_root_available(campaign_artifact_dir, collision_policy="reuse")
+    mark_run_started(
+        campaign_artifact_dir,
+        {"run_type": "research_campaign", "run_id": campaign_run_id},
     )
     _persist_campaign_config(campaign_artifact_dir, config)
     existing_checkpoint = _load_existing_campaign_checkpoint(
@@ -1021,6 +1033,10 @@ def _run_single_research_campaign(
                 review_result=review_result,
                 status="partial",
             )
+            mark_run_failed(
+                campaign_artifact_dir,
+                {"run_type": "research_campaign", "run_id": campaign_run_id, "status": "partial"},
+            )
         raise
     except Exception as exc:
         if not error_already_persisted and current_stage_name is not None:
@@ -1056,6 +1072,10 @@ def _run_single_research_campaign(
                 review_result=review_result,
                 status="failed",
             )
+            mark_run_failed(
+                campaign_artifact_dir,
+                {"run_type": "research_campaign", "run_id": campaign_run_id, "status": "failed"},
+            )
         raise
 
     checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload = _write_campaign_artifacts(
@@ -1076,6 +1096,10 @@ def _run_single_research_campaign(
         candidate_review_result=candidate_review_result,
         review_result=review_result,
         status="completed",
+    )
+    mark_run_completed(
+        campaign_artifact_dir,
+        {"run_type": "research_campaign", "run_id": campaign_run_id, "status": "completed"},
     )
 
     return ResearchCampaignRunResult(
@@ -1159,11 +1183,7 @@ def _run_orchestration_expansion_preflight(
         }
     )
     summary_path = orchestration_artifact_dir / ORCHESTRATION_EXPANSION_PREFLIGHT_FILENAME
-    summary_path.write_text(
-        json.dumps(summary, indent=2, sort_keys=True),
-        encoding="utf-8",
-        newline="\n",
-    )
+    atomic_write_json(summary_path, summary)
 
     total = size["total_scenario_count"]
     effective_max = size["effective_max_scenarios"]
@@ -1190,6 +1210,11 @@ def _run_research_campaign_orchestration(
         config,
         campaign_run_id=orchestration_run_id,
     )
+    ensure_output_root_available(orchestration_artifact_dir, collision_policy="reuse")
+    mark_run_started(
+        orchestration_artifact_dir,
+        {"run_type": "research_campaign_orchestration", "run_id": orchestration_run_id},
+    )
     _persist_campaign_config(orchestration_artifact_dir, config)
 
     expansion_preflight = _run_orchestration_expansion_preflight(
@@ -1200,11 +1225,7 @@ def _run_research_campaign_orchestration(
 
     scenario_catalog = build_research_campaign_scenario_catalog(config)
     scenario_catalog_path = orchestration_artifact_dir / SCENARIO_CATALOG_FILENAME
-    scenario_catalog_path.write_text(
-        json.dumps(scenario_catalog, indent=2, sort_keys=True),
-        encoding="utf-8",
-        newline="\n",
-    )
+    atomic_write_json(scenario_catalog_path, scenario_catalog)
 
     scenario_results: list[ScenarioCampaignRunResult] = []
     scenario_root_dir = orchestration_artifact_dir / "scenarios"
@@ -1243,15 +1264,15 @@ def _run_research_campaign_orchestration(
     )
     manifest_path = orchestration_artifact_dir / CAMPAIGN_MANIFEST_FILENAME
     summary_path = orchestration_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
-    manifest_path.write_text(
-        json.dumps(manifest_payload, indent=2, sort_keys=True),
-        encoding="utf-8",
-        newline="\n",
-    )
-    summary_path.write_text(
-        json.dumps(summary_payload, indent=2, sort_keys=True),
-        encoding="utf-8",
-        newline="\n",
+    atomic_write_json(manifest_path, manifest_payload)
+    atomic_write_json(summary_path, summary_payload)
+    mark_run_completed(
+        orchestration_artifact_dir,
+        {
+            "run_type": "research_campaign_orchestration",
+            "run_id": orchestration_run_id,
+            "status": str(summary_payload.get("status", "unknown")),
+        },
     )
     return ResearchCampaignOrchestrationResult(
         config=config,
@@ -2231,7 +2252,7 @@ def _run_preflight(
         ],
     }
     summary_path = campaign_artifact_dir / PREFLIGHT_SUMMARY_FILENAME
-    summary_path.write_text(json.dumps(summary, indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_json(summary_path, summary)
     return CampaignPreflightResult(
         status=str(summary["status"]),
         summary_path=summary_path,
@@ -2626,7 +2647,7 @@ def _campaign_artifact_dir(config: ResearchCampaignConfig, *, campaign_run_id: s
 def _persist_campaign_config(campaign_artifact_dir: Path, config: ResearchCampaignConfig) -> Path:
     campaign_artifact_dir.mkdir(parents=True, exist_ok=True)
     path = campaign_artifact_dir / CAMPAIGN_CONFIG_FILENAME
-    path.write_text(json.dumps(config.to_dict(), indent=2, sort_keys=True), encoding="utf-8")
+    atomic_write_json(path, config.to_dict())
     return path
 
 
@@ -3364,8 +3385,8 @@ def _write_campaign_artifacts(
     summary_path = campaign_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
     manifest_path = campaign_artifact_dir / CAMPAIGN_MANIFEST_FILENAME
     write_campaign_checkpoint(checkpoint_path, checkpoint_payload)
-    summary_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
-    manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
+    atomic_write_json(summary_path, summary_payload)
+    atomic_write_json(manifest_path, manifest_payload)
     milestone_outputs = (
         _generate_campaign_milestone_outputs(
             campaign_artifact_dir=campaign_artifact_dir,
@@ -3402,8 +3423,8 @@ def _write_campaign_artifacts(
         summary_payload=summary_payload,
         milestone_outputs=milestone_outputs,
     )
-    summary_path.write_text(json.dumps(summary_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
-    manifest_path.write_text(json.dumps(manifest_payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
+    atomic_write_json(summary_path, summary_payload)
+    atomic_write_json(manifest_path, manifest_payload)
     return checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload
 
 
@@ -4480,11 +4501,7 @@ def _write_scenario_matrix_artifacts(
             "summary_path": json_path.as_posix(),
         }
     )
-    json_path.write_text(
-        json.dumps(summary, indent=2, sort_keys=True),
-        encoding="utf-8",
-        newline="\n",
-    )
+    atomic_write_json(json_path, summary)
     return summary
 
 

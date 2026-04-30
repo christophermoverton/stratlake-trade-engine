@@ -8,6 +8,8 @@ import re
 import sys
 from typing import Any, Sequence
 
+from src.artifacts.safety import atomic_write_json, ensure_output_root_available, mark_run_completed, mark_run_started
+
 
 DEFAULT_CANONICAL_TARGETS: tuple[tuple[str, str], ...] = (
     ("docs/examples/pipelines/baseline_reference/pipeline.py", "runs"),
@@ -36,7 +38,8 @@ def run_deterministic_rerun_validation(
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
     run_root = Path(output_root).resolve()
-    run_root.mkdir(parents=True, exist_ok=True)
+    ensure_output_root_available(run_root, collision_policy="reuse")
+    mark_run_started(run_root, {"run_type": "deterministic_rerun_validation"})
 
     selected_targets = tuple(targets or DEFAULT_CANONICAL_TARGETS)
     target_results: list[DeterministicRerunTargetResult] = []
@@ -59,14 +62,15 @@ def run_deterministic_rerun_validation(
         "pass_count": pass_count,
         "targets": [result.to_dict() for result in target_results],
     }
+    mark_run_completed(
+        run_root,
+        {"run_type": "deterministic_rerun_validation", "status": payload["status"]},
+    )
     return payload
 
 
 def write_deterministic_rerun_report(report: dict[str, Any], output_path: str | Path) -> Path:
-    output = Path(output_path)
-    output.parent.mkdir(parents=True, exist_ok=True)
-    output.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
-    return output
+    return atomic_write_json(output_path, report, sort_keys=True)
 
 
 def _run_single_target(

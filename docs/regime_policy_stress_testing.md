@@ -39,6 +39,7 @@ Key fields:
 - `scenarios`
 - `metrics`
 - `stress_gates`
+- `market_simulation_stress` (optional)
 - `output_root`
 
 Path behavior:
@@ -106,6 +107,55 @@ Derived stress metrics are deterministic, fixture-friendly approximations intend
 
 Real-data case studies should clearly separate observed benchmark results from synthetic stress results.
 
+## Optional Market Simulation Stress Evidence
+
+M26 stress tests can optionally stitch in existing M27 `simulation_metrics/` artifacts. This is an artifact-consumption bridge: it does not duplicate M27 simulation logic and it does not replace the Issue #299 deterministic regime shock, whipsaw, uncertainty, fallback, turnover, and adaptive-vs-static stress checks.
+
+Disabled or absent config is a no-op:
+
+```yaml
+market_simulation_stress:
+  enabled: false
+```
+
+Existing-artifact mode consumes the canonical M27 metrics directory:
+
+```yaml
+market_simulation_stress:
+  enabled: true
+  mode: existing_artifacts
+  simulation_metrics_dir: docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/<run_id>/market_simulations/simulation_metrics
+  include_in_policy_stress_summary: true
+  include_in_case_study_report: true
+```
+
+`run_config` mode is also available for fixture-backed configs that already use the M27 execution stack:
+
+```yaml
+market_simulation_stress:
+  enabled: true
+  mode: run_config
+  config_path: configs/regime_stress_tests/m27_market_simulation_case_study.yml
+```
+
+The bridge validates these M27 files before writing stitched M26 artifacts:
+
+- `simulation_path_metrics.csv`
+- `simulation_summary.csv`
+- `simulation_leaderboard.csv`
+- `policy_failure_summary.json`
+- `simulation_metric_config.json`
+- `manifest.json`
+
+When enabled, the stress run writes:
+
+- `market_simulation_stress_summary.json`
+- `market_simulation_stress_leaderboard.csv`
+
+The summary records source run ID, simulation types, path/summary/leaderboard counts, aggregate policy failure rate, best/worst ranked simulation scenarios, source artifact paths, and the Monte Carlo limitation note.
+
+M27 market simulation evidence is optional and complementary. Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available. Simulation outputs are not forecasts or trading recommendations.
+
 ## Gates
 
 Per scenario-policy row gates:
@@ -146,6 +196,11 @@ Expected artifacts:
 - `manifest.json`
 - `source_regime_review_pack.json`
 - `policy_input_inventory.json`
+
+When `market_simulation_stress.enabled=true`, the output directory also includes:
+
+- `market_simulation_stress_summary.json`
+- `market_simulation_stress_leaderboard.csv`
 
 ## CLI
 
@@ -198,6 +253,9 @@ Summary metadata includes explicit interpretation helpers such as:
 ## Limitations and Non-Goals
 
 - deterministic transforms are not market simulators
+- optional M27 market simulation stress evidence complements deterministic transforms but does not replace them
+- regime-transition Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available
+- simulation outputs are not forecasts or trading recommendations
 - registry-backed policy sourcing is future work
 - this issue does not build a full-year case study or final portfolio
 - this issue does not rerun or mutate upstream benchmark/gate/review/candidate artifacts

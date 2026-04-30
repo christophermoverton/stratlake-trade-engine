@@ -27,6 +27,8 @@ EXPECTED_OUTPUT_FILES = [
     "review_summary.json",
     "candidate_selection_summary.json",
     "stress_summary.json",
+    "market_simulation_stress_summary.json",
+    "market_simulation_stress_leaderboard.csv",
     "policy_variant_comparison.csv",
     "final_interpretation.md",
     "evidence_index.json",
@@ -68,6 +70,7 @@ def test_full_year_regime_policy_case_study_runs_and_writes_expected_outputs(tmp
         "review_run_id",
         "candidate_selection_run_id",
         "stress_run_id",
+        "market_simulation_run_id",
     }
     assert summary["source_runs"]["promotion_gate_run_id"] == summary["source_runs"]["promotion_gate_source_benchmark_run_id"]
 
@@ -99,6 +102,7 @@ def test_full_year_regime_policy_case_study_manifest_and_interpretation_have_key
     assert "## Promotion And Review Governance Evidence" in interpretation
     assert "## Candidate-Selection Evidence" in interpretation
     assert "## Deterministic Synthetic Stress Evidence" in interpretation
+    assert "## Market Simulation Stress Evidence" in interpretation
     assert "## Reproduction Command" in interpretation
 
 
@@ -109,6 +113,7 @@ def test_full_year_regime_policy_case_study_comparison_and_stress_fields(tmp_pat
 
     comparison = pd.read_csv(artifacts.output_root / "policy_variant_comparison.csv")
     stress_summary = _read_json(artifacts.output_root / "stress_summary.json")
+    market_simulation_summary = _read_json(artifacts.output_root / "market_simulation_stress_summary.json")
 
     assert comparison["policy_role"].tolist() == EXPECTED_POLICY_ROLES
     assert {
@@ -119,6 +124,10 @@ def test_full_year_regime_policy_case_study_comparison_and_stress_fields(tmp_pat
     }.issubset(set(stress_summary))
     if stress_summary.get("adaptive_policy_count", 0) > 0:
         assert stress_summary.get("most_resilient_adaptive_policy") is not None
+    assert market_simulation_summary["market_simulation_enabled"] is True
+    assert market_simulation_summary["regime_only_monte_carlo_note"] == (
+        "Monte Carlo paths are regime-only and do not fabricate return or policy metrics."
+    )
 
     comparison_source_paths = comparison["source_artifact_path"].dropna().astype("string").tolist()
     for value in comparison_source_paths:
@@ -138,6 +147,7 @@ def test_full_year_regime_policy_case_study_evidence_index_has_all_workflow_fami
         "review",
         "candidate_selection",
         "stress",
+        "market_simulation_stress",
     }.issubset(set(evidence_index["source_artifacts"]))
     assert "generated_case_study_artifacts" in evidence_index
     assert {
@@ -146,6 +156,8 @@ def test_full_year_regime_policy_case_study_evidence_index_has_all_workflow_fami
         "policy_variant_comparison",
         "final_interpretation",
         "workflow_outputs",
+        "market_simulation_stress_summary",
+        "market_simulation_stress_leaderboard",
     }.issubset(set(evidence_index["generated_case_study_artifacts"]))
 
 

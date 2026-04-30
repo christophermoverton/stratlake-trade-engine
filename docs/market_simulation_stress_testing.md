@@ -17,6 +17,16 @@ M26 regime policy stress testing applies deterministic fixture-friendly transfor
 
 It does not alter M26 stress-test semantics or introduce live trading behavior.
 
+Issue #310 adds an optional bridge back into the M26 adaptive policy stress and full-year case-study workflow. M26 can load the existing M27 `simulation_metrics/` artifacts, copy the simulation leaderboard, and include a compact market simulation stress summary beside deterministic M26 stress summaries. The bridge is optional, artifact-first, and intentionally reuses the M27 metrics layer instead of reimplementing simulation logic.
+
+M27 market simulation stress evidence complements but does not replace Issue #299 deterministic adaptive policy stress scenarios. The deterministic M26 scenarios remain the governance checks for regime shocks, whipsaws, classifier uncertainty, taxonomy/ML disagreement, fallback activation, policy turnover, and adaptive-vs-static comparisons. M27 contributes replayed or simulated path evidence and simulation-aware metrics when those artifacts are available.
+
+Important interpretation boundaries:
+
+- Regime-transition Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available.
+- Simulation-aware metrics summarize configured artifacts and do not forecast future returns.
+- Simulation outputs are research diagnostics, not trading recommendations.
+
 ## Simulation Types
 
 The framework recognizes these identifiers:
@@ -370,6 +380,17 @@ Generated files:
 - `policy_failure_summary.json`
 - `simulation_metric_config.json`
 - `manifest.json`
+
+These artifacts can be consumed by the M26 bridge through:
+
+```yaml
+market_simulation_stress:
+  enabled: true
+  mode: existing_artifacts
+  simulation_metrics_dir: artifacts/regime_stress_tests/<simulation_run_id>/market_simulations/simulation_metrics
+```
+
+The bridge validates the metrics files and preserves source artifact paths in relative form wherever possible.
 
 `simulation_path_metrics.csv` has one row per replay episode, overlay episode, bootstrap path, or Monte Carlo regime path. Stable columns include scenario identifiers, path or episode IDs, `tail_quantile`, availability flags, return metrics, adaptive-vs-static deltas, regime transition counts, stress regime share, failure reasons, overlay count, and `stress_score`.
 

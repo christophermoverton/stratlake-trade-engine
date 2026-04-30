@@ -12,7 +12,8 @@ This case study stitches Milestone 26 Issue 1 through Issue 5 evidence into one 
 4. Generate a review pack from benchmark and gate evidence.
 5. Run regime-aware candidate selection from review evidence.
 6. Run adaptive regime-policy stress tests.
-7. Stitch benchmark, governance, candidate, and stress evidence into one case-study summary.
+7. Load optional M27 market simulation stress metrics from existing artifacts.
+8. Stitch benchmark, governance, candidate, and stress evidence into one case-study summary.
 
 ## Data / Fixture Mode And Evaluation Window
 - Mode: fixture-backed deterministic case study
@@ -93,18 +94,40 @@ Deterministic synthetic stress evidence comes from:
 
 Important: these stress transforms are deterministic synthetic perturbations. They are robustness diagnostics, not empirical market simulation claims.
 
+## Optional Market Simulation Stress Evidence
+The case study also stitches in M27 market simulation stress metrics when the canonical fixture-backed M27 case-study output is available under:
+
+- docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/<run_id>/market_simulations/simulation_metrics/
+
+The stitched M26 output includes:
+
+- market_simulation_stress_summary.json
+- market_simulation_stress_leaderboard.csv
+
+This evidence complements Issue #299 deterministic adaptive policy stress testing. It does not replace deterministic regime shock, whipsaw, classifier uncertainty, taxonomy/ML disagreement, fallback, turnover, or adaptive-vs-static checks.
+
+Interpretation boundaries:
+
+- M27 simulation-aware metrics summarize configured replayed or simulated artifacts.
+- Regime-transition Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available.
+- Simulation outputs are not forecasts or trading recommendations.
+
 ## Final Interpretation
 The stitched interpretation in final_interpretation.md separates:
 - observed benchmark evidence
 - promotion/review governance evidence
 - candidate-selection evidence
 - deterministic synthetic stress evidence
+- optional M27 market simulation stress evidence
 
 It also summarizes the static baseline comparison and identifies the most resilient adaptive policy under stress.
 
 ## Limitations
 - Fixture-backed benchmark inputs are used to preserve reproducibility across environments without requiring complete local real-data coverage.
 - Stress scenarios are deterministic synthetic transforms and should not be interpreted as historical market simulation.
+- Market simulation stress evidence is optional and complements deterministic stress evidence; it does not replace it.
+- Monte Carlo paths are regime-only unless return or policy replay artifacts are explicitly available.
+- Simulation outputs are not forecasts or trading recommendations.
 - Outputs support research governance and evidence stitching; they do not imply production or trading readiness.
 
 ## Follow-Up Recommendations
@@ -128,6 +151,8 @@ Running the script writes deterministic stitched outputs to:
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/review_summary.json
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/candidate_selection_summary.json
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/stress_summary.json
+- docs/examples/output/full_year_regime_policy_benchmark_case_study/market_simulation_stress_summary.json
+- docs/examples/output/full_year_regime_policy_benchmark_case_study/market_simulation_stress_leaderboard.csv
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/policy_variant_comparison.csv
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/final_interpretation.md
 - docs/examples/output/full_year_regime_policy_benchmark_case_study/evidence_index.json

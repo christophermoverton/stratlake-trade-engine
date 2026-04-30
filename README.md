@@ -57,6 +57,13 @@ docs/examples/output/m27_market_simulation_case_study/
 The case study is deterministic and intended for research workflow validation.
 It does not forecast market returns or provide trading advice.
 
+M26 adaptive policy stress tests and the full-year regime policy case study can
+optionally consume these M27 `simulation_metrics/` artifacts. This market
+simulation evidence complements the deterministic Issue #299 stress scenarios;
+it does not replace regime shock, whipsaw, classifier uncertainty, fallback,
+turnover, or adaptive-vs-static checks. Regime-transition Monte Carlo paths are
+regime-only unless return or policy replay artifacts are explicitly available.
+
 ## Milestone 26 Summary
 
 Milestone 26 adds a governed adaptive regime-policy research workflow above the
@@ -97,6 +104,8 @@ Limitations to keep explicit:
   portability and does not require live market data
 * deterministic stress transforms are governance diagnostics, not empirical
   market simulations
+* optional M27 market simulation stress evidence complements deterministic
+  stress transforms and is not a forecast or trading recommendation
 * selected file-backed workflows reserve registry-backed expansion for later
   work
 * generated example outputs under
@@ -1207,6 +1216,10 @@ Milestone 26 regime-policy workflows write under these roots:
 * `artifacts/regime_stress_tests/<stress_run_id>/`
 * `docs/examples/output/full_year_regime_policy_benchmark_case_study/` when
   the fixture-backed case-study script is run locally
+
+When optional M27 market simulation evidence is enabled, regime stress outputs
+also include `market_simulation_stress_summary.json` and
+`market_simulation_stress_leaderboard.csv`.
 
 These artifacts include deterministic configs, manifests, summaries, matrices,
 leaderboards, decision logs, evidence indexes, and source-input inventories.

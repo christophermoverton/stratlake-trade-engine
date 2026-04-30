@@ -27,6 +27,17 @@ _ROOT_KEYS = frozenset(
         "output_root",
         "metadata",
         "source_candidate_selection",
+        "market_simulation_stress",
+    }
+)
+_MARKET_SIMULATION_STRESS_KEYS = frozenset(
+    {
+        "enabled",
+        "mode",
+        "simulation_metrics_dir",
+        "config_path",
+        "include_in_policy_stress_summary",
+        "include_in_case_study_report",
     }
 )
 _SOURCE_POLICY_KEYS = frozenset(
@@ -144,6 +155,28 @@ class RegimePolicyStressScenarioConfig:
 
 
 @dataclass(frozen=True)
+class RegimePolicyMarketSimulationStressConfig:
+    enabled: bool = False
+    mode: str = "existing_artifacts"
+    simulation_metrics_dir: str | None = None
+    config_path: str | None = None
+    include_in_policy_stress_summary: bool = True
+    include_in_case_study_report: bool = True
+
+    def to_dict(self) -> dict[str, Any]:
+        return canonicalize_value(
+            {
+                "enabled": self.enabled,
+                "mode": self.mode,
+                "simulation_metrics_dir": _path_or_none(self.simulation_metrics_dir),
+                "config_path": _path_or_none(self.config_path),
+                "include_in_policy_stress_summary": self.include_in_policy_stress_summary,
+                "include_in_case_study_report": self.include_in_case_study_report,
+            }
+        )
+
+
+@dataclass(frozen=True)
 class RegimePolicyStressTestConfig:
     stress_test_name: str
     source_review_pack: str | None = None
@@ -155,24 +188,28 @@ class RegimePolicyStressTestConfig:
     output_root: str = "artifacts/regime_stress_tests"
     metadata: dict[str, Any] = field(default_factory=dict)
     source_candidate_selection: str | None = None
+    market_simulation_stress: RegimePolicyMarketSimulationStressConfig = field(
+        default_factory=RegimePolicyMarketSimulationStressConfig
+    )
 
     def to_dict(self) -> dict[str, Any]:
-        return canonicalize_value(
-            {
-                "stress_test_name": self.stress_test_name,
-                "source_review_pack": _path_or_none(self.source_review_pack),
-                "source_policy_candidates": None
-                if self.source_policy_candidates is None
-                else self.source_policy_candidates.to_dict(),
-                "regime_context": self.regime_context.to_dict(),
-                "scenarios": [scenario.to_dict() for scenario in self.scenarios],
-                "metrics": self.metrics.to_dict(),
-                "stress_gates": self.stress_gates.to_dict(),
-                "output_root": Path(self.output_root).as_posix(),
-                "metadata": dict(self.metadata),
-                "source_candidate_selection": _path_or_none(self.source_candidate_selection),
-            }
-        )
+        payload = {
+            "stress_test_name": self.stress_test_name,
+            "source_review_pack": _path_or_none(self.source_review_pack),
+            "source_policy_candidates": None
+            if self.source_policy_candidates is None
+            else self.source_policy_candidates.to_dict(),
+            "regime_context": self.regime_context.to_dict(),
+            "scenarios": [scenario.to_dict() for scenario in self.scenarios],
+            "metrics": self.metrics.to_dict(),
+            "stress_gates": self.stress_gates.to_dict(),
+            "output_root": Path(self.output_root).as_posix(),
+            "metadata": dict(self.metadata),
+            "source_candidate_selection": _path_or_none(self.source_candidate_selection),
+        }
+        if self.market_simulation_stress.enabled:
+            payload["market_simulation_stress"] = self.market_simulation_stress.to_dict()
+        return canonicalize_value(payload)
 
     @classmethod
     def from_mapping(cls, payload: Mapping[str, Any]) -> "RegimePolicyStressTestConfig":
@@ -204,6 +241,9 @@ class RegimePolicyStressTestConfig:
             metadata=_resolve_optional_mapping(payload.get("metadata"), field_name="metadata"),
             source_candidate_selection=_optional_path_string(
                 payload.get("source_candidate_selection"), "source_candidate_selection"
+            ),
+            market_simulation_stress=_resolve_market_simulation_stress(
+                payload.get("market_simulation_stress")
             ),
         )
 
@@ -259,6 +299,7 @@ def apply_regime_policy_stress_test_overrides(
         output_root=Path(output_root).as_posix() if output_root is not None else config.output_root,
         metadata=config.metadata,
         source_candidate_selection=config.source_candidate_selection,
+        market_simulation_stress=config.market_simulation_stress,
     )
 
 
@@ -425,6 +466,54 @@ def _resolve_scenarios(value: Any) -> tuple[RegimePolicyStressScenarioConfig, ..
             )
         )
     return tuple(scenarios)
+
+
+def _resolve_market_simulation_stress(value: Any) -> RegimePolicyMarketSimulationStressConfig:
+    if value is None:
+        return RegimePolicyMarketSimulationStressConfig()
+    if not isinstance(value, Mapping):
+        raise RegimePolicyStressTestConfigError(
+            "Regime policy stress-test field 'market_simulation_stress' must be a mapping."
+        )
+    unknown = sorted(set(value) - _MARKET_SIMULATION_STRESS_KEYS)
+    if unknown:
+        raise RegimePolicyStressTestConfigError(
+            "Regime policy stress-test field 'market_simulation_stress' contains unsupported keys: "
+            f"{unknown}."
+        )
+    enabled = _bool(value.get("enabled", False), "market_simulation_stress.enabled")
+    mode = _required_string(value.get("mode", "existing_artifacts"), "market_simulation_stress.mode")
+    if mode not in {"existing_artifacts", "run_config"}:
+        raise RegimePolicyStressTestConfigError(
+            "Regime policy stress-test field 'market_simulation_stress.mode' must be "
+            "'existing_artifacts' or 'run_config'."
+        )
+    simulation_metrics_dir = _optional_path_string(
+        value.get("simulation_metrics_dir"), "market_simulation_stress.simulation_metrics_dir"
+    )
+    config_path = _optional_path_string(value.get("config_path"), "market_simulation_stress.config_path")
+    if enabled and mode == "existing_artifacts" and simulation_metrics_dir is None:
+        raise RegimePolicyStressTestConfigError(
+            "Enabled market_simulation_stress existing_artifacts mode requires simulation_metrics_dir."
+        )
+    if enabled and mode == "run_config" and config_path is None:
+        raise RegimePolicyStressTestConfigError(
+            "Enabled market_simulation_stress run_config mode requires config_path."
+        )
+    return RegimePolicyMarketSimulationStressConfig(
+        enabled=enabled,
+        mode=mode,
+        simulation_metrics_dir=simulation_metrics_dir,
+        config_path=config_path,
+        include_in_policy_stress_summary=_bool(
+            value.get("include_in_policy_stress_summary", True),
+            "market_simulation_stress.include_in_policy_stress_summary",
+        ),
+        include_in_case_study_report=_bool(
+            value.get("include_in_case_study_report", True),
+            "market_simulation_stress.include_in_case_study_report",
+        ),
+    )
 
 
 def _normalize_scenario_params(payload: Mapping[str, Any], *, scenario_type: str, index: int) -> dict[str, Any]:
@@ -596,6 +685,7 @@ __all__ = [
     "RegimePolicyStressCandidateSourceConfig",
     "RegimePolicyStressGatesConfig",
     "RegimePolicyStressMetricsConfig",
+    "RegimePolicyMarketSimulationStressConfig",
     "RegimePolicyStressRegimeContextConfig",
     "RegimePolicyStressScenarioConfig",
     "RegimePolicyStressTestConfig",

@@ -36,6 +36,45 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+## Milestone 27 Summary
+
+Milestone 27 adds a full market simulation stress-testing stack on top of the
+Milestone 26 adaptive regime-policy governance layer. It introduces four
+simulation models — historical episode replay, market shock overlay,
+regime-aware block bootstrap, and regime-transition Monte Carlo — and a unified
+simulation metrics and leaderboard layer that ranks policies by their worst-case
+tail behavior across all simulated paths.
+
+Market simulation evidence complements, but does not replace, the Milestone 26
+deterministic policy stress transforms. An optional integration bridge allows
+the M26 full-year case study to include M27 simulation leaderboard data when
+M27 artifacts are present.
+
+Common Milestone 27 CLI and script entrypoints:
+
+```bash
+python docs/examples/m27_market_simulation_case_study.py
+python -m src.cli.run_market_simulation_scenarios \
+  --config configs/regime_stress_tests/m27_market_simulation_case_study.yml
+```
+
+Start with:
+
+* [docs/market_simulation_models_and_integrations.md](docs/market_simulation_models_and_integrations.md)
+* [docs/examples/m27_market_simulation_case_study.md](docs/examples/m27_market_simulation_case_study.md)
+* [docs/examples/full_year_regime_policy_benchmark_case_study.md](docs/examples/full_year_regime_policy_benchmark_case_study.md)
+
+Limitations to keep explicit:
+
+* simulation paths are fixture-backed synthetic paths, not live or
+  forward-looking market data
+* Monte Carlo paths generate regime-label sequences only; no return metrics
+  are fabricated
+* simulation outputs are for research governance and stress-context review,
+  not trading signals or return forecasts
+* the M26 integration bridge is optional; M26 workflows run unchanged when
+  the bridge is absent or disabled
+
 ## Milestone 26 Summary
 
 Milestone 26 adds a governed adaptive regime-policy research workflow above the

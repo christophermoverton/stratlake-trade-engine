@@ -107,6 +107,57 @@ It also summarizes the static baseline comparison and identifies the most resili
 - Stress scenarios are deterministic synthetic transforms and should not be interpreted as historical market simulation.
 - Outputs support research governance and evidence stitching; they do not imply production or trading readiness.
 
+## M27 Market Simulation Integration (Optional)
+
+Milestone 27 adds an optional market simulation bridge that extends this case
+study with synthetic stress-path evidence. When enabled, the bridge reads
+pre-computed M27 simulation metrics and appends simulation leaderboard and
+policy failure data to the stitched report.
+
+### Enabling the bridge
+
+Add a `market_simulation_stress` block to the case-study config, or pass
+equivalent CLI overrides:
+
+```yaml
+market_simulation_stress:
+  enabled: true
+  mode: existing_artifacts
+  simulation_metrics_dir: artifacts/market_simulation/<run_id>/simulation_metrics
+  include_in_policy_stress_summary: true
+  include_in_case_study_report: true
+```
+
+Run the M27 case study first to generate the required simulation metrics:
+
+```bash
+python docs/examples/m27_market_simulation_case_study.py
+```
+
+Then run this case study as normal. The bridge will load
+`simulation_leaderboard.csv` and `policy_failure_summary.json` from the
+specified `simulation_metrics_dir` and include them in:
+
+- `policy_stress_summary.json` (under the `market_simulation_stress` key)
+- `final_interpretation.md` (as an additional simulation-stress section)
+
+### Default no-op behavior
+
+If the `market_simulation_stress` block is absent or `enabled: false`, this
+case study runs exactly as before with no M27 artifacts loaded.
+
+### Strict mode
+
+Pass `--require-market-simulation-stress` to require M27 evidence and fail
+with a non-zero exit if it is missing.
+
+### Relationship to M26 deterministic stress tests
+
+M27 simulation evidence supplements the M26 deterministic stress results. Both
+are included in the stitched report when the bridge is enabled. See
+[docs/market_simulation_models_and_integrations.md](../market_simulation_models_and_integrations.md)
+for the full M27 architecture and integration reference.
+
 ## Follow-Up Recommendations
 1. Replace fixture-backed benchmark inputs with fully covered real full-year benchmark outputs when available.
 2. Compare multiple calibration profiles and policy profiles under the same stitched workflow.

@@ -45,6 +45,16 @@ The framework source artifacts used to build those files are written under:
 docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/
 ```
 
+The source `simulation_metrics/` directory uses the canonical M27 metrics
+artifact names:
+
+- `simulation_path_metrics.csv`
+- `simulation_summary.csv`
+- `simulation_leaderboard.csv`
+- `policy_failure_summary.json`
+- `simulation_metric_config.json`
+- `manifest.json`
+
 ## Interpretation Guardrails
 
 The leaderboard ranks deterministic stress-test artifacts under the configured

@@ -161,6 +161,11 @@ Source framework artifacts are retained under:
 docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/
 ```
 
+The source `simulation_metrics/` artifacts use the canonical M27 names:
+`simulation_path_metrics.csv`, `simulation_summary.csv`,
+`simulation_leaderboard.csv`, `policy_failure_summary.json`,
+`simulation_metric_config.json`, and `manifest.json`.
+
 ## Limitations
 
 - Fixture-backed examples validate workflow plumbing and artifact contracts only.

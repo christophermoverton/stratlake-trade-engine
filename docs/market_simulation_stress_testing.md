@@ -6,6 +6,9 @@ The M27 market simulation framework is the deterministic artifact layer for adap
 
 Historical episode replay, regime-aware block bootstrap, regime-transition Monte Carlo, shock overlays, simulation-aware stress metrics, and the end-to-end case study are the implemented M27 layers. Transition bootstrap as a standalone scenario remains reserved for a follow-up issue.
 
+For a model-by-model integration matrix and M26 bridge behavior, see
+`docs/market_simulation_models_and_integrations.md`.
+
 ## Relationship to M26
 
 M26 regime policy stress testing applies deterministic fixture-friendly transforms to candidate policy metrics. M27 adds the shared scenario framework that later market-simulation methods can use to feed richer stress paths into the same governance style:
@@ -654,6 +657,13 @@ The case study calls the existing framework using
 is fixture-backed and does not forecast market returns or provide trading
 advice. A stable docs copy of the report lives at
 `docs/examples/m27_market_simulation_case_study_report.md`.
+
+The case-study source metrics are written under the ignored
+`docs/examples/output/m27_market_simulation_case_study/source_simulation_artifacts/`
+tree with the canonical metrics filenames: `simulation_path_metrics.csv`,
+`simulation_summary.csv`, `simulation_leaderboard.csv`,
+`policy_failure_summary.json`, `simulation_metric_config.json`, and
+`manifest.json`.
 
 ## Non-Goals
 

@@ -39,8 +39,9 @@ Start with:
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing
-across historical replay, block bootstrap paths, regime-transition Monte Carlo
-paths, shock overlays, and simulation-aware stress metrics.
+across the market simulation scenario framework, historical episode replay,
+shock overlays, regime-aware block bootstrap paths, regime-transition Monte
+Carlo paths, simulation-aware stress metrics, and policy failure leaderboards.
 
 Run:
 
@@ -60,13 +61,30 @@ It does not forecast market returns or provide trading advice.
 M26 adaptive policy stress tests and the full-year regime policy case study can
 optionally consume these M27 `simulation_metrics/` artifacts. The full-year M26
 case study still runs when M27 artifacts are absent and records the optional
-evidence as unavailable. Use
-`--require-market-simulation-stress` to make missing M27 artifacts a hard
-failure. This market simulation evidence complements the deterministic Issue
-#299 stress scenarios; it does not replace regime shock, whipsaw, classifier
-uncertainty, fallback, turnover, or adaptive-vs-static checks.
-Regime-transition Monte Carlo paths are regime-only unless return or policy
-replay artifacts are explicitly available.
+evidence as unavailable with `market_simulation_available=false` and a
+schema-only empty leaderboard. Use `--require-market-simulation-stress` to make
+missing M27 artifacts a hard failure. The bridge supports `existing_artifacts`
+mode for a prebuilt M27 `simulation_metrics/` directory and `run_config` mode
+for fixture-backed configs that already use the M27 execution stack. This
+market simulation evidence complements the deterministic Issue #299 stress
+scenarios; it does not replace regime shock, whipsaw, classifier uncertainty,
+fallback, turnover, or adaptive-vs-static checks. Regime-transition Monte Carlo
+paths are regime-only unless return or policy replay artifacts are explicitly
+available.
+
+Canonical M27 metrics artifacts:
+
+* `simulation_path_metrics.csv`
+* `simulation_summary.csv`
+* `simulation_leaderboard.csv`
+* `policy_failure_summary.json`
+* `simulation_metric_config.json`
+* `manifest.json`
+
+M26 integration artifacts:
+
+* `market_simulation_stress_summary.json`
+* `market_simulation_stress_leaderboard.csv`
 
 ## Milestone 26 Summary
 
@@ -1325,6 +1343,8 @@ Start here:
 * [docs/regime_review_packs.md](docs/regime_review_packs.md)
 * [docs/regime_aware_candidate_selection.md](docs/regime_aware_candidate_selection.md)
 * [docs/regime_policy_stress_testing.md](docs/regime_policy_stress_testing.md)
+* [docs/market_simulation_stress_testing.md](docs/market_simulation_stress_testing.md)
+* [docs/market_simulation_models_and_integrations.md](docs/market_simulation_models_and_integrations.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
@@ -1377,6 +1397,7 @@ Merge-readiness notes:
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
+* [docs/milestone_27_merge_readiness.md](docs/milestone_27_merge_readiness.md)
 
 ## Repository Layout
 

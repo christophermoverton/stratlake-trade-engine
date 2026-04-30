@@ -35,6 +35,39 @@ The leaderboard ranks scenarios by `mean_stress_score`. The best-ranked scenario
 | 3 | `case_regime_transition_mc` | `regime_transition_monte_carlo` | 1.825000 | `review` |
 | 4 | `case_regime_bootstrap` | `regime_block_bootstrap` | 3.423631 | `review` |
 
+## Scenario Metric Summary
+
+This table shows the scenario-level metrics used by the leaderboard and diagnostics. Blank values indicate that the source artifact does not support that metric family.
+
+| Scenario | Return rows | Policy rows | Regime rows | Mean total return | Worst drawdown | Mean stress share | Mean stress score | Notes |
+| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |
+| `case_historical_episode` | 1 | 1 | 0 | -0.026039 | -0.018000 |  | 0.180000 | `regime_metrics_unavailable` |
+| `case_regime_bootstrap` | 2 | 0 | 2 | -0.022897 | -0.037688 | 1.000000 | 3.423631 | `policy_metrics_unavailable` |
+| `case_regime_transition_mc` | 0 | 0 | 2 |  |  | 0.562500 | 1.825000 | `return_metrics_unavailable;policy_metrics_unavailable` |
+| `case_shock_overlay` | 1 | 1 | 0 | -0.073332 | -0.049571 |  | 1.495715 | `regime_metrics_unavailable` |
+
+## Path-Level Diagnostics
+
+The metrics layer emits one row per replay episode, overlay episode, bootstrap path, or Monte Carlo regime path. This compact view keeps the most actionable columns.
+
+| Scenario | Path/Episode | Total return | Max drawdown | Regime transitions | Stress share | Failure | Reason | Stress score |
+| --- | --- | ---: | ---: | ---: | ---: | --- | --- | ---: |
+| `case_historical_episode` | `volatility_spike_fixture_703b7ea6ad15` | -0.026039 | -0.018000 |  |  | `False` | `none` | 0.180000 |
+| `case_regime_bootstrap` | `case_regime_bootstrap_2bf0fc923c47_path_000000_e68e7c219b5f` | -0.022326 | -0.037688 | 2 | 1.000000 | `True` | `max_stress_regime_share` | 3.476880 |
+| `case_regime_bootstrap` | `case_regime_bootstrap_2bf0fc923c47_path_000001_864a32f31e0d` | -0.023467 | -0.032038 | 1 | 1.000000 | `True` | `max_stress_regime_share` | 3.370382 |
+| `case_regime_transition_mc` | `case_regime_transition_mc_e83001a03dff_path_000000_feb5b26ee7e8` |  |  | 4 | 0.500000 | `False` | `none` | 1.200000 |
+| `case_regime_transition_mc` | `case_regime_transition_mc_e83001a03dff_path_000001_30cb53b3c990` |  |  | 4 | 0.625000 | `True` | `max_stress_regime_share` | 2.450000 |
+| `case_shock_overlay` | `volatility_spike_fixture_703b7ea6ad15` | -0.073332 | -0.049571 |  |  | `True` | `min_total_return` | 1.495715 |
+
+## Failure Diagnostics
+
+4 of 6 path metric rows breached at least one configured threshold.
+
+| Failure reason | Count |
+| --- | ---: |
+| `max_stress_regime_share` | 3 |
+| `min_total_return` | 1 |
+
 ## Historical Replay Interpretation
 
 Historical replay uses the configured fixture episode rows as-is and compares adaptive policy returns with the static baseline where source columns are available. This is a deterministic replay of checked-in fixture data, not evidence of future performance.

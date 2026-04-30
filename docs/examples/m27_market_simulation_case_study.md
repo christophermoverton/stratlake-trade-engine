@@ -36,6 +36,9 @@ Primary files:
 - `case_study_report.md`
 - `manifest.json`
 
+A stable docs copy of the generated report is available at
+`docs/examples/m27_market_simulation_case_study_report.md`.
+
 The framework source artifacts used to build those files are written under:
 
 ```text
@@ -49,3 +52,9 @@ thresholds. Lower `mean_stress_score` ranks better in the default config. The
 regime-transition Monte Carlo scenario is regime-only; it does not fabricate
 returns, prices, or policy outcomes. All outputs are fixture-backed examples and
 do not predict future market behavior.
+
+## Report
+
+See [m27_market_simulation_case_study_report.md](m27_market_simulation_case_study_report.md)
+for the generated case-study interpretation, leaderboard summary, limitations,
+and recommended follow-ups.

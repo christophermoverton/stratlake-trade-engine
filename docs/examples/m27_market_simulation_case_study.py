@@ -78,6 +78,7 @@ def run_example(
         simulation_summary=simulation_summary,
         leaderboard_rows=leaderboard_rows,
         summary_rows=summary_rows,
+        path_metric_rows=path_metric_rows,
         manifest=manifest,
     )
     (output_root / CASE_STUDY_OUTPUTS["case_study_report_md"]).write_text(
@@ -227,6 +228,7 @@ def _report(
     simulation_summary: Mapping[str, Any],
     leaderboard_rows: list[dict[str, str]],
     summary_rows: list[dict[str, str]],
+    path_metric_rows: list[dict[str, str]],
     manifest: Mapping[str, Any],
 ) -> str:
     best = simulation_summary["best_ranked_scenario"]
@@ -238,6 +240,9 @@ def _report(
         f"{row['path_count']} path row(s), policy failure rate {row['policy_failure_rate'] or '0.0'}."
         for row in summary_rows
     )
+    metric_table = _scenario_metric_table(summary_rows)
+    path_table = _path_metric_table(path_metric_rows)
+    failure_table = _failure_table(path_metric_rows)
     return (
         "# M27 Market Simulation Stress Testing Case Study\n\n"
         "## Research Question\n\n"
@@ -264,6 +269,16 @@ def _report(
         f"{best['ranking_value']:.6f}. The worst-ranked scenario is `{worst['scenario_name']}` "
         f"({worst['simulation_type']}) with value {worst['ranking_value']:.6f}.\n\n"
         f"{leaderboard_preview}\n\n"
+        "## Scenario Metric Summary\n\n"
+        "This table shows the scenario-level metrics used by the leaderboard and diagnostics. "
+        "Blank values indicate that the source artifact does not support that metric family.\n\n"
+        f"{metric_table}\n\n"
+        "## Path-Level Diagnostics\n\n"
+        "The metrics layer emits one row per replay episode, overlay episode, bootstrap path, "
+        "or Monte Carlo regime path. This compact view keeps the most actionable columns.\n\n"
+        f"{path_table}\n\n"
+        "## Failure Diagnostics\n\n"
+        f"{failure_table}\n\n"
         "## Historical Replay Interpretation\n\n"
         "Historical replay uses the configured fixture episode rows as-is and compares adaptive "
         "policy returns with the static baseline where source columns are available. This is a "
@@ -310,6 +325,75 @@ def _leaderboard_preview(rows: list[dict[str, str]]) -> str:
             f"{_float(row.get('ranking_value'), default=0.0):.6f} | `{row['decision_label']}` |"
         )
     return "\n".join(lines)
+
+
+def _scenario_metric_table(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return "No scenario summary rows were generated."
+    lines = [
+        "| Scenario | Return rows | Policy rows | Regime rows | Mean total return | "
+        "Worst drawdown | Mean stress share | Mean stress score | Notes |",
+        "| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | --- |",
+    ]
+    for row in rows:
+        lines.append(
+            f"| `{row['scenario_name']}` | {row['paths_with_return_metrics']} | "
+            f"{row['paths_with_policy_metrics']} | {row['paths_with_regime_metrics']} | "
+            f"{_fmt(row.get('mean_total_return'))} | {_fmt(row.get('worst_max_drawdown'))} | "
+            f"{_fmt(row.get('mean_stress_regime_share'))} | {_fmt(row.get('mean_stress_score'))} | "
+            f"`{row.get('notes') or 'available'}` |"
+        )
+    return "\n".join(lines)
+
+
+def _path_metric_table(rows: list[dict[str, str]]) -> str:
+    if not rows:
+        return "No path metric rows were generated."
+    lines = [
+        "| Scenario | Path/Episode | Total return | Max drawdown | Regime transitions | "
+        "Stress share | Failure | Reason | Stress score |",
+        "| --- | --- | ---: | ---: | ---: | ---: | --- | --- | ---: |",
+    ]
+    for row in rows:
+        path_label = row.get("episode_id") or row.get("path_id") or f"path_{row.get('path_index', '')}"
+        lines.append(
+            f"| `{row['scenario_name']}` | `{path_label}` | {_fmt(row.get('total_return'))} | "
+            f"{_fmt(row.get('max_drawdown'))} | {_fmt(row.get('regime_transition_count'), decimals=0)} | "
+            f"{_fmt(row.get('stress_regime_share'))} | `{row.get('policy_failure')}` | "
+            f"`{row.get('failure_reason') or 'none'}` | {_fmt(row.get('stress_score'))} |"
+        )
+    return "\n".join(lines)
+
+
+def _failure_table(rows: list[dict[str, str]]) -> str:
+    reason_counts: dict[str, int] = {}
+    failed = 0
+    for row in rows:
+        if str(row.get("policy_failure", "")).lower() == "true":
+            failed += 1
+        for reason in str(row.get("failure_reason") or "").split(";"):
+            if reason:
+                reason_counts[reason] = reason_counts.get(reason, 0) + 1
+    if not reason_counts:
+        return "No configured policy failure threshold was breached."
+    lines = [
+        f"{failed} of {len(rows)} path metric rows breached at least one configured threshold.",
+        "",
+        "| Failure reason | Count |",
+        "| --- | ---: |",
+    ]
+    for reason, count in sorted(reason_counts.items()):
+        lines.append(f"| `{reason}` | {count} |")
+    return "\n".join(lines)
+
+
+def _fmt(value: Any, *, decimals: int = 6) -> str:
+    if value in {None, ""}:
+        return ""
+    try:
+        return f"{float(value):.{decimals}f}"
+    except (TypeError, ValueError):
+        return str(value)
 
 
 def _read_csv(path: Path) -> list[dict[str, str]]:

@@ -631,7 +631,8 @@ The case study calls the existing framework using
 `manifest.json` under
 `docs/examples/output/m27_market_simulation_case_study/`. The generated report
 is fixture-backed and does not forecast market returns or provide trading
-advice.
+advice. A stable docs copy of the report lives at
+`docs/examples/m27_market_simulation_case_study_report.md`.
 
 ## Non-Goals
 

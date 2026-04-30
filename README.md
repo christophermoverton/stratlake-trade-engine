@@ -1346,6 +1346,7 @@ Examples:
 * [docs/examples/scale_repro_benchmark_pack.md](docs/examples/scale_repro_benchmark_pack.md)
 * [docs/examples/full_year_regime_policy_benchmark_case_study.md](docs/examples/full_year_regime_policy_benchmark_case_study.md)
 * [docs/examples/m27_market_simulation_case_study.md](docs/examples/m27_market_simulation_case_study.md)
+* [docs/examples/m27_market_simulation_case_study_report.md](docs/examples/m27_market_simulation_case_study_report.md)
 * [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)

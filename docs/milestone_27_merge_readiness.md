@@ -89,16 +89,39 @@ Notes:
 
 ## Post-Merge Validation Checklist
 
-Record final results here after merging to `main`:
+Post-merge validation ran on `main` after the no-fast-forward merge.
 
 | Command | Result |
 | --- | --- |
-| `.\.venv\Scripts\ruff.exe check src docs tests configs` | Pending |
-| Focused M27/M26 pytest commands | Pending |
-| M27 case-study example | Pending |
-| Full-year M26 case-study example | Pending |
-| `git diff --check` | Pending |
-| GitHub Actions merge commit status | Pending if available |
+| `.\.venv\Scripts\ruff.exe check src docs tests configs` | Passed |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_market_simulation_policy_stress_integration.py` | Passed, 7 tests |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_m27_market_simulation_case_study.py` | Passed, 7 tests |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_simulation_stress_metrics.py tests\test_market_simulation_artifacts.py` | Passed, 28 tests |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_regime_policy_stress_tests.py` | Passed, 16 tests |
+| `.\.venv\Scripts\python.exe -m pytest tests\test_full_year_regime_policy_benchmark_case_study.py` | Passed, 8 tests |
+| `.\.venv\Scripts\python.exe docs\examples\m27_market_simulation_case_study.py` | Passed |
+| `.\.venv\Scripts\python.exe docs\examples\full_year_regime_policy_benchmark_case_study.py` | Passed; status `success (fixture_backed)` |
+| `git diff --check` | Passed |
+| GitHub Actions merge commit status | Pending remote push |
+
+## Merge Procedure
+
+Actual merge commit:
+`3b27bf41e567a3730777101486c2296c8252ce3c`
+
+Commands used:
+
+```powershell
+git checkout main
+git pull --ff-only origin main
+git merge --no-ff feature/m27-market-simulation-stress-testing
+```
+
+Conflict resolution: documentation overlaps in `README.md`,
+`docs/examples/m27_market_simulation_case_study.md`, and
+`docs/market_simulation_models_and_integrations.md` were resolved by preserving
+the validated feature-branch release-readiness docs and normalizing conflicted
+Markdown back to LF line endings.
 
 ## Release Recommendation
 

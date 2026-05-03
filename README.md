@@ -81,6 +81,7 @@ python docs/examples/m28_unified_regime_research_case_study.py --dry-run
 
 Start with:
 
+* [docs/milestone_28_recent_implementation_audit.md](docs/milestone_28_recent_implementation_audit.md)
 * [docs/milestone_28_unified_regime_research_case_study.md](docs/milestone_28_unified_regime_research_case_study.md)
 * [docs/cross_layer_validation.md](docs/cross_layer_validation.md)
 * [docs/notebook_integration.md](docs/notebook_integration.md)

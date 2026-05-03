@@ -32,10 +32,18 @@ operational runs.
 Start with:
 
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
+* [docs/pipeline_integration.md](docs/pipeline_integration.md)
 * [docs/concurrency_and_idempotency.md](docs/concurrency_and_idempotency.md)
 * [docs/examples/notebook_execution_api_examples.md](docs/examples/notebook_execution_api_examples.md)
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
+
+Milestone 28 adds Airflow, Prefect, and Dagster-style integration patterns as
+thin optional wrappers around existing StratLake CLI and `src.execution`
+surfaces. These examples do not add scheduler dependencies to the core runtime;
+they emphasize unique output roots, retry-safe artifact handling, and the
+idempotency guidance in
+[`docs/concurrency_and_idempotency.md`](docs/concurrency_and_idempotency.md).
 
 ### Milestone 27: Market Simulation Stress Testing Case Study
 

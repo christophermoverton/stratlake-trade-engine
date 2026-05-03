@@ -9,6 +9,7 @@ from src.execution.portfolio import run_portfolio
 from src.execution.result import ExecutionResult, load_json_artifact
 from src.execution.strategy import run_strategy
 from src.execution.validation import (
+    run_cross_layer_validation,
     run_docs_path_lint,
     run_deterministic_rerun_validation,
     run_milestone_validation,
@@ -22,6 +23,7 @@ __all__ = [
     "run_alpha_evaluation",
     "run_benchmark_pack",
     "run_campaign",
+    "run_cross_layer_validation",
     "run_docs_path_lint",
     "run_deterministic_rerun_validation",
     "run_milestone_validation",

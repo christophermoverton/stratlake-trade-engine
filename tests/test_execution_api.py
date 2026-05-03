@@ -701,7 +701,7 @@ def test_run_milestone_validation_api_exposes_bundle_artifacts(monkeypatch, tmp_
 
     monkeypatch.setattr(
         "src.validation.milestone_bundle.build_milestone_validation_bundle",
-        lambda repo_root, bundle_dir, include_full_pytest: summary,
+        lambda repo_root, bundle_dir, include_full_pytest, include_cross_layer_validation=False: summary,
     )
 
     result = run_milestone_validation(repo_root=tmp_path, bundle_dir=bundle_dir)

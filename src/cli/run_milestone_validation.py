@@ -23,6 +23,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         action="store_true",
         help="Also run the full pytest suite in addition to the milestone test slice.",
     )
+    parser.add_argument(
+        "--include-cross-layer-validation",
+        action="store_true",
+        help="Also run the M28 cross-layer validation report inside the bundle.",
+    )
     return parser.parse_args(argv)
 
 

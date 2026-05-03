@@ -35,6 +35,7 @@ Start with:
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
 * [docs/pipeline_integration.md](docs/pipeline_integration.md)
 * [docs/concurrency_and_idempotency.md](docs/concurrency_and_idempotency.md)
+* [docs/cross_layer_validation.md](docs/cross_layer_validation.md)
 * [docs/examples/notebook_execution_api_examples.md](docs/examples/notebook_execution_api_examples.md)
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
@@ -45,6 +46,11 @@ surfaces. These examples do not add scheduler dependencies to the core runtime;
 they emphasize unique output roots, retry-safe artifact handling, and the
 idempotency guidance in
 [`docs/concurrency_and_idempotency.md`](docs/concurrency_and_idempotency.md).
+Cross-layer validation in
+[`docs/cross_layer_validation.md`](docs/cross_layer_validation.md) compares
+representative CLI, `src.execution`, notebook-style, and orchestrator-wrapper
+benchmark-pack artifacts after normalizing root-specific paths and transient
+runtime fields.
 
 ### Milestone 27: Market Simulation Stress Testing Case Study
 

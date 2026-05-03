@@ -40,6 +40,7 @@ def build_milestone_validation_bundle(
     repo_root: str | Path,
     bundle_dir: str | Path,
     include_full_pytest: bool = False,
+    include_cross_layer_validation: bool = False,
     pytest_targets: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
@@ -59,6 +60,20 @@ def build_milestone_validation_bundle(
         output_root=checks_dir / "rerun_workdir",
     )
     rerun_path = write_deterministic_rerun_report(rerun_report, checks_dir / "deterministic_rerun.json")
+
+    cross_layer_report = None
+    cross_layer_path = None
+    if include_cross_layer_validation:
+        from src.validation.cross_layer import run_cross_layer_validation, write_cross_layer_validation_report
+
+        cross_layer_report = run_cross_layer_validation(
+            repo_root=root,
+            output_root=checks_dir / "cross_layer_workdir",
+        )
+        cross_layer_path = write_cross_layer_validation_report(
+            cross_layer_report,
+            checks_dir / "cross_layer_validation_report.json",
+        )
 
     command_results: list[CommandResult] = []
     command_results.append(
@@ -130,6 +145,7 @@ def build_milestone_validation_bundle(
     overall_passed = (
         docs_lint_report["status"] == "passed"
         and rerun_report["status"] == "passed"
+        and (cross_layer_report is None or cross_layer_report["status"] == "passed")
         and command_status
     )
 
@@ -158,7 +174,15 @@ def build_milestone_validation_bundle(
         },
         "pytest_targets": list(selected_targets),
         "include_full_pytest": include_full_pytest,
+        "include_cross_layer_validation": include_cross_layer_validation,
     }
+    if cross_layer_report is not None and cross_layer_path is not None:
+        summary["checks"]["cross_layer_validation"] = {
+            "status": cross_layer_report["status"],
+            "report_path": cross_layer_path.relative_to(bundle).as_posix(),
+            "scenario_count": cross_layer_report["scenario_count"],
+            "pass_count": cross_layer_report["pass_count"],
+        }
 
     summary_path = bundle / "summary.json"
     atomic_write_json(summary_path, summary, sort_keys=True)

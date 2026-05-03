@@ -63,11 +63,47 @@ def run_deterministic_rerun_validation(
     )
 
 
+def run_cross_layer_validation(
+    *,
+    repo_root: str | Path = ".",
+    workdir: str | Path = "artifacts/qa/m28_cross_layer_validation",
+    output: str | Path = "artifacts/qa/cross_layer_validation_report.json",
+    scenarios: Sequence[str] | None = None,
+) -> ExecutionResult:
+    """Run representative M28 cross-layer validation and write the JSON report."""
+
+    from src.validation.cross_layer import (
+        run_cross_layer_validation as run_validation,
+        write_cross_layer_validation_report,
+    )
+
+    report = run_validation(
+        repo_root=Path(repo_root),
+        output_root=Path(workdir),
+        scenarios=scenarios,
+    )
+    output_path = write_cross_layer_validation_report(report, Path(output))
+    return ExecutionResult(
+        workflow="cross_layer_validation",
+        run_id="cross_layer_validation",
+        name="cross_layer_validation",
+        artifact_dir=output_path.parent,
+        metrics=dict(report),
+        output_paths={"report_json": output_path},
+        extra={
+            "scenario_count": report.get("scenario_count"),
+            "pass_count": report.get("pass_count"),
+        },
+        raw_result=report,
+    )
+
+
 def run_milestone_validation(
     *,
     repo_root: str | Path = ".",
     bundle_dir: str | Path = "artifacts/qa/milestone_validation_bundle",
     include_full_pytest: bool = False,
+    include_cross_layer_validation: bool = False,
 ) -> ExecutionResult:
     """Run milestone validation bundle generation through the shared API."""
 
@@ -77,6 +113,7 @@ def run_milestone_validation(
         repo_root=Path(repo_root),
         bundle_dir=Path(bundle_dir),
         include_full_pytest=include_full_pytest,
+        include_cross_layer_validation=include_cross_layer_validation,
     )
     resolved_bundle_dir = Path(str(summary["bundle_dir"]))
     output_paths = {
@@ -85,6 +122,7 @@ def run_milestone_validation(
             "summary_json": resolved_bundle_dir / "summary.json",
             "docs_path_lint_json": _bundle_path(summary, "docs_path_lint"),
             "deterministic_rerun_json": _bundle_path(summary, "deterministic_rerun"),
+            "cross_layer_validation_json": _bundle_path(summary, "cross_layer_validation"),
         }.items()
         if value is not None
     }
@@ -98,6 +136,7 @@ def run_milestone_validation(
         extra={
             "checks": dict(summary.get("checks", {})),
             "include_full_pytest": summary.get("include_full_pytest"),
+            "include_cross_layer_validation": summary.get("include_cross_layer_validation"),
             "pytest_targets": list(summary.get("pytest_targets", [])),
         },
         raw_result=summary,
@@ -119,11 +158,21 @@ def run_deterministic_rerun_validation_from_cli_args(args) -> ExecutionResult:
     )
 
 
+def run_cross_layer_validation_from_cli_args(args) -> ExecutionResult:
+    return run_cross_layer_validation(
+        repo_root=args.repo_root,
+        workdir=args.workdir,
+        output=args.output,
+        scenarios=tuple(args.scenario) if args.scenario else None,
+    )
+
+
 def run_milestone_validation_from_cli_args(args) -> ExecutionResult:
     return run_milestone_validation(
         repo_root=args.repo_root,
         bundle_dir=args.bundle_dir,
         include_full_pytest=bool(args.include_full_pytest),
+        include_cross_layer_validation=bool(getattr(args, "include_cross_layer_validation", False)),
     )
 
 
@@ -137,6 +186,12 @@ def run_deterministic_rerun_validation_from_argv(argv: Sequence[str] | None = No
     from src.cli.run_deterministic_rerun_validation import parse_args
 
     return run_deterministic_rerun_validation_from_cli_args(parse_args(argv))
+
+
+def run_cross_layer_validation_from_argv(argv: Sequence[str] | None = None) -> ExecutionResult:
+    from src.cli.run_cross_layer_validation import parse_args
+
+    return run_cross_layer_validation_from_cli_args(parse_args(argv))
 
 
 def run_milestone_validation_from_argv(argv: Sequence[str] | None = None) -> ExecutionResult:

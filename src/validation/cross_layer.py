@@ -19,6 +19,9 @@ DEFAULT_SCENARIOS: tuple[str, ...] = (
     "notebook_benchmark_api",
     "prefect_wrapper_api",
 )
+# Optional M28.6 scenario (not included in DEFAULT_SCENARIOS — opt-in only).
+M28_6_SCENARIO = "m28_6_capstone_notebook_api"
+ALL_SCENARIOS: tuple[str, ...] = DEFAULT_SCENARIOS + (M28_6_SCENARIO,)
 
 _JSON_OUTPUT_KEYS = (
     "config_json",
@@ -119,7 +122,7 @@ def run_cross_layer_validation(
     work_root = _next_attempt_root(run_root / "attempts", prefix=f"pid_{os.getpid()}")
 
     selected = tuple(scenarios or DEFAULT_SCENARIOS)
-    unknown = sorted(set(selected).difference(DEFAULT_SCENARIOS))
+    unknown = sorted(set(selected).difference(ALL_SCENARIOS))
     if unknown:
         raise ValueError(f"Unknown cross-layer validation scenario(s): {', '.join(unknown)}")
 
@@ -189,6 +192,11 @@ def run_cross_layer_validation(
             )
         )
 
+    if M28_6_SCENARIO in selected:
+        scenario_results.append(
+            _run_m28_6_capstone_scenario(repo_root=root, work_root=work_root)
+        )
+
     pass_count = sum(1 for result in scenario_results if result.status == "passed")
     report = {
         "run_type": "cross_layer_validation",
@@ -221,6 +229,7 @@ def run_cross_layer_validation(
             "Representative benchmark-pack parity only; not exhaustive for every workflow config.",
             "Does not prove distributed locking or production scheduler deployment readiness.",
             "Does not replace full pytest, deterministic rerun validation, or milestone validation.",
+            f"M28.6 capstone scenario ('{M28_6_SCENARIO}') is optional and not run by default.",
         ],
     }
     mark_run_completed(run_root, {"run_type": "cross_layer_validation", "status": report["status"]})
@@ -453,8 +462,93 @@ def _stable_digest(payload: Any) -> str:
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+# ---------------------------------------------------------------------------
+# M28.6 Capstone scenario helpers
+# ---------------------------------------------------------------------------
+
+_M28_6_UNSTABLE_KEYS = {
+    *_UNSTABLE_KEYS,
+    "output_root",
+    "artifact_index_path",
+    "cross_layer_comparison_path",
+    "manifest_path",
+    "summary_path",
+    "validation_report_path",
+    "regime_benchmark_run_id",
+}
+
+
+def _m28_6_capstone_contract(result_dict: Mapping[str, Any]) -> dict[str, Any]:
+    """Return stable fields from an M28.6 case study result dict."""
+
+    summary = result_dict.get("summary", {})
+    validation_report = result_dict.get("validation_report", {})
+    regime_bm = summary.get("regime_benchmark", {})
+    cross_layer = summary.get("cross_layer_validation", {})
+    return {
+        "case_study_name": result_dict.get("case_study_name"),
+        "milestone": result_dict.get("milestone"),
+        "workflow_stages": sorted(summary.get("workflow_stages", [])),
+        "execution_surfaces_called": sorted(summary.get("execution_surfaces_called", [])),
+        "regime_benchmark": {
+            "workflow": regime_bm.get("workflow"),
+            "policy_comparison_available": regime_bm.get("policy_comparison_available"),
+            "calibration_comparison_available": regime_bm.get("calibration_comparison_available"),
+        },
+        "cross_layer_validation_skipped": cross_layer.get("skipped", False),
+        "validation_status": validation_report.get("status"),
+        "all_required_outputs_present": (
+            validation_report.get("regime_benchmark_checks", {}).get("all_required_outputs_present")
+        ),
+    }
+
+
+def _run_m28_6_capstone_scenario(*, repo_root: Path, work_root: Path) -> CrossLayerScenarioResult:
+    """Compare the canonical M28.6 case-study callable vs the notebook-style wrapper.
+
+    Both entry points call the same underlying function. This scenario validates
+    that the notebook-style wrapper delegates correctly and that the stable
+    fields in the returned summary are consistent across entry points.
+    """
+    # Left: canonical callable called directly.
+    canonical_namespace = runpy.run_path(
+        repo_root / "docs" / "examples" / "m28_unified_regime_research_case_study.py"
+    )
+    canonical_fn = canonical_namespace["run_m28_unified_regime_research_case_study"]
+    canonical_result = canonical_fn(
+        work_root / "m28_6_canonical",
+        include_cross_layer_validation=False,
+    )
+
+    # Right: notebook-style wrapper callable.
+    notebook_namespace = runpy.run_path(
+        repo_root
+        / "docs"
+        / "examples"
+        / "notebooks"
+        / "m28_unified_regime_research_case_study.py"
+    )
+    notebook_fn = notebook_namespace["run_m28_case_study_notebook_cell"]
+    notebook_result_dict, _inspection = notebook_fn(
+        work_root / "m28_6_notebook",
+        include_cross_layer_validation=False,
+    )
+
+    left = _m28_6_capstone_contract(canonical_result)
+    right = _m28_6_capstone_contract(notebook_result_dict)
+    return _compare_scenario(
+        name=M28_6_SCENARIO,
+        left_layer="canonical_case_study_callable",
+        right_layer="notebook_style_wrapper",
+        left=left,
+        right=right,
+    )
+
+
 __all__ = [
+    "ALL_SCENARIOS",
     "DEFAULT_SCENARIOS",
+    "M28_6_SCENARIO",
     "CrossLayerScenarioResult",
     "compare_normalized_payloads",
     "concise_summary",

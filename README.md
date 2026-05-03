@@ -52,6 +52,44 @@ representative CLI, `src.execution`, notebook-style, and orchestrator-wrapper
 benchmark-pack artifacts after normalizing root-specific paths and transient
 runtime fields.
 
+### Milestone 28.6: Unified Regime Research Case Study (Capstone)
+
+M28.6 is the Milestone 28 capstone case study. It proves that StratLake has
+one execution system with multiple entry points by orchestrating an end-to-end
+regime research workflow from a canonical script callable, a notebook-style
+wrapper, and pipeline/orchestrator wrappers — all producing consistent
+artifacts under their respective output roots. Cross-layer validation
+(M28.5 foundation) is included as Stage 2.
+
+Run the capstone case study:
+
+```powershell
+python docs/examples/m28_unified_regime_research_case_study.py
+```
+
+Primary outputs are written to:
+
+```text
+docs/examples/output/m28_unified_regime_research_case_study/
+```
+
+Dry-run structural check:
+
+```powershell
+python docs/examples/m28_unified_regime_research_case_study.py --dry-run
+```
+
+Start with:
+
+* [docs/milestone_28_unified_regime_research_case_study.md](docs/milestone_28_unified_regime_research_case_study.md)
+* [docs/cross_layer_validation.md](docs/cross_layer_validation.md)
+* [docs/notebook_integration.md](docs/notebook_integration.md)
+* [docs/pipeline_integration.md](docs/pipeline_integration.md)
+* [docs/concurrency_and_idempotency.md](docs/concurrency_and_idempotency.md)
+
+The case study is research and validation oriented and does not imply live
+trading or production deployment readiness.
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

@@ -45,3 +45,47 @@ if job is not None and op is not None:
 else:
     run_regime_research_op = None
     m28_dagster_regime_research_job = None
+
+
+# ---------------------------------------------------------------------------
+# M28.6 Capstone: unified regime research case study — Dagster wrapper
+# ---------------------------------------------------------------------------
+
+
+def build_m28_dagster_capstone_output_root(run_id: str = "manual", attempt: str | int = 1) -> Path:
+    safe_run_id = str(run_id).replace("/", "_").replace("\\", "_").replace(":", "_")
+    return (
+        Path("artifacts")
+        / "orchestrator_examples"
+        / "dagster"
+        / safe_run_id
+        / f"capstone_attempt_{attempt}"
+    )
+
+
+def run_m28_dagster_capstone_example(run_id: str = "manual", attempt: str | int = 1) -> Any:
+    """Run the M28.6 unified regime research case study through the public callable."""
+
+    from docs.examples.m28_unified_regime_research_case_study import (
+        run_m28_unified_regime_research_case_study,
+    )
+
+    return run_m28_unified_regime_research_case_study(
+        output_root=build_m28_dagster_capstone_output_root(run_id=run_id, attempt=attempt),
+        include_cross_layer_validation=False,
+    )
+
+
+if job is not None and op is not None:
+
+    @op
+    def run_m28_capstone_regime_research_op() -> dict[str, Any]:
+        return run_m28_dagster_capstone_example()
+
+    @job(name="m28_capstone_stratlake_unified_regime_research")
+    def m28_dagster_capstone_regime_research_job() -> None:
+        run_m28_capstone_regime_research_op()
+
+else:
+    run_m28_capstone_regime_research_op = None
+    m28_dagster_capstone_regime_research_job = None

@@ -48,3 +48,58 @@ if flow is not None and task is not None:
 else:
     run_regime_research_task = None
     m28_prefect_regime_research_flow = None
+
+
+# ---------------------------------------------------------------------------
+# M28.6 Capstone: unified regime research case study — Prefect wrapper
+# ---------------------------------------------------------------------------
+
+
+def build_m28_capstone_prefect_output_root(flow_run_id: str = "manual", attempt: str | int = 1) -> Path:
+    safe_run_id = str(flow_run_id).replace("/", "_").replace("\\", "_").replace(":", "_")
+    return (
+        Path("artifacts")
+        / "orchestrator_examples"
+        / "prefect"
+        / safe_run_id
+        / f"capstone_attempt_{attempt}"
+    )
+
+
+def run_m28_capstone_prefect_example(flow_run_id: str = "manual", attempt: str | int = 1) -> Any:
+    """Run the M28.6 unified regime research case study through the public callable."""
+
+    from docs.examples.m28_unified_regime_research_case_study import (
+        run_m28_unified_regime_research_case_study,
+    )
+
+    return run_m28_unified_regime_research_case_study(
+        output_root=build_m28_capstone_prefect_output_root(
+            flow_run_id=flow_run_id, attempt=attempt
+        ),
+        include_cross_layer_validation=False,
+    )
+
+
+if flow is not None and task is not None:
+
+    @task(name="run-stratlake-m28-capstone-regime-research")
+    def run_m28_capstone_regime_research_task(
+        flow_run_id: str = "manual", attempt: str | int = 1
+    ) -> dict[str, Any]:
+        return run_m28_capstone_prefect_example(
+            flow_run_id=flow_run_id, attempt=attempt
+        )
+
+    @flow(name="m28-capstone-stratlake-unified-regime-research")
+    def m28_capstone_prefect_regime_research_flow(
+        flow_run_id: str = "manual",
+        attempt: str | int = 1,
+    ) -> dict[str, Any]:
+        return run_m28_capstone_regime_research_task(
+            flow_run_id=flow_run_id, attempt=attempt
+        )
+
+else:
+    run_m28_capstone_regime_research_task = None
+    m28_capstone_prefect_regime_research_flow = None

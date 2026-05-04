@@ -30,6 +30,11 @@ execution state. It observes registries, artifact roots, manifests, and marker
 files as source-of-truth inputs and produces a normalized in-memory view on
 demand.
 
+If a future issue adds a persisted cache or export of catalog results, that
+file must be treated as a derived convenience artifact. It must not become the
+canonical source of run identity, lifecycle status, lineage, or artifact
+inventory.
+
 ---
 
 ## Why This Is Not Another Registry
@@ -65,9 +70,9 @@ by existing StratLake workflows and must be treated as source-of-truth inputs.
 
 | Surface | Path Pattern | Written By |
 | --- | --- | --- |
-| Strategy experiment registry | `artifacts/strategies/<run_id>/registry.jsonl` | `src/research/registry.py` via `upsert_registry_entry` |
+| Strategy experiment registry | `artifacts/strategies/registry.jsonl` | `src/research/registry.py` via `upsert_registry_entry`; individual run artifacts live under `artifacts/strategies/<run_id>/` |
 | Portfolio template registry | `artifacts/registry/portfolios.jsonl` | `src/portfolio/registry.py` via `register_portfolio_template` |
-| Alpha evaluation registry | `artifacts/registry/` (alpha eval entries) | `src/research/alpha/` evaluation flows |
+| Alpha evaluation registry | `artifacts/alpha/registry.jsonl` | `src/research/alpha_eval/registry.py` via `upsert_registry_entry`; individual alpha eval artifacts live under `artifacts/alpha/<run_id>/` |
 | Alpha model catalog (in-memory) | `src/research/alpha/catalog.py` | Loaded at import time from `configs/alphas.yml` |
 
 ### Manifest and Inventory Files

@@ -81,7 +81,6 @@ python docs/examples/m28_unified_regime_research_case_study.py --dry-run
 
 Start with:
 
-* [docs/milestone_29_unified_research_catalog_design.md](docs/milestone_29_unified_research_catalog_design.md)
 * [docs/milestone_28_recent_implementation_audit.md](docs/milestone_28_recent_implementation_audit.md)
 * [docs/milestone_28_unified_regime_research_case_study.md](docs/milestone_28_unified_regime_research_case_study.md)
 * [docs/cross_layer_validation.md](docs/cross_layer_validation.md)
@@ -91,6 +90,17 @@ Start with:
 
 The case study is research and validation oriented and does not imply live
 trading or production deployment readiness.
+
+### Milestone 29 — Unified Research Catalog & Lineage Explorer
+
+Milestone 29 extends StratLake from reproducible execution into unified research
+discovery, cataloging, and lineage inspection across existing artifacts and
+registries. It builds a read-only catalog view over existing outputs without
+replacing any existing registry, manifest, or execution surface.
+
+Start with:
+
+* [docs/milestone_29_unified_research_catalog_design.md](docs/milestone_29_unified_research_catalog_design.md)
 
 ### Milestone 27: Market Simulation Stress Testing Case Study
 

@@ -21,6 +21,10 @@ _COMPARISON_FIELDS = ("member_run_ids", "comparison_members", "run_ids", "inputs
 _BENCHMARK_FIELDS = ("member_run_ids", "child_run_ids", "scenario_run_ids", "run_ids")
 _VALIDATION_FIELDS = ("referenced_run_ids", "validation_target_run_ids", "run_ids")
 _PIPELINE_FIELDS = ("wrapped_run_id", "child_run_id", "stage_run_ids")
+_CAMPAIGN_PARENT_RUN_FIELDS = ("campaign_parent_run_id", "parent_run_id")
+_CAMPAIGN_PARENT_CATALOG_FIELDS = ("campaign_parent_catalog_id", "parent_catalog_id")
+_SCENARIO_PARENT_RUN_FIELDS = ("scenario_parent_run_id", "parent_scenario_run_id")
+_SCENARIO_PARENT_CATALOG_FIELDS = ("scenario_parent_catalog_id", "parent_scenario_catalog_id")
 _JSON_SOURCE_FILENAMES = {
     "checkpoint.json",
     "scenario_catalog.json",
@@ -102,8 +106,8 @@ def lineage_from_record(
             edges.extend(_validation_edges(record, run_lookup, contexts))
         if _is_pipeline_record(record):
             edges.extend(_pipeline_edges(record, run_lookup, contexts))
-        edges.extend(_parent_edges(record, run_lookup, catalog_lookup, contexts, "campaign_child"))
-        edges.extend(_parent_edges(record, run_lookup, catalog_lookup, contexts, "scenario_child"))
+        edges.extend(_campaign_child_edges(record, run_lookup, catalog_lookup, contexts))
+        edges.extend(_scenario_child_edges(record, run_lookup, catalog_lookup, contexts))
         if resolved_repo_root is not None:
             edges.extend(_manifest_artifact_edges(record, repo_root=resolved_repo_root))
 
@@ -251,31 +255,34 @@ def _pipeline_edges(
     return edges
 
 
-def _parent_edges(
+def _campaign_child_edges(
     record: CatalogRecord,
     run_lookup: Mapping[str, CatalogRecord],
     catalog_lookup: Mapping[str, CatalogRecord],
     contexts: list[tuple[str, str | None, Mapping[str, Any]]],
-    edge_type: str,
 ) -> list[LineageEdge]:
     edges: list[LineageEdge] = []
     for source_name, source_path, payload in contexts:
-        parent_records: list[tuple[CatalogRecord, str, str]] = []
-        parent_run_id = _string_or_none(payload.get("parent_run_id"))
-        if parent_run_id and parent_run_id in run_lookup:
-            parent_records.append((run_lookup[parent_run_id], "parent_run_id", parent_run_id))
-        parent_catalog_id = _string_or_none(payload.get("parent_catalog_id"))
-        if parent_catalog_id and parent_catalog_id in catalog_lookup:
-            parent = catalog_lookup[parent_catalog_id]
-            parent_records.append((parent, "parent_catalog_id", parent_catalog_id))
+        parent_records = _resolve_parent_records(
+            payload,
+            run_lookup=run_lookup,
+            catalog_lookup=catalog_lookup,
+            run_fields=_CAMPAIGN_PARENT_RUN_FIELDS,
+            catalog_fields=_CAMPAIGN_PARENT_CATALOG_FIELDS,
+        )
         campaign_id = _string_or_none(payload.get("campaign_id"))
-        if not parent_records and campaign_id and campaign_id in run_lookup:
+        if (
+            not parent_records
+            and campaign_id
+            and campaign_id in run_lookup
+            and _is_campaign_parent_record(run_lookup[campaign_id])
+        ):
             parent_records.append((run_lookup[campaign_id], "campaign_id", campaign_id))
 
         for parent, field, raw_value in parent_records:
             edges.append(
                 make_lineage_edge(
-                    edge_type=edge_type,
+                    edge_type="campaign_child",
                     source=parent,
                     target=record,
                     relationship_source=_field_source(source_name, field),
@@ -284,6 +291,55 @@ def _parent_edges(
                 )
             )
     return edges
+
+
+def _scenario_child_edges(
+    record: CatalogRecord,
+    run_lookup: Mapping[str, CatalogRecord],
+    catalog_lookup: Mapping[str, CatalogRecord],
+    contexts: list[tuple[str, str | None, Mapping[str, Any]]],
+) -> list[LineageEdge]:
+    edges: list[LineageEdge] = []
+    for source_name, source_path, payload in contexts:
+        parent_records = _resolve_parent_records(
+            payload,
+            run_lookup=run_lookup,
+            catalog_lookup=catalog_lookup,
+            run_fields=_SCENARIO_PARENT_RUN_FIELDS,
+            catalog_fields=_SCENARIO_PARENT_CATALOG_FIELDS,
+        )
+        for parent, field, raw_value in parent_records:
+            edges.append(
+                make_lineage_edge(
+                    edge_type="scenario_child",
+                    source=parent,
+                    target=record,
+                    relationship_source=_field_source(source_name, field),
+                    relationship_path=source_path,
+                    metadata={"referenced_parent": raw_value},
+                )
+            )
+    return edges
+
+
+def _resolve_parent_records(
+    payload: Mapping[str, Any],
+    *,
+    run_lookup: Mapping[str, CatalogRecord],
+    catalog_lookup: Mapping[str, CatalogRecord],
+    run_fields: tuple[str, ...],
+    catalog_fields: tuple[str, ...],
+) -> list[tuple[CatalogRecord, str, str]]:
+    parent_records: list[tuple[CatalogRecord, str, str]] = []
+    for field in run_fields:
+        parent_run_id = _string_or_none(payload.get(field))
+        if parent_run_id and parent_run_id in run_lookup:
+            parent_records.append((run_lookup[parent_run_id], field, parent_run_id))
+    for field in catalog_fields:
+        parent_catalog_id = _string_or_none(payload.get(field))
+        if parent_catalog_id and parent_catalog_id in catalog_lookup:
+            parent_records.append((catalog_lookup[parent_catalog_id], field, parent_catalog_id))
+    return parent_records
 
 
 def _manifest_artifact_edges(record: CatalogRecord, *, repo_root: Path) -> list[LineageEdge]:
@@ -447,7 +503,7 @@ def _dedupe_logical_edges(edges: Iterable[LineageEdge]) -> list[LineageEdge]:
 
 
 def _is_portfolio_record(record: CatalogRecord) -> bool:
-    return record.run_type in {"portfolio", "portfolio_template"}
+    return record.run_type == "portfolio"
 
 
 def _is_comparison_record(record: CatalogRecord) -> bool:
@@ -464,3 +520,7 @@ def _is_validation_record(record: CatalogRecord) -> bool:
 
 def _is_pipeline_record(record: CatalogRecord) -> bool:
     return record.run_type == "pipeline"
+
+
+def _is_campaign_parent_record(record: CatalogRecord) -> bool:
+    return record.run_type == "campaign" or "campaign" in record.run_type

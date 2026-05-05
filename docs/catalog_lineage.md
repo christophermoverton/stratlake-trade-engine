@@ -30,11 +30,22 @@ from src.catalog import build_catalog_lookup, build_run_lookup
 | `portfolio_component` | component strategy/alpha run -> portfolio run | `component_run_ids`, `components[*].run_id` |
 | `comparison_member` | member run -> comparison run | `member_run_ids`, `comparison_members`, `run_ids`, `inputs` |
 | `benchmark_member` | child/member run -> benchmark pack run | `member_run_ids`, `child_run_ids`, `scenario_run_ids`, `run_ids` |
-| `campaign_child` | campaign parent -> campaign child | `parent_run_id`, `parent_catalog_id`, resolvable `campaign_id` |
-| `scenario_child` | scenario parent -> scenario child | `parent_run_id`, `parent_catalog_id`, resolvable `campaign_id` |
+| `campaign_child` | campaign parent -> campaign child | `campaign_parent_run_id`, `parent_run_id`, `campaign_parent_catalog_id`, `parent_catalog_id`, resolvable campaign-parent `campaign_id` |
+| `scenario_child` | scenario parent -> scenario child | `scenario_parent_run_id`, `parent_scenario_run_id`, `scenario_parent_catalog_id`, `parent_scenario_catalog_id` |
 | `manifest_declares_artifact` | run catalog record -> declared artifact | `manifest.json` entries with `declared_in_manifest=True` |
 | `validation_references_run` | referenced run -> validation record | `referenced_run_ids`, `validation_target_run_ids`, `run_ids` |
 | `pipeline_wraps_execution` | pipeline run -> wrapped execution run | `wrapped_run_id`, `child_run_id`, `stage_run_ids` |
+
+`campaign_child` and `scenario_child` are intentionally distinct. Generic
+campaign parent metadata such as `parent_run_id`, `parent_catalog_id`, or a
+resolvable `campaign_id` does not produce scenario lineage. `scenario_child`
+requires explicit scenario-parent metadata, and `scenario_id` alone is not
+treated as a parent reference.
+
+`portfolio_template` records are metadata-only and are intentionally excluded
+from executed `portfolio_component` lineage. Template-component lineage, if
+needed later, should use a distinct edge type such as
+`portfolio_template_component`.
 
 `manifest_declares_artifact` uses `target_catalog_id=None` because artifacts are
 represented by `ArtifactRecord`, not `CatalogRecord`. Artifact identity is stored
@@ -74,5 +85,5 @@ catalog records, no edge is emitted.
 - It does not introduce new registry, manifest, marker, or checkpoint schemas.
 - It does not execute strategies, portfolios, campaigns, benchmark packs,
   validations, notebooks, or pipeline wrappers.
-- Scenario hierarchy is emitted only where explicit parent metadata is present
-  or a resolvable campaign identifier points at a cataloged parent run.
+- Scenario hierarchy is emitted only where explicit scenario-parent metadata is
+  present.

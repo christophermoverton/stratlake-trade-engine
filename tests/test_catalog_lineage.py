@@ -5,7 +5,19 @@ from pathlib import Path
 
 from src.catalog.indexer import build_catalog_record
 from src.catalog.lineage import build_lineage_edges
-from src.catalog.models import CatalogRecord
+from src.catalog.models import CatalogRecord, CatalogValidationStatus
+
+
+def _validation() -> CatalogValidationStatus:
+    return CatalogValidationStatus(
+        catalog_status="valid",
+        marker_status="present",
+        manifest_status="missing",
+        artifact_status="ok",
+        qa_status=None,
+        validation_errors=[],
+        validation_warnings=[],
+    )
 
 
 def _record(
@@ -46,6 +58,7 @@ def _record(
         tags=[],
         source_files=source_files or [],
         metadata=metadata or {},
+        validation=_validation(),
     )
 
 
@@ -125,13 +138,27 @@ def test_campaign_child_lineage_from_parent_run_id() -> None:
     assert campaign_edges[0].target_run_id == "campaign_child"
 
 
-def test_scenario_child_lineage_from_parent_catalog_id() -> None:
+def test_campaign_parent_metadata_does_not_imply_scenario_edge() -> None:
+    parent = _record("campaign_parent", "campaign")
+    child = _record(
+        "campaign_child",
+        "campaign",
+        metadata={"parent_run_id": "campaign_parent", "campaign_id": "campaign_parent"},
+    )
+
+    edges = build_lineage_edges([child, parent])
+
+    assert len([edge for edge in edges if edge.edge_type == "campaign_child"]) == 1
+    assert [edge for edge in edges if edge.edge_type == "scenario_child"] == []
+
+
+def test_explicit_scenario_parent_emits_only_scenario_child() -> None:
     parent = _record("scenario_parent", "campaign")
     child = _record(
         "scenario_child",
         "campaign",
         scenario_id="scenario_a",
-        metadata={"parent_catalog_id": parent.catalog_id},
+        metadata={"scenario_parent_run_id": "scenario_parent"},
     )
 
     edges = build_lineage_edges([child, parent])
@@ -140,6 +167,44 @@ def test_scenario_child_lineage_from_parent_catalog_id() -> None:
     assert len(scenario_edges) == 1
     assert scenario_edges[0].source_run_id == "scenario_parent"
     assert scenario_edges[0].target_run_id == "scenario_child"
+    assert [edge for edge in edges if edge.edge_type == "campaign_child"] == []
+
+
+def test_scenario_child_lineage_from_explicit_parent_catalog_id() -> None:
+    parent = _record("scenario_parent", "campaign")
+    child = _record(
+        "scenario_child",
+        "campaign",
+        scenario_id="scenario_a",
+        metadata={"scenario_parent_catalog_id": parent.catalog_id},
+    )
+
+    edges = build_lineage_edges([child, parent])
+    scenario_edges = [edge for edge in edges if edge.edge_type == "scenario_child"]
+
+    assert len(scenario_edges) == 1
+    assert scenario_edges[0].source_run_id == "scenario_parent"
+    assert scenario_edges[0].target_run_id == "scenario_child"
+
+
+def test_portfolio_template_does_not_emit_portfolio_component() -> None:
+    strat = _record("strategy_a", "strategy")
+    template = _record(
+        "portfolio_template_1",
+        "portfolio_template",
+        metadata={"component_run_ids": ["strategy_a"]},
+    )
+
+    edges = build_lineage_edges([template, strat])
+
+    assert [edge for edge in edges if edge.edge_type == "portfolio_component"] == []
+
+
+def test_synthetic_records_include_explicit_validation_state() -> None:
+    record = _record("strategy_a", "strategy")
+
+    assert record.validation.catalog_status == "valid"
+    assert record.validation.marker_status == "present"
 
 
 def test_validation_and_pipeline_edges_use_declared_directions() -> None:

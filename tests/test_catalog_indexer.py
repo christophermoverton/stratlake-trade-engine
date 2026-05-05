@@ -466,3 +466,171 @@ def test_benchmark_pack_family(tmp_path):
     records = build_catalog(tmp_path, repo_root=tmp_path)
     bp_records = [r for r in records if "benchmark_pack_v1" in r.artifact_root]
     assert len(bp_records) >= 1
+
+
+# ---------------------------------------------------------------------------
+# Fix 2 — Regression: registry metadata populates without manifest (Test A)
+# ---------------------------------------------------------------------------
+
+
+def test_registry_metadata_populates_without_manifest(tmp_path):
+    """Registry fields must be populated even when manifest.json is absent."""
+    run_id = "strategy_test_nm_001"
+    run_dir = tmp_path / "strategies" / run_id
+    run_dir.mkdir(parents=True)
+    write_json(run_dir / "_SUCCESS.json", {"status": "completed"})
+    write_json(run_dir / "metrics.json", {"sharpe_ratio": 1.2})
+    # No manifest.json
+
+    registry_path = tmp_path / "strategies" / "registry.jsonl"
+    entry = {
+        "run_id": run_id,
+        "run_type": "strategy",
+        "strategy_name": "momentum_v1",
+        "timeframe": "1D",
+        "start_ts": "2024-01-01",
+        "end_ts": "2024-12-31",
+        "review_status": "candidate",
+        "promotion_status": "eligible",
+        "artifact_dir": run_dir.as_posix(),
+    }
+    write_jsonl(registry_path, [entry])
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    r = next((x for x in records if x.run_id == run_id), None)
+    assert r is not None, "No catalog record produced"
+
+    assert r.strategy_name == "momentum_v1", f"Expected 'momentum_v1', got {r.strategy_name!r}"
+    assert r.timeframe == "1D", f"Expected '1D', got {r.timeframe!r}"
+    assert r.start_ts == "2024-01-01"
+    assert r.end_ts == "2024-12-31"
+    assert r.review_status == "candidate", f"Expected 'candidate', got {r.review_status!r}"
+    assert r.promotion_status == "eligible", f"Expected 'eligible', got {r.promotion_status!r}"
+    assert r.source_manifest_path is None
+    assert r.validation.manifest_status == "missing"
+
+
+# ---------------------------------------------------------------------------
+# Fix 2 — Regression: summary metadata populates without manifest (Test B)
+# ---------------------------------------------------------------------------
+
+
+def test_summary_metadata_populates_without_manifest(tmp_path):
+    """summary.json fields must populate when neither registry nor manifest exists."""
+    run_id = "strat_nm_summary_001"
+    run_dir = tmp_path / "strategies" / run_id
+    run_dir.mkdir(parents=True)
+    write_json(run_dir / "_SUCCESS.json", {"status": "completed"})
+    write_json(
+        run_dir / "summary.json",
+        {"strategy_name": "mean_reversion_v1", "timeframe": "1D"},
+    )
+    # No registry.jsonl, no manifest.json
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    r = next((x for x in records if x.run_id == run_id), None)
+    assert r is not None, "No catalog record produced"
+
+    assert r.strategy_name == "mean_reversion_v1", f"Expected 'mean_reversion_v1', got {r.strategy_name!r}"
+    assert r.timeframe == "1D", f"Expected '1D', got {r.timeframe!r}"
+    assert r.source_registry_path is None
+    assert r.source_manifest_path is None
+
+
+# ---------------------------------------------------------------------------
+# Fix 2 — Regression: registry wins over summary and manifest (Test C)
+# ---------------------------------------------------------------------------
+
+
+def test_registry_wins_over_summary_and_manifest(tmp_path):
+    """Registry strategy_name takes precedence over summary.json and manifest.json."""
+    run_id = "strat_precedence_001"
+    run_dir = tmp_path / "strategies" / run_id
+    run_dir.mkdir(parents=True)
+    write_json(run_dir / "_SUCCESS.json", {"status": "completed"})
+    write_json(run_dir / "summary.json", {"strategy_name": "summary_strategy"})
+    write_json(
+        run_dir / "manifest.json",
+        {"run_id": run_id, "strategy_name": "manifest_strategy"},
+    )
+
+    registry_path = tmp_path / "strategies" / "registry.jsonl"
+    entry = {
+        "run_id": run_id,
+        "run_type": "strategy",
+        "strategy_name": "registry_strategy",
+        "artifact_dir": run_dir.as_posix(),
+    }
+    write_jsonl(registry_path, [entry])
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    r = next((x for x in records if x.run_id == run_id), None)
+    assert r is not None
+
+    assert r.strategy_name == "registry_strategy", (
+        f"Expected 'registry_strategy' (registry wins), got {r.strategy_name!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Fix 2 — Regression: review_status from review_metadata nested schema
+# ---------------------------------------------------------------------------
+
+
+def test_review_status_from_review_metadata(tmp_path):
+    """review_status is populated from review_metadata.status (strategy registry schema)."""
+    run_id = "strat_review_meta_001"
+    run_dir = tmp_path / "strategies" / run_id
+    run_dir.mkdir(parents=True)
+    write_json(run_dir / "_SUCCESS.json", {"status": "completed"})
+
+    registry_path = tmp_path / "strategies" / "registry.jsonl"
+    entry = {
+        "run_id": run_id,
+        "run_type": "strategy",
+        "strategy_name": "rv_strategy",
+        "artifact_dir": run_dir.as_posix(),
+        "review_metadata": {
+            "status": "promoted",
+            "promotion_status": "passed",
+        },
+    }
+    write_jsonl(registry_path, [entry])
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    r = next((x for x in records if x.run_id == run_id), None)
+    assert r is not None
+
+    assert r.review_status == "promoted", f"Expected 'promoted', got {r.review_status!r}"
+    assert r.promotion_status == "passed", f"Expected 'passed', got {r.promotion_status!r}"
+
+
+# ---------------------------------------------------------------------------
+# Fix 2 — Regression: review_status from top-level field (portfolio schema)
+# ---------------------------------------------------------------------------
+
+
+def test_review_status_from_top_level_field(tmp_path):
+    """review_status populated from top-level field (portfolio registry schema)."""
+    run_id = "port_review_tl_001"
+    run_dir = tmp_path / "portfolios" / run_id
+    run_dir.mkdir(parents=True)
+    write_json(run_dir / "_SUCCESS.json", {"status": "completed"})
+
+    registry_path = tmp_path / "portfolios" / "registry.jsonl"
+    entry = {
+        "run_id": run_id,
+        "run_type": "portfolio",
+        "portfolio_name": "test_port",
+        "artifact_dir": run_dir.as_posix(),
+        "review_status": "needs_review",
+        "promotion_status": "pending",
+    }
+    write_jsonl(registry_path, [entry])
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    r = next((x for x in records if x.run_id == run_id), None)
+    assert r is not None
+
+    assert r.review_status == "needs_review", f"Expected 'needs_review', got {r.review_status!r}"
+    assert r.promotion_status == "pending", f"Expected 'pending', got {r.promotion_status!r}"

@@ -267,63 +267,86 @@ def build_catalog_record(
     if registry_entry is not None:
         source_registry_path = _str_or_none(registry_entry.get("_registry_path"))
 
-    # Field extraction (registry wins over inferred)
+    # Field extraction (registry wins over summary wins over manifest).
+    # Use safe helper dicts to avoid Python operator-precedence issues with
+    # "if manifest_data else None" applying to the entire "or" chain.
+    registry = registry_entry or {}
+    manifest = manifest_data or {}
+    summary = combined_meta.get("summary.json") or {}
+
     strategy_name = _str_or_none(
-        (registry_entry or {}).get("strategy_name")
-        or combined_meta.get("summary.json", {}).get("strategy_name")
-        or manifest_data.get("strategy_name") if manifest_data else None
+        registry.get("strategy_name")
+        or summary.get("strategy_name")
+        or manifest.get("strategy_name")
     )
     portfolio_name = _str_or_none(
-        (registry_entry or {}).get("portfolio_name")
-        or (manifest_data or {}).get("portfolio_name")
+        registry.get("portfolio_name")
+        or summary.get("portfolio_name")
+        or manifest.get("portfolio_name")
     )
     allocator_name = _str_or_none(
-        (registry_entry or {}).get("allocator_name")
-        or (manifest_data or {}).get("allocator_name")
+        registry.get("allocator_name")
+        or summary.get("allocator_name")
+        or manifest.get("allocator_name")
     )
     alpha_model_name = _str_or_none(
-        (registry_entry or {}).get("alpha_name")
-        or (manifest_data or {}).get("alpha_name")
-        or (manifest_data or {}).get("alpha_model_name")
+        registry.get("alpha_name")
+        or registry.get("alpha_model_name")
+        or summary.get("alpha_name")
+        or summary.get("alpha_model_name")
+        or manifest.get("alpha_name")
+        or manifest.get("alpha_model_name")
     )
     timeframe = _str_or_none(
-        (registry_entry or {}).get("timeframe")
-        or (manifest_data or {}).get("timeframe")
-        or combined_meta.get("summary.json", {}).get("timeframe")
+        registry.get("timeframe")
+        or summary.get("timeframe")
+        or manifest.get("timeframe")
     )
     start_ts = _str_or_none(
-        (registry_entry or {}).get("start_ts")
-        or (manifest_data or {}).get("start_ts")
+        registry.get("start_ts")
+        or summary.get("start_ts")
+        or manifest.get("start_ts")
     )
     end_ts = _str_or_none(
-        (registry_entry or {}).get("end_ts")
-        or (manifest_data or {}).get("end_ts")
+        registry.get("end_ts")
+        or summary.get("end_ts")
+        or manifest.get("end_ts")
     )
     regime_method = _str_or_none(
-        (registry_entry or {}).get("regime_method")
-        or (manifest_data or {}).get("regime_method")
+        registry.get("regime_method")
+        or summary.get("regime_method")
+        or manifest.get("regime_method")
     )
     campaign_id = _str_or_none(
-        (registry_entry or {}).get("campaign_id")
-        or (manifest_data or {}).get("campaign_id")
+        registry.get("campaign_id")
+        or summary.get("campaign_id")
+        or manifest.get("campaign_id")
     )
     scenario_id = _str_or_none(
-        (registry_entry or {}).get("scenario_id")
-        or (manifest_data or {}).get("scenario_id")
+        registry.get("scenario_id")
+        or summary.get("scenario_id")
+        or manifest.get("scenario_id")
     )
+    # review_status and promotion_status: registry entries may store these as
+    # top-level "review_status" / "promotion_status" fields (portfolio schema),
+    # inside a "review_metadata" mapping (strategy schema), or inside a legacy
+    # "review" mapping.  Check all variants in precedence order.
+    _review_meta = registry.get("review_metadata")
+    _review_legacy = registry.get("review")
     review_status = _str_or_none(
-        (registry_entry or {}).get("review", {}).get("status")
-        if isinstance((registry_entry or {}).get("review"), dict)
-        else None
+        registry.get("review_status")
+        or (_review_meta.get("status") if isinstance(_review_meta, dict) else None)
+        or (_review_legacy.get("status") if isinstance(_review_legacy, dict) else None)
     )
     promotion_status = _str_or_none(
-        (registry_entry or {}).get("review", {}).get("promotion_status")
-        if isinstance((registry_entry or {}).get("review"), dict)
-        else None
+        registry.get("promotion_status")
+        or (_review_meta.get("promotion_status") if isinstance(_review_meta, dict) else None)
+        or (_review_legacy.get("promotion_status") if isinstance(_review_legacy, dict) else None)
     )
     created_at = _str_or_none(
-        (registry_entry or {}).get("timestamp")
-        or (manifest_data or {}).get("created_at")
+        registry.get("timestamp")
+        or manifest.get("created_at")
+        or summary.get("created_at")
     )
     if created_at is None and marker_path:
         marker_data = load_json_file(Path(marker_path))

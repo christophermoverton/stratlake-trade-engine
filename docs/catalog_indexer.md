@@ -69,6 +69,13 @@ roots with metadata such as `strategy_name`, `timeframe`, `start_ts`, `end_ts`,
 **Note:** `artifacts/registry/portfolios.jsonl` is a portfolio template registry
 (versioned templates), not a per-run artifact directory index.
 
+**`portfolio_template` records are metadata/template records** derived from
+`artifacts/registry/portfolios.jsonl`. They represent versioned portfolio
+template definitions, not completed research experiment runs. They should not
+be treated as completed backtest, alpha, portfolio, or campaign outputs by
+downstream query defaults. Their `status` will typically be `registry_only`
+because template entries have no corresponding per-run artifact directory.
+
 **Note:** Registry entries without a matching on-disk artifact root produce a
 `CatalogRecord` with `status="registry_only"` and a
 `registry_entry_no_artifact_root` validation warning.

@@ -68,6 +68,34 @@ class ArtifactRecord:
         }
 
 
+@dataclass(frozen=True)
+class LineageEdge:
+    """A deterministic, read-only relationship derived from catalog metadata."""
+
+    edge_id: str
+    source_catalog_id: str | None
+    target_catalog_id: str | None
+    source_run_id: str | None
+    target_run_id: str | None
+    edge_type: str
+    relationship_source: str
+    relationship_path: str | None
+    metadata: dict[str, Any] = field(default_factory=dict)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "edge_id": self.edge_id,
+            "source_catalog_id": self.source_catalog_id,
+            "target_catalog_id": self.target_catalog_id,
+            "source_run_id": self.source_run_id,
+            "target_run_id": self.target_run_id,
+            "edge_type": self.edge_type,
+            "relationship_source": self.relationship_source,
+            "relationship_path": self.relationship_path,
+            "metadata": dict(self.metadata),
+        }
+
+
 @dataclass
 class CatalogRecord:
     """A normalized in-memory catalog record for one artifact root."""

@@ -7,20 +7,14 @@ artifacts are used.
 from __future__ import annotations
 
 import json
-import os
-import time
 from pathlib import Path
-
-import pytest
 
 from src.catalog.indexer import (
     build_artifact_records,
     build_catalog,
-    build_catalog_record,
     discover_artifact_roots,
     load_json_file,
 )
-from src.catalog.models import ArtifactRecord, CatalogRecord, CatalogValidationStatus
 
 
 # ---------------------------------------------------------------------------
@@ -86,7 +80,7 @@ def make_strategy_root(
         }
         existing = []
         if registry_path.exists():
-            existing = [json.loads(l) for l in registry_path.read_text().splitlines() if l.strip()]
+            existing = [json.loads(line) for line in registry_path.read_text().splitlines() if line.strip()]
         existing.append(entry)
         write_jsonl(registry_path, existing)
 
@@ -118,7 +112,6 @@ def test_strategy_root_with_registry_manifest_success(tmp_path):
     assert r.validation.manifest_status == "present"
 
     # Artifact records
-    artifact_root_abs = tmp_path / r.artifact_root
     ar_list = build_artifact_records(r, repo_root=tmp_path)
     assert len(ar_list) > 0
     relpaths = [a.relative_path for a in ar_list]
@@ -292,7 +285,7 @@ def test_deterministic_ordering(tmp_path):
 def test_read_only_behavior(tmp_path):
     """build_catalog must not modify any source files."""
     run_id = "strat_20250101_ro0001"
-    run_dir = make_strategy_root(tmp_path, run_id, marker="_SUCCESS.json")
+    make_strategy_root(tmp_path, run_id, marker="_SUCCESS.json")
 
     # Collect (path, mtime, size) snapshot before
     def snapshot(root: Path) -> dict[str, tuple[float, int]]:

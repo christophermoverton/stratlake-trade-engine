@@ -11,6 +11,7 @@ from src.research.experiment_tracker import save_experiment
 from src.research.metrics import (
     MetricsAggregationError,
     MINUTE_PERIODS_PER_YEAR,
+    RETURN_INFERENCE_STD_ATOL,
     TRADING_DAYS_PER_YEAR,
     annualized_return,
     annualized_volatility,
@@ -163,6 +164,27 @@ def test_return_inference_metrics_handle_zero_single_and_constant_streams() -> N
     assert compute_t_statistic(constant_negative) is None
     assert compute_p_value(constant_negative) is None
     assert compute_confidence_interval(constant_negative) == pytest.approx((-0.01, -0.01))
+
+
+def test_return_inference_metrics_treat_near_constant_positive_stream_as_degenerate() -> None:
+    strategy_return = pd.Series([0.01, 0.0100000000005, 0.01, 0.01], dtype="float64")
+
+    assert 0.0 < strategy_return.std(ddof=1) < RETURN_INFERENCE_STD_ATOL
+    assert compute_t_statistic(strategy_return) is None
+    assert compute_p_value(strategy_return) is None
+    assert compute_confidence_interval(strategy_return) == pytest.approx((0.01, 0.01))
+
+
+def test_return_inference_metrics_treat_near_constant_negative_stream_as_degenerate() -> None:
+    strategy_return = pd.Series([-0.01, -0.0100000000005, -0.01, -0.01], dtype="float64")
+    expected_mean = float(strategy_return.mean())
+
+    assert 0.0 < strategy_return.std(ddof=1) < RETURN_INFERENCE_STD_ATOL
+    assert compute_t_statistic(strategy_return) is None
+    assert compute_p_value(strategy_return) is None
+    assert compute_confidence_interval(strategy_return) == pytest.approx(
+        (expected_mean, expected_mean)
+    )
 
 
 def test_return_inference_metrics_drop_nan_contaminated_returns() -> None:

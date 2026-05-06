@@ -17,6 +17,7 @@ HIGH_BENCHMARK_CORRELATION_THRESHOLD = 0.9
 LOW_EXCESS_RETURN_THRESHOLD = 0.02
 HIGH_TURNOVER_THRESHOLD = 0.5
 BETA_DOMINATED_RETURN_THRESHOLD = 0.2
+RETURN_INFERENCE_STD_ATOL = 1e-12
 
 
 class MetricsAggregationError(ValueError):
@@ -132,7 +133,7 @@ def compute_confidence_interval(
 
     mean_return = float(returns.mean())
     sample_std = float(returns.std(ddof=1))
-    if sample_std == 0.0:
+    if math.isclose(sample_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL):
         safe_mean = _json_safe_float(mean_return)
         return (safe_mean, safe_mean)
 
@@ -573,7 +574,7 @@ def _return_inference_inputs(strategy_return: pd.Series) -> dict[str, float] | N
         return None
 
     sample_std = float(returns.std(ddof=1))
-    if sample_std == 0.0 or not math.isfinite(sample_std):
+    if not math.isfinite(sample_std) or math.isclose(sample_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL):
         return None
 
     standard_error = sample_std / math.sqrt(sample_size)

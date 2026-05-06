@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 import sys
@@ -286,6 +287,31 @@ def test_compute_portfolio_metrics_handles_zero_volatility_non_zero_returns() ->
     assert metrics["realized_volatility"] == 0.0
     assert metrics["sharpe_ratio"] == 0.0
     assert metrics["total_return"] == pytest.approx((1.01**3) - 1.0)
+
+
+def test_compute_portfolio_metrics_handles_near_constant_returns_without_non_finite_inference() -> None:
+    portfolio_output = pd.DataFrame(
+        {
+            "ts_utc": pd.to_datetime(
+                ["2025-07-01T00:00:00Z", "2025-07-02T00:00:00Z", "2025-07-03T00:00:00Z"],
+                utc=True,
+            ),
+            "strategy_return__alpha": [0.01, 0.0100000000005, 0.01],
+            "weight__alpha": [1.0, 1.0, 1.0],
+            "portfolio_return": [0.01, 0.0100000000005, 0.01],
+            "portfolio_equity_curve": [1.01, 1.020100000000505, 1.0303010000005102],
+        }
+    )
+
+    metrics = compute_portfolio_metrics(portfolio_output, timeframe="1d")
+    serialized = json.dumps(metrics, allow_nan=False, sort_keys=True)
+
+    assert serialized
+    assert {"t_stat", "p_value", "conf_int_lower", "conf_int_upper"}.issubset(metrics)
+    assert metrics["t_stat"] is None
+    assert metrics["p_value"] is None
+    assert metrics["conf_int_lower"] == pytest.approx(portfolio_output["portfolio_return"].mean())
+    assert metrics["conf_int_upper"] == pytest.approx(portfolio_output["portfolio_return"].mean())
 
 
 def test_compute_portfolio_metrics_rejects_empty_input() -> None:

@@ -510,12 +510,6 @@ The following rules prevent M29 from duplicating prior milestone behavior:
 
 The following are explicitly out of scope for M29:
 
-- `src/catalog/indexer.py` — implementation deferred to follow-on issue.
-- `src/catalog/lineage.py` — implementation deferred to follow-on issue.
-- `src/catalog/query.py` — implementation deferred to follow-on issue.
-- `src/catalog/validation.py` — implementation deferred to follow-on issue.
-- CLI commands for catalog queries or lineage exploration.
-- Notebook examples using the catalog.
 - Dashboard, web UI, or database backend.
 - New registry writer or new execution wrapper.
 - New model logic, strategy logic, or workflow logic.
@@ -524,40 +518,38 @@ The following are explicitly out of scope for M29:
 - Any modification to existing `registry.jsonl` format.
 - Any modification to existing `manifest.json` format.
 - Any modification to `_RUNNING.json`, `_SUCCESS.json`, or `_FAILED.json` format.
+- Persistent catalog storage, artifact repair, or rewritten registry semantics.
 
 ---
 
-## Follow-On Implementation Issues
+## M29 Implementation Issues
 
-The following issues are the expected next steps after this design is accepted.
+The following issues completed the M29 release scope while preserving the
+read-only catalog boundary described in this design.
 
 | Issue | Title | Scope |
 | --- | --- | --- |
-| M29.1 | Catalog Indexer — Core Schema + JSONL Sources | Implement `src/catalog/indexer.py` reading `registry.jsonl`, `portfolios.jsonl`, `manifest.json`, marker files, and producing in-memory `CatalogRecord` objects per the schema defined here. |
-| M29.2 | Catalog Indexer — Metrics and QA Sources | Extend indexer to read `metrics.json`, `alpha_metrics.json`, `summary.json`, `qa_summary.json`, and populate `metrics_summary` and `qa_status` fields. |
-| M29.3 | Artifact Record Builder | Implement artifact record construction from manifest inventories and directory scans; populate `declared_in_manifest` and `exists` fields. |
-| M29.4 | Lineage Edge Builder | Derive lineage edges from `component_run_ids`, `campaign_id`, `scenario_id`, comparison JSON, and benchmark pack inventories. |
-| M29.5 | Catalog Validation Layer | Implement the validation/status schema derivation rules and produce `catalog_status`, `validation_errors`, and `validation_warnings` per record. |
-| M29.6 | Catalog Query Surface | Implement a read-only query API over the in-memory catalog (`filter_by_run_type`, `filter_by_status`, `find_by_run_id`, `find_by_campaign_id`, `get_lineage_edges`). |
-| M29.7 | Catalog CLI Entrypoint | Add `src/cli/run_catalog_index.py` and `src/execution/catalog.py` for CLI and notebook-friendly catalog access consistent with M23/M28 patterns. |
-| M29.8 | Catalog Integration Tests | Tests confirming catalog records match expected schema for strategy, portfolio, alpha, campaign, and benchmark pack artifact roots in `artifacts/`. |
+| #322 | Provenance Surface Audit & Unified Catalog Schema | Defined the read-only unified catalog schema and provenance boundaries. |
+| #323 | Unified Catalog Indexer | Added `src/catalog/indexer.py` for deterministic, read-only artifact and registry indexing. |
+| #324 | Lineage Extraction Layer | Added lineage edge extraction from existing metadata without writing lineage state. |
+| #325 | Catalog Query API & CLI | Added read-only catalog query helpers and `src/cli/query_catalog.py`. |
+| #326 | Catalog Validation & Artifact Consistency Checks | Added in-memory validation checks over catalog records and artifact inventories. |
+| #327 | Notebook & Research Workflow Integration | Added notebook-friendly workflow docs and examples using the catalog APIs. |
 
 ---
 
 ## Acceptance Checklist
 
-- [ ] `docs/milestone_29_unified_research_catalog_design.md` is committed.
-- [ ] Document contains all required sections listed in the issue spec.
-- [ ] Document uses relative repository paths only; no absolute local paths.
-- [ ] No claims of implemented indexer, query, or lineage code in this document.
-- [ ] No new registry design proposed; existing `registry.jsonl` behavior is preserved.
-- [ ] No new execution wrappers proposed.
-- [ ] Proposed catalog record schema covers all required fields.
-- [ ] Proposed artifact record schema covers all required fields.
-- [ ] Proposed lineage edge schema includes all required edge types.
-- [ ] Proposed validation/status schema accounts for all marker file states.
-- [ ] Source precedence rules are deterministic and consistent.
-- [ ] Anti-duplication rules explicitly reference existing implementations.
-- [ ] Follow-on implementation issues are enumerated.
-- [ ] `pytest -q` passes without errors.
-- [ ] `python -m compileall src` completes without errors.
+- [x] `docs/milestone_29_unified_research_catalog_design.md` is committed.
+- [x] Document contains all required sections listed in the issue spec.
+- [x] Document uses relative repository paths only; no absolute local paths.
+- [x] No new registry design proposed; existing `registry.jsonl` behavior is preserved.
+- [x] No new execution wrappers proposed.
+- [x] Catalog record schema covers all required fields.
+- [x] Artifact record schema covers all required fields.
+- [x] Lineage edge schema includes all required edge types.
+- [x] Validation/status schema accounts for marker file states.
+- [x] Source precedence rules are deterministic and consistent.
+- [x] Anti-duplication rules explicitly reference existing implementations.
+- [x] M29 implementation issues are documented.
+- [x] Release validation is tracked in Issue #328.

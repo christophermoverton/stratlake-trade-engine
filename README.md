@@ -101,6 +101,10 @@ replacing any existing registry, manifest, or execution surface.
 Start with:
 
 * [docs/milestone_29_unified_research_catalog_design.md](docs/milestone_29_unified_research_catalog_design.md)
+* [docs/catalog_indexer.md](docs/catalog_indexer.md)
+* [docs/catalog_lineage.md](docs/catalog_lineage.md)
+* [docs/catalog_query.md](docs/catalog_query.md)
+* [docs/catalog_validation.md](docs/catalog_validation.md)
 * [docs/catalog_notebook_workflows.md](docs/catalog_notebook_workflows.md)
 * [docs/examples/m29_catalog_driven_research_workflow.py](docs/examples/m29_catalog_driven_research_workflow.py)
 * [docs/examples/notebooks/m29_catalog_driven_research_workflow.ipynb](docs/examples/notebooks/m29_catalog_driven_research_workflow.ipynb)

@@ -282,6 +282,38 @@ def hit_rate(trade_returns: pd.Series) -> float:
     return float((trades > 0.0).mean())
 
 
+def compute_hit_rate_p_value(
+    trade_returns: pd.Series,
+    *,
+    null_probability: float = 0.5,
+    alternative: str = "greater",
+) -> float | None:
+    """
+    Compute a one-sample binomial p-value for trade-level hit rate.
+
+    Finite closed trade returns are counted as trials. Strictly positive returns
+    are wins; zero-return trades are valid closed trades but not wins. Undefined
+    empty samples return ``None`` so JSON artifacts never serialize non-finite
+    values.
+    """
+
+    trades = pd.to_numeric(trade_returns, errors="coerce").dropna().astype("float64")
+    finite_trades = trades.loc[trades.map(math.isfinite)]
+    total = len(finite_trades)
+    if total == 0:
+        return None
+
+    wins = int((finite_trades > 0.0).sum())
+    p_value = stats.binomtest(
+        wins,
+        total,
+        p=null_probability,
+        alternative=alternative,
+    ).pvalue
+    safe_p_value = _json_safe_float(min(max(float(p_value), 0.0), 1.0))
+    return safe_p_value
+
+
 def profit_factor(trade_returns: pd.Series) -> float | None:
     """
     Compute gross profits divided by gross losses across closed trades.
@@ -396,6 +428,7 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         "max_drawdown": max_drawdown(strategy_return),
         "win_rate": period_win_rate,
         "hit_rate": hit_rate(closed_trade_returns),
+        "hit_rate_p_value": compute_hit_rate_p_value(closed_trade_returns),
         "profit_factor": profit_factor(closed_trade_returns),
         "turnover": average_turnover,
         "total_turnover": total_turnover,

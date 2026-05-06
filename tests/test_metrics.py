@@ -17,6 +17,7 @@ from src.research.metrics import (
     annualized_volatility,
     compute_benchmark_relative_metrics,
     compute_confidence_interval,
+    compute_hit_rate_p_value,
     compute_performance_metrics,
     compute_p_value,
     compute_t_statistic,
@@ -219,6 +220,47 @@ def test_hit_rate_and_profit_factor_use_closed_trade_returns() -> None:
     assert profit_factor(trade_returns) == pytest.approx((0.045 + 0.0192) / 0.03)
 
 
+def test_compute_hit_rate_p_value_returns_none_for_zero_valid_trades() -> None:
+    assert compute_hit_rate_p_value(pd.Series(dtype="float64")) is None
+    assert compute_hit_rate_p_value(pd.Series([float("nan"), float("inf"), -float("inf")])) is None
+
+
+@pytest.mark.parametrize(
+    ("trade_returns", "wins", "total"),
+    [
+        ([0.01, 0.02, 0.03, 0.04, 0.05, -0.01, -0.02, -0.03, -0.04, -0.05], 5, 10),
+        ([0.01] * 13 + [-0.01] * 7, 13, 20),
+        ([0.01, 0.02] + [-0.01] * 8, 2, 10),
+    ],
+)
+def test_compute_hit_rate_p_value_matches_scipy_binomtest(
+    trade_returns: list[float],
+    wins: int,
+    total: int,
+) -> None:
+    expected = stats.binomtest(wins, total, p=0.5, alternative="greater").pvalue
+
+    result = compute_hit_rate_p_value(pd.Series(trade_returns, dtype="float64"))
+
+    assert result == pytest.approx(expected)
+    assert result is not None
+    assert 0.0 <= result <= 1.0
+    json.dumps({"hit_rate_p_value": result}, allow_nan=False)
+
+
+def test_compute_hit_rate_p_value_counts_zero_returns_as_non_winning_trades() -> None:
+    trade_returns = pd.Series([0.01, 0.0, -0.01, 0.0], dtype="float64")
+    expected = stats.binomtest(1, 4, p=0.5, alternative="greater").pvalue
+
+    assert compute_hit_rate_p_value(trade_returns) == pytest.approx(expected)
+
+
+def test_compute_hit_rate_p_value_is_deterministic() -> None:
+    trade_returns = pd.Series([0.02, -0.01, 0.03, 0.0, 0.04], dtype="float64")
+
+    assert compute_hit_rate_p_value(trade_returns) == compute_hit_rate_p_value(trade_returns)
+
+
 def test_profit_factor_returns_none_when_closed_trades_have_no_losses() -> None:
     trade_returns = pd.Series([0.02, 0.03], dtype="float64")
 
@@ -241,6 +283,9 @@ def test_compute_performance_metrics_includes_expanded_fields_with_known_trade_v
     assert {"t_stat", "p_value", "conf_int_lower", "conf_int_upper"}.issubset(metrics)
     assert metrics["conf_int_lower"] <= metrics["conf_int_upper"]
     assert metrics["hit_rate"] == pytest.approx(2.0 / 3.0)
+    assert metrics["hit_rate_p_value"] == pytest.approx(
+        stats.binomtest(2, 3, p=0.5, alternative="greater").pvalue
+    )
     assert metrics["profit_factor"] == pytest.approx((0.045 + 0.0192) / 0.03)
     assert metrics["turnover"] == pytest.approx(0.75)
     assert metrics["total_turnover"] == pytest.approx(6.0)
@@ -290,6 +335,7 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     assert empty_metrics["p_value"] is None
     assert empty_metrics["conf_int_lower"] is None
     assert empty_metrics["conf_int_upper"] is None
+    assert empty_metrics["hit_rate_p_value"] is None
     assert empty_metrics["profit_factor"] == 0.0
     assert empty_metrics["exposure_pct"] == 0.0
     assert flat_metrics["annualized_volatility"] == 0.0
@@ -297,6 +343,7 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     assert flat_metrics["t_stat"] is None
     assert flat_metrics["p_value"] is None
     assert flat_metrics["hit_rate"] == 0.0
+    assert flat_metrics["hit_rate_p_value"] is None
 
 
 def test_compute_performance_metrics_excludes_open_terminal_trade_from_trade_stats() -> None:
@@ -311,6 +358,7 @@ def test_compute_performance_metrics_excludes_open_terminal_trade_from_trade_sta
     metrics = compute_performance_metrics(results_df)
 
     assert metrics["hit_rate"] == 0.0
+    assert metrics["hit_rate_p_value"] is None
     assert metrics["profit_factor"] == 0.0
     assert metrics["exposure_pct"] == pytest.approx(75.0)
 
@@ -472,7 +520,14 @@ def test_metrics_json_artifact_includes_inference_fields_and_json_safe_values(
     serialized = json.dumps(metrics_payload, allow_nan=False, sort_keys=True)
 
     assert serialized
-    assert {"t_stat", "p_value", "conf_int_lower", "conf_int_upper"}.issubset(metrics_payload)
+    assert {
+        "hit_rate",
+        "hit_rate_p_value",
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+    }.issubset(metrics_payload)
     assert {"cumulative_return", "sharpe_ratio", "max_drawdown", "win_rate"}.issubset(metrics_payload)
     assert metrics_payload["p_value"] == pytest.approx(compute_p_value(results_df["strategy_return"]))
     assert metrics_payload["conf_int_lower"] <= metrics_payload["conf_int_upper"]

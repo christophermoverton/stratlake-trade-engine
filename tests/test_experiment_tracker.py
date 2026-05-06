@@ -23,6 +23,7 @@ def _metrics() -> dict[str, float | None]:
         "max_drawdown": 0.01,
         "win_rate": 0.5,
         "hit_rate": 0.5,
+        "hit_rate_p_value": 0.5,
         "profit_factor": 1.1,
         "turnover": 0.33,
         "total_turnover": 1.32,

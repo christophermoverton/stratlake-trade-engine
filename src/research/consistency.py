@@ -37,6 +37,7 @@ _REGISTRY_METRIC_KEYS = (
     "max_drawdown",
     "win_rate",
     "hit_rate",
+    "hit_rate_p_value",
     "profit_factor",
     "turnover",
     "total_turnover",

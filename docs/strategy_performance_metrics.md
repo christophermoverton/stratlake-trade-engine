@@ -10,7 +10,7 @@ Current implementation:
 * keeps legacy-compatible `cumulative_return`, `volatility`, and `win_rate`
 * adds `total_return`, `annualized_return`, `annualized_volatility`, and annualized `sharpe_ratio`
 * derives `max_drawdown` from the compounded equity curve
-* computes trade-level `hit_rate` and `profit_factor` from closed trades
+* computes trade-level `hit_rate`, `hit_rate_p_value`, and `profit_factor` from closed trades
 * computes `turnover` and `exposure_pct` from executed position changes
 
 The module stays serializable and is reused by single-run experiments,
@@ -38,6 +38,7 @@ sharpe_ratio(strategy_return: pandas.Series, *, periods_per_year: int = 252) -> 
 max_drawdown(strategy_return: pandas.Series) -> float
 win_rate(strategy_return: pandas.Series) -> float
 hit_rate(trade_returns: pandas.Series) -> float
+compute_hit_rate_p_value(trade_returns: pandas.Series, *, null_probability: float = 0.5, alternative: str = "greater") -> float | None
 profit_factor(trade_returns: pandas.Series) -> float | None
 turnover(position: pandas.Series) -> float
 exposure_pct(position: pandas.Series) -> float
@@ -59,7 +60,8 @@ Behavioral rules:
 * missing return values are dropped before return-based calculations
 * trade metrics use only closed trades
 * empty inputs return deterministic values
-* outputs remain JSON-serializable; undefined `profit_factor` is returned as `None`
+* outputs remain JSON-serializable; undefined inference fields and undefined
+  `profit_factor` values are returned as `None`
 
 The functions are designed to operate directly on the output of
 `run_backtest()`.
@@ -144,6 +146,22 @@ Share of profitable closed trades:
 
 A trade is one contiguous non-zero executed-position segment. Open terminal
 trades are excluded.
+
+### `hit_rate_p_value`
+
+One-sided SciPy binomial-test p-value for the trade-level hit rate:
+
+```python
+scipy.stats.binomtest(wins, total, p=0.5, alternative="greater").pvalue
+```
+
+The null hypothesis is a true win probability of `0.5`; the default
+alternative is that the true win probability is greater than random chance.
+The test uses finite closed trade returns only. Strictly positive trade
+returns count as wins, while zero-return trades count as valid closed trades
+but not wins. No closed trades, or only non-finite trade returns, produce
+`None`. This diagnostic is trade-level and should not be interpreted as a
+period `win_rate` test.
 
 ### `profit_factor`
 
@@ -234,6 +252,7 @@ Typical keys in `summary`:
     "max_drawdown": 0.07,
     "win_rate": 0.54,
     "hit_rate": 0.58,
+    "hit_rate_p_value": 0.12,
     "profit_factor": 1.34,
     "turnover": 0.21,
     "exposure_pct": 63.5,

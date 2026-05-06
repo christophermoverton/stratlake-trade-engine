@@ -203,6 +203,12 @@ Student-t inference diagnostics for mean period return: `t_stat`, two-sided
 independent observations; autocorrelation-adjusted inference is handled by a
 later readiness milestone.
 
+Strategy trade payloads also include `hit_rate_p_value`, a one-sided SciPy
+binomial-test p-value for closed-trade hit rate with null win probability
+`0.5` and `alternative="greater"`. Zero-return closed trades are counted as
+valid non-wins. This is a trade-level diagnostic and is not a period
+`win_rate` significance test.
+
 ### `config.json`
 
 Contains the strategy configuration used for the experiment run, making the

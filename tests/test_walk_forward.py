@@ -59,6 +59,7 @@ def _expected_metric_keys() -> set[str]:
         "max_drawdown",
         "win_rate",
         "hit_rate",
+        "hit_rate_p_value",
         "profit_factor",
         "turnover",
         "total_turnover",

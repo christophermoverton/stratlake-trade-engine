@@ -91,6 +91,24 @@ Start with:
 The case study is research and validation oriented and does not imply live
 trading or production deployment readiness.
 
+### Milestone 29 — Unified Research Catalog & Lineage Explorer
+
+Milestone 29 extends StratLake from reproducible execution into unified research
+discovery, cataloging, and lineage inspection across existing artifacts and
+registries. It builds a read-only catalog view over existing outputs without
+replacing any existing registry, manifest, or execution surface.
+
+Start with:
+
+* [docs/milestone_29_unified_research_catalog_design.md](docs/milestone_29_unified_research_catalog_design.md)
+* [docs/catalog_indexer.md](docs/catalog_indexer.md)
+* [docs/catalog_lineage.md](docs/catalog_lineage.md)
+* [docs/catalog_query.md](docs/catalog_query.md)
+* [docs/catalog_validation.md](docs/catalog_validation.md)
+* [docs/catalog_notebook_workflows.md](docs/catalog_notebook_workflows.md)
+* [docs/examples/m29_catalog_driven_research_workflow.py](docs/examples/m29_catalog_driven_research_workflow.py)
+* [docs/examples/notebooks/m29_catalog_driven_research_workflow.ipynb](docs/examples/notebooks/m29_catalog_driven_research_workflow.ipynb)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

@@ -132,6 +132,53 @@ python -m src.cli.query_catalog --related strategy_run_1 --direction downstream 
 feeding into the target record. Downstream means records that depend on the
 target record.
 
+## Notebook Usage
+
+The query layer is notebook-friendly because it works with in-memory catalog
+records and does not mutate artifacts.
+
+```python
+from src.catalog import (
+    CatalogQuery,
+    build_catalog,
+    get_downstream_records,
+    get_upstream_records,
+    query_catalog,
+    records_to_rows,
+)
+
+records = build_catalog("artifacts", repo_root=".")
+
+strategy_runs = query_catalog(
+    records,
+    CatalogQuery(run_types=("strategy",), statuses=("completed",)),
+)
+
+rows = records_to_rows(strategy_runs)
+```
+
+For pandas usage:
+
+```python
+import pandas as pd
+
+df = pd.DataFrame(records_to_rows(strategy_runs))
+```
+
+For lineage-aware inspection:
+
+```python
+portfolio = next(r for r in records if r.run_id == "portfolio_run_id")
+upstream = get_upstream_records(portfolio, records, repo_root=".")
+downstream = get_downstream_records(portfolio, records, repo_root=".")
+
+pd.DataFrame(records_to_rows(upstream))
+pd.DataFrame(records_to_rows(downstream))
+```
+
+These notebook examples use the same read-only query APIs as the CLI. They do
+not execute strategies, portfolios, campaigns, validations, or notebooks.
+
 ## Read-Only Guarantees
 
 The query API and CLI only call:

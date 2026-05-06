@@ -21,6 +21,8 @@ def _validation() -> CatalogValidationStatus:
         manifest_status="present",
         artifact_status="ok",
         qa_status=None,
+        validation_errors=[],
+        validation_warnings=[],
     )
 
 

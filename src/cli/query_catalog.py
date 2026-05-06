@@ -100,18 +100,16 @@ def run_cli(argv: Sequence[str] | None = None) -> list[dict[str, object]] | dict
         include_templates=args.include_templates,
         include_unknown=not args.exclude_unknown,
     )
-    records = query_catalog(build_catalog(artifacts_root, repo_root=repo_root), query)
+    all_records = build_catalog(artifacts_root, repo_root=repo_root)
+    records = query_catalog(all_records, query)
 
     if args.related:
-        target = _find_record(records, args.related) or _find_record(
-            build_catalog(artifacts_root, repo_root=repo_root),
-            args.related,
-        )
+        target = _find_record(records, args.related) or _find_record(all_records, args.related)
         if target is None:
             raise CatalogCliError(f"Related target not found: {args.related}")
         records = related_records(
             target,
-            build_catalog(artifacts_root, repo_root=repo_root),
+            all_records,
             direction=args.direction,
             edge_types=args.edge_types,
             repo_root=repo_root,

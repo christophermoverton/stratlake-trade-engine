@@ -122,7 +122,14 @@ def validate_catalog(
     for record in sorted_records:
         artifacts = _safe_build_artifact_records(record, repo_root=root)
         total_artifacts += len(artifacts)
-        issues.extend(validate_record(record, repo_root=root, include_info=True))
+        issues.extend(
+            _validate_record_with_artifacts(
+                record,
+                artifacts,
+                repo_root=root,
+                include_info=True,
+            )
+        )
 
     filtered = _filter_and_sort_issues(issues, include_info=include_info)
     summary = _build_summary(sorted_records, filtered)
@@ -145,6 +152,25 @@ def validate_record(
     """Validate one catalog record without mutating any source artifact."""
 
     root = Path(repo_root).resolve()
+    artifacts = _safe_build_artifact_records(record, repo_root=root)
+    return _validate_record_with_artifacts(
+        record,
+        artifacts,
+        repo_root=root,
+        include_info=include_info,
+    )
+
+
+def _validate_record_with_artifacts(
+    record: CatalogRecord,
+    artifacts: list[ArtifactRecord],
+    *,
+    repo_root: Path,
+    include_info: bool,
+) -> list[CatalogValidationIssue]:
+    """Validate one record using a prebuilt artifact inventory snapshot."""
+
+    root = repo_root
     issues: list[CatalogValidationIssue] = []
 
     if record.status == "registry_only":
@@ -179,7 +205,6 @@ def validate_record(
     _validate_status_fields(record, issues)
     _validate_common_json(record, artifact_root, root, issues)
 
-    artifacts = _safe_build_artifact_records(record, repo_root=root)
     issues.extend(
         validate_artifact_records(record, artifacts, repo_root=root, include_info=True)
     )

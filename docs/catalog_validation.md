@@ -109,6 +109,11 @@ decision_log.json
 These files are excluded because current artifact roots commonly use them as
 catalog/indexer metadata surfaces even when older manifests do not list them.
 
+If `manifest.json` is malformed, validation emits `corrupt_json`. Because the
+manifest cannot be parsed, manifest-declared artifact consistency cannot be
+evaluated for that malformed manifest. The validator does not guess declared
+artifacts from corrupt manifest content.
+
 ## Registry-Only Behavior
 
 `status == "registry_only"` records represent registry metadata without a

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import src.catalog.validation as catalog_validation
 from src.catalog import (
     CatalogRecord,
     CatalogValidationStatus,
@@ -96,6 +97,8 @@ def _bare_record(
             manifest_status="present",
             artifact_status="ok",
             qa_status=None,
+            validation_errors=[],
+            validation_warnings=[],
         ),
     )
 
@@ -250,6 +253,47 @@ def test_malformed_json_emits_corrupt_json_without_crashing(tmp_path: Path) -> N
     issues = validate_record(record, repo_root=tmp_path)
 
     assert "corrupt_json" in _codes(issues)
+
+
+def test_corrupt_manifest_emits_corrupt_json_without_declared_artifact_inference(tmp_path: Path) -> None:
+    root = tmp_path / "strategies" / "corrupt_manifest"
+    root.mkdir(parents=True)
+    (root / "_SUCCESS.json").write_text("{}", encoding="utf-8")
+    (root / "manifest.json").write_text("{not valid json", encoding="utf-8")
+    (root / "metrics.json").write_text("{}", encoding="utf-8")
+
+    record = build_catalog(tmp_path, repo_root=tmp_path)[0]
+
+    first = validate_catalog([record], repo_root=tmp_path).to_dict()
+    second = validate_catalog([record], repo_root=tmp_path).to_dict()
+    codes = [issue["code"] for issue in first["issues"]]
+
+    assert first == second
+    assert "corrupt_json" in codes
+    assert "manifest_artifact_missing" not in codes
+
+
+def test_validate_catalog_builds_artifact_records_once_per_record(monkeypatch, tmp_path: Path) -> None:
+    _make_root(tmp_path)
+    record = _record(tmp_path)
+    calls = 0
+    original = catalog_validation.build_artifact_records
+
+    def counting_build_artifact_records(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return original(*args, **kwargs)
+
+    monkeypatch.setattr(
+        catalog_validation,
+        "build_artifact_records",
+        counting_build_artifact_records,
+    )
+
+    report = catalog_validation.validate_catalog([record], repo_root=tmp_path)
+
+    assert report.total_records == 1
+    assert calls == 1
 
 
 def test_deterministic_issue_ordering_and_report_dict(tmp_path: Path) -> None:

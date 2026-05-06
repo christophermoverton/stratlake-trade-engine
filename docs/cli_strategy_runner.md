@@ -309,11 +309,17 @@ statistics:
 * `annualized_return`
 * `annualized_volatility`
 * `sharpe_ratio`
+* SciPy-backed period-return inference diagnostics: `t_stat`, `p_value`,
+  `conf_int_lower`, and `conf_int_upper`
 * `max_drawdown`
 * `win_rate` and trade-level `hit_rate`
 * `profit_factor`
 * `turnover`
 * `exposure_pct`
+
+The inference diagnostics use Student-t calculations from SciPy for the mean
+period return under an independent-observation assumption. Autocorrelation-
+adjusted inference is intentionally reserved for a later readiness milestone.
 
 ---
 

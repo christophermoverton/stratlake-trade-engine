@@ -1,10 +1,13 @@
 from __future__ import annotations
 
+import json
 import math
 
 import pandas as pd
 import pytest
+from scipy import stats
 
+from src.research.experiment_tracker import save_experiment
 from src.research.metrics import (
     MetricsAggregationError,
     MINUTE_PERIODS_PER_YEAR,
@@ -12,7 +15,10 @@ from src.research.metrics import (
     annualized_return,
     annualized_volatility,
     compute_benchmark_relative_metrics,
+    compute_confidence_interval,
     compute_performance_metrics,
+    compute_p_value,
+    compute_t_statistic,
     cumulative_return,
     exposure_pct,
     hit_rate,
@@ -104,6 +110,70 @@ def test_sharpe_ratio_returns_zero_for_zero_volatility() -> None:
     assert annualized_volatility(strategy_return) == 0.0
 
 
+def test_return_inference_metrics_match_scipy_for_positive_returns() -> None:
+    strategy_return = pd.Series([0.01, 0.02, -0.005, 0.015, 0.03], dtype="float64")
+    sample_size = len(strategy_return)
+    sample_std = strategy_return.std(ddof=1)
+    expected_t = strategy_return.mean() / (sample_std / math.sqrt(sample_size))
+    expected_p = 2.0 * (1.0 - stats.t.cdf(abs(expected_t), df=sample_size - 1))
+    t_crit = stats.t.ppf(0.975, df=sample_size - 1)
+    margin = t_crit * sample_std / math.sqrt(sample_size)
+
+    lower, upper = compute_confidence_interval(strategy_return)
+
+    assert compute_t_statistic(strategy_return) == pytest.approx(expected_t)
+    assert compute_p_value(strategy_return) == pytest.approx(expected_p)
+    assert 0.0 <= compute_p_value(strategy_return) <= 1.0
+    assert lower == pytest.approx(strategy_return.mean() - margin)
+    assert upper == pytest.approx(strategy_return.mean() + margin)
+    assert lower <= upper
+
+
+def test_return_inference_metrics_match_scipy_for_negative_returns() -> None:
+    strategy_return = pd.Series([-0.01, -0.02, 0.005, -0.015, -0.03], dtype="float64")
+    sample_size = len(strategy_return)
+    sample_std = strategy_return.std(ddof=1)
+    expected_t = strategy_return.mean() / (sample_std / math.sqrt(sample_size))
+    expected_p = 2.0 * (1.0 - stats.t.cdf(abs(expected_t), df=sample_size - 1))
+
+    lower, upper = compute_confidence_interval(strategy_return)
+
+    assert compute_t_statistic(strategy_return) == pytest.approx(expected_t)
+    assert compute_t_statistic(strategy_return) < 0.0
+    assert compute_p_value(strategy_return) == pytest.approx(expected_p)
+    assert 0.0 <= compute_p_value(strategy_return) <= 1.0
+    assert lower <= upper
+
+
+def test_return_inference_metrics_handle_zero_single_and_constant_streams() -> None:
+    zero_returns = pd.Series([0.0, 0.0, 0.0], dtype="float64")
+    single_return = pd.Series([0.01], dtype="float64")
+    constant_positive = pd.Series([0.01, 0.01, 0.01], dtype="float64")
+    constant_negative = pd.Series([-0.01, -0.01, -0.01], dtype="float64")
+
+    assert compute_t_statistic(zero_returns) is None
+    assert compute_p_value(zero_returns) is None
+    assert compute_confidence_interval(zero_returns) == (0.0, 0.0)
+    assert compute_t_statistic(single_return) is None
+    assert compute_p_value(single_return) is None
+    assert compute_confidence_interval(single_return) == (None, None)
+    assert compute_t_statistic(constant_positive) is None
+    assert compute_p_value(constant_positive) is None
+    assert compute_confidence_interval(constant_positive) == pytest.approx((0.01, 0.01))
+    assert compute_t_statistic(constant_negative) is None
+    assert compute_p_value(constant_negative) is None
+    assert compute_confidence_interval(constant_negative) == pytest.approx((-0.01, -0.01))
+
+
+def test_return_inference_metrics_drop_nan_contaminated_returns() -> None:
+    contaminated = pd.Series([0.01, float("nan"), 0.02, -0.005, float("nan"), 0.015], dtype="float64")
+    clean = contaminated.dropna()
+
+    assert compute_t_statistic(contaminated) == pytest.approx(compute_t_statistic(clean))
+    assert compute_p_value(contaminated) == pytest.approx(compute_p_value(clean))
+    assert compute_confidence_interval(contaminated) == pytest.approx(compute_confidence_interval(clean))
+
+
 def test_max_drawdown_computes_largest_peak_to_trough_decline() -> None:
     strategy_return = _strategy_returns()
 
@@ -146,6 +216,8 @@ def test_compute_performance_metrics_includes_expanded_fields_with_known_trade_v
     metrics = compute_performance_metrics(results_df)
 
     assert metrics["total_return"] == pytest.approx(metrics["cumulative_return"])
+    assert {"t_stat", "p_value", "conf_int_lower", "conf_int_upper"}.issubset(metrics)
+    assert metrics["conf_int_lower"] <= metrics["conf_int_upper"]
     assert metrics["hit_rate"] == pytest.approx(2.0 / 3.0)
     assert metrics["profit_factor"] == pytest.approx((0.045 + 0.0192) / 0.03)
     assert metrics["turnover"] == pytest.approx(0.75)
@@ -192,10 +264,16 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     flat_metrics = compute_performance_metrics(flat_results)
 
     assert empty_metrics["total_return"] == 0.0
+    assert empty_metrics["t_stat"] is None
+    assert empty_metrics["p_value"] is None
+    assert empty_metrics["conf_int_lower"] is None
+    assert empty_metrics["conf_int_upper"] is None
     assert empty_metrics["profit_factor"] == 0.0
     assert empty_metrics["exposure_pct"] == 0.0
     assert flat_metrics["annualized_volatility"] == 0.0
     assert flat_metrics["sharpe_ratio"] == 0.0
+    assert flat_metrics["t_stat"] is None
+    assert flat_metrics["p_value"] is None
     assert flat_metrics["hit_rate"] == 0.0
 
 
@@ -344,6 +422,38 @@ def test_compute_performance_metrics_is_deterministic_for_multi_symbol_inputs() 
     second = compute_performance_metrics(multi_symbol)
 
     assert first == second
+
+
+def test_metrics_json_artifact_includes_inference_fields_and_json_safe_values(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    results_df = pd.DataFrame(
+        {
+            "ts_utc": pd.date_range("2025-01-01", periods=5, freq="D", tz="UTC"),
+            "timeframe": ["1d"] * 5,
+            "signal": [0.0, 1.0, 1.0, -1.0, 0.0],
+            "strategy_return": [0.0, 0.01, 0.02, -0.005, 0.015],
+            "equity_curve": [1.0, 1.01, 1.0302, 1.025049, 1.040424735],
+        }
+    )
+    metrics = compute_performance_metrics(results_df)
+
+    experiment_dir = save_experiment(
+        "inference_metrics",
+        results_df,
+        metrics,
+        {"strategy_name": "inference_metrics", "dataset": "unit"},
+    )
+    metrics_payload = json.loads((experiment_dir / "metrics.json").read_text(encoding="utf-8"))
+    serialized = json.dumps(metrics_payload, allow_nan=False, sort_keys=True)
+
+    assert serialized
+    assert {"t_stat", "p_value", "conf_int_lower", "conf_int_upper"}.issubset(metrics_payload)
+    assert {"cumulative_return", "sharpe_ratio", "max_drawdown", "win_rate"}.issubset(metrics_payload)
+    assert metrics_payload["p_value"] == pytest.approx(compute_p_value(results_df["strategy_return"]))
+    assert metrics_payload["conf_int_lower"] <= metrics_payload["conf_int_upper"]
 
 
 def test_infer_periods_per_year_supports_minute_timeframes() -> None:

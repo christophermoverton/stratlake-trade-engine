@@ -13,6 +13,9 @@ from src.portfolio import compute_portfolio_metrics
 from src.research.metrics import (
     TRADING_DAYS_PER_YEAR,
     annualized_volatility,
+    compute_confidence_interval,
+    compute_p_value,
+    compute_t_statistic,
     max_drawdown,
     sharpe_ratio,
     total_return,
@@ -85,6 +88,10 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "volatility_target_scale",
         "volatility_target_scale_capped",
         "sharpe_ratio",
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
         "max_drawdown",
         "current_drawdown",
         "max_drawdown_duration",
@@ -146,6 +153,11 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["volatility_target_scale"] is None
     assert metrics["volatility_target_scale_capped"] == pytest.approx(0.0)
     assert metrics["sharpe_ratio"] == pytest.approx(expected_sharpe)
+    assert metrics["t_stat"] == pytest.approx(compute_t_statistic(portfolio_returns))
+    assert metrics["p_value"] == pytest.approx(compute_p_value(portfolio_returns))
+    assert (metrics["conf_int_lower"], metrics["conf_int_upper"]) == pytest.approx(
+        compute_confidence_interval(portfolio_returns)
+    )
     assert metrics["max_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["current_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["max_drawdown_duration"] == pytest.approx(1.0)

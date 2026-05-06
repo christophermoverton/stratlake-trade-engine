@@ -197,7 +197,11 @@ Current columns:
 
 Contains the summary performance metrics supplied to `save_experiment()`, such
 as total return, annualized return, Sharpe ratio, drawdown, hit rate, profit
-factor, turnover, or exposure.
+factor, turnover, or exposure. Return-stream payloads also include SciPy-backed
+Student-t inference diagnostics for mean period return: `t_stat`, two-sided
+`p_value`, `conf_int_lower`, and `conf_int_upper`. These diagnostics assume
+independent observations; autocorrelation-adjusted inference is handled by a
+later readiness milestone.
 
 ### `config.json`
 

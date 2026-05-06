@@ -13,6 +13,7 @@ dependencies = [
     "pyarrow",
     "python-dotenv",
     "pyyaml",
+    "scipy",
     "scikit-learn",
     "xgboost",
     "lightgbm",

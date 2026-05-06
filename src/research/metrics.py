@@ -5,6 +5,7 @@ import math
 from typing import Any
 
 import pandas as pd
+from scipy import stats
 
 from src.research.turnover import compute_position_change_frame
 
@@ -73,6 +74,78 @@ def volatility(strategy_return: pd.Series) -> float:
         return 0.0
 
     return float(returns.std())
+
+
+def compute_t_statistic(strategy_return: pd.Series) -> float | None:
+    """
+    Compute the one-sample t-statistic for mean period return versus zero.
+
+    Returns ``None`` when the statistic is undefined, including fewer than two
+    finite observations or zero sample volatility.
+    """
+
+    inference = _return_inference_inputs(strategy_return)
+    if inference is None:
+        return None
+
+    t_stat = inference["mean"] / inference["standard_error"]
+    return _json_safe_float(t_stat)
+
+
+def compute_p_value(strategy_return: pd.Series) -> float | None:
+    """
+    Compute the two-sided Student-t p-value for mean period return versus zero.
+
+    Missing and non-finite returns are excluded before inference. Undefined
+    cases return ``None`` so JSON artifacts never serialize NaN or infinity.
+    """
+
+    inference = _return_inference_inputs(strategy_return)
+    if inference is None:
+        return None
+
+    t_stat = inference["mean"] / inference["standard_error"]
+    p_value = 2.0 * (1.0 - stats.t.cdf(abs(t_stat), df=inference["degrees_of_freedom"]))
+    bounded = min(max(p_value, 0.0), 1.0)
+    return _json_safe_float(bounded)
+
+
+def compute_confidence_interval(
+    strategy_return: pd.Series,
+    *,
+    confidence_level: float = 0.95,
+) -> tuple[float | None, float | None]:
+    """
+    Compute a Student-t confidence interval for mean period return.
+
+    For zero-variance streams with at least two finite observations, the
+    interval is the deterministic degenerate interval ``(mean, mean)``. For
+    fewer than two finite observations, both bounds are ``None``.
+    """
+
+    if not 0.0 < confidence_level < 1.0:
+        raise ValueError("confidence_level must be between 0 and 1.")
+
+    returns = _finite_returns(strategy_return)
+    if len(returns) < 2:
+        return (None, None)
+
+    mean_return = float(returns.mean())
+    sample_std = float(returns.std(ddof=1))
+    if sample_std == 0.0:
+        safe_mean = _json_safe_float(mean_return)
+        return (safe_mean, safe_mean)
+
+    standard_error = sample_std / math.sqrt(len(returns))
+    alpha = 1.0 - confidence_level
+    t_crit = stats.t.ppf(1.0 - alpha / 2.0, df=len(returns) - 1)
+    if not math.isfinite(t_crit):
+        return (None, None)
+
+    margin = float(t_crit * standard_error)
+    lower = _json_safe_float(mean_return - margin)
+    upper = _json_safe_float(mean_return + margin)
+    return (lower, upper)
 
 
 def annualized_return(strategy_return: pd.Series, *, periods_per_year: int = DEFAULT_PERIODS_PER_YEAR) -> float:
@@ -306,6 +379,7 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
     trade_count = int(position_change["trade_event"].sum())
     total_turnover = float(position_change["turnover"].sum())
     average_turnover = float(position_change["turnover"].mean()) if not position_change.empty else 0.0
+    conf_int_lower, conf_int_upper = compute_confidence_interval(strategy_return)
 
     return {
         "cumulative_return": total,
@@ -314,6 +388,10 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         "annualized_return": annual_return,
         "annualized_volatility": annual_vol,
         "sharpe_ratio": sharpe_ratio(strategy_return, periods_per_year=periods_per_year),
+        "t_stat": compute_t_statistic(strategy_return),
+        "p_value": compute_p_value(strategy_return),
+        "conf_int_lower": conf_int_lower,
+        "conf_int_upper": conf_int_upper,
         "max_drawdown": max_drawdown(strategy_return),
         "win_rate": period_win_rate,
         "hit_rate": hit_rate(closed_trade_returns),
@@ -481,6 +559,38 @@ def _optional_numeric_series(results_df: pd.DataFrame, column: str) -> pd.Series
     if column not in results_df.columns:
         return pd.Series(0.0, index=results_df.index, dtype="float64")
     return pd.to_numeric(results_df[column], errors="coerce").fillna(0.0).astype("float64")
+
+
+def _finite_returns(strategy_return: pd.Series) -> pd.Series:
+    returns = _normalized_returns(strategy_return)
+    return returns.loc[returns.map(math.isfinite)]
+
+
+def _return_inference_inputs(strategy_return: pd.Series) -> dict[str, float] | None:
+    returns = _finite_returns(strategy_return)
+    sample_size = len(returns)
+    if sample_size < 2:
+        return None
+
+    sample_std = float(returns.std(ddof=1))
+    if sample_std == 0.0 or not math.isfinite(sample_std):
+        return None
+
+    standard_error = sample_std / math.sqrt(sample_size)
+    if standard_error == 0.0 or not math.isfinite(standard_error):
+        return None
+
+    return {
+        "mean": float(returns.mean()),
+        "standard_error": standard_error,
+        "degrees_of_freedom": float(sample_size - 1),
+    }
+
+
+def _json_safe_float(value: float) -> float | None:
+    if not math.isfinite(value):
+        return None
+    return float(value)
 
 
 def extract_closed_trade_returns(results_df: pd.DataFrame) -> pd.Series:

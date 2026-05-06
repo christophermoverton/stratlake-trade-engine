@@ -52,9 +52,16 @@ def _expected_metric_keys() -> set[str]:
         "annualized_return",
         "annualized_volatility",
         "sharpe_ratio",
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
         "max_drawdown",
         "win_rate",
         "hit_rate",
+        "hit_rate_p_value",
         "profit_factor",
         "turnover",
         "total_turnover",
@@ -123,7 +130,10 @@ def test_seeded_random_strategy_is_deterministic_for_same_seed() -> None:
     ("strategy", "dataset"),
     [
         (BuyAndHoldStrategy(), _daily_frame()),
-        (SMACrossoverStrategy(fast_window=2, slow_window=3), _daily_frame().fillna({"feature_ret_1d": 0.0})),
+        (
+            SMACrossoverStrategy(fast_window=2, slow_window=3),
+            _daily_frame().fillna({"feature_ret_1d": 0.0}),
+        ),
         (SeededRandomStrategy(seed=5), _daily_frame()),
     ],
 )
@@ -162,7 +172,10 @@ def test_baselines_run_successfully_through_walk_forward_execution(
         },
     )
 
-    monkeypatch.setattr("src.research.walk_forward.load_features", lambda dataset, start=None, end=None: _daily_frame())
+    monkeypatch.setattr(
+        "src.research.walk_forward.load_features",
+        lambda dataset, start=None, end=None: _daily_frame(),
+    )
 
     result = run_walk_forward_experiment(
         strategy.name,

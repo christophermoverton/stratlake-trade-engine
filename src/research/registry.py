@@ -713,6 +713,8 @@ def _portfolio_metrics_summary(metrics: dict[str, Any]) -> dict[str, Any]:
         "p_value",
         "conf_int_lower",
         "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
         "max_drawdown",
         "realized_volatility",
         "target_volatility",

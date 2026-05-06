@@ -77,6 +77,8 @@ PORTFOLIO_WALK_FORWARD_METRIC_KEYS: tuple[str, ...] = (
     "p_value",
     "conf_int_lower",
     "conf_int_upper",
+    "autocorr_lag1",
+    "effective_n",
     "max_drawdown",
     "current_drawdown",
     "max_drawdown_duration",

@@ -34,6 +34,8 @@ _REGISTRY_METRIC_KEYS = (
     "p_value",
     "conf_int_lower",
     "conf_int_upper",
+    "autocorr_lag1",
+    "effective_n",
     "max_drawdown",
     "win_rate",
     "hit_rate",

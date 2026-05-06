@@ -199,9 +199,13 @@ Contains the summary performance metrics supplied to `save_experiment()`, such
 as total return, annualized return, Sharpe ratio, drawdown, hit rate, profit
 factor, turnover, or exposure. Return-stream payloads also include SciPy-backed
 Student-t inference diagnostics for mean period return: `t_stat`, two-sided
-`p_value`, `conf_int_lower`, and `conf_int_upper`. These diagnostics assume
-independent observations; autocorrelation-adjusted inference is handled by a
-later readiness milestone.
+`p_value`, `conf_int_lower`, and `conf_int_upper`, plus serial-dependence
+diagnostics: `autocorr_lag1` for lag-1 autocorrelation of finite period returns
+and `effective_n` for a conservative AR(1)-style effective sample size
+estimate. Positive autocorrelation reduces `effective_n`; negative
+autocorrelation is capped at the observed sample size. These diagnostics inform
+interpretation of the Student-t fields, but autocorrelation-adjusted inference
+is handled by a later readiness milestone.
 
 Strategy trade payloads also include `hit_rate_p_value`, a one-sided SciPy
 binomial-test p-value for closed-trade hit rate with null win probability

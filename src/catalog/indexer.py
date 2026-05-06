@@ -107,6 +107,8 @@ _SCALAR_METRIC_KEYS: frozenset[str] = frozenset(
         "win_rate",
         "hit_rate",
         "total_return",
+        "autocorr_lag1",
+        "effective_n",
         "beta",
         "alpha",
         "information_ratio",

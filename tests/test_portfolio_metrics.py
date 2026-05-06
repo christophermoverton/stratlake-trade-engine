@@ -14,7 +14,9 @@ from src.portfolio import compute_portfolio_metrics
 from src.research.metrics import (
     TRADING_DAYS_PER_YEAR,
     annualized_volatility,
+    compute_autocorr_lag1,
     compute_confidence_interval,
+    compute_effective_sample_size,
     compute_p_value,
     compute_t_statistic,
     max_drawdown,
@@ -93,6 +95,8 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "p_value",
         "conf_int_lower",
         "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
         "max_drawdown",
         "current_drawdown",
         "max_drawdown_duration",
@@ -159,6 +163,12 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert (metrics["conf_int_lower"], metrics["conf_int_upper"]) == pytest.approx(
         compute_confidence_interval(portfolio_returns)
     )
+    assert metrics["autocorr_lag1"] == pytest.approx(
+        compute_autocorr_lag1(portfolio_returns)
+    )
+    assert metrics["effective_n"] == pytest.approx(
+        compute_effective_sample_size(portfolio_returns)
+    )
     assert metrics["max_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["current_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["max_drawdown_duration"] == pytest.approx(1.0)
@@ -205,6 +215,12 @@ def test_compute_portfolio_metrics_matches_research_metric_primitives() -> None:
     )
     assert metrics["sharpe_ratio"] == pytest.approx(
         sharpe_ratio(portfolio_returns, periods_per_year=TRADING_DAYS_PER_YEAR)
+    )
+    assert metrics["autocorr_lag1"] == pytest.approx(
+        compute_autocorr_lag1(portfolio_returns)
+    )
+    assert metrics["effective_n"] == pytest.approx(
+        compute_effective_sample_size(portfolio_returns)
     )
     assert metrics["max_drawdown"] == pytest.approx(max_drawdown(portfolio_returns))
     assert metrics["value_at_risk"] == pytest.approx(0.014)
@@ -307,9 +323,18 @@ def test_compute_portfolio_metrics_handles_near_constant_returns_without_non_fin
     serialized = json.dumps(metrics, allow_nan=False, sort_keys=True)
 
     assert serialized
-    assert {"t_stat", "p_value", "conf_int_lower", "conf_int_upper"}.issubset(metrics)
+    assert {
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
+    }.issubset(metrics)
     assert metrics["t_stat"] is None
     assert metrics["p_value"] is None
+    assert metrics["autocorr_lag1"] is None
+    assert metrics["effective_n"] is None
     assert metrics["conf_int_lower"] == pytest.approx(portfolio_output["portfolio_return"].mean())
     assert metrics["conf_int_upper"] == pytest.approx(portfolio_output["portfolio_return"].mean())
 

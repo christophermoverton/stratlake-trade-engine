@@ -15,8 +15,10 @@ from src.research.metrics import (
     TRADING_DAYS_PER_YEAR,
     annualized_return,
     annualized_volatility,
+    compute_autocorr_lag1,
     compute_benchmark_relative_metrics,
     compute_confidence_interval,
+    compute_effective_sample_size,
     compute_hit_rate_p_value,
     compute_performance_metrics,
     compute_p_value,
@@ -197,6 +199,63 @@ def test_return_inference_metrics_drop_nan_contaminated_returns() -> None:
     assert compute_confidence_interval(contaminated) == pytest.approx(compute_confidence_interval(clean))
 
 
+def test_compute_autocorr_lag1_returns_none_for_empty_single_or_invalid_streams() -> None:
+    assert compute_autocorr_lag1(pd.Series(dtype="float64")) is None
+    assert compute_autocorr_lag1(pd.Series([0.01], dtype="float64")) is None
+    assert compute_autocorr_lag1(
+        pd.Series([float("nan"), float("inf"), -float("inf")])
+    ) is None
+
+
+def test_compute_autocorr_lag1_returns_none_for_constant_or_near_constant_streams() -> None:
+    assert compute_autocorr_lag1(pd.Series([0.01, 0.01, 0.01], dtype="float64")) is None
+    assert compute_autocorr_lag1(
+        pd.Series([0.01, 0.0100000000005, 0.01], dtype="float64")
+    ) is None
+
+
+def test_compute_autocorr_lag1_handles_positive_negative_and_mixed_streams() -> None:
+    positive = compute_autocorr_lag1(
+        pd.Series([0.0, 0.01, 0.02, 0.03, 0.04], dtype="float64")
+    )
+    negative = compute_autocorr_lag1(
+        pd.Series([0.01, -0.01, 0.01, -0.01, 0.01], dtype="float64")
+    )
+    mixed = compute_autocorr_lag1(pd.Series([0.01, 0.0, -0.01, 0.0], dtype="float64"))
+
+    assert positive is not None and positive > 0.0
+    assert negative is not None and negative < 0.0
+    assert mixed is not None
+    for value in (positive, negative, mixed):
+        assert value is not None
+        assert math.isfinite(value)
+        assert -1.0 <= value <= 1.0
+        json.dumps({"autocorr_lag1": value}, allow_nan=False)
+
+
+def test_compute_effective_sample_size_handles_undefined_zero_positive_and_negative_autocorrelation() -> None:
+    assert compute_effective_sample_size(pd.Series([0.01], dtype="float64")) is None
+
+    positive = compute_effective_sample_size(pd.Series([0.0, 0.01, 0.02, 0.03, 0.04], dtype="float64"))
+    zero = compute_effective_sample_size(pd.Series([0.01, 0.0, -0.01, 0.0], dtype="float64"))
+    negative = compute_effective_sample_size(pd.Series([0.01, -0.01, 0.01, -0.01, 0.01], dtype="float64"))
+
+    assert positive is not None and 0.0 <= positive < 5.0
+    assert zero == pytest.approx(4.0)
+    assert negative == pytest.approx(5.0)
+    for value in (positive, zero, negative):
+        assert value is not None
+        assert math.isfinite(value)
+        json.dumps({"effective_n": value}, allow_nan=False)
+
+
+def test_compute_effective_sample_size_handles_high_positive_autocorrelation_safely() -> None:
+    high_positive = compute_effective_sample_size(pd.Series([0.0, 1.0, 2.0, 3.0, 4.0], dtype="float64"))
+
+    assert high_positive is not None
+    assert 0.0 <= high_positive <= 5.0
+
+
 def test_max_drawdown_computes_largest_peak_to_trough_decline() -> None:
     strategy_return = _strategy_returns()
 
@@ -280,7 +339,14 @@ def test_compute_performance_metrics_includes_expanded_fields_with_known_trade_v
     metrics = compute_performance_metrics(results_df)
 
     assert metrics["total_return"] == pytest.approx(metrics["cumulative_return"])
-    assert {"t_stat", "p_value", "conf_int_lower", "conf_int_upper"}.issubset(metrics)
+    assert {
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
+    }.issubset(metrics)
     assert metrics["conf_int_lower"] <= metrics["conf_int_upper"]
     assert metrics["hit_rate"] == pytest.approx(2.0 / 3.0)
     assert metrics["hit_rate_p_value"] == pytest.approx(
@@ -335,6 +401,8 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     assert empty_metrics["p_value"] is None
     assert empty_metrics["conf_int_lower"] is None
     assert empty_metrics["conf_int_upper"] is None
+    assert empty_metrics["autocorr_lag1"] is None
+    assert empty_metrics["effective_n"] is None
     assert empty_metrics["hit_rate_p_value"] is None
     assert empty_metrics["profit_factor"] == 0.0
     assert empty_metrics["exposure_pct"] == 0.0
@@ -342,6 +410,8 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     assert flat_metrics["sharpe_ratio"] == 0.0
     assert flat_metrics["t_stat"] is None
     assert flat_metrics["p_value"] is None
+    assert flat_metrics["autocorr_lag1"] is None
+    assert flat_metrics["effective_n"] is None
     assert flat_metrics["hit_rate"] == 0.0
     assert flat_metrics["hit_rate_p_value"] is None
 
@@ -527,6 +597,8 @@ def test_metrics_json_artifact_includes_inference_fields_and_json_safe_values(
         "p_value",
         "conf_int_lower",
         "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
     }.issubset(metrics_payload)
     assert {"cumulative_return", "sharpe_ratio", "max_drawdown", "win_rate"}.issubset(metrics_payload)
     assert metrics_payload["p_value"] == pytest.approx(compute_p_value(results_df["strategy_return"]))

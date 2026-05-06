@@ -18,6 +18,7 @@ LOW_EXCESS_RETURN_THRESHOLD = 0.02
 HIGH_TURNOVER_THRESHOLD = 0.5
 BETA_DOMINATED_RETURN_THRESHOLD = 0.2
 RETURN_INFERENCE_STD_ATOL = 1e-12
+AUTOCORR_DENOMINATOR_ATOL = 1e-12
 
 
 class MetricsAggregationError(ValueError):
@@ -147,6 +148,67 @@ def compute_confidence_interval(
     lower = _json_safe_float(mean_return - margin)
     upper = _json_safe_float(mean_return + margin)
     return (lower, upper)
+
+
+def compute_autocorr_lag1(strategy_return: pd.Series) -> float | None:
+    """
+    Compute lag-1 autocorrelation for finite period returns.
+
+    Undefined streams return ``None`` so JSON artifacts never serialize NaN or
+    infinity. Near-constant lagged vectors are treated as undefined.
+    """
+
+    returns = _finite_returns(strategy_return)
+    if len(returns) < 2:
+        return None
+
+    previous_returns = returns.iloc[:-1].reset_index(drop=True)
+    next_returns = returns.iloc[1:].reset_index(drop=True)
+    previous_std = float(previous_returns.std(ddof=1))
+    next_std = float(next_returns.std(ddof=1))
+    if (
+        not math.isfinite(previous_std)
+        or not math.isfinite(next_std)
+        or math.isclose(previous_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL)
+        or math.isclose(next_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL)
+    ):
+        return None
+
+    autocorr = previous_returns.corr(next_returns)
+    safe_autocorr = _json_safe_float(float(autocorr))
+    if safe_autocorr is None:
+        return None
+    if safe_autocorr > 1.0 and math.isclose(safe_autocorr, 1.0, abs_tol=AUTOCORR_DENOMINATOR_ATOL):
+        return 1.0
+    if safe_autocorr < -1.0 and math.isclose(safe_autocorr, -1.0, abs_tol=AUTOCORR_DENOMINATOR_ATOL):
+        return -1.0
+    return safe_autocorr
+
+
+def compute_effective_sample_size(strategy_return: pd.Series) -> float | None:
+    """
+    Estimate conservative AR(1)-style effective sample size.
+
+    Positive lag-1 autocorrelation reduces the estimate. Negative
+    autocorrelation is capped at the observed finite sample size for
+    conservative reporting.
+    """
+
+    returns = _finite_returns(strategy_return)
+    sample_size = len(returns)
+    rho = compute_autocorr_lag1(returns)
+    if rho is None:
+        return None
+    if rho < 0.0:
+        return float(sample_size)
+
+    denominator = 1.0 + rho
+    if denominator <= AUTOCORR_DENOMINATOR_ATOL:
+        return None
+
+    effective_n = sample_size * (1.0 - rho) / denominator
+    bounded_effective_n = max(0.0, min(float(sample_size), effective_n))
+    return _json_safe_float(bounded_effective_n)
 
 
 def annualized_return(strategy_return: pd.Series, *, periods_per_year: int = DEFAULT_PERIODS_PER_YEAR) -> float:
@@ -425,6 +487,8 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         "p_value": compute_p_value(strategy_return),
         "conf_int_lower": conf_int_lower,
         "conf_int_upper": conf_int_upper,
+        "autocorr_lag1": compute_autocorr_lag1(strategy_return),
+        "effective_n": compute_effective_sample_size(strategy_return),
         "max_drawdown": max_drawdown(strategy_return),
         "win_rate": period_win_rate,
         "hit_rate": hit_rate(closed_trade_returns),

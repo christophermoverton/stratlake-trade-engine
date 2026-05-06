@@ -311,6 +311,8 @@ statistics:
 * `sharpe_ratio`
 * SciPy-backed period-return inference diagnostics: `t_stat`, `p_value`,
   `conf_int_lower`, and `conf_int_upper`
+* Return-stream serial-dependence diagnostics: `autocorr_lag1` and
+  `effective_n`
 * `max_drawdown`
 * `win_rate`, trade-level `hit_rate`, and trade-level `hit_rate_p_value`
 * `profit_factor`
@@ -318,8 +320,13 @@ statistics:
 * `exposure_pct`
 
 The inference diagnostics use Student-t calculations from SciPy for the mean
-period return under an independent-observation assumption. Autocorrelation-
-adjusted inference is intentionally reserved for a later readiness milestone.
+period return under an independent-observation assumption. `autocorr_lag1`
+reports lag-1 autocorrelation of finite period returns, and `effective_n`
+reports a conservative AR(1)-style effective sample size estimate. Positive
+autocorrelation reduces `effective_n`; negative autocorrelation is capped at
+the observed sample size. These diagnostics inform interpretation of the
+Student-t fields, but autocorrelation-adjusted inference is intentionally
+reserved for a later readiness milestone.
 `hit_rate_p_value` uses SciPy's one-sided binomial test on closed trade returns
 with null win probability `0.5` and `alternative="greater"`. Zero-return
 closed trades count as valid non-wins, and the diagnostic is separate from

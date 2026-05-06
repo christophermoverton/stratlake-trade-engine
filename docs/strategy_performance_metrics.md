@@ -10,6 +10,7 @@ Current implementation:
 * keeps legacy-compatible `cumulative_return`, `volatility`, and `win_rate`
 * adds `total_return`, `annualized_return`, `annualized_volatility`, and annualized `sharpe_ratio`
 * derives `max_drawdown` from the compounded equity curve
+* reports return-stream serial-dependence diagnostics with `autocorr_lag1` and `effective_n`
 * computes trade-level `hit_rate`, `hit_rate_p_value`, and `profit_factor` from closed trades
 * computes `turnover` and `exposure_pct` from executed position changes
 
@@ -39,6 +40,8 @@ max_drawdown(strategy_return: pandas.Series) -> float
 win_rate(strategy_return: pandas.Series) -> float
 hit_rate(trade_returns: pandas.Series) -> float
 compute_hit_rate_p_value(trade_returns: pandas.Series, *, null_probability: float = 0.5, alternative: str = "greater") -> float | None
+compute_autocorr_lag1(strategy_return: pandas.Series) -> float | None
+compute_effective_sample_size(strategy_return: pandas.Series) -> float | None
 profit_factor(trade_returns: pandas.Series) -> float | None
 turnover(position: pandas.Series) -> float
 exposure_pct(position: pandas.Series) -> float
@@ -135,6 +138,26 @@ drawdown = 1.0 - (equity_curve / equity_curve.cummax())
 ```
 
 The metric is reported as a positive decimal fraction.
+
+### `autocorr_lag1`
+
+Lag-1 autocorrelation of finite period returns. Missing and non-finite returns
+are excluded. The value is `None` when fewer than two finite observations are
+available or when either lagged vector has near-zero variance.
+
+### `effective_n`
+
+Conservative AR(1)-style effective sample size estimate:
+
+```python
+n * (1.0 - autocorr_lag1) / (1.0 + autocorr_lag1)
+```
+
+Positive autocorrelation reduces effective sample size. Negative
+autocorrelation is capped at the observed finite sample size for conservative
+reporting. These diagnostics help interpret `t_stat`, `p_value`, and confidence
+intervals, but they do not replace those fields with autocorrelation-adjusted
+inference.
 
 ### `hit_rate`
 
@@ -249,6 +272,8 @@ Typical keys in `summary`:
     "annualized_return": 0.31,
     "annualized_volatility": 0.29,
     "sharpe_ratio": 1.08,
+    "autocorr_lag1": 0.18,
+    "effective_n": 69.49,
     "max_drawdown": 0.07,
     "win_rate": 0.54,
     "hit_rate": 0.58,

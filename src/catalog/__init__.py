@@ -23,6 +23,13 @@ from src.catalog.query import (
     related_records,
     summarize_catalog,
 )
+from src.catalog.validation import (
+    CatalogValidationIssue,
+    CatalogValidationReport,
+    validate_artifact_records,
+    validate_catalog,
+    validate_record,
+)
 
 __all__ = [
     "build_catalog",
@@ -44,4 +51,9 @@ __all__ = [
     "ArtifactRecord",
     "LineageEdge",
     "CatalogValidationStatus",
+    "CatalogValidationIssue",
+    "CatalogValidationReport",
+    "validate_catalog",
+    "validate_record",
+    "validate_artifact_records",
 ]

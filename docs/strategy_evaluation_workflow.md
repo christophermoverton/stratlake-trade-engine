@@ -270,6 +270,18 @@ Current summary metrics:
 * `annualized_return`
 * `annualized_volatility`
 * `sharpe_ratio`
+* `t_stat`
+* `p_value`
+* `conf_int_lower`
+* `conf_int_upper`
+* `hit_rate_p_value`
+* `autocorr_lag1`
+* `effective_n`
+* `split_mean_diff`
+* `split_mean_diff_p`
+* `rolling_sharpe_mean`
+* `rolling_sharpe_sd`
+* `sharpe_stability_ratio`
 * `max_drawdown`
 * `win_rate`
 * `hit_rate`
@@ -299,6 +311,13 @@ High-level annualization assumptions:
 `cumulative_return` and `total_return` are intentionally aligned in the current
 implementation.
 
+M30 statistical diagnostics are deterministic review aids. Student-t return
+diagnostics assume independent observations, `hit_rate_p_value` is a
+trade-level binomial diagnostic rather than period `win_rate`, autocorrelation
+and `effective_n` inform interpretation without adjusting p-values, and
+split-period or rolling Sharpe stability checks do not replace walk-forward
+evaluation.
+
 ## Artifact Structure
 
 Every run writes to:
@@ -313,6 +332,7 @@ artifacts/strategies/<run_id>/
 artifacts/strategies/<run_id>/
   config.json
   metrics.json
+  metrics_readiness.json
   equity_curve.csv
   signals.parquet
   equity_curve.parquet
@@ -327,6 +347,7 @@ Where to look:
 * `equity_curve.parquet`: backtest view with `signal` when present,
   `strategy_return`, and `equity_curve`
 * `metrics.json`: summary metric payload
+* `metrics_readiness.json`: advisory M30 diagnostic readiness manifest
 * `config.json`: strategy and run configuration used for the experiment
 * `trades.parquet`: closed-trade summaries when the run produces them
 * `manifest.json`: compact run summary with artifact inventory and metric overview
@@ -336,6 +357,7 @@ Where to look:
 ```text
 artifacts/strategies/<run_id>/
   metrics.json
+  metrics_readiness.json
   config.json
   equity_curve.csv
   equity_curve.parquet
@@ -345,18 +367,22 @@ artifacts/strategies/<run_id>/
   splits/<split_id>/equity_curve.csv
   splits/<split_id>/equity_curve.parquet
   splits/<split_id>/metrics.json
+  splits/<split_id>/metrics_readiness.json
   splits/<split_id>/split.json
 ```
 
 Per-split versus aggregate outputs:
 
 * run-root `metrics.json` is the aggregate walk-forward summary
+* run-root `metrics_readiness.json` groups aggregate diagnostic readiness
 * `metrics_by_split.csv` is one row per split with split metadata plus metric
   columns
 * run-root `equity_curve.csv` and `equity_curve.parquet` store aggregate
   walk-forward backtest outputs
 * run-root `manifest.json` records the artifact inventory and summary metrics
 * `splits/<split_id>/metrics.json` stores split-level metrics
+* `splits/<split_id>/metrics_readiness.json` stores split-level advisory
+  readiness diagnostics
 * `splits/<split_id>/signals.parquet`, `equity_curve.csv`, and
   `equity_curve.parquet` store the split test-window outputs
 * `splits/<split_id>/split.json` stores the split definition itself

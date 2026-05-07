@@ -80,6 +80,7 @@ Walk-forward runs add split-aware outputs inside the same root:
 artifacts/strategies/<run_id>/
   config.json
   metrics.json
+  metrics_readiness.json
   equity_curve.csv
   signals.parquet
   equity_curve.parquet
@@ -257,6 +258,11 @@ serialize with `allow_nan=False`.
 The readiness manifest supports campaign summaries, notebooks, and research
 governance review. It does not replace `metrics.json`, promotion gates, or full
 validation.
+
+Both `metrics.json` and `metrics_readiness.json` are written with sorted keys,
+stable indentation, and JSON-safe values. Undefined diagnostics are represented
+as `null`; artifacts must not rely on `NaN`, `Infinity`, or platform-specific
+path strings.
 
 ### `config.json`
 

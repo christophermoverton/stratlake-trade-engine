@@ -10,6 +10,8 @@ Current implementation:
 * keeps legacy-compatible `cumulative_return`, `volatility`, and `win_rate`
 * adds `total_return`, `annualized_return`, `annualized_volatility`, and annualized `sharpe_ratio`
 * derives `max_drawdown` from the compounded equity curve
+* reports SciPy Student-t return inference diagnostics with `t_stat`,
+  `p_value`, `conf_int_lower`, and `conf_int_upper`
 * reports return-stream serial-dependence diagnostics with `autocorr_lag1` and `effective_n`
 * reports split-period consistency diagnostics with `split_mean_diff` and `split_mean_diff_p`
 * reports rolling Sharpe stability diagnostics with `rolling_sharpe_mean`,
@@ -133,6 +135,24 @@ zero risk-free rate:
 ```
 
 If annualized volatility is zero, the function returns `0.0`.
+
+### `t_stat`, `p_value`, `conf_int_lower`, and `conf_int_upper`
+
+Return inference diagnostics are computed on finite period returns after
+missing and non-finite values are removed. `t_stat` is the one-sample
+Student-t statistic for mean period return versus zero. `p_value` is the
+two-sided SciPy Student-t p-value, and `conf_int_lower` / `conf_int_upper` are
+the 95% Student-t confidence interval bounds for mean period return.
+
+Undefined cases return `None`, including fewer than two finite returns or
+undefined sample volatility for the test statistic and p-value. Zero-variance
+streams with at least two finite observations produce a degenerate confidence
+interval at the observed mean.
+
+These fields assume independent observations. They are reported as deterministic
+review diagnostics and should be interpreted alongside autocorrelation,
+effective sample size, split-period, rolling stability, and walk-forward
+evidence.
 
 ### `max_drawdown`
 
@@ -310,6 +330,47 @@ serialized with `allow_nan=False`.
 These readiness checks are governance and review aids. They are not hard
 promotion gates and do not replace full validation, walk-forward review, or
 research judgment.
+
+### Readiness Manifest Schema
+
+`metrics_readiness.json` is written beside `metrics.json` for strategy
+single-run, walk-forward aggregate, and walk-forward split artifacts. The
+manifest uses schema version `1`, stores the source metrics filename in
+`source_metrics_artifact`, and is derived only from the adjacent metrics
+payload.
+
+Readiness checks use:
+
+* `PASS`: the check is available or above its advisory threshold
+* `WARN`: the diagnostic is missing or incomplete but not a hard failure
+* `FAIL`: the advisory minimum observation check is below threshold
+
+The root `status` is `FAIL` if any check fails, otherwise `WARN` if any check
+warns, otherwise `PASS`. Missing or undefined values are JSON `null`.
+
+---
+
+## Metrics And Readiness Reference
+
+| field | artifact | type | meaning | undefined behavior | notes |
+| --- | --- | --- | --- | --- | --- |
+| `t_stat` | `metrics.json` | number or `null` | Student-t statistic for mean period return versus zero | `null` for fewer than two finite returns or undefined sample volatility | Assumes independent observations |
+| `p_value` | `metrics.json` | number or `null` | Two-sided SciPy Student-t p-value for mean period return | `null` when `t_stat` is undefined | Not autocorrelation-adjusted |
+| `conf_int_lower` | `metrics.json` | number or `null` | Lower 95% Student-t confidence bound for mean period return | `null` for fewer than two finite returns | Degenerate zero-variance intervals use the mean |
+| `conf_int_upper` | `metrics.json` | number or `null` | Upper 95% Student-t confidence bound for mean period return | `null` for fewer than two finite returns | Same assumptions as `conf_int_lower` |
+| `hit_rate_p_value` | `metrics.json` | number or `null` | One-sided SciPy binomial-test p-value for closed-trade wins | `null` when no finite closed trades exist | Null probability `0.5`, `alternative="greater"` |
+| `autocorr_lag1` | `metrics.json` | number or `null` | Lag-1 autocorrelation of finite period returns | `null` for too few observations or near-constant lagged vectors | Diagnostic only |
+| `effective_n` | `metrics.json` | number or `null` | AR(1)-style effective sample size estimate | `null` when autocorrelation is undefined | Negative autocorrelation is capped at observed `n` |
+| `split_mean_diff` | `metrics.json` | number or `null` | First-half mean return minus second-half mean return | `null` unless both halves meet the minimum sample convention | Finite returns are split after filtering |
+| `split_mean_diff_p` | `metrics.json` | number or `null` | Two-sided SciPy Welch t-test p-value for split halves | `null` for insufficient samples or degenerate test output | Not a walk-forward substitute |
+| `rolling_sharpe_mean` | `metrics.json` | number or `null` | Mean of valid sequential window Sharpe ratios | `null` unless at least two valid window Sharpes exist | Non-overlapping full windows by default |
+| `rolling_sharpe_sd` | `metrics.json` | number or `null` | Sample standard deviation of valid window Sharpes | `null` unless at least two valid window Sharpes exist | Uses `ddof=1` |
+| `sharpe_stability_ratio` | `metrics.json` | number or `null` | `rolling_sharpe_mean / rolling_sharpe_sd` | `null` when rolling Sharpe standard deviation is missing or near zero | Stability diagnostic only |
+| `schema_version` | `metrics_readiness.json` | integer | Readiness manifest schema version | Always present | Current value is `1` |
+| `status` | `metrics_readiness.json` | string | Overall advisory readiness status | Always present | `PASS`, `WARN`, or `FAIL` |
+| `diagnostics` | `metrics_readiness.json` | object | Grouped M30 diagnostics copied from `metrics.json` | Missing metric values become `null` | Groups include return inference, hit rate, serial dependence, split period, and rolling stability |
+| `checks` | `metrics_readiness.json` | array | Advisory readiness checks | Always present | Includes minimum observations and diagnostic availability |
+| `summary` | `metrics_readiness.json` | object | Counts of checks by status | Always present | Deterministic and JSON-safe |
 
 ---
 

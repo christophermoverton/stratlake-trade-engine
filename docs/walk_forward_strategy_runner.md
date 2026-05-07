@@ -133,6 +133,7 @@ Additional walk-forward artifacts:
 ```text
 artifacts/strategies/<run_id>/
   metrics.json
+  metrics_readiness.json
   config.json
   equity_curve.csv
   equity_curve.parquet
@@ -142,6 +143,7 @@ artifacts/strategies/<run_id>/
   splits/<split_id>/equity_curve.csv
   splits/<split_id>/equity_curve.parquet
   splits/<split_id>/metrics.json
+  splits/<split_id>/metrics_readiness.json
   splits/<split_id>/split.json
 ```
 
@@ -156,11 +158,21 @@ experiments, including:
 * `annualized_return`
 * `annualized_volatility`
 * `sharpe_ratio`
+* `t_stat`, `p_value`, `conf_int_lower`, and `conf_int_upper`
+* `hit_rate_p_value`
+* `autocorr_lag1` and `effective_n`
+* `split_mean_diff` and `split_mean_diff_p`
+* `rolling_sharpe_mean`, `rolling_sharpe_sd`, and `sharpe_stability_ratio`
 * `max_drawdown`
 * `hit_rate`
 * `profit_factor`
 * `turnover`
 * `exposure_pct`
+
+Each aggregate and split-level `metrics.json` has an adjacent
+`metrics_readiness.json` manifest. The manifest groups the M30 diagnostics into
+advisory readiness checks; it does not replace walk-forward evaluation or
+change promotion-gate behavior.
 
 ---
 

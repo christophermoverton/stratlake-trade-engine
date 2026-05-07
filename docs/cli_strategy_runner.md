@@ -364,6 +364,19 @@ effective sample size threshold of `30`, and uses `null` for missing or
 undefined diagnostics. It is additive and does not change the meaning or schema
 of `metrics.json`.
 
+Common files to inspect after a run:
+
+```text
+artifacts/strategies/<run_id>/metrics.json
+artifacts/strategies/<run_id>/metrics_readiness.json
+artifacts/strategies/<run_id>/splits/<split_id>/metrics.json
+artifacts/strategies/<run_id>/splits/<split_id>/metrics_readiness.json
+```
+
+Use `metrics.json` for scalar performance and diagnostic values. Use
+`metrics_readiness.json` for grouped readiness status and JSON-safe `null`
+handling across the same fields.
+
 ---
 
 ## Related Modules

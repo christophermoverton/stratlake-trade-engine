@@ -109,6 +109,30 @@ Start with:
 * [docs/examples/m29_catalog_driven_research_workflow.py](docs/examples/m29_catalog_driven_research_workflow.py)
 * [docs/examples/notebooks/m29_catalog_driven_research_workflow.ipynb](docs/examples/notebooks/m29_catalog_driven_research_workflow.ipynb)
 
+### Milestone 30: Statistical Diagnostics And Metrics Readiness
+
+Milestone 30 extends strategy and portfolio metric payloads with deterministic
+statistical diagnostics and additive readiness artifacts. Strategy
+`metrics.json` payloads now expose return inference diagnostics, trade-level
+hit-rate significance, lag-1 autocorrelation and effective sample size,
+split-period consistency, and rolling Sharpe stability. Each strategy
+`metrics.json` has an adjacent `metrics_readiness.json` manifest that groups
+those diagnostics into advisory `PASS`, `WARN`, and `FAIL` checks for research
+review.
+
+The diagnostics are artifact-first and conservative. Student-t return
+diagnostics assume independent period returns, autocorrelation diagnostics
+inform interpretation but do not adjust p-values, split-period and rolling
+Sharpe checks do not replace walk-forward evaluation, and readiness manifests
+are advisory rather than hard promotion gates.
+
+Start with:
+
+* [docs/strategy_performance_metrics.md](docs/strategy_performance_metrics.md)
+* [docs/cli_strategy_runner.md](docs/cli_strategy_runner.md)
+* [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
+* [docs/examples/statistical_diagnostics_readiness_example.py](docs/examples/statistical_diagnostics_readiness_example.py)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing
@@ -1224,6 +1248,7 @@ Core files:
 
 * `config.json`
 * `metrics.json`
+* `metrics_readiness.json`
 * `signal_diagnostics.json`
 * `qa_summary.json`
 * `promotion_gates.json` when promotion gates are configured
@@ -1239,6 +1264,8 @@ Optional Milestone 11 additions:
 Walk-forward runs also include:
 
 * `metrics_by_split.csv`
+* split-level `splits/<split_id>/metrics.json`
+* split-level `splits/<split_id>/metrics_readiness.json`
 * `splits/<split_id>/...`
 
 ### Portfolio artifacts
@@ -1266,6 +1293,8 @@ Walk-forward portfolio runs also include:
 
 * `aggregate_metrics.json`
 * `metrics_by_split.csv`
+* split-level `splits/<split_id>/metrics.json`
+* split-level `splits/<split_id>/metrics_readiness.json`
 * `splits/<split_id>/...`
 
 ### Candidate-selection artifacts

@@ -22,6 +22,8 @@ from src.research.metrics import (
     compute_hit_rate_p_value,
     compute_performance_metrics,
     compute_p_value,
+    compute_rolling_sharpe_diagnostics,
+    compute_rolling_sharpe_values,
     compute_split_mean_diff,
     compute_split_mean_diff_p_value,
     compute_split_period_diagnostics,
@@ -337,6 +339,104 @@ def test_compute_split_period_diagnostics_filters_non_finite_values_before_split
     )
 
 
+def test_compute_rolling_sharpe_diagnostics_return_none_for_empty_single_short_or_invalid_streams() -> None:
+    expected = {
+        "rolling_sharpe_mean": None,
+        "rolling_sharpe_sd": None,
+        "sharpe_stability_ratio": None,
+    }
+
+    assert compute_rolling_sharpe_diagnostics(pd.Series(dtype="float64")) == expected
+    assert compute_rolling_sharpe_diagnostics(pd.Series([0.01], dtype="float64")) == expected
+    assert compute_rolling_sharpe_diagnostics(pd.Series([0.01] * 11, dtype="float64")) == expected
+    assert compute_rolling_sharpe_diagnostics(
+        pd.Series([float("nan"), float("inf"), -float("inf")])
+    ) == expected
+
+
+def test_compute_rolling_sharpe_diagnostics_handles_constant_streams_json_safely() -> None:
+    diagnostics = compute_rolling_sharpe_diagnostics(pd.Series([0.01] * 12, dtype="float64"))
+
+    assert diagnostics["rolling_sharpe_mean"] == pytest.approx(0.0)
+    assert diagnostics["rolling_sharpe_sd"] == pytest.approx(0.0)
+    assert diagnostics["sharpe_stability_ratio"] is None
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_rolling_sharpe_diagnostics_stable_stream_is_json_safe() -> None:
+    returns = pd.Series(
+        [0.010, 0.012, 0.008, 0.011] * 3,
+        dtype="float64",
+    )
+    diagnostics = compute_rolling_sharpe_diagnostics(returns)
+
+    assert diagnostics["rolling_sharpe_mean"] is not None
+    assert diagnostics["rolling_sharpe_sd"] is not None
+    assert diagnostics["rolling_sharpe_sd"] >= 0.0
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_rolling_sharpe_diagnostics_regime_shift_has_positive_dispersion() -> None:
+    returns = pd.Series(
+        [0.03, 0.02, 0.04, 0.01, -0.03, -0.02, -0.04, -0.01, 0.04, -0.05, 0.03, -0.04],
+        dtype="float64",
+    )
+    diagnostics = compute_rolling_sharpe_diagnostics(returns)
+
+    assert diagnostics["rolling_sharpe_mean"] is not None
+    assert diagnostics["rolling_sharpe_sd"] is not None
+    assert diagnostics["rolling_sharpe_sd"] > 0.0
+    assert diagnostics["sharpe_stability_ratio"] is not None
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_rolling_sharpe_diagnostics_respects_custom_window_and_step() -> None:
+    returns = pd.Series(
+        [0.01, 0.02, -0.01, 0.03, -0.02, -0.01, 0.0, -0.03],
+        dtype="float64",
+    )
+    window_sharpes = compute_rolling_sharpe_values(
+        returns,
+        window_size=4,
+        step_size=4,
+        periods_per_year=TRADING_DAYS_PER_YEAR,
+    )
+    diagnostics = compute_rolling_sharpe_diagnostics(
+        returns,
+        window_size=4,
+        step_size=4,
+        periods_per_year=TRADING_DAYS_PER_YEAR,
+    )
+
+    expected_sharpes = [
+        sharpe_ratio(returns.iloc[:4], periods_per_year=TRADING_DAYS_PER_YEAR),
+        sharpe_ratio(returns.iloc[4:], periods_per_year=TRADING_DAYS_PER_YEAR),
+    ]
+    assert window_sharpes == pytest.approx(expected_sharpes)
+    assert diagnostics["rolling_sharpe_mean"] == pytest.approx(pd.Series(expected_sharpes).mean())
+    assert diagnostics["rolling_sharpe_sd"] == pytest.approx(pd.Series(expected_sharpes).std(ddof=1))
+
+
+def test_compute_rolling_sharpe_diagnostics_filters_non_finite_values_before_windowing() -> None:
+    contaminated = pd.Series(
+        [0.01, float("nan"), 0.02, -0.01, 0.03, float("inf"), -0.02, -0.01, 0.0, -0.03],
+        dtype="float64",
+    )
+    clean = pd.Series([0.01, 0.02, -0.01, 0.03, -0.02, -0.01, 0.0, -0.03], dtype="float64")
+
+    assert compute_rolling_sharpe_diagnostics(
+        contaminated,
+        window_size=4,
+        step_size=4,
+    ) == pytest.approx(
+        compute_rolling_sharpe_diagnostics(
+            clean,
+            window_size=4,
+            step_size=4,
+        )
+    )
+
+
 def test_max_drawdown_computes_largest_peak_to_trough_decline() -> None:
     strategy_return = _strategy_returns()
 
@@ -429,6 +529,9 @@ def test_compute_performance_metrics_includes_expanded_fields_with_known_trade_v
         "effective_n",
         "split_mean_diff",
         "split_mean_diff_p",
+        "rolling_sharpe_mean",
+        "rolling_sharpe_sd",
+        "sharpe_stability_ratio",
     }.issubset(metrics)
     assert metrics["conf_int_lower"] <= metrics["conf_int_upper"]
     assert metrics["hit_rate"] == pytest.approx(2.0 / 3.0)
@@ -488,6 +591,9 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     assert empty_metrics["effective_n"] is None
     assert empty_metrics["split_mean_diff"] is None
     assert empty_metrics["split_mean_diff_p"] is None
+    assert empty_metrics["rolling_sharpe_mean"] is None
+    assert empty_metrics["rolling_sharpe_sd"] is None
+    assert empty_metrics["sharpe_stability_ratio"] is None
     assert empty_metrics["hit_rate_p_value"] is None
     assert empty_metrics["profit_factor"] == 0.0
     assert empty_metrics["exposure_pct"] == 0.0
@@ -499,6 +605,9 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     assert flat_metrics["effective_n"] is None
     assert flat_metrics["split_mean_diff"] is None
     assert flat_metrics["split_mean_diff_p"] is None
+    assert flat_metrics["rolling_sharpe_mean"] is None
+    assert flat_metrics["rolling_sharpe_sd"] is None
+    assert flat_metrics["sharpe_stability_ratio"] is None
     assert flat_metrics["hit_rate"] == 0.0
     assert flat_metrics["hit_rate_p_value"] is None
 
@@ -688,6 +797,9 @@ def test_metrics_json_artifact_includes_inference_fields_and_json_safe_values(
         "effective_n",
         "split_mean_diff",
         "split_mean_diff_p",
+        "rolling_sharpe_mean",
+        "rolling_sharpe_sd",
+        "sharpe_stability_ratio",
     }.issubset(metrics_payload)
     assert {"cumulative_return", "sharpe_ratio", "max_drawdown", "win_rate"}.issubset(metrics_payload)
     assert metrics_payload["p_value"] == pytest.approx(compute_p_value(results_df["strategy_return"]))

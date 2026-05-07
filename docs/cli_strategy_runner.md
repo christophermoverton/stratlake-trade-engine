@@ -315,6 +315,8 @@ statistics:
   `effective_n`
 * Split-period consistency diagnostics: `split_mean_diff` and
   `split_mean_diff_p`
+* Rolling Sharpe stability diagnostics: `rolling_sharpe_mean`,
+  `rolling_sharpe_sd`, and `sharpe_stability_ratio`
 * `max_drawdown`
 * `win_rate`, trade-level `hit_rate`, and trade-level `hit_rate_p_value`
 * `profit_factor`
@@ -336,6 +338,16 @@ t-test p-value comparing those halves. Undefined split tests return `None`;
 the signed mean difference remains available when the halves meet the minimum
 sample convention and the value is finite. The diagnostics flag simple
 sub-period concentration but do not replace full walk-forward evaluation.
+Rolling Sharpe stability diagnostics filter missing and non-finite returns,
+preserve order, and use deterministic non-overlapping full windows by default:
+`252` observations for streams with at least `252` finite returns, otherwise
+`max(4, n // 3)` for streams with at least `12` finite returns. Each window
+uses the standard annualized `sharpe_ratio()`. `rolling_sharpe_mean` is the
+mean of valid window Sharpes, `rolling_sharpe_sd` is their sample standard
+deviation, and `sharpe_stability_ratio` is the mean divided by that standard
+deviation when the denominator is defined and not near zero. Undefined cases
+return `None`; these diagnostics are lightweight and do not replace
+walk-forward evaluation.
 `hit_rate_p_value` uses SciPy's one-sided binomial test on closed trade returns
 with null win probability `0.5` and `alternative="greater"`. Zero-return
 closed trades count as valid non-wins, and the diagnostic is separate from

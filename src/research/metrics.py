@@ -20,6 +20,8 @@ BETA_DOMINATED_RETURN_THRESHOLD = 0.2
 RETURN_INFERENCE_STD_ATOL = 1e-12
 AUTOCORR_DENOMINATOR_ATOL = 1e-12
 SPLIT_MIN_HALF_OBSERVATIONS = 2
+ROLLING_SHARPE_MIN_OBSERVATIONS = 12
+ROLLING_SHARPE_SD_ATOL = 1e-12
 
 
 class MetricsAggregationError(ValueError):
@@ -272,6 +274,102 @@ def compute_split_mean_diff_p_value(strategy_return: pd.Series) -> float | None:
     """Return the two-sided Welch t-test p-value for split-half mean stability."""
 
     return compute_split_period_diagnostics(strategy_return)["split_mean_diff_p"]
+
+
+def compute_rolling_sharpe_values(
+    strategy_return: pd.Series,
+    *,
+    window_size: int | None = None,
+    min_periods: int | None = None,
+    step_size: int | None = None,
+    periods_per_year: int = DEFAULT_PERIODS_PER_YEAR,
+) -> list[float]:
+    """
+    Compute deterministic sequential window Sharpe ratios for finite returns.
+
+    Missing and non-finite returns are filtered before windowing. By default,
+    windows are non-overlapping and full-sized, preserving return order while
+    avoiding false precision from highly overlapping samples.
+    """
+
+    returns = _finite_returns(strategy_return).reset_index(drop=True)
+    sample_size = len(returns)
+    if window_size is None:
+        window_size = _default_rolling_sharpe_window_size(sample_size)
+    if window_size is None:
+        return []
+    if window_size <= 0:
+        raise ValueError("window_size must be positive.")
+
+    if step_size is None:
+        step_size = window_size
+    if step_size <= 0:
+        raise ValueError("step_size must be positive.")
+
+    if min_periods is None:
+        min_periods = window_size
+    if min_periods <= 0:
+        raise ValueError("min_periods must be positive.")
+    if min_periods > window_size:
+        raise ValueError("min_periods cannot exceed window_size.")
+
+    window_sharpes: list[float] = []
+    for start in range(0, sample_size, step_size):
+        window = returns.iloc[start : start + window_size]
+        if len(window) < min_periods:
+            continue
+        safe_sharpe = _json_safe_float(sharpe_ratio(window, periods_per_year=periods_per_year))
+        if safe_sharpe is not None:
+            window_sharpes.append(safe_sharpe)
+    return window_sharpes
+
+
+def compute_rolling_sharpe_diagnostics(
+    strategy_return: pd.Series,
+    *,
+    window_size: int | None = None,
+    min_periods: int | None = None,
+    step_size: int | None = None,
+    periods_per_year: int = DEFAULT_PERIODS_PER_YEAR,
+) -> dict[str, float | None]:
+    """
+    Summarize stability of Sharpe-like performance across sequential windows.
+
+    Returns ``None`` diagnostics when fewer than two valid window Sharpe ratios
+    are available. The stability ratio is mean window Sharpe divided by sample
+    standard deviation and is undefined when the denominator is near zero.
+    """
+
+    empty = {
+        "rolling_sharpe_mean": None,
+        "rolling_sharpe_sd": None,
+        "sharpe_stability_ratio": None,
+    }
+    window_sharpes = compute_rolling_sharpe_values(
+        strategy_return,
+        window_size=window_size,
+        min_periods=min_periods,
+        step_size=step_size,
+        periods_per_year=periods_per_year,
+    )
+    if len(window_sharpes) < 2:
+        return empty
+
+    sharpe_series = pd.Series(window_sharpes, dtype="float64")
+    rolling_sharpe_mean = _json_safe_float(float(sharpe_series.mean()))
+    rolling_sharpe_sd = _json_safe_float(float(sharpe_series.std(ddof=1)))
+    if rolling_sharpe_mean is None or rolling_sharpe_sd is None:
+        return empty
+
+    sharpe_stability_ratio = None
+    if not math.isclose(rolling_sharpe_sd, 0.0, abs_tol=ROLLING_SHARPE_SD_ATOL):
+        sharpe_stability_ratio = _json_safe_float(rolling_sharpe_mean / rolling_sharpe_sd)
+
+    return {
+        "rolling_sharpe_mean": rolling_sharpe_mean,
+        "rolling_sharpe_sd": rolling_sharpe_sd,
+        "sharpe_stability_ratio": sharpe_stability_ratio,
+    }
 
 
 def annualized_return(strategy_return: pd.Series, *, periods_per_year: int = DEFAULT_PERIODS_PER_YEAR) -> float:
@@ -539,6 +637,10 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
     average_turnover = float(position_change["turnover"].mean()) if not position_change.empty else 0.0
     conf_int_lower, conf_int_upper = compute_confidence_interval(strategy_return)
     split_diagnostics = compute_split_period_diagnostics(strategy_return)
+    rolling_sharpe_diagnostics = compute_rolling_sharpe_diagnostics(
+        strategy_return,
+        periods_per_year=periods_per_year,
+    )
 
     return {
         "cumulative_return": total,
@@ -555,6 +657,9 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         "effective_n": compute_effective_sample_size(strategy_return),
         "split_mean_diff": split_diagnostics["split_mean_diff"],
         "split_mean_diff_p": split_diagnostics["split_mean_diff_p"],
+        "rolling_sharpe_mean": rolling_sharpe_diagnostics["rolling_sharpe_mean"],
+        "rolling_sharpe_sd": rolling_sharpe_diagnostics["rolling_sharpe_sd"],
+        "sharpe_stability_ratio": rolling_sharpe_diagnostics["sharpe_stability_ratio"],
         "max_drawdown": max_drawdown(strategy_return),
         "win_rate": period_win_rate,
         "hit_rate": hit_rate(closed_trade_returns),
@@ -749,6 +854,14 @@ def _return_inference_inputs(strategy_return: pd.Series) -> dict[str, float] | N
         "standard_error": standard_error,
         "degrees_of_freedom": float(sample_size - 1),
     }
+
+
+def _default_rolling_sharpe_window_size(sample_size: int) -> int | None:
+    if sample_size >= TRADING_DAYS_PER_YEAR:
+        return TRADING_DAYS_PER_YEAR
+    if sample_size >= ROLLING_SHARPE_MIN_OBSERVATIONS:
+        return max(4, sample_size // 3)
+    return None
 
 
 def _json_safe_float(value: float) -> float | None:

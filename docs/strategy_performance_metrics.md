@@ -12,6 +12,8 @@ Current implementation:
 * derives `max_drawdown` from the compounded equity curve
 * reports return-stream serial-dependence diagnostics with `autocorr_lag1` and `effective_n`
 * reports split-period consistency diagnostics with `split_mean_diff` and `split_mean_diff_p`
+* reports rolling Sharpe stability diagnostics with `rolling_sharpe_mean`,
+  `rolling_sharpe_sd`, and `sharpe_stability_ratio`
 * computes trade-level `hit_rate`, `hit_rate_p_value`, and `profit_factor` from closed trades
 * computes `turnover` and `exposure_pct` from executed position changes
 
@@ -44,6 +46,7 @@ compute_hit_rate_p_value(trade_returns: pandas.Series, *, null_probability: floa
 compute_autocorr_lag1(strategy_return: pandas.Series) -> float | None
 compute_effective_sample_size(strategy_return: pandas.Series) -> float | None
 compute_split_period_diagnostics(strategy_return: pandas.Series) -> dict[str, float | None]
+compute_rolling_sharpe_diagnostics(strategy_return: pandas.Series, *, window_size: int | None = None, min_periods: int | None = None, step_size: int | None = None, periods_per_year: int = 252) -> dict[str, float | None]
 profit_factor(trade_returns: pandas.Series) -> float | None
 turnover(position: pandas.Series) -> float
 exposure_pct(position: pandas.Series) -> float
@@ -179,6 +182,30 @@ case, `split_mean_diff_p` is `None` while the signed mean difference remains
 available when it is finite. These diagnostics indicate simple sub-period
 consistency; they do not replace full walk-forward evaluation.
 
+### `rolling_sharpe_mean`, `rolling_sharpe_sd`, and `sharpe_stability_ratio`
+
+Rolling Sharpe stability diagnostics summarize valid window-level Sharpe
+ratios across finite period returns. Returns are filtered for missing and
+non-finite values first, order is preserved, and windows are deterministic.
+
+Default windowing is sequential and non-overlapping:
+
+* `252` observations when at least `252` finite returns are available
+* otherwise `max(4, n // 3)` when at least `12` finite returns are available
+* otherwise the diagnostics are `None`
+
+By default, only full windows are used and `step_size` equals `window_size`.
+Each window Sharpe is computed with `sharpe_ratio()` so annualization matches
+the headline Sharpe ratio. `rolling_sharpe_mean` is the mean of valid window
+Sharpes, and `rolling_sharpe_sd` is their sample standard deviation with
+`ddof=1`. At least two valid window Sharpes are required; otherwise all rolling
+Sharpe stability diagnostics are `None`.
+
+`sharpe_stability_ratio` is `rolling_sharpe_mean / rolling_sharpe_sd` and is
+`None` when the sample standard deviation is missing, non-finite, or near zero.
+These fields are lightweight stability diagnostics and do not replace full
+walk-forward evaluation.
+
 ### `hit_rate`
 
 Share of profitable closed trades:
@@ -296,6 +323,9 @@ Typical keys in `summary`:
     "effective_n": 69.49,
     "split_mean_diff": 0.0004,
     "split_mean_diff_p": 0.73,
+    "rolling_sharpe_mean": 0.92,
+    "rolling_sharpe_sd": 0.18,
+    "sharpe_stability_ratio": 5.11,
     "max_drawdown": 0.07,
     "win_rate": 0.54,
     "hit_rate": 0.58,

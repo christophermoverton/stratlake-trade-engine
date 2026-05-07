@@ -18,6 +18,7 @@ from src.research.metrics import (
     compute_confidence_interval,
     compute_effective_sample_size,
     compute_p_value,
+    compute_rolling_sharpe_diagnostics,
     compute_t_statistic,
     compute_split_period_diagnostics,
     hit_rate,
@@ -107,6 +108,10 @@ def compute_portfolio_metrics(
     tail_risk = risk_summary["tail_risk"]
     conf_int_lower, conf_int_upper = compute_confidence_interval(portfolio_returns)
     split_diagnostics = compute_split_period_diagnostics(portfolio_returns)
+    rolling_sharpe_diagnostics = compute_rolling_sharpe_diagnostics(
+        portfolio_returns,
+        periods_per_year=periods_per_year,
+    )
     vol_target = risk_summary["volatility_targeting"]
     operational_targeting = normalized.attrs.get("portfolio_volatility_targeting", {})
     operational_enabled = bool(
@@ -175,6 +180,9 @@ def compute_portfolio_metrics(
         "effective_n": compute_effective_sample_size(portfolio_returns),
         "split_mean_diff": split_diagnostics["split_mean_diff"],
         "split_mean_diff_p": split_diagnostics["split_mean_diff_p"],
+        "rolling_sharpe_mean": rolling_sharpe_diagnostics["rolling_sharpe_mean"],
+        "rolling_sharpe_sd": rolling_sharpe_diagnostics["rolling_sharpe_sd"],
+        "sharpe_stability_ratio": rolling_sharpe_diagnostics["sharpe_stability_ratio"],
         "max_drawdown": float(drawdown["max_drawdown"]),
         "current_drawdown": float(drawdown["current_drawdown"]),
         "max_drawdown_duration": float(drawdown["max_drawdown_duration"]),

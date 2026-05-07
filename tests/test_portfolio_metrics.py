@@ -18,6 +18,7 @@ from src.research.metrics import (
     compute_confidence_interval,
     compute_effective_sample_size,
     compute_p_value,
+    compute_rolling_sharpe_diagnostics,
     compute_split_period_diagnostics,
     compute_t_statistic,
     max_drawdown,
@@ -100,6 +101,9 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "effective_n",
         "split_mean_diff",
         "split_mean_diff_p",
+        "rolling_sharpe_mean",
+        "rolling_sharpe_sd",
+        "sharpe_stability_ratio",
         "max_drawdown",
         "current_drawdown",
         "max_drawdown_duration",
@@ -178,6 +182,10 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["split_mean_diff_p"] == pytest.approx(
         compute_split_period_diagnostics(portfolio_returns)["split_mean_diff_p"]
     )
+    rolling_sharpe_diagnostics = compute_rolling_sharpe_diagnostics(portfolio_returns)
+    assert metrics["rolling_sharpe_mean"] == rolling_sharpe_diagnostics["rolling_sharpe_mean"]
+    assert metrics["rolling_sharpe_sd"] == rolling_sharpe_diagnostics["rolling_sharpe_sd"]
+    assert metrics["sharpe_stability_ratio"] == rolling_sharpe_diagnostics["sharpe_stability_ratio"]
     assert "hit_rate_p_value" not in metrics
     assert metrics["max_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["current_drawdown"] == pytest.approx(expected_drawdown)
@@ -238,6 +246,10 @@ def test_compute_portfolio_metrics_matches_research_metric_primitives() -> None:
     assert metrics["split_mean_diff_p"] == pytest.approx(
         compute_split_period_diagnostics(portfolio_returns)["split_mean_diff_p"]
     )
+    rolling_sharpe_diagnostics = compute_rolling_sharpe_diagnostics(portfolio_returns)
+    assert metrics["rolling_sharpe_mean"] == rolling_sharpe_diagnostics["rolling_sharpe_mean"]
+    assert metrics["rolling_sharpe_sd"] == rolling_sharpe_diagnostics["rolling_sharpe_sd"]
+    assert metrics["sharpe_stability_ratio"] == rolling_sharpe_diagnostics["sharpe_stability_ratio"]
     assert metrics["max_drawdown"] == pytest.approx(max_drawdown(portfolio_returns))
     assert metrics["value_at_risk"] == pytest.approx(0.014)
     assert metrics["conditional_value_at_risk"] == pytest.approx(0.014)
@@ -348,6 +360,9 @@ def test_compute_portfolio_metrics_handles_near_constant_returns_without_non_fin
         "effective_n",
         "split_mean_diff",
         "split_mean_diff_p",
+        "rolling_sharpe_mean",
+        "rolling_sharpe_sd",
+        "sharpe_stability_ratio",
     }.issubset(metrics)
     assert metrics["t_stat"] is None
     assert metrics["p_value"] is None
@@ -355,6 +370,9 @@ def test_compute_portfolio_metrics_handles_near_constant_returns_without_non_fin
     assert metrics["effective_n"] is None
     assert metrics["split_mean_diff"] is None
     assert metrics["split_mean_diff_p"] is None
+    assert metrics["rolling_sharpe_mean"] is None
+    assert metrics["rolling_sharpe_sd"] is None
+    assert metrics["sharpe_stability_ratio"] is None
     assert metrics["conf_int_lower"] == pytest.approx(portfolio_output["portfolio_return"].mean())
     assert metrics["conf_int_upper"] == pytest.approx(portfolio_output["portfolio_return"].mean())
 

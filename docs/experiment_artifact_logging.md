@@ -217,6 +217,16 @@ the minimum sample convention and the value is finite. These diagnostics
 highlight simple sub-period concentration but do not replace walk-forward
 evaluation.
 
+Return-stream payloads also include rolling Sharpe stability diagnostics.
+`rolling_sharpe_mean` is the mean of valid sequential window Sharpe ratios,
+`rolling_sharpe_sd` is their sample standard deviation, and
+`sharpe_stability_ratio` is the mean divided by the standard deviation when the
+denominator is defined and not near zero. Windows are order-preserving,
+non-overlapping, and full-sized by default: `252` finite observations when
+available, otherwise `max(4, n // 3)` for streams with at least `12` finite
+observations. Undefined or degenerate diagnostics return `None`. These fields
+are lightweight stability checks and do not replace walk-forward evaluation.
+
 Strategy trade payloads also include `hit_rate_p_value`, a one-sided SciPy
 binomial-test p-value for closed-trade hit rate with null win probability
 `0.5` and `alternative="greater"`. Zero-return closed trades are counted as

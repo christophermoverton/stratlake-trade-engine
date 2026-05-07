@@ -19,6 +19,7 @@ HIGH_TURNOVER_THRESHOLD = 0.5
 BETA_DOMINATED_RETURN_THRESHOLD = 0.2
 RETURN_INFERENCE_STD_ATOL = 1e-12
 AUTOCORR_DENOMINATOR_ATOL = 1e-12
+SPLIT_MIN_HALF_OBSERVATIONS = 2
 
 
 class MetricsAggregationError(ValueError):
@@ -209,6 +210,68 @@ def compute_effective_sample_size(strategy_return: pd.Series) -> float | None:
     effective_n = sample_size * (1.0 - rho) / denominator
     bounded_effective_n = max(0.0, min(float(sample_size), effective_n))
     return _json_safe_float(bounded_effective_n)
+
+
+def compute_split_period_diagnostics(strategy_return: pd.Series) -> dict[str, float | None]:
+    """
+    Compare first-half and second-half mean returns with a deterministic Welch test.
+
+    Finite period returns are split by observation count after filtering invalid
+    values. ``split_mean_diff`` is reported only when both halves contain at
+    least two observations, matching the minimum sample convention for the
+    two-sided Welch t-test p-value.
+    """
+
+    returns = _finite_returns(strategy_return).reset_index(drop=True)
+    split_index = len(returns) // 2
+    first_half = returns.iloc[:split_index]
+    second_half = returns.iloc[split_index:]
+    if len(first_half) < SPLIT_MIN_HALF_OBSERVATIONS or len(second_half) < SPLIT_MIN_HALF_OBSERVATIONS:
+        return {
+            "split_mean_diff": None,
+            "split_mean_diff_p": None,
+        }
+
+    split_mean_diff = _json_safe_float(float(first_half.mean() - second_half.mean()))
+    first_std = float(first_half.std(ddof=1))
+    second_std = float(second_half.std(ddof=1))
+    if (
+        not math.isfinite(first_std)
+        or not math.isfinite(second_std)
+        or math.isclose(first_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL)
+        or math.isclose(second_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL)
+    ):
+        return {
+            "split_mean_diff": split_mean_diff,
+            "split_mean_diff_p": None,
+        }
+
+    test_result = stats.ttest_ind(
+        first_half,
+        second_half,
+        equal_var=False,
+        nan_policy="omit",
+    )
+    split_mean_diff_p = _json_safe_float(float(test_result.pvalue))
+    if split_mean_diff_p is not None:
+        split_mean_diff_p = min(max(split_mean_diff_p, 0.0), 1.0)
+
+    return {
+        "split_mean_diff": split_mean_diff,
+        "split_mean_diff_p": split_mean_diff_p,
+    }
+
+
+def compute_split_mean_diff(strategy_return: pd.Series) -> float | None:
+    """Return first-half mean period return minus second-half mean period return."""
+
+    return compute_split_period_diagnostics(strategy_return)["split_mean_diff"]
+
+
+def compute_split_mean_diff_p_value(strategy_return: pd.Series) -> float | None:
+    """Return the two-sided Welch t-test p-value for split-half mean stability."""
+
+    return compute_split_period_diagnostics(strategy_return)["split_mean_diff_p"]
 
 
 def annualized_return(strategy_return: pd.Series, *, periods_per_year: int = DEFAULT_PERIODS_PER_YEAR) -> float:
@@ -475,6 +538,7 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
     total_turnover = float(position_change["turnover"].sum())
     average_turnover = float(position_change["turnover"].mean()) if not position_change.empty else 0.0
     conf_int_lower, conf_int_upper = compute_confidence_interval(strategy_return)
+    split_diagnostics = compute_split_period_diagnostics(strategy_return)
 
     return {
         "cumulative_return": total,
@@ -489,6 +553,8 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         "conf_int_upper": conf_int_upper,
         "autocorr_lag1": compute_autocorr_lag1(strategy_return),
         "effective_n": compute_effective_sample_size(strategy_return),
+        "split_mean_diff": split_diagnostics["split_mean_diff"],
+        "split_mean_diff_p": split_diagnostics["split_mean_diff_p"],
         "max_drawdown": max_drawdown(strategy_return),
         "win_rate": period_win_rate,
         "hit_rate": hit_rate(closed_trade_returns),

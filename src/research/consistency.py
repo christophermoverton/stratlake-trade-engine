@@ -36,6 +36,8 @@ _REGISTRY_METRIC_KEYS = (
     "conf_int_upper",
     "autocorr_lag1",
     "effective_n",
+    "split_mean_diff",
+    "split_mean_diff_p",
     "max_drawdown",
     "win_rate",
     "hit_rate",

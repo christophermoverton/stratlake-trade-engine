@@ -18,6 +18,7 @@ from src.research.metrics import (
     compute_confidence_interval,
     compute_effective_sample_size,
     compute_p_value,
+    compute_split_period_diagnostics,
     compute_t_statistic,
     max_drawdown,
     sharpe_ratio,
@@ -97,6 +98,8 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "conf_int_upper",
         "autocorr_lag1",
         "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
         "max_drawdown",
         "current_drawdown",
         "max_drawdown_duration",
@@ -169,6 +172,13 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["effective_n"] == pytest.approx(
         compute_effective_sample_size(portfolio_returns)
     )
+    assert metrics["split_mean_diff"] == pytest.approx(
+        compute_split_period_diagnostics(portfolio_returns)["split_mean_diff"]
+    )
+    assert metrics["split_mean_diff_p"] == pytest.approx(
+        compute_split_period_diagnostics(portfolio_returns)["split_mean_diff_p"]
+    )
+    assert "hit_rate_p_value" not in metrics
     assert metrics["max_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["current_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["max_drawdown_duration"] == pytest.approx(1.0)
@@ -221,6 +231,12 @@ def test_compute_portfolio_metrics_matches_research_metric_primitives() -> None:
     )
     assert metrics["effective_n"] == pytest.approx(
         compute_effective_sample_size(portfolio_returns)
+    )
+    assert metrics["split_mean_diff"] == pytest.approx(
+        compute_split_period_diagnostics(portfolio_returns)["split_mean_diff"]
+    )
+    assert metrics["split_mean_diff_p"] == pytest.approx(
+        compute_split_period_diagnostics(portfolio_returns)["split_mean_diff_p"]
     )
     assert metrics["max_drawdown"] == pytest.approx(max_drawdown(portfolio_returns))
     assert metrics["value_at_risk"] == pytest.approx(0.014)
@@ -330,11 +346,15 @@ def test_compute_portfolio_metrics_handles_near_constant_returns_without_non_fin
         "conf_int_upper",
         "autocorr_lag1",
         "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
     }.issubset(metrics)
     assert metrics["t_stat"] is None
     assert metrics["p_value"] is None
     assert metrics["autocorr_lag1"] is None
     assert metrics["effective_n"] is None
+    assert metrics["split_mean_diff"] is None
+    assert metrics["split_mean_diff_p"] is None
     assert metrics["conf_int_lower"] == pytest.approx(portfolio_output["portfolio_return"].mean())
     assert metrics["conf_int_upper"] == pytest.approx(portfolio_output["portfolio_return"].mean())
 

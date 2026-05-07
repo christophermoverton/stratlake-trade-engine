@@ -19,6 +19,7 @@ from src.research.metrics import (
     compute_effective_sample_size,
     compute_p_value,
     compute_t_statistic,
+    compute_split_period_diagnostics,
     hit_rate,
     profit_factor,
     sharpe_ratio,
@@ -105,6 +106,7 @@ def compute_portfolio_metrics(
     rolling_volatility = risk_summary["rolling_volatility"]
     tail_risk = risk_summary["tail_risk"]
     conf_int_lower, conf_int_upper = compute_confidence_interval(portfolio_returns)
+    split_diagnostics = compute_split_period_diagnostics(portfolio_returns)
     vol_target = risk_summary["volatility_targeting"]
     operational_targeting = normalized.attrs.get("portfolio_volatility_targeting", {})
     operational_enabled = bool(
@@ -171,6 +173,8 @@ def compute_portfolio_metrics(
         "conf_int_upper": conf_int_upper,
         "autocorr_lag1": compute_autocorr_lag1(portfolio_returns),
         "effective_n": compute_effective_sample_size(portfolio_returns),
+        "split_mean_diff": split_diagnostics["split_mean_diff"],
+        "split_mean_diff_p": split_diagnostics["split_mean_diff_p"],
         "max_drawdown": float(drawdown["max_drawdown"]),
         "current_drawdown": float(drawdown["current_drawdown"]),
         "max_drawdown_duration": float(drawdown["max_drawdown_duration"]),

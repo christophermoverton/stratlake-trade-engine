@@ -715,6 +715,8 @@ def _portfolio_metrics_summary(metrics: dict[str, Any]) -> dict[str, Any]:
         "conf_int_upper",
         "autocorr_lag1",
         "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
         "max_drawdown",
         "realized_volatility",
         "target_volatility",

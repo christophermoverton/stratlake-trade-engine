@@ -207,6 +207,16 @@ autocorrelation is capped at the observed sample size. These diagnostics inform
 interpretation of the Student-t fields, but autocorrelation-adjusted inference
 is handled by a later readiness milestone.
 
+Return-stream payloads also include split-period consistency diagnostics:
+`split_mean_diff`, first-half mean return minus second-half mean return, and
+`split_mean_diff_p`, a two-sided SciPy Welch t-test p-value comparing the two
+halves. Finite returns are split deterministically by observation count after
+filtering missing and non-finite values. Undefined split p-value tests return
+`None`; the signed mean difference remains available when both halves satisfy
+the minimum sample convention and the value is finite. These diagnostics
+highlight simple sub-period concentration but do not replace walk-forward
+evaluation.
+
 Strategy trade payloads also include `hit_rate_p_value`, a one-sided SciPy
 binomial-test p-value for closed-trade hit rate with null win probability
 `0.5` and `alternative="greater"`. Zero-return closed trades are counted as

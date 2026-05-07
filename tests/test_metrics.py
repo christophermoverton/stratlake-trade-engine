@@ -22,6 +22,9 @@ from src.research.metrics import (
     compute_hit_rate_p_value,
     compute_performance_metrics,
     compute_p_value,
+    compute_split_mean_diff,
+    compute_split_mean_diff_p_value,
+    compute_split_period_diagnostics,
     compute_t_statistic,
     cumulative_return,
     exposure_pct,
@@ -256,6 +259,84 @@ def test_compute_effective_sample_size_handles_high_positive_autocorrelation_saf
     assert 0.0 <= high_positive <= 5.0
 
 
+def test_compute_split_period_diagnostics_return_none_for_empty_single_or_invalid_streams() -> None:
+    assert compute_split_period_diagnostics(pd.Series(dtype="float64")) == {
+        "split_mean_diff": None,
+        "split_mean_diff_p": None,
+    }
+    assert compute_split_period_diagnostics(pd.Series([0.01], dtype="float64")) == {
+        "split_mean_diff": None,
+        "split_mean_diff_p": None,
+    }
+    assert compute_split_period_diagnostics(pd.Series([float("nan"), float("inf"), -float("inf")])) == {
+        "split_mean_diff": None,
+        "split_mean_diff_p": None,
+    }
+
+
+def test_compute_split_period_diagnostics_require_two_observations_per_half() -> None:
+    diagnostics = compute_split_period_diagnostics(pd.Series([0.01, 0.02, -0.01], dtype="float64"))
+
+    assert diagnostics["split_mean_diff"] is None
+    assert diagnostics["split_mean_diff_p"] is None
+
+
+def test_compute_split_period_diagnostics_stable_series_is_json_safe() -> None:
+    returns = pd.Series([0.010, 0.012, 0.009, 0.011, 0.010, 0.012], dtype="float64")
+    diagnostics = compute_split_period_diagnostics(returns)
+
+    assert diagnostics["split_mean_diff"] == pytest.approx(0.0, abs=0.002)
+    assert diagnostics["split_mean_diff_p"] is not None
+    assert 0.0 <= diagnostics["split_mean_diff_p"] <= 1.0
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_split_period_diagnostics_drifted_series_has_signed_difference() -> None:
+    returns = pd.Series([0.03, 0.02, 0.04, -0.02, -0.03, -0.01], dtype="float64")
+    diagnostics = compute_split_period_diagnostics(returns)
+
+    assert diagnostics["split_mean_diff"] is not None
+    assert diagnostics["split_mean_diff"] > 0.0
+    assert diagnostics["split_mean_diff_p"] is not None
+    assert 0.0 <= diagnostics["split_mean_diff_p"] <= 1.0
+
+
+def test_compute_split_period_diagnostics_keeps_finite_diff_when_welch_test_is_degenerate() -> None:
+    diagnostics = compute_split_period_diagnostics(pd.Series([0.01, 0.01, 0.02, 0.02], dtype="float64"))
+
+    assert diagnostics["split_mean_diff"] == pytest.approx(-0.01)
+    assert diagnostics["split_mean_diff_p"] is None
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_split_period_diagnostics_matches_scipy_welch_test_for_unequal_variance() -> None:
+    returns = pd.Series([0.01, 0.03, -0.02, 0.02, -0.04, 0.05, 0.00, 0.01], dtype="float64")
+    first_half = returns.iloc[:4]
+    second_half = returns.iloc[4:]
+    expected = stats.ttest_ind(first_half, second_half, equal_var=False, nan_policy="omit")
+
+    diagnostics = compute_split_period_diagnostics(returns)
+
+    assert diagnostics["split_mean_diff"] == pytest.approx(first_half.mean() - second_half.mean())
+    assert diagnostics["split_mean_diff_p"] == pytest.approx(expected.pvalue)
+
+
+def test_compute_split_period_diagnostics_filters_non_finite_values_before_splitting() -> None:
+    contaminated = pd.Series(
+        [0.01, float("nan"), 0.02, float("inf"), -0.01, -float("inf"), -0.02],
+        dtype="float64",
+    )
+    clean = pd.Series([0.01, 0.02, -0.01, -0.02], dtype="float64")
+
+    assert compute_split_period_diagnostics(contaminated) == pytest.approx(
+        compute_split_period_diagnostics(clean)
+    )
+    assert compute_split_mean_diff(contaminated) == pytest.approx(0.03)
+    assert compute_split_mean_diff_p_value(contaminated) == pytest.approx(
+        compute_split_period_diagnostics(clean)["split_mean_diff_p"]
+    )
+
+
 def test_max_drawdown_computes_largest_peak_to_trough_decline() -> None:
     strategy_return = _strategy_returns()
 
@@ -346,6 +427,8 @@ def test_compute_performance_metrics_includes_expanded_fields_with_known_trade_v
         "conf_int_upper",
         "autocorr_lag1",
         "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
     }.issubset(metrics)
     assert metrics["conf_int_lower"] <= metrics["conf_int_upper"]
     assert metrics["hit_rate"] == pytest.approx(2.0 / 3.0)
@@ -403,6 +486,8 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     assert empty_metrics["conf_int_upper"] is None
     assert empty_metrics["autocorr_lag1"] is None
     assert empty_metrics["effective_n"] is None
+    assert empty_metrics["split_mean_diff"] is None
+    assert empty_metrics["split_mean_diff_p"] is None
     assert empty_metrics["hit_rate_p_value"] is None
     assert empty_metrics["profit_factor"] == 0.0
     assert empty_metrics["exposure_pct"] == 0.0
@@ -412,6 +497,8 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     assert flat_metrics["p_value"] is None
     assert flat_metrics["autocorr_lag1"] is None
     assert flat_metrics["effective_n"] is None
+    assert flat_metrics["split_mean_diff"] is None
+    assert flat_metrics["split_mean_diff_p"] is None
     assert flat_metrics["hit_rate"] == 0.0
     assert flat_metrics["hit_rate_p_value"] is None
 
@@ -599,6 +686,8 @@ def test_metrics_json_artifact_includes_inference_fields_and_json_safe_values(
         "conf_int_upper",
         "autocorr_lag1",
         "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
     }.issubset(metrics_payload)
     assert {"cumulative_return", "sharpe_ratio", "max_drawdown", "win_rate"}.issubset(metrics_payload)
     assert metrics_payload["p_value"] == pytest.approx(compute_p_value(results_df["strategy_return"]))

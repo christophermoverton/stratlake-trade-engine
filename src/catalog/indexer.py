@@ -109,6 +109,8 @@ _SCALAR_METRIC_KEYS: frozenset[str] = frozenset(
         "total_return",
         "autocorr_lag1",
         "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
         "beta",
         "alpha",
         "information_ratio",

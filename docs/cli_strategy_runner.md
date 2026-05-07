@@ -313,6 +313,8 @@ statistics:
   `conf_int_lower`, and `conf_int_upper`
 * Return-stream serial-dependence diagnostics: `autocorr_lag1` and
   `effective_n`
+* Split-period consistency diagnostics: `split_mean_diff` and
+  `split_mean_diff_p`
 * `max_drawdown`
 * `win_rate`, trade-level `hit_rate`, and trade-level `hit_rate_p_value`
 * `profit_factor`
@@ -327,6 +329,13 @@ autocorrelation reduces `effective_n`; negative autocorrelation is capped at
 the observed sample size. These diagnostics inform interpretation of the
 Student-t fields, but autocorrelation-adjusted inference is intentionally
 reserved for a later readiness milestone.
+`split_mean_diff` is first-half mean period return minus second-half mean
+period return after filtering missing and non-finite returns and splitting by
+finite observation count. `split_mean_diff_p` is a two-sided SciPy Welch
+t-test p-value comparing those halves. Undefined split tests return `None`;
+the signed mean difference remains available when the halves meet the minimum
+sample convention and the value is finite. The diagnostics flag simple
+sub-period concentration but do not replace full walk-forward evaluation.
 `hit_rate_p_value` uses SciPy's one-sided binomial test on closed trade returns
 with null win probability `0.5` and `alternative="greater"`. Zero-return
 closed trades count as valid non-wins, and the diagnostic is separate from

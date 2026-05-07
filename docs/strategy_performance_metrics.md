@@ -11,6 +11,7 @@ Current implementation:
 * adds `total_return`, `annualized_return`, `annualized_volatility`, and annualized `sharpe_ratio`
 * derives `max_drawdown` from the compounded equity curve
 * reports return-stream serial-dependence diagnostics with `autocorr_lag1` and `effective_n`
+* reports split-period consistency diagnostics with `split_mean_diff` and `split_mean_diff_p`
 * computes trade-level `hit_rate`, `hit_rate_p_value`, and `profit_factor` from closed trades
 * computes `turnover` and `exposure_pct` from executed position changes
 
@@ -42,6 +43,7 @@ hit_rate(trade_returns: pandas.Series) -> float
 compute_hit_rate_p_value(trade_returns: pandas.Series, *, null_probability: float = 0.5, alternative: str = "greater") -> float | None
 compute_autocorr_lag1(strategy_return: pandas.Series) -> float | None
 compute_effective_sample_size(strategy_return: pandas.Series) -> float | None
+compute_split_period_diagnostics(strategy_return: pandas.Series) -> dict[str, float | None]
 profit_factor(trade_returns: pandas.Series) -> float | None
 turnover(position: pandas.Series) -> float
 exposure_pct(position: pandas.Series) -> float
@@ -159,6 +161,24 @@ reporting. These diagnostics help interpret `t_stat`, `p_value`, and confidence
 intervals, but they do not replace those fields with autocorrelation-adjusted
 inference.
 
+### `split_mean_diff` and `split_mean_diff_p`
+
+Split-period consistency diagnostics compare finite period returns from the
+first half of the stream with finite returns from the second half. Returns are
+filtered for missing and non-finite values first, order is preserved, and the
+split is by observation count: first half is the first `n // 2` observations and
+second half is the remainder.
+
+`split_mean_diff` is first-half mean return minus second-half mean return.
+`split_mean_diff_p` is a two-sided SciPy Welch t-test p-value using
+`scipy.stats.ttest_ind(..., equal_var=False, nan_policy="omit")`.
+
+Both fields are `None` unless each half has at least two finite observations.
+If SciPy returns a non-finite test result, such as in a degenerate variance
+case, `split_mean_diff_p` is `None` while the signed mean difference remains
+available when it is finite. These diagnostics indicate simple sub-period
+consistency; they do not replace full walk-forward evaluation.
+
 ### `hit_rate`
 
 Share of profitable closed trades:
@@ -274,6 +294,8 @@ Typical keys in `summary`:
     "sharpe_ratio": 1.08,
     "autocorr_lag1": 0.18,
     "effective_n": 69.49,
+    "split_mean_diff": 0.0004,
+    "split_mean_diff_p": 0.73,
     "max_drawdown": 0.07,
     "win_rate": 0.54,
     "hit_rate": 0.58,

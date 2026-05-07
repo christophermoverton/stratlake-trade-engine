@@ -20,9 +20,13 @@ def _metrics() -> dict[str, float | None]:
         "annualized_return": 0.19,
         "annualized_volatility": 0.21,
         "sharpe_ratio": 0.41,
+        "rolling_sharpe_mean": None,
+        "rolling_sharpe_sd": None,
+        "sharpe_stability_ratio": None,
         "max_drawdown": 0.01,
         "win_rate": 0.5,
         "hit_rate": 0.5,
+        "hit_rate_p_value": 0.5,
         "profit_factor": 1.1,
         "turnover": 0.33,
         "total_turnover": 1.32,
@@ -79,6 +83,7 @@ def test_save_experiment_writes_standardized_artifacts(
     expected_files = {
         "config.json",
         "metrics.json",
+        "metrics_readiness.json",
         "signal_diagnostics.json",
         "qa_summary.json",
         "equity_curve.csv",
@@ -98,11 +103,19 @@ def test_save_experiment_writes_standardized_artifacts(
     assert manifest["primary_metric"] == "sharpe_ratio"
     assert "config.json" in manifest["artifact_files"]
     assert "equity_curve.csv" in manifest["artifact_files"]
+    assert "metrics_readiness.json" in manifest["artifact_files"]
     assert "signal_diagnostics.json" in manifest["artifact_files"]
     assert "qa_summary.json" in manifest["artifact_files"]
     assert "trades.parquet" in manifest["artifact_files"]
 
     assert json.loads((experiment_dir / "metrics.json").read_text(encoding="utf-8")) == _metrics()
+    readiness = json.loads((experiment_dir / "metrics_readiness.json").read_text(encoding="utf-8"))
+    assert readiness["schema_version"] == 1
+    assert readiness["source_metrics_artifact"] == "metrics.json"
+    assert readiness["run_id"] == experiment_dir.name
+    assert readiness["diagnostics"]["hit_rate"]["hit_rate_p_value"] == 0.5
+    assert readiness["summary"]["total_checks"] == 6
+    json.dumps(readiness, allow_nan=False, sort_keys=True)
     assert json.loads((experiment_dir / "config.json").read_text(encoding="utf-8")) == config
     assert "runtime" not in json.loads((experiment_dir / "config.json").read_text(encoding="utf-8"))
     assert json.loads((experiment_dir / "signal_diagnostics.json").read_text(encoding="utf-8")) == {
@@ -237,6 +250,7 @@ def test_save_experiment_handles_empty_results_without_optional_trades(
     assert (experiment_dir / "manifest.json").exists()
     assert (experiment_dir / "signal_diagnostics.json").exists()
     assert (experiment_dir / "qa_summary.json").exists()
+    assert (experiment_dir / "metrics_readiness.json").exists()
     assert not (experiment_dir / "trades.parquet").exists()
 
     manifest = json.loads((experiment_dir / "manifest.json").read_text(encoding="utf-8"))

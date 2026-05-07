@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import json
 import math
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
+from scipy import stats
 
 from src.research.turnover import compute_position_change_frame
 
@@ -16,10 +19,131 @@ HIGH_BENCHMARK_CORRELATION_THRESHOLD = 0.9
 LOW_EXCESS_RETURN_THRESHOLD = 0.02
 HIGH_TURNOVER_THRESHOLD = 0.5
 BETA_DOMINATED_RETURN_THRESHOLD = 0.2
+RETURN_INFERENCE_STD_ATOL = 1e-12
+AUTOCORR_DENOMINATOR_ATOL = 1e-12
+SPLIT_MIN_HALF_OBSERVATIONS = 2
+ROLLING_SHARPE_MIN_OBSERVATIONS = 12
+ROLLING_SHARPE_SD_ATOL = 1e-12
+METRICS_READINESS_FILENAME = "metrics_readiness.json"
+DEFAULT_MINIMUM_EFFECTIVE_N = 30.0
 
 
 class MetricsAggregationError(ValueError):
     """Raised when strategy returns cannot be aggregated into one series safely."""
+
+
+def build_metrics_readiness_manifest(
+    metrics: dict[str, Any],
+    *,
+    run_id: str | None = None,
+    source_metrics_artifact: str = "metrics.json",
+    thresholds: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic research-readiness manifest from metric outputs."""
+
+    normalized_metrics = _json_safe_mapping(metrics)
+    minimum_effective_n = _minimum_effective_n_threshold(thresholds)
+
+    diagnostics = {
+        "return_inference": {
+            "t_stat": normalized_metrics.get("t_stat"),
+            "p_value": normalized_metrics.get("p_value"),
+            "conf_int_lower": normalized_metrics.get("conf_int_lower"),
+            "conf_int_upper": normalized_metrics.get("conf_int_upper"),
+        },
+        "hit_rate": {
+            "hit_rate": normalized_metrics.get("hit_rate"),
+            "hit_rate_p_value": normalized_metrics.get("hit_rate_p_value"),
+        },
+        "serial_dependence": {
+            "autocorr_lag1": normalized_metrics.get("autocorr_lag1"),
+            "effective_n": normalized_metrics.get("effective_n"),
+        },
+        "split_period": {
+            "split_mean_diff": normalized_metrics.get("split_mean_diff"),
+            "split_mean_diff_p": normalized_metrics.get("split_mean_diff_p"),
+        },
+        "rolling_stability": {
+            "rolling_sharpe_mean": normalized_metrics.get("rolling_sharpe_mean"),
+            "rolling_sharpe_sd": normalized_metrics.get("rolling_sharpe_sd"),
+            "sharpe_stability_ratio": normalized_metrics.get("sharpe_stability_ratio"),
+        },
+    }
+
+    effective_n = _numeric_or_none(normalized_metrics.get("effective_n"))
+    observed_count = _observed_period_count(normalized_metrics)
+    sample_size_value = effective_n if effective_n is not None else observed_count
+    checks = [
+        _minimum_observations_check(sample_size_value, threshold=minimum_effective_n),
+        _availability_check(
+            "return_p_value_available",
+            normalized_metrics.get("p_value") is not None,
+            value=normalized_metrics.get("p_value"),
+            message_pass="Return p-value is available.",
+            message_warn="Return p-value is unavailable.",
+        ),
+        _availability_check(
+            "hit_rate_p_value_available",
+            normalized_metrics.get("hit_rate_p_value") is not None,
+            value=normalized_metrics.get("hit_rate_p_value"),
+            message_pass="Trade-level hit-rate p-value is available.",
+            message_warn="Trade-level hit-rate p-value is unavailable.",
+        ),
+        _availability_check(
+            "serial_dependence_available",
+            normalized_metrics.get("autocorr_lag1") is not None and normalized_metrics.get("effective_n") is not None,
+            value=normalized_metrics.get("effective_n"),
+            message_pass="Serial-dependence diagnostics are available.",
+            message_warn="Serial-dependence diagnostics are incomplete.",
+        ),
+        _availability_check(
+            "split_period_available",
+            normalized_metrics.get("split_mean_diff_p") is not None,
+            value=normalized_metrics.get("split_mean_diff_p"),
+            message_pass="Split-period p-value is available.",
+            message_warn="Split-period p-value is unavailable.",
+        ),
+        _availability_check(
+            "rolling_stability_available",
+            normalized_metrics.get("rolling_sharpe_mean") is not None
+            and normalized_metrics.get("rolling_sharpe_sd") is not None,
+            value=normalized_metrics.get("rolling_sharpe_sd"),
+            message_pass="Rolling Sharpe stability diagnostics are available.",
+            message_warn="Rolling Sharpe stability diagnostics are incomplete.",
+        ),
+    ]
+    summary = _readiness_summary(checks)
+
+    return {
+        "schema_version": 1,
+        "status": _overall_readiness_status(checks),
+        "run_id": run_id,
+        "source_metrics_artifact": source_metrics_artifact,
+        "diagnostics": diagnostics,
+        "checks": checks,
+        "summary": summary,
+    }
+
+
+def write_metrics_readiness_manifest(
+    run_dir: Path,
+    metrics: dict[str, Any],
+    *,
+    run_id: str | None = None,
+    source_metrics_artifact: str = "metrics.json",
+    thresholds: dict[str, Any] | None = None,
+) -> Path:
+    """Write ``metrics_readiness.json`` beside a metrics artifact."""
+
+    manifest = build_metrics_readiness_manifest(
+        metrics,
+        run_id=run_id,
+        source_metrics_artifact=source_metrics_artifact,
+        thresholds=thresholds,
+    )
+    path = Path(run_dir) / METRICS_READINESS_FILENAME
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    return path
 
 
 def _normalized_returns(strategy_return: pd.Series) -> pd.Series:
@@ -73,6 +197,297 @@ def volatility(strategy_return: pd.Series) -> float:
         return 0.0
 
     return float(returns.std())
+
+
+def compute_t_statistic(strategy_return: pd.Series) -> float | None:
+    """
+    Compute the one-sample t-statistic for mean period return versus zero.
+
+    Returns ``None`` when the statistic is undefined, including fewer than two
+    finite observations or zero sample volatility.
+    """
+
+    inference = _return_inference_inputs(strategy_return)
+    if inference is None:
+        return None
+
+    t_stat = inference["mean"] / inference["standard_error"]
+    return _json_safe_float(t_stat)
+
+
+def compute_p_value(strategy_return: pd.Series) -> float | None:
+    """
+    Compute the two-sided Student-t p-value for mean period return versus zero.
+
+    Missing and non-finite returns are excluded before inference. Undefined
+    cases return ``None`` so JSON artifacts never serialize NaN or infinity.
+    """
+
+    inference = _return_inference_inputs(strategy_return)
+    if inference is None:
+        return None
+
+    t_stat = inference["mean"] / inference["standard_error"]
+    p_value = 2.0 * (1.0 - stats.t.cdf(abs(t_stat), df=inference["degrees_of_freedom"]))
+    bounded = min(max(p_value, 0.0), 1.0)
+    return _json_safe_float(bounded)
+
+
+def compute_confidence_interval(
+    strategy_return: pd.Series,
+    *,
+    confidence_level: float = 0.95,
+) -> tuple[float | None, float | None]:
+    """
+    Compute a Student-t confidence interval for mean period return.
+
+    For zero-variance streams with at least two finite observations, the
+    interval is the deterministic degenerate interval ``(mean, mean)``. For
+    fewer than two finite observations, both bounds are ``None``.
+    """
+
+    if not 0.0 < confidence_level < 1.0:
+        raise ValueError("confidence_level must be between 0 and 1.")
+
+    returns = _finite_returns(strategy_return)
+    if len(returns) < 2:
+        return (None, None)
+
+    mean_return = float(returns.mean())
+    sample_std = float(returns.std(ddof=1))
+    if math.isclose(sample_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL):
+        safe_mean = _json_safe_float(mean_return)
+        return (safe_mean, safe_mean)
+
+    standard_error = sample_std / math.sqrt(len(returns))
+    alpha = 1.0 - confidence_level
+    t_crit = stats.t.ppf(1.0 - alpha / 2.0, df=len(returns) - 1)
+    if not math.isfinite(t_crit):
+        return (None, None)
+
+    margin = float(t_crit * standard_error)
+    lower = _json_safe_float(mean_return - margin)
+    upper = _json_safe_float(mean_return + margin)
+    return (lower, upper)
+
+
+def compute_autocorr_lag1(strategy_return: pd.Series) -> float | None:
+    """
+    Compute lag-1 autocorrelation for finite period returns.
+
+    Undefined streams return ``None`` so JSON artifacts never serialize NaN or
+    infinity. Near-constant lagged vectors are treated as undefined.
+    """
+
+    returns = _finite_returns(strategy_return)
+    if len(returns) < 2:
+        return None
+
+    previous_returns = returns.iloc[:-1].reset_index(drop=True)
+    next_returns = returns.iloc[1:].reset_index(drop=True)
+    previous_std = float(previous_returns.std(ddof=1))
+    next_std = float(next_returns.std(ddof=1))
+    if (
+        not math.isfinite(previous_std)
+        or not math.isfinite(next_std)
+        or math.isclose(previous_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL)
+        or math.isclose(next_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL)
+    ):
+        return None
+
+    autocorr = previous_returns.corr(next_returns)
+    safe_autocorr = _json_safe_float(float(autocorr))
+    if safe_autocorr is None:
+        return None
+    if safe_autocorr > 1.0 and math.isclose(safe_autocorr, 1.0, abs_tol=AUTOCORR_DENOMINATOR_ATOL):
+        return 1.0
+    if safe_autocorr < -1.0 and math.isclose(safe_autocorr, -1.0, abs_tol=AUTOCORR_DENOMINATOR_ATOL):
+        return -1.0
+    return safe_autocorr
+
+
+def compute_effective_sample_size(strategy_return: pd.Series) -> float | None:
+    """
+    Estimate conservative AR(1)-style effective sample size.
+
+    Positive lag-1 autocorrelation reduces the estimate. Negative
+    autocorrelation is capped at the observed finite sample size for
+    conservative reporting.
+    """
+
+    returns = _finite_returns(strategy_return)
+    sample_size = len(returns)
+    rho = compute_autocorr_lag1(returns)
+    if rho is None:
+        return None
+    if rho < 0.0:
+        return float(sample_size)
+
+    denominator = 1.0 + rho
+    if denominator <= AUTOCORR_DENOMINATOR_ATOL:
+        return None
+
+    effective_n = sample_size * (1.0 - rho) / denominator
+    bounded_effective_n = max(0.0, min(float(sample_size), effective_n))
+    return _json_safe_float(bounded_effective_n)
+
+
+def compute_split_period_diagnostics(strategy_return: pd.Series) -> dict[str, float | None]:
+    """
+    Compare first-half and second-half mean returns with a deterministic Welch test.
+
+    Finite period returns are split by observation count after filtering invalid
+    values. ``split_mean_diff`` is reported only when both halves contain at
+    least two observations, matching the minimum sample convention for the
+    two-sided Welch t-test p-value.
+    """
+
+    returns = _finite_returns(strategy_return).reset_index(drop=True)
+    split_index = len(returns) // 2
+    first_half = returns.iloc[:split_index]
+    second_half = returns.iloc[split_index:]
+    if len(first_half) < SPLIT_MIN_HALF_OBSERVATIONS or len(second_half) < SPLIT_MIN_HALF_OBSERVATIONS:
+        return {
+            "split_mean_diff": None,
+            "split_mean_diff_p": None,
+        }
+
+    split_mean_diff = _json_safe_float(float(first_half.mean() - second_half.mean()))
+    first_std = float(first_half.std(ddof=1))
+    second_std = float(second_half.std(ddof=1))
+    if (
+        not math.isfinite(first_std)
+        or not math.isfinite(second_std)
+        or math.isclose(first_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL)
+        or math.isclose(second_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL)
+    ):
+        return {
+            "split_mean_diff": split_mean_diff,
+            "split_mean_diff_p": None,
+        }
+
+    test_result = stats.ttest_ind(
+        first_half,
+        second_half,
+        equal_var=False,
+        nan_policy="omit",
+    )
+    split_mean_diff_p = _json_safe_float(float(test_result.pvalue))
+    if split_mean_diff_p is not None:
+        split_mean_diff_p = min(max(split_mean_diff_p, 0.0), 1.0)
+
+    return {
+        "split_mean_diff": split_mean_diff,
+        "split_mean_diff_p": split_mean_diff_p,
+    }
+
+
+def compute_split_mean_diff(strategy_return: pd.Series) -> float | None:
+    """Return first-half mean period return minus second-half mean period return."""
+
+    return compute_split_period_diagnostics(strategy_return)["split_mean_diff"]
+
+
+def compute_split_mean_diff_p_value(strategy_return: pd.Series) -> float | None:
+    """Return the two-sided Welch t-test p-value for split-half mean stability."""
+
+    return compute_split_period_diagnostics(strategy_return)["split_mean_diff_p"]
+
+
+def compute_rolling_sharpe_values(
+    strategy_return: pd.Series,
+    *,
+    window_size: int | None = None,
+    min_periods: int | None = None,
+    step_size: int | None = None,
+    periods_per_year: int = DEFAULT_PERIODS_PER_YEAR,
+) -> list[float]:
+    """
+    Compute deterministic sequential window Sharpe ratios for finite returns.
+
+    Missing and non-finite returns are filtered before windowing. By default,
+    windows are non-overlapping and full-sized, preserving return order while
+    avoiding false precision from highly overlapping samples.
+    """
+
+    returns = _finite_returns(strategy_return).reset_index(drop=True)
+    sample_size = len(returns)
+    if window_size is None:
+        window_size = _default_rolling_sharpe_window_size(sample_size)
+    if window_size is None:
+        return []
+    if window_size <= 0:
+        raise ValueError("window_size must be positive.")
+
+    if step_size is None:
+        step_size = window_size
+    if step_size <= 0:
+        raise ValueError("step_size must be positive.")
+
+    if min_periods is None:
+        min_periods = window_size
+    if min_periods <= 0:
+        raise ValueError("min_periods must be positive.")
+    if min_periods > window_size:
+        raise ValueError("min_periods cannot exceed window_size.")
+
+    window_sharpes: list[float] = []
+    for start in range(0, sample_size, step_size):
+        window = returns.iloc[start : start + window_size]
+        if len(window) < min_periods:
+            continue
+        safe_sharpe = _json_safe_float(sharpe_ratio(window, periods_per_year=periods_per_year))
+        if safe_sharpe is not None:
+            window_sharpes.append(safe_sharpe)
+    return window_sharpes
+
+
+def compute_rolling_sharpe_diagnostics(
+    strategy_return: pd.Series,
+    *,
+    window_size: int | None = None,
+    min_periods: int | None = None,
+    step_size: int | None = None,
+    periods_per_year: int = DEFAULT_PERIODS_PER_YEAR,
+) -> dict[str, float | None]:
+    """
+    Summarize stability of Sharpe-like performance across sequential windows.
+
+    Returns ``None`` diagnostics when fewer than two valid window Sharpe ratios
+    are available. The stability ratio is mean window Sharpe divided by sample
+    standard deviation and is undefined when the denominator is near zero.
+    """
+
+    empty = {
+        "rolling_sharpe_mean": None,
+        "rolling_sharpe_sd": None,
+        "sharpe_stability_ratio": None,
+    }
+    window_sharpes = compute_rolling_sharpe_values(
+        strategy_return,
+        window_size=window_size,
+        min_periods=min_periods,
+        step_size=step_size,
+        periods_per_year=periods_per_year,
+    )
+    if len(window_sharpes) < 2:
+        return empty
+
+    sharpe_series = pd.Series(window_sharpes, dtype="float64")
+    rolling_sharpe_mean = _json_safe_float(float(sharpe_series.mean()))
+    rolling_sharpe_sd = _json_safe_float(float(sharpe_series.std(ddof=1)))
+    if rolling_sharpe_mean is None or rolling_sharpe_sd is None:
+        return empty
+
+    sharpe_stability_ratio = None
+    if not math.isclose(rolling_sharpe_sd, 0.0, abs_tol=ROLLING_SHARPE_SD_ATOL):
+        sharpe_stability_ratio = _json_safe_float(rolling_sharpe_mean / rolling_sharpe_sd)
+
+    return {
+        "rolling_sharpe_mean": rolling_sharpe_mean,
+        "rolling_sharpe_sd": rolling_sharpe_sd,
+        "sharpe_stability_ratio": sharpe_stability_ratio,
+    }
 
 
 def annualized_return(strategy_return: pd.Series, *, periods_per_year: int = DEFAULT_PERIODS_PER_YEAR) -> float:
@@ -208,6 +623,38 @@ def hit_rate(trade_returns: pd.Series) -> float:
     return float((trades > 0.0).mean())
 
 
+def compute_hit_rate_p_value(
+    trade_returns: pd.Series,
+    *,
+    null_probability: float = 0.5,
+    alternative: str = "greater",
+) -> float | None:
+    """
+    Compute a one-sample binomial p-value for trade-level hit rate.
+
+    Finite closed trade returns are counted as trials. Strictly positive returns
+    are wins; zero-return trades are valid closed trades but not wins. Undefined
+    empty samples return ``None`` so JSON artifacts never serialize non-finite
+    values.
+    """
+
+    trades = pd.to_numeric(trade_returns, errors="coerce").dropna().astype("float64")
+    finite_trades = trades.loc[trades.map(math.isfinite)]
+    total = len(finite_trades)
+    if total == 0:
+        return None
+
+    wins = int((finite_trades > 0.0).sum())
+    p_value = stats.binomtest(
+        wins,
+        total,
+        p=null_probability,
+        alternative=alternative,
+    ).pvalue
+    safe_p_value = _json_safe_float(min(max(float(p_value), 0.0), 1.0))
+    return safe_p_value
+
+
 def profit_factor(trade_returns: pd.Series) -> float | None:
     """
     Compute gross profits divided by gross losses across closed trades.
@@ -306,6 +753,12 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
     trade_count = int(position_change["trade_event"].sum())
     total_turnover = float(position_change["turnover"].sum())
     average_turnover = float(position_change["turnover"].mean()) if not position_change.empty else 0.0
+    conf_int_lower, conf_int_upper = compute_confidence_interval(strategy_return)
+    split_diagnostics = compute_split_period_diagnostics(strategy_return)
+    rolling_sharpe_diagnostics = compute_rolling_sharpe_diagnostics(
+        strategy_return,
+        periods_per_year=periods_per_year,
+    )
 
     return {
         "cumulative_return": total,
@@ -314,9 +767,21 @@ def compute_performance_metrics(results_df: pd.DataFrame) -> dict[str, float | N
         "annualized_return": annual_return,
         "annualized_volatility": annual_vol,
         "sharpe_ratio": sharpe_ratio(strategy_return, periods_per_year=periods_per_year),
+        "t_stat": compute_t_statistic(strategy_return),
+        "p_value": compute_p_value(strategy_return),
+        "conf_int_lower": conf_int_lower,
+        "conf_int_upper": conf_int_upper,
+        "autocorr_lag1": compute_autocorr_lag1(strategy_return),
+        "effective_n": compute_effective_sample_size(strategy_return),
+        "split_mean_diff": split_diagnostics["split_mean_diff"],
+        "split_mean_diff_p": split_diagnostics["split_mean_diff_p"],
+        "rolling_sharpe_mean": rolling_sharpe_diagnostics["rolling_sharpe_mean"],
+        "rolling_sharpe_sd": rolling_sharpe_diagnostics["rolling_sharpe_sd"],
+        "sharpe_stability_ratio": rolling_sharpe_diagnostics["sharpe_stability_ratio"],
         "max_drawdown": max_drawdown(strategy_return),
         "win_rate": period_win_rate,
         "hit_rate": hit_rate(closed_trade_returns),
+        "hit_rate_p_value": compute_hit_rate_p_value(closed_trade_returns),
         "profit_factor": profit_factor(closed_trade_returns),
         "turnover": average_turnover,
         "total_turnover": total_turnover,
@@ -481,6 +946,160 @@ def _optional_numeric_series(results_df: pd.DataFrame, column: str) -> pd.Series
     if column not in results_df.columns:
         return pd.Series(0.0, index=results_df.index, dtype="float64")
     return pd.to_numeric(results_df[column], errors="coerce").fillna(0.0).astype("float64")
+
+
+def _finite_returns(strategy_return: pd.Series) -> pd.Series:
+    returns = _normalized_returns(strategy_return)
+    return returns.loc[returns.map(math.isfinite)]
+
+
+def _return_inference_inputs(strategy_return: pd.Series) -> dict[str, float] | None:
+    returns = _finite_returns(strategy_return)
+    sample_size = len(returns)
+    if sample_size < 2:
+        return None
+
+    sample_std = float(returns.std(ddof=1))
+    if not math.isfinite(sample_std) or math.isclose(sample_std, 0.0, abs_tol=RETURN_INFERENCE_STD_ATOL):
+        return None
+
+    standard_error = sample_std / math.sqrt(sample_size)
+    if standard_error == 0.0 or not math.isfinite(standard_error):
+        return None
+
+    return {
+        "mean": float(returns.mean()),
+        "standard_error": standard_error,
+        "degrees_of_freedom": float(sample_size - 1),
+    }
+
+
+def _default_rolling_sharpe_window_size(sample_size: int) -> int | None:
+    if sample_size >= TRADING_DAYS_PER_YEAR:
+        return TRADING_DAYS_PER_YEAR
+    if sample_size >= ROLLING_SHARPE_MIN_OBSERVATIONS:
+        return max(4, sample_size // 3)
+    return None
+
+
+def _json_safe_float(value: float) -> float | None:
+    if not math.isfinite(value):
+        return None
+    return float(value)
+
+
+def _json_safe_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, bool | str | int):
+        return value
+    if isinstance(value, float):
+        return _json_safe_float(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe_value(value[key]) for key in sorted(value, key=str)}
+    if isinstance(value, list | tuple):
+        return [_json_safe_value(item) for item in value]
+    return value
+
+
+def _json_safe_mapping(value: dict[str, Any]) -> dict[str, Any]:
+    return {str(key): _json_safe_value(value[key]) for key in sorted(value, key=str)}
+
+
+def _minimum_effective_n_threshold(thresholds: dict[str, Any] | None) -> float:
+    raw_threshold = (thresholds or {}).get("minimum_effective_n", DEFAULT_MINIMUM_EFFECTIVE_N)
+    if isinstance(raw_threshold, bool):
+        return DEFAULT_MINIMUM_EFFECTIVE_N
+    if isinstance(raw_threshold, int | float):
+        safe_threshold = _json_safe_float(float(raw_threshold))
+        if safe_threshold is not None and safe_threshold > 0.0:
+            return safe_threshold
+    return DEFAULT_MINIMUM_EFFECTIVE_N
+
+
+def _numeric_or_none(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return _json_safe_float(float(value))
+    return None
+
+
+def _observed_period_count(metrics: dict[str, Any]) -> float | None:
+    for key in ("observed_period_count", "period_count", "row_count", "test_rows", "split_rows"):
+        value = _numeric_or_none(metrics.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _minimum_observations_check(value: float | None, *, threshold: float) -> dict[str, Any]:
+    if value is None:
+        return {
+            "name": "minimum_observations",
+            "status": "WARN",
+            "value": None,
+            "threshold": threshold,
+            "message": "Effective sample size or observed period count is unavailable.",
+        }
+    if value <= 0.0:
+        return {
+            "name": "minimum_observations",
+            "status": "FAIL",
+            "value": value,
+            "threshold": threshold,
+            "message": "No usable return observations are available.",
+        }
+    if value < threshold:
+        return {
+            "name": "minimum_observations",
+            "status": "WARN",
+            "value": value,
+            "threshold": threshold,
+            "message": f"Usable observation count is below the advisory threshold of {threshold:g}.",
+        }
+    return {
+        "name": "minimum_observations",
+        "status": "PASS",
+        "value": value,
+        "threshold": threshold,
+        "message": f"Usable observation count meets the advisory threshold of {threshold:g}.",
+    }
+
+
+def _availability_check(
+    name: str,
+    available: bool,
+    *,
+    value: Any,
+    message_pass: str,
+    message_warn: str,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "status": "PASS" if available else "WARN",
+        "value": value,
+        "threshold": None,
+        "message": message_pass if available else message_warn,
+    }
+
+
+def _overall_readiness_status(checks: list[dict[str, Any]]) -> str:
+    statuses = {str(check.get("status")) for check in checks}
+    if "FAIL" in statuses:
+        return "FAIL"
+    if "WARN" in statuses:
+        return "WARN"
+    return "PASS"
+
+
+def _readiness_summary(checks: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "total_checks": len(checks),
+        "passed_checks": sum(1 for check in checks if check.get("status") == "PASS"),
+        "warn_checks": sum(1 for check in checks if check.get("status") == "WARN"),
+        "failed_checks": sum(1 for check in checks if check.get("status") == "FAIL"),
+    }
 
 
 def extract_closed_trade_returns(results_df: pd.DataFrame) -> pd.Series:

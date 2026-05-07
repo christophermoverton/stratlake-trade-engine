@@ -4,6 +4,7 @@ from collections import deque
 import csv
 from dataclasses import dataclass
 from copy import deepcopy
+from datetime import UTC, datetime
 import inspect
 import json
 import hashlib
@@ -405,6 +406,7 @@ def _write_pipeline_artifacts(
     mark_run_started(
         result.artifact_dir,
         {"run_type": "pipeline", "run_id": result.pipeline_run_id, "status": result.status},
+        recorded_at_utc=_utc_from_unix(pipeline_started_at),
     )
     _write_json(result.manifest_path, manifest_payload)
     _write_json(result.pipeline_metrics_path, metrics_payload)
@@ -414,11 +416,13 @@ def _write_pipeline_artifacts(
         mark_run_completed(
             result.artifact_dir,
             {"run_type": "pipeline", "run_id": result.pipeline_run_id, "status": result.status},
+            recorded_at_utc=_utc_from_unix(pipeline_ended_at),
         )
     else:
         mark_run_failed(
             result.artifact_dir,
             {"run_type": "pipeline", "run_id": result.pipeline_run_id, "status": result.status},
+            recorded_at_utc=_utc_from_unix(pipeline_ended_at),
         )
 
 
@@ -891,6 +895,10 @@ def _status_counts(step_metrics: Sequence[PipelineStepMetrics]) -> dict[str, int
 
 def _timestamp_now() -> float:
     return round(time.time(), 6)
+
+
+def _utc_from_unix(timestamp: float) -> str:
+    return datetime.fromtimestamp(timestamp, tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 @dataclass(frozen=True)

@@ -85,6 +85,7 @@ artifacts/portfolios/<run_id>/
       portfolio_returns.csv
       portfolio_equity_curve.csv
       metrics.json
+      metrics_readiness.json
       qa_summary.json
 ```
 
@@ -214,6 +215,17 @@ Typical fields:
 * `max_drawdown`
 * `annualized_return`
 * `annualized_volatility`
+* `t_stat`
+* `p_value`
+* `conf_int_lower`
+* `conf_int_upper`
+* `autocorr_lag1`
+* `effective_n`
+* `split_mean_diff`
+* `split_mean_diff_p`
+* `rolling_sharpe_mean`
+* `rolling_sharpe_sd`
+* `sharpe_stability_ratio`
 * `turnover`
 * `exposure_pct`
 
@@ -221,6 +233,30 @@ Relationship to in-memory outputs:
 
 * computed from the in-memory portfolio output with
   `compute_portfolio_metrics()`
+
+### `metrics_readiness.json`
+
+Purpose:
+
+* walk-forward split-level advisory readiness manifest derived from the
+  adjacent split `metrics.json`
+
+Current fields include:
+
+* `schema_version`
+* `status`
+* `run_id`
+* `source_metrics_artifact`
+* grouped diagnostics for return inference, hit-rate significance,
+  serial-dependence, split-period consistency, and rolling Sharpe stability
+* advisory readiness checks and summary counts
+
+Relationship to in-memory outputs:
+
+* generated from persisted split-level portfolio metrics
+* uses JSON `null` for missing or undefined diagnostics
+* advisory only; it does not replace portfolio QA, walk-forward review, or
+  promotion-gate evaluation
 
 ### `aggregate_metrics.json`
 

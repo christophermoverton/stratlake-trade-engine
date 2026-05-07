@@ -10,7 +10,13 @@ Current implementation:
 * keeps legacy-compatible `cumulative_return`, `volatility`, and `win_rate`
 * adds `total_return`, `annualized_return`, `annualized_volatility`, and annualized `sharpe_ratio`
 * derives `max_drawdown` from the compounded equity curve
-* computes trade-level `hit_rate` and `profit_factor` from closed trades
+* reports SciPy Student-t return inference diagnostics with `t_stat`,
+  `p_value`, `conf_int_lower`, and `conf_int_upper`
+* reports return-stream serial-dependence diagnostics with `autocorr_lag1` and `effective_n`
+* reports split-period consistency diagnostics with `split_mean_diff` and `split_mean_diff_p`
+* reports rolling Sharpe stability diagnostics with `rolling_sharpe_mean`,
+  `rolling_sharpe_sd`, and `sharpe_stability_ratio`
+* computes trade-level `hit_rate`, `hit_rate_p_value`, and `profit_factor` from closed trades
 * computes `turnover` and `exposure_pct` from executed position changes
 
 The module stays serializable and is reused by single-run experiments,
@@ -38,6 +44,12 @@ sharpe_ratio(strategy_return: pandas.Series, *, periods_per_year: int = 252) -> 
 max_drawdown(strategy_return: pandas.Series) -> float
 win_rate(strategy_return: pandas.Series) -> float
 hit_rate(trade_returns: pandas.Series) -> float
+compute_hit_rate_p_value(trade_returns: pandas.Series, *, null_probability: float = 0.5, alternative: str = "greater") -> float | None
+compute_autocorr_lag1(strategy_return: pandas.Series) -> float | None
+compute_effective_sample_size(strategy_return: pandas.Series) -> float | None
+compute_split_period_diagnostics(strategy_return: pandas.Series) -> dict[str, float | None]
+compute_rolling_sharpe_diagnostics(strategy_return: pandas.Series, *, window_size: int | None = None, min_periods: int | None = None, step_size: int | None = None, periods_per_year: int = 252) -> dict[str, float | None]
+build_metrics_readiness_manifest(metrics: dict, *, run_id: str | None = None, source_metrics_artifact: str = "metrics.json", thresholds: dict | None = None) -> dict
 profit_factor(trade_returns: pandas.Series) -> float | None
 turnover(position: pandas.Series) -> float
 exposure_pct(position: pandas.Series) -> float
@@ -59,7 +71,8 @@ Behavioral rules:
 * missing return values are dropped before return-based calculations
 * trade metrics use only closed trades
 * empty inputs return deterministic values
-* outputs remain JSON-serializable; undefined `profit_factor` is returned as `None`
+* outputs remain JSON-serializable; undefined inference fields and undefined
+  `profit_factor` values are returned as `None`
 
 The functions are designed to operate directly on the output of
 `run_backtest()`.
@@ -123,6 +136,24 @@ zero risk-free rate:
 
 If annualized volatility is zero, the function returns `0.0`.
 
+### `t_stat`, `p_value`, `conf_int_lower`, and `conf_int_upper`
+
+Return inference diagnostics are computed on finite period returns after
+missing and non-finite values are removed. `t_stat` is the one-sample
+Student-t statistic for mean period return versus zero. `p_value` is the
+two-sided SciPy Student-t p-value, and `conf_int_lower` / `conf_int_upper` are
+the 95% Student-t confidence interval bounds for mean period return.
+
+Undefined cases return `None`, including fewer than two finite returns or
+undefined sample volatility for the test statistic and p-value. Zero-variance
+streams with at least two finite observations produce a degenerate confidence
+interval at the observed mean.
+
+These fields assume independent observations. They are reported as deterministic
+review diagnostics and should be interpreted alongside autocorrelation,
+effective sample size, split-period, rolling stability, and walk-forward
+evidence.
+
 ### `max_drawdown`
 
 Largest peak-to-trough decline from the compounded equity curve:
@@ -134,6 +165,68 @@ drawdown = 1.0 - (equity_curve / equity_curve.cummax())
 
 The metric is reported as a positive decimal fraction.
 
+### `autocorr_lag1`
+
+Lag-1 autocorrelation of finite period returns. Missing and non-finite returns
+are excluded. The value is `None` when fewer than two finite observations are
+available or when either lagged vector has near-zero variance.
+
+### `effective_n`
+
+Conservative AR(1)-style effective sample size estimate:
+
+```python
+n * (1.0 - autocorr_lag1) / (1.0 + autocorr_lag1)
+```
+
+Positive autocorrelation reduces effective sample size. Negative
+autocorrelation is capped at the observed finite sample size for conservative
+reporting. These diagnostics help interpret `t_stat`, `p_value`, and confidence
+intervals, but they do not replace those fields with autocorrelation-adjusted
+inference.
+
+### `split_mean_diff` and `split_mean_diff_p`
+
+Split-period consistency diagnostics compare finite period returns from the
+first half of the stream with finite returns from the second half. Returns are
+filtered for missing and non-finite values first, order is preserved, and the
+split is by observation count: first half is the first `n // 2` observations and
+second half is the remainder.
+
+`split_mean_diff` is first-half mean return minus second-half mean return.
+`split_mean_diff_p` is a two-sided SciPy Welch t-test p-value using
+`scipy.stats.ttest_ind(..., equal_var=False, nan_policy="omit")`.
+
+Both fields are `None` unless each half has at least two finite observations.
+If SciPy returns a non-finite test result, such as in a degenerate variance
+case, `split_mean_diff_p` is `None` while the signed mean difference remains
+available when it is finite. These diagnostics indicate simple sub-period
+consistency; they do not replace full walk-forward evaluation.
+
+### `rolling_sharpe_mean`, `rolling_sharpe_sd`, and `sharpe_stability_ratio`
+
+Rolling Sharpe stability diagnostics summarize valid window-level Sharpe
+ratios across finite period returns. Returns are filtered for missing and
+non-finite values first, order is preserved, and windows are deterministic.
+
+Default windowing is sequential and non-overlapping:
+
+* `252` observations when at least `252` finite returns are available
+* otherwise `max(4, n // 3)` when at least `12` finite returns are available
+* otherwise the diagnostics are `None`
+
+By default, only full windows are used and `step_size` equals `window_size`.
+Each window Sharpe is computed with `sharpe_ratio()` so annualization matches
+the headline Sharpe ratio. `rolling_sharpe_mean` is the mean of valid window
+Sharpes, and `rolling_sharpe_sd` is their sample standard deviation with
+`ddof=1`. At least two valid window Sharpes are required; otherwise all rolling
+Sharpe stability diagnostics are `None`.
+
+`sharpe_stability_ratio` is `rolling_sharpe_mean / rolling_sharpe_sd` and is
+`None` when the sample standard deviation is missing, non-finite, or near zero.
+These fields are lightweight stability diagnostics and do not replace full
+walk-forward evaluation.
+
 ### `hit_rate`
 
 Share of profitable closed trades:
@@ -144,6 +237,22 @@ Share of profitable closed trades:
 
 A trade is one contiguous non-zero executed-position segment. Open terminal
 trades are excluded.
+
+### `hit_rate_p_value`
+
+One-sided SciPy binomial-test p-value for the trade-level hit rate:
+
+```python
+scipy.stats.binomtest(wins, total, p=0.5, alternative="greater").pvalue
+```
+
+The null hypothesis is a true win probability of `0.5`; the default
+alternative is that the true win probability is greater than random chance.
+The test uses finite closed trade returns only. Strictly positive trade
+returns count as wins, while zero-return trades count as valid closed trades
+but not wins. No closed trades, or only non-finite trade returns, produce
+`None`. This diagnostic is trade-level and should not be interpreted as a
+period `win_rate` test.
 
 ### `profit_factor`
 
@@ -185,6 +294,83 @@ The summary also retains:
 
 * `volatility`: non-annualized sample return standard deviation
 * `win_rate`: share of periods with strictly positive `strategy_return`
+
+---
+
+## Readiness Manifest
+
+`build_metrics_readiness_manifest()` derives an additive
+`metrics_readiness.json` payload from an existing metrics dictionary. It does
+not replace or redefine `metrics.json`.
+
+The manifest groups the existing diagnostics into:
+
+* `return_inference`
+* `hit_rate`
+* `serial_dependence`
+* `split_period`
+* `rolling_stability`
+
+It also records advisory readiness checks:
+
+* `minimum_observations`: uses `effective_n` when present, otherwise a known
+  observed period count such as `row_count`; the default advisory threshold is
+  `30`
+* `return_p_value_available`
+* `hit_rate_p_value_available`
+* `serial_dependence_available`
+* `split_period_available`
+* `rolling_stability_available`
+
+Overall status is `FAIL` when any check fails, otherwise `WARN` when any check
+warns, otherwise `PASS`. Missing or undefined diagnostics are represented as
+`None`, and non-finite inputs are converted to `None` so the manifest can be
+serialized with `allow_nan=False`.
+
+These readiness checks are governance and review aids. They are not hard
+promotion gates and do not replace full validation, walk-forward review, or
+research judgment.
+
+### Readiness Manifest Schema
+
+`metrics_readiness.json` is written beside `metrics.json` for strategy
+single-run, walk-forward aggregate, and walk-forward split artifacts. The
+manifest uses schema version `1`, stores the source metrics filename in
+`source_metrics_artifact`, and is derived only from the adjacent metrics
+payload.
+
+Readiness checks use:
+
+* `PASS`: the check is available or above its advisory threshold
+* `WARN`: the diagnostic is missing or incomplete but not a hard failure
+* `FAIL`: the advisory minimum observation check is below threshold
+
+The root `status` is `FAIL` if any check fails, otherwise `WARN` if any check
+warns, otherwise `PASS`. Missing or undefined values are JSON `null`.
+
+---
+
+## Metrics And Readiness Reference
+
+| field | artifact | type | meaning | undefined behavior | notes |
+| --- | --- | --- | --- | --- | --- |
+| `t_stat` | `metrics.json` | number or `null` | Student-t statistic for mean period return versus zero | `null` for fewer than two finite returns or undefined sample volatility | Assumes independent observations |
+| `p_value` | `metrics.json` | number or `null` | Two-sided SciPy Student-t p-value for mean period return | `null` when `t_stat` is undefined | Not autocorrelation-adjusted |
+| `conf_int_lower` | `metrics.json` | number or `null` | Lower 95% Student-t confidence bound for mean period return | `null` for fewer than two finite returns | Degenerate zero-variance intervals use the mean |
+| `conf_int_upper` | `metrics.json` | number or `null` | Upper 95% Student-t confidence bound for mean period return | `null` for fewer than two finite returns | Same assumptions as `conf_int_lower` |
+| `hit_rate_p_value` | `metrics.json` | number or `null` | One-sided SciPy binomial-test p-value for closed-trade wins | `null` when no finite closed trades exist | Null probability `0.5`, `alternative="greater"` |
+| `autocorr_lag1` | `metrics.json` | number or `null` | Lag-1 autocorrelation of finite period returns | `null` for too few observations or near-constant lagged vectors | Diagnostic only |
+| `effective_n` | `metrics.json` | number or `null` | AR(1)-style effective sample size estimate | `null` when autocorrelation is undefined | Negative autocorrelation is capped at observed `n` |
+| `split_mean_diff` | `metrics.json` | number or `null` | First-half mean return minus second-half mean return | `null` unless both halves meet the minimum sample convention | Finite returns are split after filtering |
+| `split_mean_diff_p` | `metrics.json` | number or `null` | Two-sided SciPy Welch t-test p-value for split halves | `null` for insufficient samples or degenerate test output | Not a walk-forward substitute |
+| `rolling_sharpe_mean` | `metrics.json` | number or `null` | Mean of valid sequential window Sharpe ratios | `null` unless at least two valid window Sharpes exist | Non-overlapping full windows by default |
+| `rolling_sharpe_sd` | `metrics.json` | number or `null` | Sample standard deviation of valid window Sharpes | `null` unless at least two valid window Sharpes exist | Uses `ddof=1` |
+| `sharpe_stability_ratio` | `metrics.json` | number or `null` | `rolling_sharpe_mean / rolling_sharpe_sd` | `null` when rolling Sharpe standard deviation is missing or near zero | Stability diagnostic only |
+| `schema_version` | `metrics_readiness.json` | integer | Readiness manifest schema version | Always present | Current value is `1` |
+| `status` | `metrics_readiness.json` | string | Overall advisory readiness status | Always present | `PASS`, `WARN`, or `FAIL` |
+| `diagnostics` | `metrics_readiness.json` | object | Grouped M30 diagnostics copied from `metrics.json` | Missing metric values become `null` | Groups include return inference, hit rate, serial dependence, split period, and rolling stability |
+| `checks` | `metrics_readiness.json` | array | Advisory readiness checks | Always present | Includes minimum observations and diagnostic availability |
+| `summary` | `metrics_readiness.json` | object | Counts of checks by status | Always present | Deterministic and JSON-safe |
 
 ---
 
@@ -231,9 +417,17 @@ Typical keys in `summary`:
     "annualized_return": 0.31,
     "annualized_volatility": 0.29,
     "sharpe_ratio": 1.08,
+    "autocorr_lag1": 0.18,
+    "effective_n": 69.49,
+    "split_mean_diff": 0.0004,
+    "split_mean_diff_p": 0.73,
+    "rolling_sharpe_mean": 0.92,
+    "rolling_sharpe_sd": 0.18,
+    "sharpe_stability_ratio": 5.11,
     "max_drawdown": 0.07,
     "win_rate": 0.54,
     "hit_rate": 0.58,
+    "hit_rate_p_value": 0.12,
     "profit_factor": 1.34,
     "turnover": 0.21,
     "exposure_pct": 63.5,

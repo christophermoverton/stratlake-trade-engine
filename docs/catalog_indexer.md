@@ -44,9 +44,10 @@ A directory is treated as an artifact root if it contains at least one of:
 
 ```
 manifest.json      metrics.json       alpha_metrics.json
-summary.json       qa_summary.json    _SUCCESS.json
-_FAILED.json       _RUNNING.json      checkpoint.json
-scenario_catalog.json                 decision_log.json
+metrics_readiness.json                summary.json
+qa_summary.json    _SUCCESS.json      _FAILED.json
+_RUNNING.json      checkpoint.json    scenario_catalog.json
+decision_log.json
 ```
 
 ---

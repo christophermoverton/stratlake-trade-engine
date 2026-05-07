@@ -282,6 +282,7 @@ Current artifact contents:
 
 * `config.json`
 * `metrics.json`
+* `metrics_readiness.json`
 * `signal_diagnostics.json`
 * `qa_summary.json`
 * `equity_curve.csv`
@@ -297,6 +298,7 @@ Walk-forward runs keep the same run-directory pattern and add:
 * `splits/<split_id>/equity_curve.csv`
 * `splits/<split_id>/equity_curve.parquet`
 * `splits/<split_id>/metrics.json`
+* `splits/<split_id>/metrics_readiness.json`
 * `splits/<split_id>/split.json`
 
 Single-run artifacts are produced by `save_experiment()`. Walk-forward artifacts
@@ -309,11 +311,71 @@ statistics:
 * `annualized_return`
 * `annualized_volatility`
 * `sharpe_ratio`
+* SciPy-backed period-return inference diagnostics: `t_stat`, `p_value`,
+  `conf_int_lower`, and `conf_int_upper`
+* Return-stream serial-dependence diagnostics: `autocorr_lag1` and
+  `effective_n`
+* Split-period consistency diagnostics: `split_mean_diff` and
+  `split_mean_diff_p`
+* Rolling Sharpe stability diagnostics: `rolling_sharpe_mean`,
+  `rolling_sharpe_sd`, and `sharpe_stability_ratio`
 * `max_drawdown`
-* `win_rate` and trade-level `hit_rate`
+* `win_rate`, trade-level `hit_rate`, and trade-level `hit_rate_p_value`
 * `profit_factor`
 * `turnover`
 * `exposure_pct`
+
+The inference diagnostics use Student-t calculations from SciPy for the mean
+period return under an independent-observation assumption. `autocorr_lag1`
+reports lag-1 autocorrelation of finite period returns, and `effective_n`
+reports a conservative AR(1)-style effective sample size estimate. Positive
+autocorrelation reduces `effective_n`; negative autocorrelation is capped at
+the observed sample size. These diagnostics inform interpretation of the
+Student-t fields, but autocorrelation-adjusted inference is intentionally
+reserved for a later readiness milestone.
+`split_mean_diff` is first-half mean period return minus second-half mean
+period return after filtering missing and non-finite returns and splitting by
+finite observation count. `split_mean_diff_p` is a two-sided SciPy Welch
+t-test p-value comparing those halves. Undefined split tests return `None`;
+the signed mean difference remains available when the halves meet the minimum
+sample convention and the value is finite. The diagnostics flag simple
+sub-period concentration but do not replace full walk-forward evaluation.
+Rolling Sharpe stability diagnostics filter missing and non-finite returns,
+preserve order, and use deterministic non-overlapping full windows by default:
+`252` observations for streams with at least `252` finite returns, otherwise
+`max(4, n // 3)` for streams with at least `12` finite returns. Each window
+uses the standard annualized `sharpe_ratio()`. `rolling_sharpe_mean` is the
+mean of valid window Sharpes, `rolling_sharpe_sd` is their sample standard
+deviation, and `sharpe_stability_ratio` is the mean divided by that standard
+deviation when the denominator is defined and not near zero. Undefined cases
+return `None`; these diagnostics are lightweight and do not replace
+walk-forward evaluation.
+`hit_rate_p_value` uses SciPy's one-sided binomial test on closed trade returns
+with null win probability `0.5` and `alternative="greater"`. Zero-return
+closed trades count as valid non-wins, and the diagnostic is separate from
+period-level `win_rate`.
+
+Each `metrics.json` now has an adjacent `metrics_readiness.json` manifest. The
+readiness artifact is derived from the metrics payload and groups return
+inference, trade hit-rate, serial-dependence, split-period, and rolling Sharpe
+stability diagnostics for notebook, campaign, and governance review. It records
+advisory `PASS`, `WARN`, or `FAIL` checks, including a default minimum
+effective sample size threshold of `30`, and uses `null` for missing or
+undefined diagnostics. It is additive and does not change the meaning or schema
+of `metrics.json`.
+
+Common files to inspect after a run:
+
+```text
+artifacts/strategies/<run_id>/metrics.json
+artifacts/strategies/<run_id>/metrics_readiness.json
+artifacts/strategies/<run_id>/splits/<split_id>/metrics.json
+artifacts/strategies/<run_id>/splits/<split_id>/metrics_readiness.json
+```
+
+Use `metrics.json` for scalar performance and diagnostic values. Use
+`metrics_readiness.json` for grouped readiness status and JSON-safe `null`
+handling across the same fields.
 
 ---
 

@@ -56,9 +56,16 @@ def _expected_metric_keys() -> set[str]:
         "annualized_return",
         "annualized_volatility",
         "sharpe_ratio",
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
         "max_drawdown",
         "win_rate",
         "hit_rate",
+        "hit_rate_p_value",
         "profit_factor",
         "turnover",
         "total_turnover",
@@ -170,6 +177,7 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     assert result.aggregate_summary["split_count"] == 4
     assert len(result.splits) == 4
     assert (result.experiment_dir / "metrics.json").exists()
+    assert (result.experiment_dir / "metrics_readiness.json").exists()
     assert (result.experiment_dir / "config.json").exists()
     assert (result.experiment_dir / "manifest.json").exists()
     assert (result.experiment_dir / "equity_curve.csv").exists()
@@ -178,6 +186,7 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     assert (result.experiment_dir / "splits" / "rolling_0000" / "equity_curve.csv").exists()
     assert (result.experiment_dir / "splits" / "rolling_0000" / "equity_curve.parquet").exists()
     assert (result.experiment_dir / "splits" / "rolling_0000" / "metrics.json").exists()
+    assert (result.experiment_dir / "splits" / "rolling_0000" / "metrics_readiness.json").exists()
     assert (result.experiment_dir / "splits" / "rolling_0000" / "split.json").exists()
 
     metrics_by_split = pd.read_csv(result.experiment_dir / "metrics_by_split.csv")
@@ -207,6 +216,11 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     assert aggregate_metrics["split_count"] == 4
     assert _expected_metric_keys().issubset(aggregate_metrics)
     assert aggregate_metrics["cumulative_return"] == pytest.approx(result.metrics["cumulative_return"])
+    readiness = json.loads((result.experiment_dir / "metrics_readiness.json").read_text(encoding="utf-8"))
+    assert readiness["source_metrics_artifact"] == "metrics.json"
+    assert readiness["run_id"] == result.run_id
+    assert readiness["summary"]["total_checks"] == 6
+    json.dumps(readiness, allow_nan=False, sort_keys=True)
 
     config_payload = json.loads((result.experiment_dir / "config.json").read_text(encoding="utf-8"))
     assert config_payload["strict_mode"] == {
@@ -225,7 +239,9 @@ def test_run_walk_forward_experiment_writes_split_and_aggregate_artifacts(
     }
     assert manifest["split_count"] == 4
     assert "metrics_by_split.csv" in manifest["artifact_files"]
+    assert "metrics_readiness.json" in manifest["artifact_files"]
     assert "splits/rolling_0000/equity_curve.csv" in manifest["artifact_files"]
+    assert "splits/rolling_0000/metrics_readiness.json" in manifest["artifact_files"]
     assert "splits/rolling_0000/signals.parquet" in manifest["artifact_files"]
 
     aggregate_equity_curve = pd.read_csv(result.experiment_dir / "equity_curve.csv")

@@ -66,6 +66,7 @@ Example contents:
 artifacts/strategies/mean_reversion_single_<digest>/
   config.json
   metrics.json
+  metrics_readiness.json
   equity_curve.csv
   signals.parquet
   equity_curve.parquet
@@ -79,6 +80,7 @@ Walk-forward runs add split-aware outputs inside the same root:
 artifacts/strategies/<run_id>/
   config.json
   metrics.json
+  metrics_readiness.json
   equity_curve.csv
   signals.parquet
   equity_curve.parquet
@@ -89,6 +91,7 @@ artifacts/strategies/<run_id>/
   splits/<split_id>/equity_curve.csv
   splits/<split_id>/equity_curve.parquet
   splits/<split_id>/metrics.json
+  splits/<split_id>/metrics_readiness.json
   splits/<split_id>/split.json
 ```
 
@@ -197,7 +200,69 @@ Current columns:
 
 Contains the summary performance metrics supplied to `save_experiment()`, such
 as total return, annualized return, Sharpe ratio, drawdown, hit rate, profit
-factor, turnover, or exposure.
+factor, turnover, or exposure. Return-stream payloads also include SciPy-backed
+Student-t inference diagnostics for mean period return: `t_stat`, two-sided
+`p_value`, `conf_int_lower`, and `conf_int_upper`, plus serial-dependence
+diagnostics: `autocorr_lag1` for lag-1 autocorrelation of finite period returns
+and `effective_n` for a conservative AR(1)-style effective sample size
+estimate. Positive autocorrelation reduces `effective_n`; negative
+autocorrelation is capped at the observed sample size. These diagnostics inform
+interpretation of the Student-t fields, but autocorrelation-adjusted inference
+is handled by a later readiness milestone.
+
+Return-stream payloads also include split-period consistency diagnostics:
+`split_mean_diff`, first-half mean return minus second-half mean return, and
+`split_mean_diff_p`, a two-sided SciPy Welch t-test p-value comparing the two
+halves. Finite returns are split deterministically by observation count after
+filtering missing and non-finite values. Undefined split p-value tests return
+`None`; the signed mean difference remains available when both halves satisfy
+the minimum sample convention and the value is finite. These diagnostics
+highlight simple sub-period concentration but do not replace walk-forward
+evaluation.
+
+Return-stream payloads also include rolling Sharpe stability diagnostics.
+`rolling_sharpe_mean` is the mean of valid sequential window Sharpe ratios,
+`rolling_sharpe_sd` is their sample standard deviation, and
+`sharpe_stability_ratio` is the mean divided by the standard deviation when the
+denominator is defined and not near zero. Windows are order-preserving,
+non-overlapping, and full-sized by default: `252` finite observations when
+available, otherwise `max(4, n // 3)` for streams with at least `12` finite
+observations. Undefined or degenerate diagnostics return `None`. These fields
+are lightweight stability checks and do not replace walk-forward evaluation.
+
+Strategy trade payloads also include `hit_rate_p_value`, a one-sided SciPy
+binomial-test p-value for closed-trade hit rate with null win probability
+`0.5` and `alternative="greater"`. Zero-return closed trades are counted as
+valid non-wins. This is a trade-level diagnostic and is not a period
+`win_rate` significance test.
+
+### `metrics_readiness.json`
+
+Contains an additive research-readiness summary derived from the adjacent
+`metrics.json` file. It records:
+
+* `schema_version`
+* overall `status`
+* `run_id`
+* `source_metrics_artifact`
+* grouped diagnostics for return inference, hit-rate significance,
+  serial-dependence, split-period consistency, and rolling Sharpe stability
+* advisory checks and summary counts
+
+Readiness statuses use `PASS`, `WARN`, and `FAIL`. Overall status is `FAIL` if
+any check fails, otherwise `WARN` if any check warns, otherwise `PASS`. The
+default minimum effective sample size threshold is `30`. Missing diagnostics
+and non-finite values are written as JSON `null`, and the artifact is safe to
+serialize with `allow_nan=False`.
+
+The readiness manifest supports campaign summaries, notebooks, and research
+governance review. It does not replace `metrics.json`, promotion gates, or full
+validation.
+
+Both `metrics.json` and `metrics_readiness.json` are written with sorted keys,
+stable indentation, and JSON-safe values. Undefined diagnostics are represented
+as `null`; artifacts must not rely on `NaN`, `Infinity`, or platform-specific
+path strings.
 
 ### `config.json`
 
@@ -254,6 +319,7 @@ Present for walk-forward runs. Each split directory stores:
 * `equity_curve.csv` for standardized test-window backtest outputs
 * `equity_curve.parquet` for test-window backtest outputs
 * `metrics.json` for split-level summary metrics
+* `metrics_readiness.json` for split-level advisory readiness diagnostics
 * `split.json` for the split definition itself
 
 ### Inspecting A Run

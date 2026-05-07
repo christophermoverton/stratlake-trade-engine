@@ -14,9 +14,11 @@ from src.research.consistency import (
     validate_walk_forward_consistency,
 )
 from src.research.metrics import (
+    METRICS_READINESS_FILENAME,
     broadcast_strategy_equity_curve,
     compute_performance_metrics,
     infer_position_series,
+    write_metrics_readiness_manifest,
 )
 from src.research.promotion import (
     DEFAULT_PROMOTION_ARTIFACT_FILENAME,
@@ -43,9 +45,21 @@ _METRIC_KEYS = (
     "annualized_return",
     "annualized_volatility",
     "sharpe_ratio",
+    "t_stat",
+    "p_value",
+    "conf_int_lower",
+    "conf_int_upper",
+    "autocorr_lag1",
+    "effective_n",
+    "split_mean_diff",
+    "split_mean_diff_p",
+    "rolling_sharpe_mean",
+    "rolling_sharpe_sd",
+    "sharpe_stability_ratio",
     "max_drawdown",
     "win_rate",
     "hit_rate",
+    "hit_rate_p_value",
     "profit_factor",
     "turnover",
     "total_turnover",
@@ -110,7 +124,7 @@ def _sanitize_strategy_name(strategy_name: str) -> str:
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     """Persist a dictionary to disk using stable JSON formatting."""
 
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False), encoding="utf-8")
 
 
 def _utc_timestamp_from_run_id(run_id: str) -> str:
@@ -632,6 +646,7 @@ def _write_run_outputs(
     payloads["equity_curve_frame"].to_csv(output_dir / "equity_curve.csv", index=False)
     payloads["legacy_equity_curve_frame"].to_parquet(output_dir / "equity_curve.parquet")
     _write_json(output_dir / "metrics.json", dict(payloads["metrics"]))
+    write_metrics_readiness_manifest(output_dir, dict(payloads["metrics"]), run_id=output_dir.name)
     _write_json(output_dir / "signal_diagnostics.json", dict(payloads["signal_diagnostics"]))
     _write_json(output_dir / "qa_summary.json", dict(payloads["qa_summary"]))
     if payloads.get("signal_semantics") is not None:
@@ -643,6 +658,7 @@ def _write_run_outputs(
         "equity_curve.csv",
         "equity_curve.parquet",
         "metrics.json",
+        METRICS_READINESS_FILENAME,
         "signal_diagnostics.json",
         "qa_summary.json",
     ]

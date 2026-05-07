@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import math
 from pathlib import Path
 import sys
@@ -13,6 +14,13 @@ from src.portfolio import compute_portfolio_metrics
 from src.research.metrics import (
     TRADING_DAYS_PER_YEAR,
     annualized_volatility,
+    compute_autocorr_lag1,
+    compute_confidence_interval,
+    compute_effective_sample_size,
+    compute_p_value,
+    compute_rolling_sharpe_diagnostics,
+    compute_split_period_diagnostics,
+    compute_t_statistic,
     max_drawdown,
     sharpe_ratio,
     total_return,
@@ -85,6 +93,17 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
         "volatility_target_scale",
         "volatility_target_scale_capped",
         "sharpe_ratio",
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
+        "rolling_sharpe_mean",
+        "rolling_sharpe_sd",
+        "sharpe_stability_ratio",
         "max_drawdown",
         "current_drawdown",
         "max_drawdown_duration",
@@ -146,6 +165,28 @@ def test_compute_portfolio_metrics_reuses_return_metrics_deterministically() -> 
     assert metrics["volatility_target_scale"] is None
     assert metrics["volatility_target_scale_capped"] == pytest.approx(0.0)
     assert metrics["sharpe_ratio"] == pytest.approx(expected_sharpe)
+    assert metrics["t_stat"] == pytest.approx(compute_t_statistic(portfolio_returns))
+    assert metrics["p_value"] == pytest.approx(compute_p_value(portfolio_returns))
+    assert (metrics["conf_int_lower"], metrics["conf_int_upper"]) == pytest.approx(
+        compute_confidence_interval(portfolio_returns)
+    )
+    assert metrics["autocorr_lag1"] == pytest.approx(
+        compute_autocorr_lag1(portfolio_returns)
+    )
+    assert metrics["effective_n"] == pytest.approx(
+        compute_effective_sample_size(portfolio_returns)
+    )
+    assert metrics["split_mean_diff"] == pytest.approx(
+        compute_split_period_diagnostics(portfolio_returns)["split_mean_diff"]
+    )
+    assert metrics["split_mean_diff_p"] == pytest.approx(
+        compute_split_period_diagnostics(portfolio_returns)["split_mean_diff_p"]
+    )
+    rolling_sharpe_diagnostics = compute_rolling_sharpe_diagnostics(portfolio_returns)
+    assert metrics["rolling_sharpe_mean"] == rolling_sharpe_diagnostics["rolling_sharpe_mean"]
+    assert metrics["rolling_sharpe_sd"] == rolling_sharpe_diagnostics["rolling_sharpe_sd"]
+    assert metrics["sharpe_stability_ratio"] == rolling_sharpe_diagnostics["sharpe_stability_ratio"]
+    assert "hit_rate_p_value" not in metrics
     assert metrics["max_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["current_drawdown"] == pytest.approx(expected_drawdown)
     assert metrics["max_drawdown_duration"] == pytest.approx(1.0)
@@ -193,6 +234,22 @@ def test_compute_portfolio_metrics_matches_research_metric_primitives() -> None:
     assert metrics["sharpe_ratio"] == pytest.approx(
         sharpe_ratio(portfolio_returns, periods_per_year=TRADING_DAYS_PER_YEAR)
     )
+    assert metrics["autocorr_lag1"] == pytest.approx(
+        compute_autocorr_lag1(portfolio_returns)
+    )
+    assert metrics["effective_n"] == pytest.approx(
+        compute_effective_sample_size(portfolio_returns)
+    )
+    assert metrics["split_mean_diff"] == pytest.approx(
+        compute_split_period_diagnostics(portfolio_returns)["split_mean_diff"]
+    )
+    assert metrics["split_mean_diff_p"] == pytest.approx(
+        compute_split_period_diagnostics(portfolio_returns)["split_mean_diff_p"]
+    )
+    rolling_sharpe_diagnostics = compute_rolling_sharpe_diagnostics(portfolio_returns)
+    assert metrics["rolling_sharpe_mean"] == rolling_sharpe_diagnostics["rolling_sharpe_mean"]
+    assert metrics["rolling_sharpe_sd"] == rolling_sharpe_diagnostics["rolling_sharpe_sd"]
+    assert metrics["sharpe_stability_ratio"] == rolling_sharpe_diagnostics["sharpe_stability_ratio"]
     assert metrics["max_drawdown"] == pytest.approx(max_drawdown(portfolio_returns))
     assert metrics["value_at_risk"] == pytest.approx(0.014)
     assert metrics["conditional_value_at_risk"] == pytest.approx(0.014)
@@ -274,6 +331,50 @@ def test_compute_portfolio_metrics_handles_zero_volatility_non_zero_returns() ->
     assert metrics["realized_volatility"] == 0.0
     assert metrics["sharpe_ratio"] == 0.0
     assert metrics["total_return"] == pytest.approx((1.01**3) - 1.0)
+
+
+def test_compute_portfolio_metrics_handles_near_constant_returns_without_non_finite_inference() -> None:
+    portfolio_output = pd.DataFrame(
+        {
+            "ts_utc": pd.to_datetime(
+                ["2025-07-01T00:00:00Z", "2025-07-02T00:00:00Z", "2025-07-03T00:00:00Z"],
+                utc=True,
+            ),
+            "strategy_return__alpha": [0.01, 0.0100000000005, 0.01],
+            "weight__alpha": [1.0, 1.0, 1.0],
+            "portfolio_return": [0.01, 0.0100000000005, 0.01],
+            "portfolio_equity_curve": [1.01, 1.020100000000505, 1.0303010000005102],
+        }
+    )
+
+    metrics = compute_portfolio_metrics(portfolio_output, timeframe="1d")
+    serialized = json.dumps(metrics, allow_nan=False, sort_keys=True)
+
+    assert serialized
+    assert {
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
+        "rolling_sharpe_mean",
+        "rolling_sharpe_sd",
+        "sharpe_stability_ratio",
+    }.issubset(metrics)
+    assert metrics["t_stat"] is None
+    assert metrics["p_value"] is None
+    assert metrics["autocorr_lag1"] is None
+    assert metrics["effective_n"] is None
+    assert metrics["split_mean_diff"] is None
+    assert metrics["split_mean_diff_p"] is None
+    assert metrics["rolling_sharpe_mean"] is None
+    assert metrics["rolling_sharpe_sd"] is None
+    assert metrics["sharpe_stability_ratio"] is None
+    assert metrics["conf_int_lower"] == pytest.approx(portfolio_output["portfolio_return"].mean())
+    assert metrics["conf_int_upper"] == pytest.approx(portfolio_output["portfolio_return"].mean())
 
 
 def test_compute_portfolio_metrics_rejects_empty_input() -> None:

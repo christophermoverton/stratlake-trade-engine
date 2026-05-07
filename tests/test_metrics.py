@@ -1,18 +1,34 @@
 from __future__ import annotations
 
+import json
 import math
 
 import pandas as pd
 import pytest
+from scipy import stats
 
+from src.research.experiment_tracker import save_experiment
 from src.research.metrics import (
     MetricsAggregationError,
     MINUTE_PERIODS_PER_YEAR,
+    RETURN_INFERENCE_STD_ATOL,
     TRADING_DAYS_PER_YEAR,
     annualized_return,
     annualized_volatility,
+    compute_autocorr_lag1,
     compute_benchmark_relative_metrics,
+    compute_confidence_interval,
+    compute_effective_sample_size,
+    compute_hit_rate_p_value,
+    build_metrics_readiness_manifest,
     compute_performance_metrics,
+    compute_p_value,
+    compute_rolling_sharpe_diagnostics,
+    compute_rolling_sharpe_values,
+    compute_split_mean_diff,
+    compute_split_mean_diff_p_value,
+    compute_split_period_diagnostics,
+    compute_t_statistic,
     cumulative_return,
     exposure_pct,
     hit_rate,
@@ -25,6 +41,123 @@ from src.research.metrics import (
     volatility,
     win_rate,
 )
+
+
+def _full_readiness_metrics() -> dict[str, float | None]:
+    return {
+        "t_stat": 2.1,
+        "p_value": 0.04,
+        "conf_int_lower": 0.001,
+        "conf_int_upper": 0.02,
+        "hit_rate": 0.61,
+        "hit_rate_p_value": 0.03,
+        "autocorr_lag1": 0.05,
+        "effective_n": 60.0,
+        "split_mean_diff": 0.001,
+        "split_mean_diff_p": 0.4,
+        "rolling_sharpe_mean": 1.2,
+        "rolling_sharpe_sd": 0.3,
+        "sharpe_stability_ratio": 4.0,
+    }
+
+
+def _check_statuses(manifest: dict[str, object]) -> dict[str, str]:
+    checks = manifest["checks"]
+    assert isinstance(checks, list)
+    return {str(check["name"]): str(check["status"]) for check in checks}
+
+
+def test_build_metrics_readiness_manifest_groups_full_payload_and_passes() -> None:
+    manifest = build_metrics_readiness_manifest(_full_readiness_metrics(), run_id="run-123")
+
+    assert manifest["schema_version"] == 1
+    assert manifest["status"] == "PASS"
+    assert manifest["run_id"] == "run-123"
+    assert manifest["source_metrics_artifact"] == "metrics.json"
+    assert manifest["diagnostics"] == {
+        "return_inference": {
+            "t_stat": 2.1,
+            "p_value": 0.04,
+            "conf_int_lower": 0.001,
+            "conf_int_upper": 0.02,
+        },
+        "hit_rate": {"hit_rate": 0.61, "hit_rate_p_value": 0.03},
+        "serial_dependence": {"autocorr_lag1": 0.05, "effective_n": 60.0},
+        "split_period": {"split_mean_diff": 0.001, "split_mean_diff_p": 0.4},
+        "rolling_stability": {
+            "rolling_sharpe_mean": 1.2,
+            "rolling_sharpe_sd": 0.3,
+            "sharpe_stability_ratio": 4.0,
+        },
+    }
+    assert manifest["summary"] == {
+        "total_checks": 6,
+        "passed_checks": 6,
+        "warn_checks": 0,
+        "failed_checks": 0,
+    }
+    json.dumps(manifest, allow_nan=False, sort_keys=True)
+
+
+def test_build_metrics_readiness_manifest_warns_for_missing_diagnostics() -> None:
+    manifest = build_metrics_readiness_manifest({"hit_rate": 0.5}, run_id=None)
+
+    assert manifest["status"] == "WARN"
+    diagnostics = manifest["diagnostics"]
+    assert diagnostics["return_inference"]["p_value"] is None
+    assert diagnostics["hit_rate"]["hit_rate"] == 0.5
+    assert diagnostics["hit_rate"]["hit_rate_p_value"] is None
+    assert diagnostics["serial_dependence"]["effective_n"] is None
+    statuses = _check_statuses(manifest)
+    assert statuses["minimum_observations"] == "WARN"
+    assert statuses["return_p_value_available"] == "WARN"
+    assert statuses["hit_rate_p_value_available"] == "WARN"
+    json.dumps(manifest, allow_nan=False, sort_keys=True)
+
+
+def test_build_metrics_readiness_manifest_warns_for_low_effective_sample_size() -> None:
+    metrics = _full_readiness_metrics()
+    metrics["effective_n"] = 12.0
+
+    manifest = build_metrics_readiness_manifest(metrics)
+
+    assert manifest["status"] == "WARN"
+    statuses = _check_statuses(manifest)
+    assert statuses["minimum_observations"] == "WARN"
+    assert statuses["return_p_value_available"] == "PASS"
+
+
+def test_build_metrics_readiness_manifest_converts_non_finite_values_to_none() -> None:
+    metrics = _full_readiness_metrics()
+    metrics.update(
+        {
+            "t_stat": float("nan"),
+            "p_value": float("inf"),
+            "effective_n": -float("inf"),
+        }
+    )
+
+    manifest = build_metrics_readiness_manifest(metrics)
+
+    assert manifest["diagnostics"]["return_inference"]["t_stat"] is None
+    assert manifest["diagnostics"]["return_inference"]["p_value"] is None
+    assert manifest["diagnostics"]["serial_dependence"]["effective_n"] is None
+    assert _check_statuses(manifest)["minimum_observations"] == "WARN"
+    json.dumps(manifest, allow_nan=False, sort_keys=True)
+
+
+def test_build_metrics_readiness_manifest_respects_threshold_override() -> None:
+    metrics = _full_readiness_metrics()
+    metrics["effective_n"] = 40.0
+
+    default_manifest = build_metrics_readiness_manifest(metrics)
+    strict_manifest = build_metrics_readiness_manifest(
+        metrics,
+        thresholds={"minimum_effective_n": 50.0},
+    )
+
+    assert _check_statuses(default_manifest)["minimum_observations"] == "PASS"
+    assert _check_statuses(strict_manifest)["minimum_observations"] == "WARN"
 
 
 def _strategy_returns() -> pd.Series:
@@ -104,6 +237,324 @@ def test_sharpe_ratio_returns_zero_for_zero_volatility() -> None:
     assert annualized_volatility(strategy_return) == 0.0
 
 
+def test_return_inference_metrics_match_scipy_for_positive_returns() -> None:
+    strategy_return = pd.Series([0.01, 0.02, -0.005, 0.015, 0.03], dtype="float64")
+    sample_size = len(strategy_return)
+    sample_std = strategy_return.std(ddof=1)
+    expected_t = strategy_return.mean() / (sample_std / math.sqrt(sample_size))
+    expected_p = 2.0 * (1.0 - stats.t.cdf(abs(expected_t), df=sample_size - 1))
+    t_crit = stats.t.ppf(0.975, df=sample_size - 1)
+    margin = t_crit * sample_std / math.sqrt(sample_size)
+
+    lower, upper = compute_confidence_interval(strategy_return)
+
+    assert compute_t_statistic(strategy_return) == pytest.approx(expected_t)
+    assert compute_p_value(strategy_return) == pytest.approx(expected_p)
+    assert 0.0 <= compute_p_value(strategy_return) <= 1.0
+    assert lower == pytest.approx(strategy_return.mean() - margin)
+    assert upper == pytest.approx(strategy_return.mean() + margin)
+    assert lower <= upper
+
+
+def test_return_inference_metrics_match_scipy_for_negative_returns() -> None:
+    strategy_return = pd.Series([-0.01, -0.02, 0.005, -0.015, -0.03], dtype="float64")
+    sample_size = len(strategy_return)
+    sample_std = strategy_return.std(ddof=1)
+    expected_t = strategy_return.mean() / (sample_std / math.sqrt(sample_size))
+    expected_p = 2.0 * (1.0 - stats.t.cdf(abs(expected_t), df=sample_size - 1))
+
+    lower, upper = compute_confidence_interval(strategy_return)
+
+    assert compute_t_statistic(strategy_return) == pytest.approx(expected_t)
+    assert compute_t_statistic(strategy_return) < 0.0
+    assert compute_p_value(strategy_return) == pytest.approx(expected_p)
+    assert 0.0 <= compute_p_value(strategy_return) <= 1.0
+    assert lower <= upper
+
+
+def test_return_inference_metrics_handle_zero_single_and_constant_streams() -> None:
+    zero_returns = pd.Series([0.0, 0.0, 0.0], dtype="float64")
+    single_return = pd.Series([0.01], dtype="float64")
+    constant_positive = pd.Series([0.01, 0.01, 0.01], dtype="float64")
+    constant_negative = pd.Series([-0.01, -0.01, -0.01], dtype="float64")
+
+    assert compute_t_statistic(zero_returns) is None
+    assert compute_p_value(zero_returns) is None
+    assert compute_confidence_interval(zero_returns) == (0.0, 0.0)
+    assert compute_t_statistic(single_return) is None
+    assert compute_p_value(single_return) is None
+    assert compute_confidence_interval(single_return) == (None, None)
+    assert compute_t_statistic(constant_positive) is None
+    assert compute_p_value(constant_positive) is None
+    assert compute_confidence_interval(constant_positive) == pytest.approx((0.01, 0.01))
+    assert compute_t_statistic(constant_negative) is None
+    assert compute_p_value(constant_negative) is None
+    assert compute_confidence_interval(constant_negative) == pytest.approx((-0.01, -0.01))
+
+
+def test_return_inference_metrics_treat_near_constant_positive_stream_as_degenerate() -> None:
+    strategy_return = pd.Series([0.01, 0.0100000000005, 0.01, 0.01], dtype="float64")
+
+    assert 0.0 < strategy_return.std(ddof=1) < RETURN_INFERENCE_STD_ATOL
+    assert compute_t_statistic(strategy_return) is None
+    assert compute_p_value(strategy_return) is None
+    assert compute_confidence_interval(strategy_return) == pytest.approx((0.01, 0.01))
+
+
+def test_return_inference_metrics_treat_near_constant_negative_stream_as_degenerate() -> None:
+    strategy_return = pd.Series([-0.01, -0.0100000000005, -0.01, -0.01], dtype="float64")
+    expected_mean = float(strategy_return.mean())
+
+    assert 0.0 < strategy_return.std(ddof=1) < RETURN_INFERENCE_STD_ATOL
+    assert compute_t_statistic(strategy_return) is None
+    assert compute_p_value(strategy_return) is None
+    assert compute_confidence_interval(strategy_return) == pytest.approx(
+        (expected_mean, expected_mean)
+    )
+
+
+def test_return_inference_metrics_drop_nan_contaminated_returns() -> None:
+    contaminated = pd.Series([0.01, float("nan"), 0.02, -0.005, float("nan"), 0.015], dtype="float64")
+    clean = contaminated.dropna()
+
+    assert compute_t_statistic(contaminated) == pytest.approx(compute_t_statistic(clean))
+    assert compute_p_value(contaminated) == pytest.approx(compute_p_value(clean))
+    assert compute_confidence_interval(contaminated) == pytest.approx(compute_confidence_interval(clean))
+
+
+def test_compute_autocorr_lag1_returns_none_for_empty_single_or_invalid_streams() -> None:
+    assert compute_autocorr_lag1(pd.Series(dtype="float64")) is None
+    assert compute_autocorr_lag1(pd.Series([0.01], dtype="float64")) is None
+    assert compute_autocorr_lag1(
+        pd.Series([float("nan"), float("inf"), -float("inf")])
+    ) is None
+
+
+def test_compute_autocorr_lag1_returns_none_for_constant_or_near_constant_streams() -> None:
+    assert compute_autocorr_lag1(pd.Series([0.01, 0.01, 0.01], dtype="float64")) is None
+    assert compute_autocorr_lag1(
+        pd.Series([0.01, 0.0100000000005, 0.01], dtype="float64")
+    ) is None
+
+
+def test_compute_autocorr_lag1_handles_positive_negative_and_mixed_streams() -> None:
+    positive = compute_autocorr_lag1(
+        pd.Series([0.0, 0.01, 0.02, 0.03, 0.04], dtype="float64")
+    )
+    negative = compute_autocorr_lag1(
+        pd.Series([0.01, -0.01, 0.01, -0.01, 0.01], dtype="float64")
+    )
+    mixed = compute_autocorr_lag1(pd.Series([0.01, 0.0, -0.01, 0.0], dtype="float64"))
+
+    assert positive is not None and positive > 0.0
+    assert negative is not None and negative < 0.0
+    assert mixed is not None
+    for value in (positive, negative, mixed):
+        assert value is not None
+        assert math.isfinite(value)
+        assert -1.0 <= value <= 1.0
+        json.dumps({"autocorr_lag1": value}, allow_nan=False)
+
+
+def test_compute_effective_sample_size_handles_undefined_zero_positive_and_negative_autocorrelation() -> None:
+    assert compute_effective_sample_size(pd.Series([0.01], dtype="float64")) is None
+
+    positive = compute_effective_sample_size(pd.Series([0.0, 0.01, 0.02, 0.03, 0.04], dtype="float64"))
+    zero = compute_effective_sample_size(pd.Series([0.01, 0.0, -0.01, 0.0], dtype="float64"))
+    negative = compute_effective_sample_size(pd.Series([0.01, -0.01, 0.01, -0.01, 0.01], dtype="float64"))
+
+    assert positive is not None and 0.0 <= positive < 5.0
+    assert zero == pytest.approx(4.0)
+    assert negative == pytest.approx(5.0)
+    for value in (positive, zero, negative):
+        assert value is not None
+        assert math.isfinite(value)
+        json.dumps({"effective_n": value}, allow_nan=False)
+
+
+def test_compute_effective_sample_size_handles_high_positive_autocorrelation_safely() -> None:
+    high_positive = compute_effective_sample_size(pd.Series([0.0, 1.0, 2.0, 3.0, 4.0], dtype="float64"))
+
+    assert high_positive is not None
+    assert 0.0 <= high_positive <= 5.0
+
+
+def test_compute_split_period_diagnostics_return_none_for_empty_single_or_invalid_streams() -> None:
+    assert compute_split_period_diagnostics(pd.Series(dtype="float64")) == {
+        "split_mean_diff": None,
+        "split_mean_diff_p": None,
+    }
+    assert compute_split_period_diagnostics(pd.Series([0.01], dtype="float64")) == {
+        "split_mean_diff": None,
+        "split_mean_diff_p": None,
+    }
+    assert compute_split_period_diagnostics(pd.Series([float("nan"), float("inf"), -float("inf")])) == {
+        "split_mean_diff": None,
+        "split_mean_diff_p": None,
+    }
+
+
+def test_compute_split_period_diagnostics_require_two_observations_per_half() -> None:
+    diagnostics = compute_split_period_diagnostics(pd.Series([0.01, 0.02, -0.01], dtype="float64"))
+
+    assert diagnostics["split_mean_diff"] is None
+    assert diagnostics["split_mean_diff_p"] is None
+
+
+def test_compute_split_period_diagnostics_stable_series_is_json_safe() -> None:
+    returns = pd.Series([0.010, 0.012, 0.009, 0.011, 0.010, 0.012], dtype="float64")
+    diagnostics = compute_split_period_diagnostics(returns)
+
+    assert diagnostics["split_mean_diff"] == pytest.approx(0.0, abs=0.002)
+    assert diagnostics["split_mean_diff_p"] is not None
+    assert 0.0 <= diagnostics["split_mean_diff_p"] <= 1.0
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_split_period_diagnostics_drifted_series_has_signed_difference() -> None:
+    returns = pd.Series([0.03, 0.02, 0.04, -0.02, -0.03, -0.01], dtype="float64")
+    diagnostics = compute_split_period_diagnostics(returns)
+
+    assert diagnostics["split_mean_diff"] is not None
+    assert diagnostics["split_mean_diff"] > 0.0
+    assert diagnostics["split_mean_diff_p"] is not None
+    assert 0.0 <= diagnostics["split_mean_diff_p"] <= 1.0
+
+
+def test_compute_split_period_diagnostics_keeps_finite_diff_when_welch_test_is_degenerate() -> None:
+    diagnostics = compute_split_period_diagnostics(pd.Series([0.01, 0.01, 0.02, 0.02], dtype="float64"))
+
+    assert diagnostics["split_mean_diff"] == pytest.approx(-0.01)
+    assert diagnostics["split_mean_diff_p"] is None
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_split_period_diagnostics_matches_scipy_welch_test_for_unequal_variance() -> None:
+    returns = pd.Series([0.01, 0.03, -0.02, 0.02, -0.04, 0.05, 0.00, 0.01], dtype="float64")
+    first_half = returns.iloc[:4]
+    second_half = returns.iloc[4:]
+    expected = stats.ttest_ind(first_half, second_half, equal_var=False, nan_policy="omit")
+
+    diagnostics = compute_split_period_diagnostics(returns)
+
+    assert diagnostics["split_mean_diff"] == pytest.approx(first_half.mean() - second_half.mean())
+    assert diagnostics["split_mean_diff_p"] == pytest.approx(expected.pvalue)
+
+
+def test_compute_split_period_diagnostics_filters_non_finite_values_before_splitting() -> None:
+    contaminated = pd.Series(
+        [0.01, float("nan"), 0.02, float("inf"), -0.01, -float("inf"), -0.02],
+        dtype="float64",
+    )
+    clean = pd.Series([0.01, 0.02, -0.01, -0.02], dtype="float64")
+
+    assert compute_split_period_diagnostics(contaminated) == pytest.approx(
+        compute_split_period_diagnostics(clean)
+    )
+    assert compute_split_mean_diff(contaminated) == pytest.approx(0.03)
+    assert compute_split_mean_diff_p_value(contaminated) == pytest.approx(
+        compute_split_period_diagnostics(clean)["split_mean_diff_p"]
+    )
+
+
+def test_compute_rolling_sharpe_diagnostics_return_none_for_empty_single_short_or_invalid_streams() -> None:
+    expected = {
+        "rolling_sharpe_mean": None,
+        "rolling_sharpe_sd": None,
+        "sharpe_stability_ratio": None,
+    }
+
+    assert compute_rolling_sharpe_diagnostics(pd.Series(dtype="float64")) == expected
+    assert compute_rolling_sharpe_diagnostics(pd.Series([0.01], dtype="float64")) == expected
+    assert compute_rolling_sharpe_diagnostics(pd.Series([0.01] * 11, dtype="float64")) == expected
+    assert compute_rolling_sharpe_diagnostics(
+        pd.Series([float("nan"), float("inf"), -float("inf")])
+    ) == expected
+
+
+def test_compute_rolling_sharpe_diagnostics_handles_constant_streams_json_safely() -> None:
+    diagnostics = compute_rolling_sharpe_diagnostics(pd.Series([0.01] * 12, dtype="float64"))
+
+    assert diagnostics["rolling_sharpe_mean"] == pytest.approx(0.0)
+    assert diagnostics["rolling_sharpe_sd"] == pytest.approx(0.0)
+    assert diagnostics["sharpe_stability_ratio"] is None
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_rolling_sharpe_diagnostics_stable_stream_is_json_safe() -> None:
+    returns = pd.Series(
+        [0.010, 0.012, 0.008, 0.011] * 3,
+        dtype="float64",
+    )
+    diagnostics = compute_rolling_sharpe_diagnostics(returns)
+
+    assert diagnostics["rolling_sharpe_mean"] is not None
+    assert diagnostics["rolling_sharpe_sd"] is not None
+    assert diagnostics["rolling_sharpe_sd"] >= 0.0
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_rolling_sharpe_diagnostics_regime_shift_has_positive_dispersion() -> None:
+    returns = pd.Series(
+        [0.03, 0.02, 0.04, 0.01, -0.03, -0.02, -0.04, -0.01, 0.04, -0.05, 0.03, -0.04],
+        dtype="float64",
+    )
+    diagnostics = compute_rolling_sharpe_diagnostics(returns)
+
+    assert diagnostics["rolling_sharpe_mean"] is not None
+    assert diagnostics["rolling_sharpe_sd"] is not None
+    assert diagnostics["rolling_sharpe_sd"] > 0.0
+    assert diagnostics["sharpe_stability_ratio"] is not None
+    json.dumps(diagnostics, allow_nan=False, sort_keys=True)
+
+
+def test_compute_rolling_sharpe_diagnostics_respects_custom_window_and_step() -> None:
+    returns = pd.Series(
+        [0.01, 0.02, -0.01, 0.03, -0.02, -0.01, 0.0, -0.03],
+        dtype="float64",
+    )
+    window_sharpes = compute_rolling_sharpe_values(
+        returns,
+        window_size=4,
+        step_size=4,
+        periods_per_year=TRADING_DAYS_PER_YEAR,
+    )
+    diagnostics = compute_rolling_sharpe_diagnostics(
+        returns,
+        window_size=4,
+        step_size=4,
+        periods_per_year=TRADING_DAYS_PER_YEAR,
+    )
+
+    expected_sharpes = [
+        sharpe_ratio(returns.iloc[:4], periods_per_year=TRADING_DAYS_PER_YEAR),
+        sharpe_ratio(returns.iloc[4:], periods_per_year=TRADING_DAYS_PER_YEAR),
+    ]
+    assert window_sharpes == pytest.approx(expected_sharpes)
+    assert diagnostics["rolling_sharpe_mean"] == pytest.approx(pd.Series(expected_sharpes).mean())
+    assert diagnostics["rolling_sharpe_sd"] == pytest.approx(pd.Series(expected_sharpes).std(ddof=1))
+
+
+def test_compute_rolling_sharpe_diagnostics_filters_non_finite_values_before_windowing() -> None:
+    contaminated = pd.Series(
+        [0.01, float("nan"), 0.02, -0.01, 0.03, float("inf"), -0.02, -0.01, 0.0, -0.03],
+        dtype="float64",
+    )
+    clean = pd.Series([0.01, 0.02, -0.01, 0.03, -0.02, -0.01, 0.0, -0.03], dtype="float64")
+
+    assert compute_rolling_sharpe_diagnostics(
+        contaminated,
+        window_size=4,
+        step_size=4,
+    ) == pytest.approx(
+        compute_rolling_sharpe_diagnostics(
+            clean,
+            window_size=4,
+            step_size=4,
+        )
+    )
+
+
 def test_max_drawdown_computes_largest_peak_to_trough_decline() -> None:
     strategy_return = _strategy_returns()
 
@@ -127,6 +578,47 @@ def test_hit_rate_and_profit_factor_use_closed_trade_returns() -> None:
     assert profit_factor(trade_returns) == pytest.approx((0.045 + 0.0192) / 0.03)
 
 
+def test_compute_hit_rate_p_value_returns_none_for_zero_valid_trades() -> None:
+    assert compute_hit_rate_p_value(pd.Series(dtype="float64")) is None
+    assert compute_hit_rate_p_value(pd.Series([float("nan"), float("inf"), -float("inf")])) is None
+
+
+@pytest.mark.parametrize(
+    ("trade_returns", "wins", "total"),
+    [
+        ([0.01, 0.02, 0.03, 0.04, 0.05, -0.01, -0.02, -0.03, -0.04, -0.05], 5, 10),
+        ([0.01] * 13 + [-0.01] * 7, 13, 20),
+        ([0.01, 0.02] + [-0.01] * 8, 2, 10),
+    ],
+)
+def test_compute_hit_rate_p_value_matches_scipy_binomtest(
+    trade_returns: list[float],
+    wins: int,
+    total: int,
+) -> None:
+    expected = stats.binomtest(wins, total, p=0.5, alternative="greater").pvalue
+
+    result = compute_hit_rate_p_value(pd.Series(trade_returns, dtype="float64"))
+
+    assert result == pytest.approx(expected)
+    assert result is not None
+    assert 0.0 <= result <= 1.0
+    json.dumps({"hit_rate_p_value": result}, allow_nan=False)
+
+
+def test_compute_hit_rate_p_value_counts_zero_returns_as_non_winning_trades() -> None:
+    trade_returns = pd.Series([0.01, 0.0, -0.01, 0.0], dtype="float64")
+    expected = stats.binomtest(1, 4, p=0.5, alternative="greater").pvalue
+
+    assert compute_hit_rate_p_value(trade_returns) == pytest.approx(expected)
+
+
+def test_compute_hit_rate_p_value_is_deterministic() -> None:
+    trade_returns = pd.Series([0.02, -0.01, 0.03, 0.0, 0.04], dtype="float64")
+
+    assert compute_hit_rate_p_value(trade_returns) == compute_hit_rate_p_value(trade_returns)
+
+
 def test_profit_factor_returns_none_when_closed_trades_have_no_losses() -> None:
     trade_returns = pd.Series([0.02, 0.03], dtype="float64")
 
@@ -146,7 +638,24 @@ def test_compute_performance_metrics_includes_expanded_fields_with_known_trade_v
     metrics = compute_performance_metrics(results_df)
 
     assert metrics["total_return"] == pytest.approx(metrics["cumulative_return"])
+    assert {
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
+        "rolling_sharpe_mean",
+        "rolling_sharpe_sd",
+        "sharpe_stability_ratio",
+    }.issubset(metrics)
+    assert metrics["conf_int_lower"] <= metrics["conf_int_upper"]
     assert metrics["hit_rate"] == pytest.approx(2.0 / 3.0)
+    assert metrics["hit_rate_p_value"] == pytest.approx(
+        stats.binomtest(2, 3, p=0.5, alternative="greater").pvalue
+    )
     assert metrics["profit_factor"] == pytest.approx((0.045 + 0.0192) / 0.03)
     assert metrics["turnover"] == pytest.approx(0.75)
     assert metrics["total_turnover"] == pytest.approx(6.0)
@@ -192,11 +701,33 @@ def test_compute_performance_metrics_handles_empty_and_flat_inputs() -> None:
     flat_metrics = compute_performance_metrics(flat_results)
 
     assert empty_metrics["total_return"] == 0.0
+    assert empty_metrics["t_stat"] is None
+    assert empty_metrics["p_value"] is None
+    assert empty_metrics["conf_int_lower"] is None
+    assert empty_metrics["conf_int_upper"] is None
+    assert empty_metrics["autocorr_lag1"] is None
+    assert empty_metrics["effective_n"] is None
+    assert empty_metrics["split_mean_diff"] is None
+    assert empty_metrics["split_mean_diff_p"] is None
+    assert empty_metrics["rolling_sharpe_mean"] is None
+    assert empty_metrics["rolling_sharpe_sd"] is None
+    assert empty_metrics["sharpe_stability_ratio"] is None
+    assert empty_metrics["hit_rate_p_value"] is None
     assert empty_metrics["profit_factor"] == 0.0
     assert empty_metrics["exposure_pct"] == 0.0
     assert flat_metrics["annualized_volatility"] == 0.0
     assert flat_metrics["sharpe_ratio"] == 0.0
+    assert flat_metrics["t_stat"] is None
+    assert flat_metrics["p_value"] is None
+    assert flat_metrics["autocorr_lag1"] is None
+    assert flat_metrics["effective_n"] is None
+    assert flat_metrics["split_mean_diff"] is None
+    assert flat_metrics["split_mean_diff_p"] is None
+    assert flat_metrics["rolling_sharpe_mean"] is None
+    assert flat_metrics["rolling_sharpe_sd"] is None
+    assert flat_metrics["sharpe_stability_ratio"] is None
     assert flat_metrics["hit_rate"] == 0.0
+    assert flat_metrics["hit_rate_p_value"] is None
 
 
 def test_compute_performance_metrics_excludes_open_terminal_trade_from_trade_stats() -> None:
@@ -211,6 +742,7 @@ def test_compute_performance_metrics_excludes_open_terminal_trade_from_trade_sta
     metrics = compute_performance_metrics(results_df)
 
     assert metrics["hit_rate"] == 0.0
+    assert metrics["hit_rate_p_value"] is None
     assert metrics["profit_factor"] == 0.0
     assert metrics["exposure_pct"] == pytest.approx(75.0)
 
@@ -344,6 +876,52 @@ def test_compute_performance_metrics_is_deterministic_for_multi_symbol_inputs() 
     second = compute_performance_metrics(multi_symbol)
 
     assert first == second
+
+
+def test_metrics_json_artifact_includes_inference_fields_and_json_safe_values(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    monkeypatch.chdir(tmp_path)
+    results_df = pd.DataFrame(
+        {
+            "ts_utc": pd.date_range("2025-01-01", periods=5, freq="D", tz="UTC"),
+            "timeframe": ["1d"] * 5,
+            "signal": [0.0, 1.0, 1.0, -1.0, 0.0],
+            "strategy_return": [0.0, 0.01, 0.02, -0.005, 0.015],
+            "equity_curve": [1.0, 1.01, 1.0302, 1.025049, 1.040424735],
+        }
+    )
+    metrics = compute_performance_metrics(results_df)
+
+    experiment_dir = save_experiment(
+        "inference_metrics",
+        results_df,
+        metrics,
+        {"strategy_name": "inference_metrics", "dataset": "unit"},
+    )
+    metrics_payload = json.loads((experiment_dir / "metrics.json").read_text(encoding="utf-8"))
+    serialized = json.dumps(metrics_payload, allow_nan=False, sort_keys=True)
+
+    assert serialized
+    assert {
+        "hit_rate",
+        "hit_rate_p_value",
+        "t_stat",
+        "p_value",
+        "conf_int_lower",
+        "conf_int_upper",
+        "autocorr_lag1",
+        "effective_n",
+        "split_mean_diff",
+        "split_mean_diff_p",
+        "rolling_sharpe_mean",
+        "rolling_sharpe_sd",
+        "sharpe_stability_ratio",
+    }.issubset(metrics_payload)
+    assert {"cumulative_return", "sharpe_ratio", "max_drawdown", "win_rate"}.issubset(metrics_payload)
+    assert metrics_payload["p_value"] == pytest.approx(compute_p_value(results_df["strategy_return"]))
+    assert metrics_payload["conf_int_lower"] <= metrics_payload["conf_int_upper"]
 
 
 def test_infer_periods_per_year_supports_minute_timeframes() -> None:

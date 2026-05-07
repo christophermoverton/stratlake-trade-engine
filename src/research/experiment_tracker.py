@@ -14,9 +14,11 @@ from src.research.consistency import (
     validate_walk_forward_consistency,
 )
 from src.research.metrics import (
+    METRICS_READINESS_FILENAME,
     broadcast_strategy_equity_curve,
     compute_performance_metrics,
     infer_position_series,
+    write_metrics_readiness_manifest,
 )
 from src.research.promotion import (
     DEFAULT_PROMOTION_ARTIFACT_FILENAME,
@@ -644,6 +646,7 @@ def _write_run_outputs(
     payloads["equity_curve_frame"].to_csv(output_dir / "equity_curve.csv", index=False)
     payloads["legacy_equity_curve_frame"].to_parquet(output_dir / "equity_curve.parquet")
     _write_json(output_dir / "metrics.json", dict(payloads["metrics"]))
+    write_metrics_readiness_manifest(output_dir, dict(payloads["metrics"]), run_id=output_dir.name)
     _write_json(output_dir / "signal_diagnostics.json", dict(payloads["signal_diagnostics"]))
     _write_json(output_dir / "qa_summary.json", dict(payloads["qa_summary"]))
     if payloads.get("signal_semantics") is not None:
@@ -655,6 +658,7 @@ def _write_run_outputs(
         "equity_curve.csv",
         "equity_curve.parquet",
         "metrics.json",
+        METRICS_READINESS_FILENAME,
         "signal_diagnostics.json",
         "qa_summary.json",
     ]

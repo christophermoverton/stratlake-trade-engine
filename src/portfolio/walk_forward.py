@@ -23,7 +23,12 @@ from src.research.registry import (
 from src.research.strict_mode import ResearchStrictModeError, raise_research_validation_error
 from src.research.sanity import SanityCheckError, validate_portfolio_output_sanity
 from src.research.splits import EvaluationSplit, generate_evaluation_splits
-from src.research.metrics import MINUTE_PERIODS_PER_YEAR, TRADING_DAYS_PER_YEAR
+from src.research.metrics import (
+    METRICS_READINESS_FILENAME,
+    MINUTE_PERIODS_PER_YEAR,
+    TRADING_DAYS_PER_YEAR,
+    write_metrics_readiness_manifest,
+)
 from src.research.promotion import (
     DEFAULT_PROMOTION_ARTIFACT_FILENAME,
     evaluate_promotion_gates,
@@ -639,6 +644,7 @@ def _write_split_artifacts(*, split_dir: Path, split_result: Mapping[str, Any]) 
     _write_csv(split_dir / "portfolio_returns.csv", returns_frame)
     _write_csv(split_dir / "portfolio_equity_curve.csv", equity_frame)
     _write_json(split_dir / "metrics.json", normalized_metrics)
+    write_metrics_readiness_manifest(split_dir, normalized_metrics, run_id=split_dir.name)
     _write_json(split_dir / "qa_summary.json", qa_summary)
 
 
@@ -685,7 +691,16 @@ def _build_manifest(
                     "metrics_by_split.csv",
                 ]
             ),
-            "metrics": ["aggregate_metrics.json", "metrics_by_split.csv"],
+            "metrics": sorted(
+                [
+                    "aggregate_metrics.json",
+                    "metrics_by_split.csv",
+                    *(
+                        f"{split_artifact_dir}/{METRICS_READINESS_FILENAME}"
+                        for split_artifact_dir in split_artifact_dirs
+                    ),
+                ]
+            ),
             "qa": sorted(
                 f"{split_artifact_dir}/qa_summary.json"
                 for split_artifact_dir in split_artifact_dirs

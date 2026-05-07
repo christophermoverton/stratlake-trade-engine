@@ -20,6 +20,7 @@ from src.research.metrics import (
     compute_confidence_interval,
     compute_effective_sample_size,
     compute_hit_rate_p_value,
+    build_metrics_readiness_manifest,
     compute_performance_metrics,
     compute_p_value,
     compute_rolling_sharpe_diagnostics,
@@ -40,6 +41,123 @@ from src.research.metrics import (
     volatility,
     win_rate,
 )
+
+
+def _full_readiness_metrics() -> dict[str, float | None]:
+    return {
+        "t_stat": 2.1,
+        "p_value": 0.04,
+        "conf_int_lower": 0.001,
+        "conf_int_upper": 0.02,
+        "hit_rate": 0.61,
+        "hit_rate_p_value": 0.03,
+        "autocorr_lag1": 0.05,
+        "effective_n": 60.0,
+        "split_mean_diff": 0.001,
+        "split_mean_diff_p": 0.4,
+        "rolling_sharpe_mean": 1.2,
+        "rolling_sharpe_sd": 0.3,
+        "sharpe_stability_ratio": 4.0,
+    }
+
+
+def _check_statuses(manifest: dict[str, object]) -> dict[str, str]:
+    checks = manifest["checks"]
+    assert isinstance(checks, list)
+    return {str(check["name"]): str(check["status"]) for check in checks}
+
+
+def test_build_metrics_readiness_manifest_groups_full_payload_and_passes() -> None:
+    manifest = build_metrics_readiness_manifest(_full_readiness_metrics(), run_id="run-123")
+
+    assert manifest["schema_version"] == 1
+    assert manifest["status"] == "PASS"
+    assert manifest["run_id"] == "run-123"
+    assert manifest["source_metrics_artifact"] == "metrics.json"
+    assert manifest["diagnostics"] == {
+        "return_inference": {
+            "t_stat": 2.1,
+            "p_value": 0.04,
+            "conf_int_lower": 0.001,
+            "conf_int_upper": 0.02,
+        },
+        "hit_rate": {"hit_rate": 0.61, "hit_rate_p_value": 0.03},
+        "serial_dependence": {"autocorr_lag1": 0.05, "effective_n": 60.0},
+        "split_period": {"split_mean_diff": 0.001, "split_mean_diff_p": 0.4},
+        "rolling_stability": {
+            "rolling_sharpe_mean": 1.2,
+            "rolling_sharpe_sd": 0.3,
+            "sharpe_stability_ratio": 4.0,
+        },
+    }
+    assert manifest["summary"] == {
+        "total_checks": 6,
+        "passed_checks": 6,
+        "warn_checks": 0,
+        "failed_checks": 0,
+    }
+    json.dumps(manifest, allow_nan=False, sort_keys=True)
+
+
+def test_build_metrics_readiness_manifest_warns_for_missing_diagnostics() -> None:
+    manifest = build_metrics_readiness_manifest({"hit_rate": 0.5}, run_id=None)
+
+    assert manifest["status"] == "WARN"
+    diagnostics = manifest["diagnostics"]
+    assert diagnostics["return_inference"]["p_value"] is None
+    assert diagnostics["hit_rate"]["hit_rate"] == 0.5
+    assert diagnostics["hit_rate"]["hit_rate_p_value"] is None
+    assert diagnostics["serial_dependence"]["effective_n"] is None
+    statuses = _check_statuses(manifest)
+    assert statuses["minimum_observations"] == "WARN"
+    assert statuses["return_p_value_available"] == "WARN"
+    assert statuses["hit_rate_p_value_available"] == "WARN"
+    json.dumps(manifest, allow_nan=False, sort_keys=True)
+
+
+def test_build_metrics_readiness_manifest_warns_for_low_effective_sample_size() -> None:
+    metrics = _full_readiness_metrics()
+    metrics["effective_n"] = 12.0
+
+    manifest = build_metrics_readiness_manifest(metrics)
+
+    assert manifest["status"] == "WARN"
+    statuses = _check_statuses(manifest)
+    assert statuses["minimum_observations"] == "WARN"
+    assert statuses["return_p_value_available"] == "PASS"
+
+
+def test_build_metrics_readiness_manifest_converts_non_finite_values_to_none() -> None:
+    metrics = _full_readiness_metrics()
+    metrics.update(
+        {
+            "t_stat": float("nan"),
+            "p_value": float("inf"),
+            "effective_n": -float("inf"),
+        }
+    )
+
+    manifest = build_metrics_readiness_manifest(metrics)
+
+    assert manifest["diagnostics"]["return_inference"]["t_stat"] is None
+    assert manifest["diagnostics"]["return_inference"]["p_value"] is None
+    assert manifest["diagnostics"]["serial_dependence"]["effective_n"] is None
+    assert _check_statuses(manifest)["minimum_observations"] == "WARN"
+    json.dumps(manifest, allow_nan=False, sort_keys=True)
+
+
+def test_build_metrics_readiness_manifest_respects_threshold_override() -> None:
+    metrics = _full_readiness_metrics()
+    metrics["effective_n"] = 40.0
+
+    default_manifest = build_metrics_readiness_manifest(metrics)
+    strict_manifest = build_metrics_readiness_manifest(
+        metrics,
+        thresholds={"minimum_effective_n": 50.0},
+    )
+
+    assert _check_statuses(default_manifest)["minimum_observations"] == "PASS"
+    assert _check_statuses(strict_manifest)["minimum_observations"] == "WARN"
 
 
 def _strategy_returns() -> pd.Series:

@@ -47,6 +47,7 @@ compute_autocorr_lag1(strategy_return: pandas.Series) -> float | None
 compute_effective_sample_size(strategy_return: pandas.Series) -> float | None
 compute_split_period_diagnostics(strategy_return: pandas.Series) -> dict[str, float | None]
 compute_rolling_sharpe_diagnostics(strategy_return: pandas.Series, *, window_size: int | None = None, min_periods: int | None = None, step_size: int | None = None, periods_per_year: int = 252) -> dict[str, float | None]
+build_metrics_readiness_manifest(metrics: dict, *, run_id: str | None = None, source_metrics_artifact: str = "metrics.json", thresholds: dict | None = None) -> dict
 profit_factor(trade_returns: pandas.Series) -> float | None
 turnover(position: pandas.Series) -> float
 exposure_pct(position: pandas.Series) -> float
@@ -273,6 +274,42 @@ The summary also retains:
 
 * `volatility`: non-annualized sample return standard deviation
 * `win_rate`: share of periods with strictly positive `strategy_return`
+
+---
+
+## Readiness Manifest
+
+`build_metrics_readiness_manifest()` derives an additive
+`metrics_readiness.json` payload from an existing metrics dictionary. It does
+not replace or redefine `metrics.json`.
+
+The manifest groups the existing diagnostics into:
+
+* `return_inference`
+* `hit_rate`
+* `serial_dependence`
+* `split_period`
+* `rolling_stability`
+
+It also records advisory readiness checks:
+
+* `minimum_observations`: uses `effective_n` when present, otherwise a known
+  observed period count such as `row_count`; the default advisory threshold is
+  `30`
+* `return_p_value_available`
+* `hit_rate_p_value_available`
+* `serial_dependence_available`
+* `split_period_available`
+* `rolling_stability_available`
+
+Overall status is `FAIL` when any check fails, otherwise `WARN` when any check
+warns, otherwise `PASS`. Missing or undefined diagnostics are represented as
+`None`, and non-finite inputs are converted to `None` so the manifest can be
+serialized with `allow_nan=False`.
+
+These readiness checks are governance and review aids. They are not hard
+promotion gates and do not replace full validation, walk-forward review, or
+research judgment.
 
 ---
 

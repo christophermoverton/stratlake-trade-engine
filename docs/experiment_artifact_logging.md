@@ -66,6 +66,7 @@ Example contents:
 artifacts/strategies/mean_reversion_single_<digest>/
   config.json
   metrics.json
+  metrics_readiness.json
   equity_curve.csv
   signals.parquet
   equity_curve.parquet
@@ -89,6 +90,7 @@ artifacts/strategies/<run_id>/
   splits/<split_id>/equity_curve.csv
   splits/<split_id>/equity_curve.parquet
   splits/<split_id>/metrics.json
+  splits/<split_id>/metrics_readiness.json
   splits/<split_id>/split.json
 ```
 
@@ -233,6 +235,29 @@ binomial-test p-value for closed-trade hit rate with null win probability
 valid non-wins. This is a trade-level diagnostic and is not a period
 `win_rate` significance test.
 
+### `metrics_readiness.json`
+
+Contains an additive research-readiness summary derived from the adjacent
+`metrics.json` file. It records:
+
+* `schema_version`
+* overall `status`
+* `run_id`
+* `source_metrics_artifact`
+* grouped diagnostics for return inference, hit-rate significance,
+  serial-dependence, split-period consistency, and rolling Sharpe stability
+* advisory checks and summary counts
+
+Readiness statuses use `PASS`, `WARN`, and `FAIL`. Overall status is `FAIL` if
+any check fails, otherwise `WARN` if any check warns, otherwise `PASS`. The
+default minimum effective sample size threshold is `30`. Missing diagnostics
+and non-finite values are written as JSON `null`, and the artifact is safe to
+serialize with `allow_nan=False`.
+
+The readiness manifest supports campaign summaries, notebooks, and research
+governance review. It does not replace `metrics.json`, promotion gates, or full
+validation.
+
 ### `config.json`
 
 Contains the strategy configuration used for the experiment run, making the
@@ -288,6 +313,7 @@ Present for walk-forward runs. Each split directory stores:
 * `equity_curve.csv` for standardized test-window backtest outputs
 * `equity_curve.parquet` for test-window backtest outputs
 * `metrics.json` for split-level summary metrics
+* `metrics_readiness.json` for split-level advisory readiness diagnostics
 * `split.json` for the split definition itself
 
 ### Inspecting A Run

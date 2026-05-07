@@ -282,6 +282,7 @@ Current artifact contents:
 
 * `config.json`
 * `metrics.json`
+* `metrics_readiness.json`
 * `signal_diagnostics.json`
 * `qa_summary.json`
 * `equity_curve.csv`
@@ -297,6 +298,7 @@ Walk-forward runs keep the same run-directory pattern and add:
 * `splits/<split_id>/equity_curve.csv`
 * `splits/<split_id>/equity_curve.parquet`
 * `splits/<split_id>/metrics.json`
+* `splits/<split_id>/metrics_readiness.json`
 * `splits/<split_id>/split.json`
 
 Single-run artifacts are produced by `save_experiment()`. Walk-forward artifacts
@@ -352,6 +354,15 @@ walk-forward evaluation.
 with null win probability `0.5` and `alternative="greater"`. Zero-return
 closed trades count as valid non-wins, and the diagnostic is separate from
 period-level `win_rate`.
+
+Each `metrics.json` now has an adjacent `metrics_readiness.json` manifest. The
+readiness artifact is derived from the metrics payload and groups return
+inference, trade hit-rate, serial-dependence, split-period, and rolling Sharpe
+stability diagnostics for notebook, campaign, and governance review. It records
+advisory `PASS`, `WARN`, or `FAIL` checks, including a default minimum
+effective sample size threshold of `30`, and uses `null` for missing or
+undefined diagnostics. It is additive and does not change the meaning or schema
+of `metrics.json`.
 
 ---
 

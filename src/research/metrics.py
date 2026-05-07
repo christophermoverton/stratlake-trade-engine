@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+import json
 import math
+from pathlib import Path
 from typing import Any
 
 import pandas as pd
@@ -22,10 +24,126 @@ AUTOCORR_DENOMINATOR_ATOL = 1e-12
 SPLIT_MIN_HALF_OBSERVATIONS = 2
 ROLLING_SHARPE_MIN_OBSERVATIONS = 12
 ROLLING_SHARPE_SD_ATOL = 1e-12
+METRICS_READINESS_FILENAME = "metrics_readiness.json"
+DEFAULT_MINIMUM_EFFECTIVE_N = 30.0
 
 
 class MetricsAggregationError(ValueError):
     """Raised when strategy returns cannot be aggregated into one series safely."""
+
+
+def build_metrics_readiness_manifest(
+    metrics: dict[str, Any],
+    *,
+    run_id: str | None = None,
+    source_metrics_artifact: str = "metrics.json",
+    thresholds: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Build a deterministic research-readiness manifest from metric outputs."""
+
+    normalized_metrics = _json_safe_mapping(metrics)
+    minimum_effective_n = _minimum_effective_n_threshold(thresholds)
+
+    diagnostics = {
+        "return_inference": {
+            "t_stat": normalized_metrics.get("t_stat"),
+            "p_value": normalized_metrics.get("p_value"),
+            "conf_int_lower": normalized_metrics.get("conf_int_lower"),
+            "conf_int_upper": normalized_metrics.get("conf_int_upper"),
+        },
+        "hit_rate": {
+            "hit_rate": normalized_metrics.get("hit_rate"),
+            "hit_rate_p_value": normalized_metrics.get("hit_rate_p_value"),
+        },
+        "serial_dependence": {
+            "autocorr_lag1": normalized_metrics.get("autocorr_lag1"),
+            "effective_n": normalized_metrics.get("effective_n"),
+        },
+        "split_period": {
+            "split_mean_diff": normalized_metrics.get("split_mean_diff"),
+            "split_mean_diff_p": normalized_metrics.get("split_mean_diff_p"),
+        },
+        "rolling_stability": {
+            "rolling_sharpe_mean": normalized_metrics.get("rolling_sharpe_mean"),
+            "rolling_sharpe_sd": normalized_metrics.get("rolling_sharpe_sd"),
+            "sharpe_stability_ratio": normalized_metrics.get("sharpe_stability_ratio"),
+        },
+    }
+
+    effective_n = _numeric_or_none(normalized_metrics.get("effective_n"))
+    observed_count = _observed_period_count(normalized_metrics)
+    sample_size_value = effective_n if effective_n is not None else observed_count
+    checks = [
+        _minimum_observations_check(sample_size_value, threshold=minimum_effective_n),
+        _availability_check(
+            "return_p_value_available",
+            normalized_metrics.get("p_value") is not None,
+            value=normalized_metrics.get("p_value"),
+            message_pass="Return p-value is available.",
+            message_warn="Return p-value is unavailable.",
+        ),
+        _availability_check(
+            "hit_rate_p_value_available",
+            normalized_metrics.get("hit_rate_p_value") is not None,
+            value=normalized_metrics.get("hit_rate_p_value"),
+            message_pass="Trade-level hit-rate p-value is available.",
+            message_warn="Trade-level hit-rate p-value is unavailable.",
+        ),
+        _availability_check(
+            "serial_dependence_available",
+            normalized_metrics.get("autocorr_lag1") is not None and normalized_metrics.get("effective_n") is not None,
+            value=normalized_metrics.get("effective_n"),
+            message_pass="Serial-dependence diagnostics are available.",
+            message_warn="Serial-dependence diagnostics are incomplete.",
+        ),
+        _availability_check(
+            "split_period_available",
+            normalized_metrics.get("split_mean_diff_p") is not None,
+            value=normalized_metrics.get("split_mean_diff_p"),
+            message_pass="Split-period p-value is available.",
+            message_warn="Split-period p-value is unavailable.",
+        ),
+        _availability_check(
+            "rolling_stability_available",
+            normalized_metrics.get("rolling_sharpe_mean") is not None
+            and normalized_metrics.get("rolling_sharpe_sd") is not None,
+            value=normalized_metrics.get("rolling_sharpe_sd"),
+            message_pass="Rolling Sharpe stability diagnostics are available.",
+            message_warn="Rolling Sharpe stability diagnostics are incomplete.",
+        ),
+    ]
+    summary = _readiness_summary(checks)
+
+    return {
+        "schema_version": 1,
+        "status": _overall_readiness_status(checks),
+        "run_id": run_id,
+        "source_metrics_artifact": source_metrics_artifact,
+        "diagnostics": diagnostics,
+        "checks": checks,
+        "summary": summary,
+    }
+
+
+def write_metrics_readiness_manifest(
+    run_dir: Path,
+    metrics: dict[str, Any],
+    *,
+    run_id: str | None = None,
+    source_metrics_artifact: str = "metrics.json",
+    thresholds: dict[str, Any] | None = None,
+) -> Path:
+    """Write ``metrics_readiness.json`` beside a metrics artifact."""
+
+    manifest = build_metrics_readiness_manifest(
+        metrics,
+        run_id=run_id,
+        source_metrics_artifact=source_metrics_artifact,
+        thresholds=thresholds,
+    )
+    path = Path(run_dir) / METRICS_READINESS_FILENAME
+    path.write_text(json.dumps(manifest, indent=2, sort_keys=True, allow_nan=False) + "\n", encoding="utf-8")
+    return path
 
 
 def _normalized_returns(strategy_return: pd.Series) -> pd.Series:
@@ -868,6 +986,120 @@ def _json_safe_float(value: float) -> float | None:
     if not math.isfinite(value):
         return None
     return float(value)
+
+
+def _json_safe_value(value: Any) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, bool | str | int):
+        return value
+    if isinstance(value, float):
+        return _json_safe_float(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe_value(value[key]) for key in sorted(value, key=str)}
+    if isinstance(value, list | tuple):
+        return [_json_safe_value(item) for item in value]
+    return value
+
+
+def _json_safe_mapping(value: dict[str, Any]) -> dict[str, Any]:
+    return {str(key): _json_safe_value(value[key]) for key in sorted(value, key=str)}
+
+
+def _minimum_effective_n_threshold(thresholds: dict[str, Any] | None) -> float:
+    raw_threshold = (thresholds or {}).get("minimum_effective_n", DEFAULT_MINIMUM_EFFECTIVE_N)
+    if isinstance(raw_threshold, bool):
+        return DEFAULT_MINIMUM_EFFECTIVE_N
+    if isinstance(raw_threshold, int | float):
+        safe_threshold = _json_safe_float(float(raw_threshold))
+        if safe_threshold is not None and safe_threshold > 0.0:
+            return safe_threshold
+    return DEFAULT_MINIMUM_EFFECTIVE_N
+
+
+def _numeric_or_none(value: Any) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int | float):
+        return _json_safe_float(float(value))
+    return None
+
+
+def _observed_period_count(metrics: dict[str, Any]) -> float | None:
+    for key in ("observed_period_count", "period_count", "row_count", "test_rows", "split_rows"):
+        value = _numeric_or_none(metrics.get(key))
+        if value is not None:
+            return value
+    return None
+
+
+def _minimum_observations_check(value: float | None, *, threshold: float) -> dict[str, Any]:
+    if value is None:
+        return {
+            "name": "minimum_observations",
+            "status": "WARN",
+            "value": None,
+            "threshold": threshold,
+            "message": "Effective sample size or observed period count is unavailable.",
+        }
+    if value <= 0.0:
+        return {
+            "name": "minimum_observations",
+            "status": "FAIL",
+            "value": value,
+            "threshold": threshold,
+            "message": "No usable return observations are available.",
+        }
+    if value < threshold:
+        return {
+            "name": "minimum_observations",
+            "status": "WARN",
+            "value": value,
+            "threshold": threshold,
+            "message": f"Usable observation count is below the advisory threshold of {threshold:g}.",
+        }
+    return {
+        "name": "minimum_observations",
+        "status": "PASS",
+        "value": value,
+        "threshold": threshold,
+        "message": f"Usable observation count meets the advisory threshold of {threshold:g}.",
+    }
+
+
+def _availability_check(
+    name: str,
+    available: bool,
+    *,
+    value: Any,
+    message_pass: str,
+    message_warn: str,
+) -> dict[str, Any]:
+    return {
+        "name": name,
+        "status": "PASS" if available else "WARN",
+        "value": value,
+        "threshold": None,
+        "message": message_pass if available else message_warn,
+    }
+
+
+def _overall_readiness_status(checks: list[dict[str, Any]]) -> str:
+    statuses = {str(check.get("status")) for check in checks}
+    if "FAIL" in statuses:
+        return "FAIL"
+    if "WARN" in statuses:
+        return "WARN"
+    return "PASS"
+
+
+def _readiness_summary(checks: list[dict[str, Any]]) -> dict[str, int]:
+    return {
+        "total_checks": len(checks),
+        "passed_checks": sum(1 for check in checks if check.get("status") == "PASS"),
+        "warn_checks": sum(1 for check in checks if check.get("status") == "WARN"),
+        "failed_checks": sum(1 for check in checks if check.get("status") == "FAIL"),
+    }
 
 
 def extract_closed_trade_returns(results_df: pd.DataFrame) -> pd.Series:

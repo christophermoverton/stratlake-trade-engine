@@ -84,6 +84,7 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
     assert (experiment_dir / "splits" / "rolling_0000" / "portfolio_returns.csv").exists()
     assert (experiment_dir / "splits" / "rolling_0000" / "portfolio_equity_curve.csv").exists()
     assert (experiment_dir / "splits" / "rolling_0000" / "metrics.json").exists()
+    assert (experiment_dir / "splits" / "rolling_0000" / "metrics_readiness.json").exists()
     assert (experiment_dir / "splits" / "rolling_0000" / "qa_summary.json").exists()
 
     metrics_by_split = pd.read_csv(experiment_dir / "metrics_by_split.csv")
@@ -145,7 +146,17 @@ def test_run_portfolio_walk_forward_writes_split_and_aggregate_artifacts(
     assert manifest["risk"]["config"]["volatility_window"] == 20
     assert manifest["simulation"]["enabled"] is False
     assert "aggregate_metrics.json" in manifest["artifact_files"]
+    assert "splits/rolling_0000/metrics_readiness.json" in manifest["artifact_files"]
+    assert "splits/rolling_0000/metrics_readiness.json" in manifest["artifact_groups"]["metrics"]
     assert "splits/rolling_0000/portfolio_returns.csv" in manifest["artifact_files"]
+    readiness = json.loads(
+        (experiment_dir / "splits" / "rolling_0000" / "metrics_readiness.json").read_text(encoding="utf-8")
+    )
+    assert readiness["source_metrics_artifact"] == "metrics.json"
+    assert readiness["run_id"] == "rolling_0000"
+    assert readiness["diagnostics"]["hit_rate"]["hit_rate_p_value"] is None
+    assert readiness["status"] == "WARN"
+    json.dumps(readiness, allow_nan=False, sort_keys=True)
 
     registry_entries = load_registry(default_registry_path(portfolio_root))
     assert [entry["run_id"] for entry in registry_entries] == [result["run_id"]]

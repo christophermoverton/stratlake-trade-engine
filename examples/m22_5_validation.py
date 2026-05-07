@@ -12,10 +12,6 @@ and capacity modeling. It shows how to:
 
 from __future__ import annotations
 
-import json
-from pathlib import Path
-import tempfile
-
 import pandas as pd
 
 from src.config.execution import ExecutionConfig
@@ -25,8 +21,7 @@ from src.portfolio.execution import apply_portfolio_execution_model
 def create_momentum_portfolio() -> tuple[pd.DataFrame, pd.DataFrame]:
     """Create a simple momentum-based portfolio with both longs and shorts."""
     dates = pd.date_range("2025-01-01", periods=20, freq="D")
-    assets = ["TECH_1", "TECH_2", "TECH_3", "FINANCE_1", "FINANCE_2", "ENERGY_1"]
-    
+
     # Simple momentum returns: tech goes up, energy goes down
     returns_data = []
     for _ in dates:
@@ -81,7 +76,7 @@ def demo_standard_symmetric_execution() -> None:
     
     print(f"Config (symmetric): {config.to_dict()}")
     print(f"has_directional_asymmetry: {config.has_directional_asymmetry}")
-    print(f"\nExecution Summary (Totals):")
+    print("\nExecution Summary (Totals):")
     print(f"  Total Turnover: {result.summary['totals']['total_turnover']:.6f}")
     print(f"  Total Transaction Cost: {result.summary['totals']['total_transaction_cost']:.6f}")
     print(f"  Total Slippage Cost: {result.summary['totals']['total_slippage_cost']:.6f}")
@@ -115,7 +110,7 @@ def demo_directional_asymmetric_execution() -> None:
     
     print(f"Config (directional): {config.to_dict()}")
     print(f"has_directional_asymmetry: {config.has_directional_asymmetry}")
-    print(f"\nExecution Summary (Totals):")
+    print("\nExecution Summary (Totals):")
     print(f"  Total Long Turnover: {result.summary['totals']['total_long_turnover']:.6f}")
     print(f"  Total Short Turnover: {result.summary['totals']['total_short_turnover']:.6f}")
     print(f"  Total Long Transaction Cost: {result.summary['totals']['total_long_transaction_cost']:.6f}")
@@ -156,7 +151,7 @@ def demo_long_only_stress_test() -> None:
     
     print(f"Config (long-only): {config.to_dict()}")
     print(f"max_short_weight_sum: {config.max_short_weight_sum}")
-    print(f"\nExecution Summary (Totals):")
+    print("\nExecution Summary (Totals):")
     print(f"  Total Long Turnover: {result.summary['totals']['total_long_turnover']:.6f}")
     print(f"  Total Short Turnover: {result.summary['totals']['total_short_turnover']:.6f} (should be 0)")
     print(f"  Total Short Borrow Cost: {result.summary['totals']['total_short_borrow_cost']:.6f} (should be 0)")
@@ -188,7 +183,7 @@ def demo_high_borrow_cost_stress_test() -> None:
     
     print(f"Config (high borrow cost): {config.to_dict()}")
     print(f"short_borrow_cost_bps: {config.short_borrow_cost_bps} (5% annual)")
-    print(f"\nExecution Summary (Totals):")
+    print("\nExecution Summary (Totals):")
     print(f"  Total Short Exposure: {result.summary['totals']['average_short_exposure']:.6f}")
     print(f"  Total Short Borrow Cost: {result.summary['totals']['total_short_borrow_cost']:.6f}")
     print(f"  Total Short Transaction Cost: {result.summary['totals']['total_short_transaction_cost']:.6f}")
@@ -202,7 +197,7 @@ def demo_high_borrow_cost_stress_test() -> None:
     
     # NEW: Capacity impact analysis
     if "capacity_impact" in result.summary:
-        print(f"\nCapacity Impact Analysis (M22.5):")
+        print("\nCapacity Impact Analysis (M22.5):")
         for key, value in result.summary["capacity_impact"].items():
             print(f"  {key}: {value}")
     
@@ -241,11 +236,11 @@ def demo_short_capacity_constraints() -> None:
         
         # NEW: Constraint events and utilization (M22.5)
         if "constraint_events" in result.summary:
-            print(f"  Constraint Events:")
+            print("  Constraint Events:")
             for key, value in result.summary["constraint_events"].items():
                 print(f"    {key}: {value}")
         if "constraint_utilization" in result.summary:
-            print(f"  Constraint Utilization:")
+            print("  Constraint Utilization:")
             for key, value in result.summary["constraint_utilization"].items():
                 print(f"    {key}: {value:.3f}")
     

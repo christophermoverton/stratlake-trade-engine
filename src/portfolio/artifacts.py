@@ -230,7 +230,7 @@ def _normalize_json_value(value: object, *, path: str) -> object:
         raise TypeError(f"{path} is not JSON-serializable.") from exc
 
     try:
-        json.dumps(normalized, sort_keys=True)
+        json.dumps(normalized, sort_keys=True, allow_nan=False)
     except (TypeError, ValueError) as exc:
         raise TypeError(f"{path} is not JSON-serializable.") from exc
     return normalized
@@ -318,7 +318,7 @@ def _write_csv(path: Path, frame: pd.DataFrame) -> None:
 
 
 def _write_json(path: Path, payload: dict[str, object]) -> None:
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False), encoding="utf-8")
 
 
 def _build_manifest(

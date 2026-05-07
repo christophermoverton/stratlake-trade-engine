@@ -124,7 +124,7 @@ def _sanitize_strategy_name(strategy_name: str) -> str:
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
     """Persist a dictionary to disk using stable JSON formatting."""
 
-    path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True, allow_nan=False), encoding="utf-8")
 
 
 def _utc_timestamp_from_run_id(run_id: str) -> str:

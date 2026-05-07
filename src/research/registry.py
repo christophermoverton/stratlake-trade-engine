@@ -56,7 +56,7 @@ def canonicalize_value(value: Any) -> Any:
 def serialize_canonical_json(value: Any) -> str:
     """Serialize a value to a canonical JSON string for deterministic snapshots."""
 
-    return json.dumps(canonicalize_value(value), sort_keys=True, separators=(",", ":"))
+    return json.dumps(canonicalize_value(value), sort_keys=True, separators=(",", ":"), allow_nan=False)
 
 
 def build_review_metadata(
@@ -285,7 +285,7 @@ def register_portfolio_run(
     )
 
     resolved_registry_path.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(canonicalize_value(entry), separators=(",", ":"), sort_keys=False) + "\n"
+    line = json.dumps(canonicalize_value(entry), separators=(",", ":"), sort_keys=False, allow_nan=False) + "\n"
 
     with _registry_lock(resolved_registry_path):
         existing_entries = load_registry(resolved_registry_path)
@@ -323,7 +323,7 @@ def append_registry_entry(path: Path, entry: Mapping[str, Any]) -> None:
     if not isinstance(run_id, str) or not run_id:
         raise RegistryError("Registry entries must include a non-empty string run_id.")
 
-    line = json.dumps(canonical_entry, separators=(",", ":"), sort_keys=False) + "\n"
+    line = json.dumps(canonical_entry, separators=(",", ":"), sort_keys=False, allow_nan=False) + "\n"
     path.parent.mkdir(parents=True, exist_ok=True)
 
     with _registry_lock(path):
@@ -354,7 +354,7 @@ def upsert_registry_entry(path: Path, entry: Mapping[str, Any]) -> None:
         raise RegistryError("Registry entries must include a non-empty string run_id.")
 
     path.parent.mkdir(parents=True, exist_ok=True)
-    line = json.dumps(canonical_entry, separators=(",", ":"), sort_keys=False) + "\n"
+    line = json.dumps(canonical_entry, separators=(",", ":"), sort_keys=False, allow_nan=False) + "\n"
 
     with _registry_lock(path):
         existing_entries = [
@@ -363,7 +363,7 @@ def upsert_registry_entry(path: Path, entry: Mapping[str, Any]) -> None:
             if existing.get("run_id") != run_id
         ]
         serialized = [
-            json.dumps(canonicalize_value(existing), separators=(",", ":"), sort_keys=False)
+            json.dumps(canonicalize_value(existing), separators=(",", ":"), sort_keys=False, allow_nan=False)
             for existing in existing_entries
         ]
         serialized.append(line.rstrip("\n"))

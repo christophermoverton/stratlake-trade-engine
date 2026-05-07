@@ -70,7 +70,7 @@ def atomic_write_json(
     *,
     sort_keys: bool = True,
 ) -> Path:
-    text = json.dumps(payload, indent=2, sort_keys=sort_keys) + "\n"
+    text = json.dumps(payload, indent=2, sort_keys=sort_keys, allow_nan=False) + "\n"
     return atomic_write_text(path, text)
 
 
@@ -83,27 +83,45 @@ def atomic_write_text(path: str | Path, text: str) -> Path:
     return output
 
 
-def mark_run_started(run_dir: str | Path, metadata: Mapping[str, Any] | None = None) -> Path:
+def mark_run_started(
+    run_dir: str | Path,
+    metadata: Mapping[str, Any] | None = None,
+    *,
+    recorded_at_utc: str | None = None,
+) -> Path:
     root = Path(run_dir)
     root.mkdir(parents=True, exist_ok=True)
     _remove_marker(root / SUCCESS_MARKER)
     _remove_marker(root / FAILED_MARKER)
-    return atomic_write_json(root / RUNNING_MARKER, _marker_payload("running", metadata))
+    return atomic_write_json(root / RUNNING_MARKER, _marker_payload("running", metadata, recorded_at_utc=recorded_at_utc))
 
 
-def mark_run_completed(run_dir: str | Path, metadata: Mapping[str, Any] | None = None) -> Path:
+def mark_run_completed(
+    run_dir: str | Path,
+    metadata: Mapping[str, Any] | None = None,
+    *,
+    recorded_at_utc: str | None = None,
+) -> Path:
     root = Path(run_dir)
     root.mkdir(parents=True, exist_ok=True)
     _remove_marker(root / RUNNING_MARKER)
     _remove_marker(root / FAILED_MARKER)
-    return atomic_write_json(root / SUCCESS_MARKER, _marker_payload("completed", metadata))
+    return atomic_write_json(
+        root / SUCCESS_MARKER,
+        _marker_payload("completed", metadata, recorded_at_utc=recorded_at_utc),
+    )
 
 
-def mark_run_failed(run_dir: str | Path, metadata: Mapping[str, Any] | None = None) -> Path:
+def mark_run_failed(
+    run_dir: str | Path,
+    metadata: Mapping[str, Any] | None = None,
+    *,
+    recorded_at_utc: str | None = None,
+) -> Path:
     root = Path(run_dir)
     root.mkdir(parents=True, exist_ok=True)
     _remove_marker(root / RUNNING_MARKER)
-    return atomic_write_json(root / FAILED_MARKER, _marker_payload("failed", metadata))
+    return atomic_write_json(root / FAILED_MARKER, _marker_payload("failed", metadata, recorded_at_utc=recorded_at_utc))
 
 
 def read_run_status(run_dir: str | Path) -> dict[str, Any]:
@@ -134,11 +152,16 @@ def read_run_status(run_dir: str | Path) -> dict[str, Any]:
     }
 
 
-def _marker_payload(status: str, metadata: Mapping[str, Any] | None) -> dict[str, Any]:
+def _marker_payload(
+    status: str,
+    metadata: Mapping[str, Any] | None,
+    *,
+    recorded_at_utc: str | None = None,
+) -> dict[str, Any]:
     return {
         "schema_version": 1,
         "status": status,
-        "recorded_at_utc": datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
+        "recorded_at_utc": recorded_at_utc or datetime.now(tz=UTC).replace(microsecond=0).isoformat().replace("+00:00", "Z"),
         "metadata": {} if metadata is None else dict(metadata),
     }
 

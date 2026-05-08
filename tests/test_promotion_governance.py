@@ -493,12 +493,27 @@ def test_campaign_artifacts_are_discovered_and_normalized_into_governance_rows(t
     scenario_rows = [row for row in rows if row["workflow_type"] == "campaign_scenario"]
     assert [row["run_id"] for row in campaign_rows] == ["campaign_orchestration"]
     assert [row["scenario_id"] for row in scenario_rows] == ["scenario_a", "scenario_missing"]
+    assert campaign_rows[0]["campaign_status"] == "completed"
+    assert scenario_rows[0]["campaign_status"] == "completed"
+    assert scenario_rows[0]["scenario_status"] == "completed"
     assert campaign_rows[0]["promotion_status"] == "needs_review"
     assert campaign_rows[0]["highest_severity"] == "review"
     assert campaign_rows[0]["decision_reason_codes"] == "severity_review"
     assert scenario_rows[0]["promotion_status"] == "blocked"
     assert scenario_rows[0]["highest_severity"] == "block"
     assert scenario_rows[0]["decision_reason_codes"] == "gate_failed_threshold|severity_block"
+    scenario_record = next(
+        record
+        for record in dataset.records
+        if record.workflow_type == "campaign_scenario" and record.governance_metadata["scenario_id"] == "scenario_a"
+    )
+    assert scenario_record.governance_metadata["scenario_manifest_path"].endswith(
+        "research_campaigns/campaign_orchestration/scenarios/scenario_a/manifest.json"
+    )
+    assert scenario_record.governance_metadata["campaign_manifest_path"].endswith(
+        "research_campaigns/campaign_orchestration/manifest.json"
+    )
+    assert scenario_record.governance_metadata["scenario_manifest_path"] != scenario_record.governance_metadata["campaign_manifest_path"]
 
 
 def test_campaign_validation_detects_rollup_and_missing_scenario_artifact_issues(tmp_path: Path) -> None:
@@ -527,6 +542,7 @@ def test_campaign_records_are_written_to_existing_governance_outputs(tmp_path: P
     )
 
     summary = json.loads(result.summary_path.read_text(encoding="utf-8"))
+    summary_text = result.summary_path.read_text(encoding="utf-8")
     validation_text = result.validation_path.read_text(encoding="utf-8")
     manifest_text = result.manifest_path.read_text(encoding="utf-8")
     matrix_text = result.outcome_matrix_path.read_text(encoding="utf-8")
@@ -537,16 +553,22 @@ def test_campaign_records_are_written_to_existing_governance_outputs(tmp_path: P
     assert "campaign_governance_summary.csv" not in manifest_text
     assert "promotion_decision" not in manifest_text
     assert "promotion_readiness" not in manifest_text
-    assert not any(str(tmp_path) in payload for payload in [validation_text, manifest_text, matrix_text])
+    assert not any(str(tmp_path) in payload for payload in [summary_text, validation_text, manifest_text, matrix_text])
 
     with result.outcome_matrix_path.open("r", encoding="utf-8", newline="") as handle:
-        rows = list(csv.DictReader(handle))
+        reader = csv.DictReader(handle)
+        assert "campaign_status" in (reader.fieldnames or [])
+        assert "scenario_status" in (reader.fieldnames or [])
+        rows = list(reader)
     assert [row["workflow_type"] for row in rows] == ["campaign", "campaign_scenario", "campaign_scenario"]
     assert [row["run_id"] for row in rows] == [
         "campaign_orchestration",
         "campaign_orchestration:scenario_a",
         "campaign_orchestration:scenario_missing",
     ]
+    assert rows[0]["campaign_status"] == "completed"
+    assert rows[1]["campaign_status"] == "completed"
+    assert rows[1]["scenario_status"] == "completed"
 
 
 def test_campaign_loader_gracefully_handles_artifact_root_without_campaigns(tmp_path: Path) -> None:

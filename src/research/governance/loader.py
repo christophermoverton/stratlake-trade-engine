@@ -214,6 +214,7 @@ def _campaign_records(*, artifact_root: Path, known_keys: set[tuple[str, str]]) 
             for record in _scenario_records_from_orchestration(
                 campaign_dir=campaign_dir,
                 campaign_summary=summary,
+                campaign_manifest_path=manifest_path,
                 campaign_manifest=manifest,
                 scenario_catalog=scenario_catalog,
                 scenario_catalog_path=scenario_catalog_path,
@@ -235,6 +236,7 @@ def _campaign_records(*, artifact_root: Path, known_keys: set[tuple[str, str]]) 
                     config_path=config_path,
                     config=config,
                     parent_campaign_id=_nested_string(summary.get("scenario"), "orchestration_run_id"),
+                    parent_campaign_manifest_path=None,
                 ),
             )
             continue
@@ -335,6 +337,7 @@ def _scenario_records_from_orchestration(
     *,
     campaign_dir: Path,
     campaign_summary: Mapping[str, Any],
+    campaign_manifest_path: Path | None,
     campaign_manifest: Mapping[str, Any] | None,
     scenario_catalog: Mapping[str, Any] | None,
     scenario_catalog_path: Path,
@@ -374,7 +377,9 @@ def _scenario_records_from_orchestration(
                 config_path=config_path,
                 config=config,
                 parent_campaign_id=campaign_id,
+                parent_campaign_status=_nested_string(campaign_summary, "status"),
                 parent_scenario_entry=entry,
+                parent_campaign_manifest_path=campaign_manifest_path,
                 parent_campaign_manifest=campaign_manifest,
                 scenario_catalog_path=scenario_catalog_path,
             )
@@ -394,7 +399,9 @@ def _build_scenario_record(
     config_path: Path,
     config: dict[str, Any] | None,
     parent_campaign_id: str | None,
+    parent_campaign_status: str | None = None,
     parent_scenario_entry: Mapping[str, Any] | None = None,
+    parent_campaign_manifest_path: Path | None = None,
     parent_campaign_manifest: Mapping[str, Any] | None = None,
     scenario_catalog_path: Path | None = None,
 ) -> GovernanceSourceRecord:
@@ -423,7 +430,7 @@ def _build_scenario_record(
                 "scenario_id": scenario_id,
                 "scenario_name": _nested_string(parent_scenario_entry, "description") or _nested_string(scenario, "description"),
                 "scenario_status": summary.get("status") or _nested_string(parent_scenario_entry, "status"),
-                "campaign_status": summary.get("status"),
+                "campaign_status": parent_campaign_status,
                 "checkpoint_status": _checkpoint_status(checkpoint),
                 "selected_run_id": _first_child_run_id(summary),
                 "selected_candidate_id": selected_candidate_ids[0] if selected_candidate_ids else None,
@@ -431,7 +438,7 @@ def _build_scenario_record(
                 "child_run_ids": _child_run_ids(summary),
                 "scenario_manifest_path": manifest_path.as_posix(),
                 "scenario_summary_path": summary_path.as_posix(),
-                "campaign_manifest_path": manifest_path.as_posix(),
+                "campaign_manifest_path": parent_campaign_manifest_path.as_posix() if parent_campaign_manifest_path is not None else None,
                 "campaign_summary_path": summary_path.as_posix(),
                 "checkpoint_path": checkpoint_path.as_posix(),
                 "campaign_config_path": config_path.as_posix(),
@@ -448,6 +455,7 @@ def _build_scenario_record(
                 "campaign_config_present": config is not None,
                 "artifact_evidence_paths": _evidence_paths(
                     artifact_dir=campaign_dir,
+                    campaign_manifest_path=parent_campaign_manifest_path,
                     manifest_path=manifest_path if manifest is not None else None,
                     campaign_summary_path=summary_path if summary_path.exists() else None,
                     checkpoint_path=checkpoint_path if checkpoint is not None else None,

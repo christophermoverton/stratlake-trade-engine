@@ -24,6 +24,8 @@ OUTCOME_MATRIX_COLUMNS = [
     "manifest_path",
     "campaign_id",
     "scenario_id",
+    "campaign_status",
+    "scenario_status",
     "candidate_id",
     "strategy_name",
     "portfolio_name",

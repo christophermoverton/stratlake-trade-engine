@@ -1,5 +1,7 @@
 # Milestone 31 Release Notes
 
+Release tag: `v0.31.0-statistical-readiness-promotion-policy`
+
 Milestone 31 integrates Milestone 30 statistical readiness diagnostics into the
 existing StratLake promotion policy workflow. It keeps `promotion_gates.json` as
 the canonical promotion artifact and keeps `promotion_gate_summary` as the
@@ -27,6 +29,9 @@ candidate-review context.
 * Campaign summaries, scenario matrices, milestone reports, and candidate-review
   summaries preserve readiness-aware context from existing artifacts without
   re-evaluating severity downstream.
+* Portfolio single-run artifacts now emit `metrics_readiness.json`, and
+  portfolio walk-forward aggregate roots emit an aggregate readiness manifest,
+  matching the existing split-level readiness artifact contract.
 
 ## Canonical Examples
 
@@ -83,9 +88,18 @@ Recommended release checks:
 
 ```bash
 python -m pytest tests/test_promotion_gates.py tests/test_experiment_registry.py tests/test_research_review.py tests/test_candidate_review.py tests/test_cli_run_research_campaign.py tests/test_campaign_milestone_reporting.py tests/test_m31_readiness_gated_promotion_case_study.py tests/test_m31_real_world_readiness_gated_promotion_case_study.py
+python -m pytest tests/test_portfolio_artifacts.py
 python docs/examples/m31_readiness_gated_promotion_case_study.py
 python docs/examples/m31_real_world_readiness_gated_promotion_case_study.py
 ```
+
+## Known Limitations
+
+Readiness-aware promotion gates use the metrics already emitted by the
+underlying workflow. M31 does not calibrate universal statistical thresholds or
+claim that an `eligible` status is sufficient for live deployment. Review teams
+should tune example thresholds to the strategy family, portfolio construction
+process, and governance standard.
 
 ## Non-Goals
 

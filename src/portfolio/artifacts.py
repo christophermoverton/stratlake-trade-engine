@@ -11,6 +11,7 @@ from src.portfolio.contracts import PortfolioContractError, validate_portfolio_o
 from src.portfolio.qa import run_portfolio_qa
 from src.portfolio.risk import resolve_portfolio_risk_config, summarize_portfolio_risk
 from src.research.consistency import validate_portfolio_artifact_payload_consistency
+from src.research.metrics import METRICS_READINESS_FILENAME, write_metrics_readiness_manifest
 from src.research.promotion import (
     DEFAULT_PROMOTION_ARTIFACT_FILENAME,
     evaluate_promotion_gates,
@@ -102,6 +103,7 @@ def write_portfolio_artifacts(
     _write_csv(resolved_output_dir / _PORTFOLIO_RETURNS_FILENAME, returns_frame)
     _write_csv(resolved_output_dir / _PORTFOLIO_EQUITY_FILENAME, equity_frame)
     _write_json(resolved_output_dir / _METRICS_FILENAME, normalized_metrics)
+    write_metrics_readiness_manifest(resolved_output_dir, normalized_metrics, run_id=resolved_output_dir.name)
     _write_json(resolved_output_dir / _QA_SUMMARY_FILENAME, qa_summary)
     write_promotion_gate_artifact(resolved_output_dir, promotion_evaluation)
     _write_json(resolved_output_dir / _MANIFEST_FILENAME, manifest)
@@ -355,6 +357,7 @@ def _build_manifest(
         _CONFIG_FILENAME: {"path": _CONFIG_FILENAME},
         _MANIFEST_FILENAME: {"path": _MANIFEST_FILENAME},
         _METRICS_FILENAME: {"path": _METRICS_FILENAME},
+        METRICS_READINESS_FILENAME: {"path": METRICS_READINESS_FILENAME},
         _QA_SUMMARY_FILENAME: {"path": _QA_SUMMARY_FILENAME},
         **(
             {DEFAULT_PROMOTION_ARTIFACT_FILENAME: {"path": DEFAULT_PROMOTION_ARTIFACT_FILENAME}}
@@ -390,6 +393,7 @@ def _build_manifest(
                     _CONFIG_FILENAME,
                     _MANIFEST_FILENAME,
                     _METRICS_FILENAME,
+                    METRICS_READINESS_FILENAME,
                     _PORTFOLIO_EQUITY_FILENAME,
                     _PORTFOLIO_RETURNS_FILENAME,
                     _QA_SUMMARY_FILENAME,
@@ -401,7 +405,7 @@ def _build_manifest(
                     ),
                 ]
             ),
-            "metrics": [_METRICS_FILENAME],
+            "metrics": sorted([_METRICS_FILENAME, METRICS_READINESS_FILENAME]),
             "qa": sorted(
                 [
                     _QA_SUMMARY_FILENAME,

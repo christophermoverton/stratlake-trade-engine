@@ -130,6 +130,7 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
         "config.json",
         "manifest.json",
         "metrics.json",
+        "metrics_readiness.json",
         "qa_summary.json",
         "portfolio_equity_curve.csv",
         "portfolio_returns.csv",
@@ -233,6 +234,10 @@ def test_write_portfolio_artifacts_creates_expected_files_and_schemas(tmp_path: 
     assert metrics_payload["total_return"] == pytest.approx(0.0302)
     assert metrics_payload["sharpe_ratio"] == pytest.approx(_metrics()["sharpe_ratio"])
 
+    readiness_payload = _load_json(output_dir / "metrics_readiness.json")
+    assert readiness_payload["run_id"] == output_dir.name
+    assert readiness_payload["diagnostics"]["serial_dependence"]["effective_n"] == metrics_payload["effective_n"]
+
     qa_summary = _load_json(output_dir / "qa_summary.json")
     assert qa_summary["validation_status"] == "pass"
     assert qa_summary["strategy_count"] == 2
@@ -312,6 +317,7 @@ def test_write_portfolio_artifacts_is_deterministic_for_identical_inputs(tmp_pat
         "config.json",
         "manifest.json",
         "metrics.json",
+        "metrics_readiness.json",
         "qa_summary.json",
         "portfolio_equity_curve.csv",
         "portfolio_returns.csv",

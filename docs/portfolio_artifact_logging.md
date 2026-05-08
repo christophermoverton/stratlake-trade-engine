@@ -10,7 +10,7 @@ Current implementation:
 
 * writes one deterministic run directory under `artifacts/portfolios/`
 * writes normalized config, components, return, weight, equity, metric, QA,
-  and manifest artifacts
+  metric-readiness, and manifest artifacts
 * runs deterministic artifact-consistency QA before finalizing the manifest
 * appends one `run_type: "portfolio"` entry to
   `artifacts/portfolios/registry.jsonl`
@@ -65,6 +65,7 @@ artifacts/portfolios/<run_id>/
   portfolio_returns.csv
   portfolio_equity_curve.csv
   metrics.json
+  metrics_readiness.json
   qa_summary.json
   manifest.json
 ```
@@ -77,6 +78,7 @@ artifacts/portfolios/<run_id>/
   components.json
   metrics_by_split.csv
   aggregate_metrics.json
+  metrics_readiness.json
   manifest.json
   splits/
     <split_id>/
@@ -254,6 +256,8 @@ Current fields include:
 Relationship to in-memory outputs:
 
 * generated from persisted split-level portfolio metrics
+* generated from single-run portfolio metrics and root walk-forward aggregate
+  metric summaries
 * uses JSON `null` for missing or undefined diagnostics
 * advisory only; it does not replace portfolio QA, walk-forward review, or
   promotion-gate evaluation

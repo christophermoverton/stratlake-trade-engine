@@ -10,7 +10,7 @@ from typing import Any, Mapping
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 from .models import GovernanceSourceRecord
-from .validator import normalize_promotion_status, normalize_review_status
+from .normalization import normalize_promotion_status, normalize_review_status
 
 OUTCOME_MATRIX_COLUMNS = [
     "run_id",

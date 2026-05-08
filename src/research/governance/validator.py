@@ -7,26 +7,14 @@ from typing import Any, Mapping
 from src.research.registry import canonicalize_value
 
 from .models import GovernanceSourceRecord
-
-CANONICAL_PROMOTION_STATUSES = frozenset({"eligible", "warn", "needs_review", "rejected", "blocked"})
-CANONICAL_REVIEW_STATUSES = frozenset({"candidate", "needs_review", "rejected"})
-PROMOTION_STATUS_ALIASES = {
-    "review": "needs_review",
-    "needs work": "needs_review",
-    "needs_work": "needs_review",
-}
-REVIEW_STATUS_ALIASES = {
-    "review": "needs_review",
-    "needs work": "needs_review",
-    "needs_work": "needs_review",
-}
-PROMOTION_TO_REVIEW_STATUS = {
-    "eligible": "candidate",
-    "warn": "needs_review",
-    "needs_review": "needs_review",
-    "rejected": "rejected",
-    "blocked": "rejected",
-}
+from .normalization import (
+    CANONICAL_PROMOTION_STATUSES,
+    CANONICAL_REVIEW_STATUSES,
+    PROMOTION_TO_REVIEW_STATUS,
+    normalize_promotion_status,
+    normalize_review_status,
+    status_was_normalized,
+)
 PATH_FIELDS = ("registry_path", "manifest_path")
 SEVERITY_RANK = {"warn": 0, "review": 1, "reject": 2, "block": 3}
 
@@ -429,26 +417,6 @@ def _message(check_id: str) -> str:
     return messages.get(check_id, check_id)
 
 
-def normalize_promotion_status(value: Any) -> str | None:
-    normalized = _coerce_string(value)
-    if normalized is None:
-        return None
-    key = normalized.lower().replace("-", "_")
-    if key == "needs work":
-        key = "needs work"
-    return PROMOTION_STATUS_ALIASES.get(key, key)
-
-
-def normalize_review_status(value: Any) -> str | None:
-    normalized = _coerce_string(value)
-    if normalized is None:
-        return None
-    key = normalized.lower().replace("-", "_")
-    if key == "needs work":
-        key = "needs work"
-    return REVIEW_STATUS_ALIASES.get(key, key)
-
-
 def _normalization_findings(
     record: GovernanceSourceRecord,
     *,
@@ -456,7 +424,7 @@ def _normalization_findings(
     raw_status: str | None,
     normalized_status: str | None,
 ) -> list[dict[str, Any]]:
-    if raw_status is None or normalized_status is None or raw_status == normalized_status:
+    if not status_was_normalized(raw_status, normalized_status):
         return []
     return [
         _finding(

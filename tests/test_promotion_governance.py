@@ -261,6 +261,114 @@ def test_legacy_status_aliases_normalize_without_changing_canonical_outputs(tmp_
     assert all(finding["severity"] == "info" for finding in validation["findings"])
 
 
+def test_dash_space_and_underscore_status_aliases_normalize_before_comparison(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    registry_path = artifact_root / "registry.jsonl"
+    run_dir = artifact_root / "alias_variants"
+    summary = {
+        "promotion_status": "needs-work",
+        "evaluation_status": "fail",
+        "highest_severity": "review",
+        "decision_reason_codes": ["severity_review"],
+        "gate_count": 1,
+    }
+    _write_json(run_dir / "manifest.json", {"run_id": "alias_variants", "promotion_gate_summary": summary})
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "alias_variants",
+            "run_type": "strategy",
+            "artifact_path": run_dir.as_posix(),
+            "promotion_status": "needs work",
+            "review_status": "needs_work",
+            "promotion_gate_summary": summary,
+        },
+    )
+
+    dataset = load_governance_artifacts(registry_path=registry_path, artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert rows[0]["promotion_status"] == "needs_review"
+    assert rows[0]["review_status"] == "needs_review"
+    assert validation["status"] == "pass"
+    assert validation["counts_by_check"]["legacy_status_normalized"] == 3
+    assert {
+        finding["details"]["field"]
+        for finding in validation["findings"]
+        if finding["check_id"] == "legacy_status_normalized"
+    } == {
+        "registry.promotion_status",
+        "promotion_gate_summary.promotion_status",
+        "review_status",
+    }
+
+
+def test_unknown_review_status_fails_validation_after_normalization(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    registry_path = artifact_root / "registry.jsonl"
+    run_dir = artifact_root / "unknown_review_status"
+    summary = {
+        "promotion_status": "eligible",
+        "evaluation_status": "pass",
+        "decision_reason_codes": [],
+        "gate_count": 1,
+    }
+    _write_json(run_dir / "manifest.json", {"run_id": "unknown_review_status", "promotion_gate_summary": summary})
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "unknown_review_status",
+            "run_type": "strategy",
+            "artifact_path": run_dir.as_posix(),
+            "promotion_status": "eligible",
+            "review_status": "approved",
+            "promotion_gate_summary": summary,
+        },
+    )
+
+    dataset = load_governance_artifacts(registry_path=registry_path, artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert rows[0]["review_status"] == "approved"
+    assert validation["status"] == "fail"
+    assert validation["counts_by_check"]["unknown_review_status"] == 1
+    assert validation["counts_by_check"]["review_status_mismatch"] == 1
+
+
+def test_candidate_promotion_status_is_not_silently_mapped_to_eligible(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    registry_path = artifact_root / "registry.jsonl"
+    run_dir = artifact_root / "candidate_promotion_status"
+    summary = {
+        "promotion_status": "candidate",
+        "evaluation_status": "pass",
+        "decision_reason_codes": [],
+        "gate_count": 1,
+    }
+    _write_json(run_dir / "manifest.json", {"run_id": "candidate_promotion_status", "promotion_gate_summary": summary})
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "candidate_promotion_status",
+            "run_type": "strategy",
+            "artifact_path": run_dir.as_posix(),
+            "promotion_status": "candidate",
+            "review_status": "candidate",
+            "promotion_gate_summary": summary,
+        },
+    )
+
+    dataset = load_governance_artifacts(registry_path=registry_path, artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert rows[0]["promotion_status"] == "candidate"
+    assert validation["status"] == "fail"
+    assert validation["counts_by_check"]["unknown_promotion_status"] == 1
+
+
 def test_unknown_statuses_still_produce_validation_findings(tmp_path: Path) -> None:
     artifact_root = tmp_path / "artifacts" / "strategies"
     registry_path = artifact_root / "registry.jsonl"

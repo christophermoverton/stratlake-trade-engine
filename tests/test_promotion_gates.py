@@ -14,7 +14,12 @@ from src.research import experiment_tracker
 from src.research.alpha_eval import evaluate_alpha_predictions, write_alpha_evaluation_artifacts
 from src.research.experiment_tracker import save_experiment, save_walk_forward_experiment
 from src.research.metrics import compute_performance_metrics
-from src.research.promotion import evaluate_promotion_gates
+from src.research.promotion import (
+    PromotionGateError,
+    evaluate_promotion_gates,
+    promotion_gate_config_digest,
+    write_promotion_gate_artifact,
+)
 from src.research.registry import load_registry
 
 
@@ -66,6 +71,321 @@ def test_evaluate_promotion_gates_handles_pass_fail_borderline_missing_and_split
     assert evaluation.failed_gate_count == 1
     assert evaluation.missing_gate_count == 1
     assert [result.status for result in evaluation.results] == ["pass", "fail", "pass", "missing"]
+    assert evaluation.promotion_status == "blocked"
+    assert evaluation.highest_severity is None
+    assert evaluation.severity_counts == {"block": 0, "reject": 0, "review": 0, "warn": 0}
+    assert evaluation.decision_reason_codes == ["gate_failed_threshold", "gate_missing"]
+
+
+def test_legacy_promotion_gate_status_on_fail_remains_unchanged_without_severity() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "status_on_pass": "promoted",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "min_sharpe",
+                    "source": "metrics",
+                    "metric_path": "sharpe_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                }
+            ],
+        },
+        sources={"metrics": {"sharpe_ratio": 0.5}},
+    )
+
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    assert evaluation.promotion_status == "manual_review"
+    assert evaluation.highest_severity is None
+    assert evaluation.results[0].severity is None
+    assert evaluation.results[0].reason_codes == ["gate_failed_threshold"]
+
+
+@pytest.mark.parametrize(
+    ("severity", "expected_status", "expected_count_key", "expected_reason_code"),
+    [
+        ("warn", "warn", "warning_gate_count", "severity_warn"),
+        ("review", "needs_review", "review_gate_count", "severity_review"),
+        ("reject", "rejected", "rejected_gate_count", "severity_reject"),
+        ("block", "blocked", "blocked_gate_count", "severity_block"),
+    ],
+)
+def test_promotion_gate_severity_maps_to_promotion_status(
+    severity: str,
+    expected_status: str,
+    expected_count_key: str,
+    expected_reason_code: str,
+) -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "status_on_fail": "legacy_fail",
+            "gates": [
+                {
+                    "gate_id": f"{severity}_gate",
+                    "source": "metrics",
+                    "metric_path": "effective_n",
+                    "comparator": "gte",
+                    "threshold": 30,
+                    "severity": severity,
+                }
+            ],
+        },
+        sources={"metrics": {"effective_n": 12}},
+    )
+
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    assert evaluation.promotion_status == expected_status
+    assert evaluation.highest_severity == severity
+    assert getattr(evaluation, expected_count_key) == 1
+    assert expected_reason_code in evaluation.decision_reason_codes
+    assert evaluation.results[0].reason_codes == ["gate_failed_threshold", expected_reason_code]
+
+
+def test_promotion_gate_mixed_severities_resolve_by_highest_severity() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "gates": [
+                {
+                    "gate_id": "stability_warn",
+                    "source": "metrics",
+                    "metric_path": "split_mean_diff_p",
+                    "comparator": "gte",
+                    "threshold": 0.05,
+                    "severity": "warn",
+                },
+                {
+                    "gate_id": "return_review",
+                    "source": "metrics",
+                    "metric_path": "p_value",
+                    "comparator": "lte",
+                    "threshold": 0.05,
+                    "severity": "review",
+                },
+                {
+                    "gate_id": "sample_block",
+                    "source": "metrics",
+                    "metric_path": "effective_n",
+                    "comparator": "gte",
+                    "threshold": 30,
+                    "severity": "block",
+                },
+                {
+                    "gate_id": "legacy_failure",
+                    "source": "metrics",
+                    "metric_path": "max_drawdown",
+                    "comparator": "lte",
+                    "threshold": 0.10,
+                },
+            ]
+        },
+        sources={
+            "metrics": {
+                "split_mean_diff_p": 0.01,
+                "p_value": 0.20,
+                "effective_n": 10,
+                "max_drawdown": 0.25,
+            }
+        },
+    )
+
+    assert evaluation is not None
+    assert evaluation.promotion_status == "blocked"
+    assert evaluation.highest_severity == "block"
+    assert evaluation.severity_counts == {"block": 1, "reject": 0, "review": 1, "warn": 1}
+    assert evaluation.failed_gate_count == 4
+
+
+def test_promotion_gate_missing_metric_with_severity_resolves_and_skip_does_not_trigger() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "gates": [
+                {
+                    "gate_id": "missing_review",
+                    "source": "metrics",
+                    "metric_path": "effective_n",
+                    "comparator": "gte",
+                    "threshold": 30,
+                    "severity": "review",
+                },
+                {
+                    "gate_id": "missing_block_skipped",
+                    "source": "metrics",
+                    "metric_path": "sharpe_stability_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                    "missing_behavior": "skip",
+                    "severity": "block",
+                },
+            ]
+        },
+        sources={"metrics": {}},
+    )
+
+    assert evaluation is not None
+    assert evaluation.promotion_status == "needs_review"
+    assert evaluation.highest_severity == "review"
+    assert evaluation.missing_gate_count == 1
+    assert evaluation.passed_gate_count == 1
+    assert evaluation.results[0].reason_codes == ["gate_missing", "severity_review"]
+    assert evaluation.results[1].reason_codes == ["gate_missing_skipped"]
+
+
+def test_invalid_promotion_gate_severity_fails_clearly() -> None:
+    with pytest.raises(PromotionGateError, match="severity.*block.*reject.*review.*warn"):
+        evaluate_promotion_gates(
+            run_type="strategy",
+            config={
+                "gates": [
+                    {
+                        "gate_id": "bad_severity",
+                        "source": "metrics",
+                        "metric_path": "p_value",
+                        "comparator": "lte",
+                        "threshold": 0.05,
+                        "severity": "critical",
+                    }
+                ]
+            },
+            sources={"metrics": {"p_value": 0.01}},
+        )
+
+
+def test_m30_statistical_readiness_metrics_can_be_gated_through_metrics_source() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "gates": [
+                {
+                    "gate_id": "minimum_effective_n",
+                    "source": "metrics",
+                    "metric_path": "effective_n",
+                    "comparator": "gte",
+                    "threshold": 30,
+                    "severity": "block",
+                },
+                {
+                    "gate_id": "return_p_value",
+                    "source": "metrics",
+                    "metric_path": "p_value",
+                    "comparator": "lte",
+                    "threshold": 0.05,
+                    "severity": "review",
+                },
+                {
+                    "gate_id": "hit_rate_significance",
+                    "source": "metrics",
+                    "metric_path": "hit_rate_p_value",
+                    "comparator": "lte",
+                    "threshold": 0.05,
+                    "severity": "review",
+                },
+                {
+                    "gate_id": "split_stability",
+                    "source": "metrics",
+                    "metric_path": "split_mean_diff_p",
+                    "comparator": "gte",
+                    "threshold": 0.05,
+                    "severity": "warn",
+                },
+                {
+                    "gate_id": "sharpe_stability",
+                    "source": "metrics",
+                    "metric_path": "sharpe_stability_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                    "severity": "warn",
+                },
+            ]
+        },
+        sources={
+            "metrics": {
+                "effective_n": 40,
+                "p_value": 0.01,
+                "hit_rate_p_value": 0.03,
+                "split_mean_diff_p": 0.20,
+                "sharpe_stability_ratio": 1.5,
+            }
+        },
+    )
+
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "pass"
+    assert evaluation.promotion_status == "eligible"
+    assert evaluation.highest_severity is None
+    assert evaluation.decision_reason_codes == []
+
+
+def test_promotion_gate_config_digest_changes_when_severity_changes() -> None:
+    base_config = {
+        "gates": [
+            {
+                "gate_id": "return_p_value",
+                "source": "metrics",
+                "metric_path": "p_value",
+                "comparator": "lte",
+                "threshold": 0.05,
+            }
+        ]
+    }
+    review_config = {
+        "gates": [
+            {
+                **base_config["gates"][0],
+                "severity": "review",
+            }
+        ]
+    }
+    block_config = {
+        "gates": [
+            {
+                **base_config["gates"][0],
+                "severity": "block",
+            }
+        ]
+    }
+
+    assert promotion_gate_config_digest(base_config) == promotion_gate_config_digest(dict(base_config))
+    assert promotion_gate_config_digest(base_config) != promotion_gate_config_digest(review_config)
+    assert promotion_gate_config_digest(review_config) != promotion_gate_config_digest(block_config)
+
+
+def test_severity_promotion_gate_artifact_is_json_safe_and_deterministic(tmp_path: Path) -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "gates": [
+                {
+                    "gate_id": "minimum_effective_n",
+                    "source": "metrics",
+                    "metric_path": "effective_n",
+                    "comparator": "gte",
+                    "threshold": 30,
+                    "severity": "block",
+                }
+            ]
+        },
+        sources={"metrics": {"effective_n": 12}},
+    )
+
+    artifact_path = write_promotion_gate_artifact(tmp_path, evaluation)
+    first_payload = artifact_path.read_text(encoding="utf-8")
+    write_promotion_gate_artifact(tmp_path, evaluation)
+    second_payload = artifact_path.read_text(encoding="utf-8")
+    parsed = json.loads(first_payload)
+
+    assert first_payload == second_payload
+    assert parsed["promotion_status"] == "blocked"
+    assert parsed["highest_severity"] == "block"
+    assert parsed["decision_reason_codes"] == ["gate_failed_threshold", "severity_block"]
+    assert parsed["definitions"][0]["severity"] == "block"
+    assert parsed["results"][0]["reason_codes"] == ["gate_failed_threshold", "severity_block"]
 
 
 def test_write_alpha_evaluation_artifacts_persists_promotion_gate_artifact(tmp_path: Path) -> None:

@@ -14,6 +14,25 @@ from src.research.registry import canonicalize_value, serialize_canonical_json
 DEFAULT_PROMOTION_ARTIFACT_FILENAME = "promotion_gates.json"
 DEFAULT_STATUS_ON_PASS = "eligible"
 DEFAULT_STATUS_ON_FAIL = "blocked"
+_SUPPORTED_SEVERITIES = frozenset({"warn", "review", "reject", "block"})
+_SEVERITY_RANK = {
+    "warn": 0,
+    "review": 1,
+    "reject": 2,
+    "block": 3,
+}
+_SEVERITY_PROMOTION_STATUS = {
+    "warn": "warn",
+    "review": "needs_review",
+    "reject": "rejected",
+    "block": "blocked",
+}
+_SEVERITY_REASON_CODES = {
+    "warn": "severity_warn",
+    "review": "severity_review",
+    "reject": "severity_reject",
+    "block": "severity_block",
+}
 _SUPPORTED_SOURCES = frozenset(
     {
         "metrics",
@@ -57,6 +76,7 @@ class PromotionGateDefinition:
     statistic: str = "value"
     missing_behavior: str = "fail"
     description: str | None = None
+    severity: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,6 +91,8 @@ class PromotionGateResult:
     actual_value: float | None
     missing_behavior: str
     description: str | None
+    severity: str | None
+    reason_codes: list[str]
     reason: str
 
 
@@ -86,6 +108,13 @@ class PromotionGateEvaluation:
     passed_gate_count: int
     failed_gate_count: int
     missing_gate_count: int
+    highest_severity: str | None
+    severity_counts: dict[str, int]
+    warning_gate_count: int
+    review_gate_count: int
+    rejected_gate_count: int
+    blocked_gate_count: int
+    decision_reason_codes: list[str]
     artifact_filename: str
     definitions: list[PromotionGateDefinition]
     results: list[PromotionGateResult]
@@ -103,6 +132,13 @@ class PromotionGateEvaluation:
                 "passed_gate_count": self.passed_gate_count,
                 "failed_gate_count": self.failed_gate_count,
                 "missing_gate_count": self.missing_gate_count,
+                "highest_severity": self.highest_severity,
+                "severity_counts": self.severity_counts,
+                "warning_gate_count": self.warning_gate_count,
+                "review_gate_count": self.review_gate_count,
+                "rejected_gate_count": self.rejected_gate_count,
+                "blocked_gate_count": self.blocked_gate_count,
+                "decision_reason_codes": self.decision_reason_codes,
                 "artifact_filename": self.artifact_filename,
                 "definitions": [asdict(definition) for definition in self.definitions],
                 "results": [asdict(result) for result in self.results],
@@ -121,6 +157,13 @@ class PromotionGateEvaluation:
                 "passed_gate_count": self.passed_gate_count,
                 "failed_gate_count": self.failed_gate_count,
                 "missing_gate_count": self.missing_gate_count,
+                "highest_severity": self.highest_severity,
+                "severity_counts": self.severity_counts,
+                "warning_gate_count": self.warning_gate_count,
+                "review_gate_count": self.review_gate_count,
+                "rejected_gate_count": self.rejected_gate_count,
+                "blocked_gate_count": self.blocked_gate_count,
+                "decision_reason_codes": self.decision_reason_codes,
                 "artifact_filename": self.artifact_filename,
             }
         )
@@ -175,14 +218,17 @@ def evaluate_promotion_gates(
     missing_gate_count = sum(result.status == "missing" for result in results)
     passed_gate_count = sum(result.status == "pass" for result in results)
     evaluation_status = "pass" if failed_gate_count == 0 and missing_gate_count == 0 else "fail"
+    highest_severity = _highest_failing_severity(results)
+    severity_counts = _severity_counts(results)
     return PromotionGateEvaluation(
         configured=True,
         run_type=run_type,
         evaluation_status=evaluation_status,
-        promotion_status=(
-            normalized_config["status_on_pass"]
-            if evaluation_status == "pass"
-            else normalized_config["status_on_fail"]
+        promotion_status=_resolve_promotion_status(
+            evaluation_status=evaluation_status,
+            highest_severity=highest_severity,
+            status_on_pass=normalized_config["status_on_pass"],
+            status_on_fail=normalized_config["status_on_fail"],
         ),
         status_on_pass=normalized_config["status_on_pass"],
         status_on_fail=normalized_config["status_on_fail"],
@@ -190,6 +236,13 @@ def evaluate_promotion_gates(
         passed_gate_count=passed_gate_count,
         failed_gate_count=failed_gate_count,
         missing_gate_count=missing_gate_count,
+        highest_severity=highest_severity,
+        severity_counts=severity_counts,
+        warning_gate_count=severity_counts["warn"],
+        review_gate_count=severity_counts["review"],
+        rejected_gate_count=severity_counts["reject"],
+        blocked_gate_count=severity_counts["block"],
+        decision_reason_codes=_decision_reason_codes(results),
         artifact_filename=artifact_filename,
         definitions=definitions,
         results=results,
@@ -308,6 +361,10 @@ def _normalize_definition(raw_definition: Any, *, index: int) -> PromotionGateDe
             description,
             field_name=f"promotion_gates.gates[{index}].description",
         )
+    severity = _normalize_optional_severity(
+        raw_definition.get("severity"),
+        field_name=f"promotion_gates.gates[{index}].severity",
+    )
     return PromotionGateDefinition(
         gate_id=gate_id,
         source=source,
@@ -317,6 +374,7 @@ def _normalize_definition(raw_definition: Any, *, index: int) -> PromotionGateDe
         statistic=statistic,
         missing_behavior=missing_behavior,
         description=description,
+        severity=severity,
     )
 
 
@@ -338,6 +396,15 @@ def _evaluate_definition(
             if definition.missing_behavior == "skip"
             else "metric missing"
         )
+        reason_codes = _result_reason_codes(
+            status=status,
+            severity=definition.severity,
+            base_reason_code=(
+                "gate_missing_skipped"
+                if definition.missing_behavior == "skip"
+                else "gate_missing"
+            ),
+        )
         return PromotionGateResult(
             gate_id=definition.gate_id,
             status=status,
@@ -349,6 +416,8 @@ def _evaluate_definition(
             actual_value=None,
             missing_behavior=definition.missing_behavior,
             description=definition.description,
+            severity=definition.severity,
+            reason_codes=reason_codes,
             reason=reason,
         )
 
@@ -368,12 +437,79 @@ def _evaluate_definition(
         actual_value=actual_value,
         missing_behavior=definition.missing_behavior,
         description=definition.description,
+        severity=definition.severity,
+        reason_codes=_result_reason_codes(
+            status="pass" if passed else "fail",
+            severity=definition.severity,
+            base_reason_code="gate_passed" if passed else "gate_failed_threshold",
+        ),
         reason=(
             f"{actual_value} {definition.comparator} {definition.threshold}"
             if passed
             else f"{actual_value} not {definition.comparator} {definition.threshold}"
         ),
     )
+
+
+def _normalize_optional_severity(value: object, *, field_name: str) -> str | None:
+    if value is None:
+        return None
+    severity = _normalize_required_string(value, field_name=field_name).lower()
+    if severity not in _SUPPORTED_SEVERITIES:
+        formatted = ", ".join(sorted(_SUPPORTED_SEVERITIES))
+        raise PromotionGateError(f"{field_name} must be one of: {formatted}.")
+    return severity
+
+
+def _result_reason_codes(*, status: str, severity: str | None, base_reason_code: str) -> list[str]:
+    codes = [base_reason_code]
+    if status in {"fail", "missing"} and severity is not None:
+        codes.append(_SEVERITY_REASON_CODES[severity])
+    return codes
+
+
+def _nonpassing_results(results: Iterable[PromotionGateResult]) -> list[PromotionGateResult]:
+    return [result for result in results if result.status in {"fail", "missing"}]
+
+
+def _highest_failing_severity(results: Iterable[PromotionGateResult]) -> str | None:
+    severities = [
+        result.severity
+        for result in _nonpassing_results(results)
+        if result.severity is not None
+    ]
+    if not severities:
+        return None
+    return max(severities, key=lambda severity: _SEVERITY_RANK[severity])
+
+
+def _severity_counts(results: Iterable[PromotionGateResult]) -> dict[str, int]:
+    counts = {severity: 0 for severity in sorted(_SUPPORTED_SEVERITIES)}
+    for result in _nonpassing_results(results):
+        if result.severity is not None:
+            counts[result.severity] += 1
+    return counts
+
+
+def _decision_reason_codes(results: Iterable[PromotionGateResult]) -> list[str]:
+    codes: set[str] = set()
+    for result in _nonpassing_results(results):
+        codes.update(result.reason_codes)
+    return sorted(codes)
+
+
+def _resolve_promotion_status(
+    *,
+    evaluation_status: str,
+    highest_severity: str | None,
+    status_on_pass: str,
+    status_on_fail: str,
+) -> str:
+    if evaluation_status == "pass":
+        return status_on_pass
+    if highest_severity is None:
+        return status_on_fail
+    return _SEVERITY_PROMOTION_STATUS[highest_severity]
 
 
 def _extract_actual_value(

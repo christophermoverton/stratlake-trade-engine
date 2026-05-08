@@ -318,6 +318,74 @@ and `effective_n` inform interpretation without adjusting p-values, and
 split-period or rolling Sharpe stability checks do not replace walk-forward
 evaluation.
 
+## Promotion Gates And Statistical Readiness
+
+Promotion policy remains centered on `promotion_gates.json`. Strategy,
+portfolio, alpha-evaluation, and review workflows all use the shared evaluator
+in `src/research/promotion.py`; M31 extends that schema rather than adding a
+separate promotion engine or a second decision artifact.
+
+Legacy gate configs still work as before. A config without per-gate `severity`
+uses the existing behavior:
+
+* all gates pass -> `promotion_status` is `status_on_pass`, default `eligible`
+* any gate fails or is missing -> `promotion_status` is `status_on_fail`,
+  default `blocked`
+* `evaluation_status` remains `pass` or `fail`
+
+Severity-aware gates may add:
+
+```yaml
+severity: warn | review | reject | block
+```
+
+When one or more severity-aware gates fail or are missing in a non-skipped way,
+the highest failing severity determines `promotion_status`:
+
+| severity | promotion_status |
+| --- | --- |
+| `warn` | `warn` |
+| `review` | `needs_review` |
+| `reject` | `rejected` |
+| `block` | `blocked` |
+
+The deterministic severity order is:
+
+```text
+block > reject > review > warn
+```
+
+M30 diagnostics can be gated directly through `source: metrics` because they
+are already present in `metrics.json`. Example gate concepts include:
+
+```yaml
+promotion_gates:
+  gates:
+    - gate_id: minimum_effective_n
+      source: metrics
+      metric_path: effective_n
+      comparator: gte
+      threshold: 30
+      severity: block
+    - gate_id: return_p_value
+      source: metrics
+      metric_path: p_value
+      comparator: lte
+      threshold: 0.05
+      severity: review
+    - gate_id: split_stability
+      source: metrics
+      metric_path: split_mean_diff_p
+      comparator: gte
+      threshold: 0.05
+      severity: warn
+```
+
+See
+[configs/statistical_readiness_promotion_gates_example.yml](../configs/statistical_readiness_promotion_gates_example.yml)
+for a fuller example. The thresholds in that file are illustrative policy
+defaults, not universal statistical truth.
+
 ## Artifact Structure
 
 Every run writes to:

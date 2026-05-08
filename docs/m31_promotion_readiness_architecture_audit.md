@@ -495,7 +495,7 @@ Mitigation: Keep review-level gates focused on registry/review aggregates for M3
 
 ## Proposed Follow-Up Issues
 
-Issue #342: Extend promotion gate schema for readiness severity.
+Issue #342: Extend promotion gate schema for readiness severity. Completed in this branch.
 
 * Add optional per-gate severity/outcome fields.
 * Preserve current binary behavior when omitted.

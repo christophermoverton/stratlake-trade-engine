@@ -515,11 +515,12 @@ Issue #344: Complete readiness-aware propagation hardening. Completed in this br
 * Preserve candidate-review promotion context without making candidate review own policy logic.
 * Add tests for scenario matrix severity, milestone M31 status mapping, and legacy candidate-review compatibility.
 
-Issue #345: Harden campaign/candidate review reporting around readiness outcomes.
+Issue #345: Add canonical readiness-gated promotion examples and validation. Completed in this branch.
 
-* Add broader end-to-end campaign fixtures with severity-aware review gates.
-* Extend candidate review summaries only if candidate-specific readiness policy needs to surface promotion severity.
-* Preserve support for older campaign artifacts.
+* Add `docs/examples/m31_readiness_gated_promotion_case_study.py`.
+* Demonstrate synthetic M30 diagnostics gated through `source: metrics`.
+* Validate `eligible`, `warn`, `needs_review`, and `blocked` propagation through promotion artifacts, registry/review metadata, campaign summaries, scenario rows, and candidate-review context.
+* Add `docs/m31_release_notes.md`.
 
 Issue #346: Close readiness artifact parity and review coverage gaps.
 

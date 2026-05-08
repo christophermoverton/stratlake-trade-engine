@@ -386,6 +386,18 @@ See
 for a fuller example. The thresholds in that file are illustrative policy
 defaults, not universal statistical truth.
 
+For a runnable artifact-level case study, use:
+
+```bash
+python docs/examples/m31_readiness_gated_promotion_case_study.py
+```
+
+The case study writes deterministic synthetic artifacts under
+`docs/examples/output/m31_readiness_gated_promotion_case_study/` and shows how
+`eligible`, `warn`, `needs_review`, and `blocked` outcomes flow through
+`promotion_gates.json`, `promotion_gate_summary`, registry/review metadata,
+campaign summaries, scenario rows, and candidate-review `promotion_context`.
+
 ## Artifact Structure
 
 Every run writes to:

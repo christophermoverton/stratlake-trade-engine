@@ -293,6 +293,12 @@ promotion outcomes as follows: `eligible -> candidate`, `warn -> needs_review`,
 `needs_review -> needs_review`, `rejected -> rejected`, and
 `blocked -> rejected`.
 
+The canonical M31 example is
+`docs/examples/m31_readiness_gated_promotion_case_study.py`. It uses synthetic
+metric payloads and `source: metrics` readiness gates to demonstrate stable
+`decision_reason_codes`, `highest_severity`, campaign propagation, and
+candidate-review `promotion_context` preservation.
+
 ### `config.json`
 
 Contains the strategy configuration used for the experiment run, making the

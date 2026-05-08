@@ -361,6 +361,11 @@ counts, and the portfolio `promotion_gate_summary` when the upstream portfolio
 manifest has one. Legacy candidate or portfolio artifacts without those fields
 produce empty counts and `null` portfolio summary values.
 
+For a small deterministic M31 propagation example, run
+`docs/examples/m31_readiness_gated_promotion_case_study.py`. It creates
+synthetic promotion-gate artifacts, campaign summaries, scenario rows, and
+candidate-review context without live data or external services.
+
 The canonical checkpoint stage states are:
 
 * `completed`

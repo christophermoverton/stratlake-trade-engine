@@ -347,6 +347,63 @@ def test_generate_campaign_milestone_report_builds_milestone_pack_from_completed
     assert metadata["stage_outcomes"][0]["output_paths"]["manifest_json"] == "../../../candidate_selection/candidate_selection_demo/manifest.json"
 
 
+def test_generate_campaign_milestone_report_surfaces_readiness_promotion_statuses(
+    tmp_path: Path,
+) -> None:
+    campaign_dir = _campaign_artifact_fixture(tmp_path)
+    promotion_gates_path = Path(
+        json.loads((campaign_dir / "summary.json").read_text(encoding="utf-8"))["output_paths"][
+            "review_promotion_gates"
+        ]
+    )
+    _write_json(
+        promotion_gates_path,
+        {
+            "evaluation_status": "fail",
+            "promotion_status": "warn",
+            "gate_count": 3,
+            "passed_gate_count": 2,
+            "failed_gate_count": 1,
+            "missing_gate_count": 0,
+            "highest_severity": "warn",
+            "severity_counts": {
+                "block": 0,
+                "reject": 0,
+                "review": 0,
+                "warn": 1,
+            },
+            "warning_gate_count": 1,
+            "review_gate_count": 0,
+            "rejected_gate_count": 0,
+            "blocked_gate_count": 0,
+            "decision_reason_codes": ["severity_warn", "gate_failed_threshold"],
+        },
+    )
+
+    summary_path, decision_log_path, _manifest_path = generate_campaign_milestone_report(campaign_dir)
+
+    summary_payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    decision_log_payload = json.loads(decision_log_path.read_text(encoding="utf-8"))
+    review_decision = decision_log_payload["decisions"][1]
+
+    assert summary_payload["decision_counts_by_status"] == {
+        "accepted": 1,
+        "deferred": 1,
+    }
+    assert summary_payload["metadata"]["promotion_gates"]["highest_severity"] == "warn"
+    assert any(
+        "highest_severity=warn" in finding and "decision_reason_codes=gate_failed_threshold,severity_warn" in finding
+        for finding in summary_payload["key_findings"]
+    )
+    assert review_decision["status"] == "deferred"
+    assert "promotion_status=warn" in review_decision["summary"]
+    assert "highest_severity=warn" in review_decision["summary"]
+    assert "decision_reason_codes=gate_failed_threshold,severity_warn" in review_decision["summary"]
+    assert review_decision["follow_up_actions"] == [
+        "Complete review and promotion follow-ups before promoting the reviewed campaign outputs."
+    ]
+
+
 def test_generate_campaign_milestone_report_is_deterministic_for_identical_campaign_inputs(tmp_path: Path) -> None:
     campaign_dir = _campaign_artifact_fixture(tmp_path)
 

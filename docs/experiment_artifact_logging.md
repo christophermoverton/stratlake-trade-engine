@@ -286,6 +286,13 @@ promotion. They can be referenced directly from `metrics.json` with
 `source: metrics`, for example `effective_n`, `p_value`, `hit_rate_p_value`,
 `split_mean_diff_p`, and `sharpe_stability_ratio`.
 
+Downstream registry, review, campaign, and milestone flows should consume the
+`promotion_gate_summary` generated from this artifact. They should not re-derive
+severity outside `src/research/promotion.py`. Review metadata maps expanded
+promotion outcomes as follows: `eligible -> candidate`, `warn -> needs_review`,
+`needs_review -> needs_review`, `rejected -> rejected`, and
+`blocked -> rejected`.
+
 ### `config.json`
 
 Contains the strategy configuration used for the experiment run, making the

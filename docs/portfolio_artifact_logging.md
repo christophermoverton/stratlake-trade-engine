@@ -464,11 +464,23 @@ Portfolio registry entries include:
 * `end_ts`
 * `artifact_path`
 * `metrics`
+* `promotion_status`
+* `review_status`
+* `review_metadata`
+* `promotion_gate_summary`
 * `evaluation_config_path`
 * `split_count`
 * `config`
 * `components`
 * `metadata`
+
+When portfolio promotion gates are configured, `promotion_gate_summary` preserves
+the same readiness-aware fields emitted by the shared promotion evaluator,
+including `highest_severity`, `severity_counts`, per-severity gate counts, and
+`decision_reason_codes`. Registry review metadata maps `warn` and
+`needs_review` to `review_status: needs_review`, and maps `rejected` and
+`blocked` to `review_status: rejected`; consumers should read these fields from
+the registry/artifact summary rather than recomputing severity.
 
 This provides a lightweight query surface for portfolio runs analogous to the
 strategy registry workflow.

@@ -10,6 +10,7 @@ import pytest
 from src.cli.run_research_campaign import (
     CampaignPreflightCheck,
     CampaignPreflightResult,
+    _campaign_review_promotion_summary,
     _resolve_candidate_selection_reference,
     parse_args,
     print_summary,
@@ -23,6 +24,82 @@ from src.research.reporting import (
     MILESTONE_SUMMARY_FILENAME,
 )
 from src.config.research_campaign import resolve_research_campaign_config
+
+
+def test_campaign_review_promotion_summary_preserves_readiness_fields(tmp_path: Path) -> None:
+    promotion_gate_path = tmp_path / "promotion_gates.json"
+    promotion_gate_path.write_text(
+        json.dumps(
+            {
+                "evaluation_status": "fail",
+                "promotion_status": "needs_review",
+                "gate_count": 2,
+                "passed_gate_count": 1,
+                "failed_gate_count": 1,
+                "missing_gate_count": 0,
+                "highest_severity": "review",
+                "severity_counts": {"block": 0, "reject": 0, "review": 1, "warn": 0},
+                "warning_gate_count": 0,
+                "review_gate_count": 1,
+                "rejected_gate_count": 0,
+                "blocked_gate_count": 0,
+                "decision_reason_codes": ["severity_review", "gate_failed_threshold"],
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    summary = _campaign_review_promotion_summary(
+        SimpleNamespace(promotion_gate_path=promotion_gate_path)
+    )
+
+    assert summary == {
+        "blocked_gate_count": 0,
+        "decision_reason_codes": ["severity_review", "gate_failed_threshold"],
+        "evaluation_status": "fail",
+        "failed_gate_count": 1,
+        "gate_count": 2,
+        "highest_severity": "review",
+        "missing_gate_count": 0,
+        "passed_gate_count": 1,
+        "promotion_status": "needs_review",
+        "rejected_gate_count": 0,
+        "review_gate_count": 1,
+        "severity_counts": {"block": 0, "reject": 0, "review": 1, "warn": 0},
+        "warning_gate_count": 0,
+    }
+
+
+def test_campaign_review_promotion_summary_keeps_legacy_artifacts_minimal(tmp_path: Path) -> None:
+    promotion_gate_path = tmp_path / "promotion_gates.json"
+    promotion_gate_path.write_text(
+        json.dumps(
+            {
+                "evaluation_status": "pass",
+                "promotion_status": "eligible",
+                "gate_count": 1,
+                "passed_gate_count": 1,
+                "failed_gate_count": 0,
+                "missing_gate_count": 0,
+            },
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+
+    summary = _campaign_review_promotion_summary(
+        SimpleNamespace(promotion_gate_path=promotion_gate_path)
+    )
+
+    assert summary == {
+        "evaluation_status": "pass",
+        "failed_gate_count": 0,
+        "gate_count": 1,
+        "missing_gate_count": 0,
+        "passed_gate_count": 1,
+        "promotion_status": "eligible",
+    }
 
 
 def _write_feature_fixture(root: Path, dataset: str = "features_daily") -> Path:

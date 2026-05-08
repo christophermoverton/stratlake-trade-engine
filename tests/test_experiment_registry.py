@@ -12,6 +12,7 @@ from src.research.experiment_tracker import save_experiment
 from src.research.registry import (
     RegistryError,
     append_registry_entry,
+    build_review_metadata,
     default_registry_path,
     filter_by_allocator_name,
     filter_by_metric_threshold,
@@ -191,6 +192,54 @@ def test_save_experiment_appends_one_registry_entry_per_run(
     assert [entry["strategy_name"] for entry in entries] == ["alpha_v1", "beta_v1"]
 
 
+def test_save_experiment_registry_preserves_readiness_promotion_summary(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    results_df = _single_run_results()
+    metrics = {
+        "cumulative_return": 0.0098,
+        "total_return": 0.0098,
+        "sharpe_ratio": 1.0,
+        "effective_n": 20,
+    }
+    config = {
+        "dataset": "features_daily",
+        "parameters": {"lookback": 10},
+        "promotion_gates": {
+            "gates": [
+                {
+                    "gate_id": "minimum_effective_n",
+                    "source": "metrics",
+                    "metric_path": "effective_n",
+                    "comparator": "gte",
+                    "threshold": 30,
+                    "severity": "warn",
+                }
+            ]
+        },
+    }
+
+    monkeypatch.setattr(experiment_tracker, "ARTIFACTS_ROOT", artifact_root)
+    save_experiment("alpha_v1", results_df, metrics, config)
+
+    entry = load_registry(default_registry_path(artifact_root))[0]
+
+    assert entry["promotion_status"] == "warn"
+    assert entry["review_status"] == "needs_review"
+    assert entry["promotion_gate_summary"]["highest_severity"] == "warn"
+    assert entry["promotion_gate_summary"]["warning_gate_count"] == 1
+    assert entry["promotion_gate_summary"]["decision_reason_codes"] == [
+        "gate_failed_threshold",
+        "severity_warn",
+    ]
+    assert entry["review_metadata"]["decision_reason_codes"] == [
+        "gate_failed_threshold",
+        "severity_warn",
+    ]
+
+
 def test_save_experiment_persists_manual_review_metadata(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
     artifact_root = tmp_path / "artifacts" / "strategies"
     results_df = _single_run_results()
@@ -214,6 +263,7 @@ def test_save_experiment_persists_manual_review_metadata(tmp_path: Path, monkeyp
     assert entry["review_status"] == "promoted"
     assert entry["review_metadata"] == {
         "decision_reason": "investment committee approved promotion",
+        "decision_reason_codes": [],
         "decision_source": "manual_review",
         "promotion_gate_summary": None,
         "promotion_status": None,
@@ -221,6 +271,54 @@ def test_save_experiment_persists_manual_review_metadata(tmp_path: Path, monkeyp
         "schema_version": 1,
         "status": "promoted",
     }
+
+
+@pytest.mark.parametrize(
+    ("promotion_status", "review_status"),
+    [
+        ("eligible", "candidate"),
+        ("warn", "needs_review"),
+        ("needs_review", "needs_review"),
+        ("rejected", "rejected"),
+        ("blocked", "rejected"),
+        ("custom_legacy_status", "needs_review"),
+    ],
+)
+def test_build_review_metadata_maps_readiness_promotion_statuses(
+    promotion_status: str,
+    review_status: str,
+) -> None:
+    metadata = build_review_metadata(promotion_status=promotion_status)
+
+    assert metadata["promotion_status"] == promotion_status
+    assert metadata["status"] == review_status
+    assert metadata["decision_reason_codes"] == []
+
+
+def test_build_review_metadata_preserves_promotion_summary_reason_codes() -> None:
+    metadata = build_review_metadata(
+        promotion_gate_summary={
+            "promotion_status": "warn",
+            "evaluation_status": "fail",
+            "gate_count": 2,
+            "passed_gate_count": 1,
+            "highest_severity": "warn",
+            "decision_reason_codes": [
+                "severity_warn",
+                "gate_failed_threshold",
+                "severity_warn",
+            ],
+        }
+    )
+
+    assert metadata["status"] == "needs_review"
+    assert metadata["promotion_status"] == "warn"
+    assert metadata["decision_reason_codes"] == ["gate_failed_threshold", "severity_warn"]
+    assert metadata["decision_reason"] == (
+        "promotion gates produced 'warn' "
+        "(1/2 passed, evaluation=fail, highest_severity=warn, "
+        "reason_codes=gate_failed_threshold,severity_warn)."
+    )
 
 
 def test_append_registry_entry_rejects_duplicate_run_ids(tmp_path: Path) -> None:
@@ -491,6 +589,53 @@ def test_register_portfolio_run_appends_one_portfolio_entry_with_stable_schema(t
     assert entry["split_count"] is None
     assert entry["review_status"] == "needs_review"
     assert entry["review_metadata"]["status"] == "needs_review"
+
+
+def test_register_portfolio_run_preserves_expanded_promotion_summary(tmp_path: Path) -> None:
+    registry_path = tmp_path / "registry.jsonl"
+    promotion_gate_summary = {
+        "promotion_status": "blocked",
+        "evaluation_status": "fail",
+        "gate_count": 2,
+        "passed_gate_count": 1,
+        "failed_gate_count": 1,
+        "missing_gate_count": 0,
+        "highest_severity": "block",
+        "severity_counts": {"block": 1, "reject": 0, "review": 0, "warn": 0},
+        "warning_gate_count": 0,
+        "review_gate_count": 0,
+        "rejected_gate_count": 0,
+        "blocked_gate_count": 1,
+        "decision_reason_codes": ["severity_block", "gate_failed_threshold"],
+    }
+
+    register_portfolio_run(
+        registry_path=registry_path,
+        run_id="core_portfolio_portfolio_123abc456def",
+        config={"portfolio_name": "Core Portfolio", "allocator": "equal_weight", "timeframe": "1D"},
+        components=[{"strategy_name": "alpha", "run_id": "run-a"}],
+        metrics={"total_return": 0.12, "sharpe_ratio": 1.4},
+        artifact_path="artifacts/portfolios/core_portfolio",
+        metadata={
+            "portfolio_name": "Core Portfolio",
+            "allocator_name": "equal_weight",
+            "timeframe": "1D",
+            "start_ts": "2025-01-01",
+            "end_ts": "2025-01-31",
+            "promotion_gate_summary": promotion_gate_summary,
+        },
+    )
+
+    entry = load_registry(registry_path)[0]
+
+    assert entry["promotion_status"] == "blocked"
+    assert entry["review_status"] == "rejected"
+    assert entry["promotion_gate_summary"] == promotion_gate_summary
+    assert entry["review_metadata"]["status"] == "rejected"
+    assert entry["review_metadata"]["decision_reason_codes"] == [
+        "gate_failed_threshold",
+        "severity_block",
+    ]
 
 
 def test_register_portfolio_run_skips_duplicate_identical_run_ids(tmp_path: Path) -> None:

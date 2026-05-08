@@ -340,9 +340,12 @@ def _recommendations(
 
     promotion_status = None if promotion_gates is None else str(promotion_gates.get("promotion_status") or "").strip()
     evaluation_status = None if promotion_gates is None else str(promotion_gates.get("evaluation_status") or "").strip()
-    if promotion_status == "approved":
+    if promotion_status in {"approved", "eligible"}:
         recommendations.append("Promotion gates passed; the selected outputs are ready for promotion handoff.")
-    elif promotion_status in {"review_ready", "pending", "deferred"} or evaluation_status in {"warn", "pending"}:
+    elif promotion_status in {"warn", "needs_review", "review_ready", "pending", "deferred"} or evaluation_status in {
+        "warn",
+        "pending",
+    }:
         recommendations.append("Complete review follow-ups before promotion to keep milestone decisions auditable.")
     elif promotion_status in {"blocked", "rejected"} or evaluation_status in {"failed", "blocked"}:
         recommendations.append("Address blocked promotion gates before promoting the reviewed campaign outputs.")
@@ -563,7 +566,7 @@ def _review_decision(
     evaluation_status = None if promotion_gates is None else str(promotion_gates.get("evaluation_status") or "").strip()
     promotion_status = None if promotion_gates is None else str(promotion_gates.get("promotion_status") or "").strip()
     decision_status = "deferred"
-    if promotion_status == "approved":
+    if promotion_status in {"approved", "eligible"}:
         decision_status = "accepted"
     elif promotion_status in {"blocked", "rejected"} or evaluation_status in {"failed", "blocked"}:
         decision_status = "rejected"
@@ -583,6 +586,12 @@ def _review_decision(
         summary_parts.append(f"promotion_status={promotion_status}")
     if evaluation_status:
         summary_parts.append(f"evaluation_status={evaluation_status}")
+    highest_severity = None if promotion_gates is None else str(promotion_gates.get("highest_severity") or "").strip()
+    if highest_severity:
+        summary_parts.append(f"highest_severity={highest_severity}")
+    reason_codes = _promotion_reason_codes(promotion_gates)
+    if reason_codes:
+        summary_parts.append("decision_reason_codes=" + ",".join(reason_codes))
     summary_text = " ".join(summary_parts) if summary_parts else "Review and promotion outputs were resolved from campaign artifacts."
 
     evidence_artifacts = [
@@ -631,9 +640,19 @@ def _review_result_fragment(
         evaluation_status = promotion_gates.get("evaluation_status")
         promotion_status = promotion_gates.get("promotion_status")
         gate_count = _safe_int(promotion_gates.get("gate_count"))
+        details = [
+            f"promotion evaluation_status={evaluation_status or 'NA'}",
+            f"promotion_status={promotion_status or 'NA'}",
+            f"gate_count={gate_count}",
+        ]
+        highest_severity = str(promotion_gates.get("highest_severity") or "").strip()
+        if highest_severity:
+            details.append(f"highest_severity={highest_severity}")
+        reason_codes = _promotion_reason_codes(promotion_gates)
+        if reason_codes:
+            details.append("decision_reason_codes=" + ",".join(reason_codes))
         fragments.append(
-            f"promotion evaluation_status={evaluation_status or 'NA'}, "
-            f"promotion_status={promotion_status or 'NA'}, gate_count={gate_count}"
+            ", ".join(details)
         )
     if not fragments:
         return None
@@ -672,11 +691,26 @@ def _review_follow_up_actions(*, promotion_gates: Mapping[str, Any] | None) -> l
 
     promotion_status = str(promotion_gates.get("promotion_status") or "").strip()
     evaluation_status = str(promotion_gates.get("evaluation_status") or "").strip()
-    if promotion_status == "approved":
+    if promotion_status in {"approved", "eligible"}:
         return ["Prepare the approved reviewed outputs for promotion handoff."]
     if promotion_status in {"blocked", "rejected"} or evaluation_status in {"failed", "blocked"}:
         return ["Address blocked promotion gates before promoting the reviewed campaign outputs."]
     return ["Complete review and promotion follow-ups before promoting the reviewed campaign outputs."]
+
+
+def _promotion_reason_codes(promotion_gates: Mapping[str, Any] | None) -> list[str]:
+    if not isinstance(promotion_gates, Mapping):
+        return []
+    raw_codes = promotion_gates.get("decision_reason_codes")
+    if not isinstance(raw_codes, list):
+        return []
+    return sorted(
+        {
+            code.strip()
+            for code in (str(item) for item in raw_codes)
+            if code.strip()
+        }
+    )
 
 
 def _stage_follow_up_actions(*, stage_names: Any, template: str) -> list[str]:

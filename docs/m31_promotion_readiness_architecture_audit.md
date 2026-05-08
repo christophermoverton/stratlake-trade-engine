@@ -501,11 +501,13 @@ Issue #342: Extend promotion gate schema for readiness severity. Completed in th
 * Preserve current binary behavior when omitted.
 * Add tests for deterministic status derivation and M30 metric gates.
 
-Issue #343: Propagate expanded promotion outcomes through registry and review metadata.
+Issue #343: Propagate expanded promotion outcomes through registry, review, campaign, and milestone metadata. Completed in this branch.
 
 * Map `eligible`, `warn`, `needs_review`, `rejected`, and `blocked`.
 * Preserve existing registry schema fields.
-* Add review metadata tests.
+* Preserve additive `promotion_gate_summary` fields in campaign final outcomes.
+* Align milestone decision mapping to the new vocabulary while preserving older labels.
+* Add registry, review metadata, campaign-summary, and milestone tests.
 
 Issue #344: Add readiness-aware promotion examples and docs.
 
@@ -513,11 +515,11 @@ Issue #344: Add readiness-aware promotion examples and docs.
 * Update artifact and workflow docs.
 * Avoid a new policy file unless implementation proves reusable config fragments are insufficient.
 
-Issue #345: Update campaign and milestone reporting for expanded promotion outcomes.
+Issue #345: Harden campaign/candidate review reporting around readiness outcomes.
 
-* Carry expanded promotion summaries into campaign `final_outcomes`.
-* Align milestone decision mapping to the new vocabulary.
-* Preserve support for older labels.
+* Add broader end-to-end campaign fixtures with severity-aware review gates.
+* Extend candidate review summaries only if candidate-specific readiness policy needs to surface promotion severity.
+* Preserve support for older campaign artifacts.
 
 Issue #346: Close readiness artifact parity and review coverage gaps.
 

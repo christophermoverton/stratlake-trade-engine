@@ -10,7 +10,7 @@ Current implementation:
 
 * writes one deterministic run directory under `artifacts/portfolios/`
 * writes normalized config, components, return, weight, equity, metric, QA,
-  and manifest artifacts
+  metric-readiness, and manifest artifacts
 * runs deterministic artifact-consistency QA before finalizing the manifest
 * appends one `run_type: "portfolio"` entry to
   `artifacts/portfolios/registry.jsonl`
@@ -65,6 +65,7 @@ artifacts/portfolios/<run_id>/
   portfolio_returns.csv
   portfolio_equity_curve.csv
   metrics.json
+  metrics_readiness.json
   qa_summary.json
   manifest.json
 ```
@@ -77,6 +78,7 @@ artifacts/portfolios/<run_id>/
   components.json
   metrics_by_split.csv
   aggregate_metrics.json
+  metrics_readiness.json
   manifest.json
   splits/
     <split_id>/
@@ -254,6 +256,8 @@ Current fields include:
 Relationship to in-memory outputs:
 
 * generated from persisted split-level portfolio metrics
+* generated from single-run portfolio metrics and root walk-forward aggregate
+  metric summaries
 * uses JSON `null` for missing or undefined diagnostics
 * advisory only; it does not replace portfolio QA, walk-forward review, or
   promotion-gate evaluation
@@ -464,11 +468,23 @@ Portfolio registry entries include:
 * `end_ts`
 * `artifact_path`
 * `metrics`
+* `promotion_status`
+* `review_status`
+* `review_metadata`
+* `promotion_gate_summary`
 * `evaluation_config_path`
 * `split_count`
 * `config`
 * `components`
 * `metadata`
+
+When portfolio promotion gates are configured, `promotion_gate_summary` preserves
+the same readiness-aware fields emitted by the shared promotion evaluator,
+including `highest_severity`, `severity_counts`, per-severity gate counts, and
+`decision_reason_codes`. Registry review metadata maps `warn` and
+`needs_review` to `review_status: needs_review`, and maps `rejected` and
+`blocked` to `review_status: rejected`; consumers should read these fields from
+the registry/artifact summary rather than recomputing severity.
 
 This provides a lightweight query surface for portfolio runs analogous to the
 strategy registry workflow.

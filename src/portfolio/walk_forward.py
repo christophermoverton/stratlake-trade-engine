@@ -243,6 +243,11 @@ def run_portfolio_walk_forward(
     _write_json(experiment_dir / "components.json", {"components": _normalize_components(components)})
     _write_csv(experiment_dir / "metrics_by_split.csv", metrics_by_split)
     _write_json(experiment_dir / "aggregate_metrics.json", aggregate_metrics)
+    write_metrics_readiness_manifest(
+        experiment_dir,
+        dict(aggregate_metrics["metric_summary"]),
+        run_id=run_id,
+    )
 
     split_artifact_dirs: list[str] = []
     splits_dir = experiment_dir / "splits"
@@ -694,6 +699,7 @@ def _build_manifest(
             "metrics": sorted(
                 [
                     "aggregate_metrics.json",
+                    METRICS_READINESS_FILENAME,
                     "metrics_by_split.csv",
                     *(
                         f"{split_artifact_dir}/{METRICS_READINESS_FILENAME}"

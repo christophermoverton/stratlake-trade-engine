@@ -264,6 +264,48 @@ stable indentation, and JSON-safe values. Undefined diagnostics are represented
 as `null`; artifacts must not rely on `NaN`, `Infinity`, or platform-specific
 path strings.
 
+### `promotion_gates.json`
+
+When `promotion_gates` are configured for a run, the shared promotion evaluator
+writes `promotion_gates.json` beside the other run artifacts. This remains the
+canonical promotion-policy artifact.
+
+Legacy configs without per-gate `severity` preserve the original behavior:
+`evaluation_status` is `pass` or `fail`, and `promotion_status` is selected
+from `status_on_pass` or `status_on_fail`.
+
+Severity-aware configs may set `severity: warn`, `review`, `reject`, or
+`block` on individual gates. Failed or non-skipped missing severity gates map
+deterministically to `promotion_status` values `warn`, `needs_review`,
+`rejected`, or `blocked`, with `block > reject > review > warn` resolving mixed
+failures. Existing human-readable gate reasons remain present, and M31 adds
+stable `reason_codes` for machine-readable review.
+
+M30 statistical diagnostics do not require a separate readiness policy file for
+promotion. They can be referenced directly from `metrics.json` with
+`source: metrics`, for example `effective_n`, `p_value`, `hit_rate_p_value`,
+`split_mean_diff_p`, and `sharpe_stability_ratio`.
+
+Downstream registry, review, campaign, and milestone flows should consume the
+`promotion_gate_summary` generated from this artifact. They should not re-derive
+severity outside `src/research/promotion.py`. Review metadata maps expanded
+promotion outcomes as follows: `eligible -> candidate`, `warn -> needs_review`,
+`needs_review -> needs_review`, `rejected -> rejected`, and
+`blocked -> rejected`.
+
+The canonical M31 example is
+`docs/examples/m31_readiness_gated_promotion_case_study.py`. It uses synthetic
+metric payloads and `source: metrics` readiness gates to demonstrate stable
+`decision_reason_codes`, `highest_severity`, campaign propagation, and
+candidate-review `promotion_context` preservation.
+
+The real-world companion is
+`docs/examples/m31_real_world_readiness_gated_promotion_case_study.py`. It
+reuses the `real_world_campaign_case_study.py` artifact-first pattern while
+using a pinned market-shaped fixture, so validation remains deterministic and
+does not require live market data, network access, or optional local feature
+partitions.
+
 ### `config.json`
 
 Contains the strategy configuration used for the experiment run, making the

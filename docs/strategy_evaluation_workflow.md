@@ -318,6 +318,98 @@ and `effective_n` inform interpretation without adjusting p-values, and
 split-period or rolling Sharpe stability checks do not replace walk-forward
 evaluation.
 
+## Promotion Gates And Statistical Readiness
+
+Promotion policy remains centered on `promotion_gates.json`. Strategy,
+portfolio, alpha-evaluation, and review workflows all use the shared evaluator
+in `src/research/promotion.py`; M31 extends that schema rather than adding a
+separate promotion engine or a second decision artifact.
+
+Legacy gate configs still work as before. A config without per-gate `severity`
+uses the existing behavior:
+
+* all gates pass -> `promotion_status` is `status_on_pass`, default `eligible`
+* any gate fails or is missing -> `promotion_status` is `status_on_fail`,
+  default `blocked`
+* `evaluation_status` remains `pass` or `fail`
+
+Severity-aware gates may add:
+
+```yaml
+severity: warn | review | reject | block
+```
+
+When one or more severity-aware gates fail or are missing in a non-skipped way,
+the highest failing severity determines `promotion_status`:
+
+| severity | promotion_status |
+| --- | --- |
+| `warn` | `warn` |
+| `review` | `needs_review` |
+| `reject` | `rejected` |
+| `block` | `blocked` |
+
+The deterministic severity order is:
+
+```text
+block > reject > review > warn
+```
+
+M30 diagnostics can be gated directly through `source: metrics` because they
+are already present in `metrics.json`. Example gate concepts include:
+
+```yaml
+promotion_gates:
+  gates:
+    - gate_id: minimum_effective_n
+      source: metrics
+      metric_path: effective_n
+      comparator: gte
+      threshold: 30
+      severity: block
+    - gate_id: return_p_value
+      source: metrics
+      metric_path: p_value
+      comparator: lte
+      threshold: 0.05
+      severity: review
+    - gate_id: split_stability
+      source: metrics
+      metric_path: split_mean_diff_p
+      comparator: gte
+      threshold: 0.05
+      severity: warn
+```
+
+See
+[configs/statistical_readiness_promotion_gates_example.yml](../configs/statistical_readiness_promotion_gates_example.yml)
+for a fuller example. The thresholds in that file are illustrative policy
+defaults, not universal statistical truth.
+
+For a runnable artifact-level case study, use:
+
+```bash
+python docs/examples/m31_readiness_gated_promotion_case_study.py
+```
+
+The case study writes deterministic synthetic artifacts under
+`docs/examples/output/m31_readiness_gated_promotion_case_study/` and shows how
+`eligible`, `warn`, `needs_review`, and `blocked` outcomes flow through
+`promotion_gates.json`, `promotion_gate_summary`, registry/review metadata,
+campaign summaries, scenario rows, and candidate-review `promotion_context`.
+
+For a market-shaped companion that reuses the established real-world campaign
+case-study pattern without requiring live data or local feature partitions, run:
+
+```bash
+python docs/examples/m31_real_world_readiness_gated_promotion_case_study.py
+```
+
+It computes M30 diagnostics from pinned price and return rows, gates them
+through the same `source: metrics` policy, and writes deterministic artifacts
+under
+`docs/examples/output/m31_real_world_readiness_gated_promotion_case_study/`.
+
 ## Artifact Structure
 
 Every run writes to:

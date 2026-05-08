@@ -1,0 +1,52 @@
+# Example only: statistical-readiness promotion gates using M30 metrics.
+# These thresholds are illustrative policy defaults, not universal statistical truth.
+promotion_gates:
+  status_on_pass: eligible
+  status_on_fail: blocked
+  gates:
+    - gate_id: minimum_effective_n
+      source: metrics
+      metric_path: effective_n
+      comparator: gte
+      threshold: 30
+      severity: block
+      description: Require an effective sample size large enough for promotion confidence.
+    - gate_id: return_p_value
+      source: metrics
+      metric_path: p_value
+      comparator: lte
+      threshold: 0.05
+      severity: review
+      description: Route runs without return-inference significance to manual review.
+    - gate_id: hit_rate_significance
+      source: metrics
+      metric_path: hit_rate_p_value
+      comparator: lte
+      threshold: 0.05
+      missing_behavior: skip
+      severity: review
+      description: Review weak trade-level hit-rate evidence when closed-trade diagnostics are available.
+    - gate_id: serial_dependence_watch
+      source: metrics
+      metric_path: autocorr_lag1
+      comparator: lte
+      threshold: 0.25
+      missing_behavior: skip
+      severity: warn
+      description: Warn when positive lag-1 autocorrelation may affect interpretation.
+    - gate_id: split_stability
+      source: metrics
+      metric_path: split_mean_diff_p
+      comparator: gte
+      threshold: 0.05
+      missing_behavior: skip
+      severity: warn
+      description: Warn when first-half and second-half mean returns look materially different.
+    - gate_id: sharpe_stability
+      source: metrics
+      metric_path: sharpe_stability_ratio
+      comparator: gte
+      threshold: 1.0
+      missing_behavior: skip
+      severity: warn
+      description: Warn when rolling Sharpe stability is weak or unavailable.

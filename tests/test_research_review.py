@@ -774,15 +774,22 @@ def test_compare_research_runs_writes_review_level_promotion_artifact_when_confi
     ]
     assert manifest["promotion_gate_summary"] == {
         "artifact_filename": "promotion_gates.json",
+        "blocked_gate_count": 0,
         "configured": True,
+        "decision_reason_codes": [],
         "evaluation_status": "pass",
         "failed_gate_count": 0,
         "gate_count": 1,
+        "highest_severity": None,
         "missing_gate_count": 0,
         "passed_gate_count": 1,
         "promotion_status": "review_ready",
+        "rejected_gate_count": 0,
+        "review_gate_count": 0,
+        "severity_counts": {"block": 0, "reject": 0, "review": 0, "warn": 0},
         "status_on_fail": "needs_work",
         "status_on_pass": "review_ready",
+        "warning_gate_count": 0,
     }
     assert manifest["plot_paths"] == {
         "strategy_metric_comparison": "plots/strategy/metric_comparison_sharpe_ratio.png",

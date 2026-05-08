@@ -3688,11 +3688,15 @@ def _build_campaign_summary(
         and isinstance(stage["details"].get("failure"), Mapping)
     ]
 
+    review_promotion_summary = _campaign_review_promotion_summary(review_result)
     final_outcomes = {
         "preflight_status": preflight_result.status,
-        "review_promotion_status": _mapping_value(_campaign_review_promotion_summary(review_result), "promotion_status"),
-        "review_promotion_gate_status": _mapping_value(_campaign_review_promotion_summary(review_result), "evaluation_status"),
-        "review_promotion_gate_summary": _campaign_review_promotion_summary(review_result),
+        "review_promotion_status": _mapping_value(review_promotion_summary, "promotion_status"),
+        "review_promotion_gate_status": _mapping_value(review_promotion_summary, "evaluation_status"),
+        "review_promotion_highest_severity": _mapping_value(review_promotion_summary, "highest_severity"),
+        "review_promotion_decision_reason_codes": _mapping_value(review_promotion_summary, "decision_reason_codes"),
+        "review_promotion_severity_counts": _mapping_value(review_promotion_summary, "severity_counts"),
+        "review_promotion_gate_summary": review_promotion_summary,
         "review_counts_by_run_type": _counts_by_run_type(list(getattr(review_result, "entries", []))),
         "stage_state_counts": stage_state_counts,
         "retry_stage_names": retry_stage_names,
@@ -4209,16 +4213,26 @@ def _campaign_review_promotion_summary(result: Any | None) -> dict[str, Any] | N
         return None
     if not isinstance(payload, dict):
         return None
-    return canonicalize_value(
-        {
-            "evaluation_status": payload.get("evaluation_status"),
-            "promotion_status": payload.get("promotion_status"),
-            "gate_count": payload.get("gate_count"),
-            "passed_gate_count": payload.get("passed_gate_count"),
-            "failed_gate_count": payload.get("failed_gate_count"),
-            "missing_gate_count": payload.get("missing_gate_count"),
-        }
-    )
+    summary = {
+        "evaluation_status": payload.get("evaluation_status"),
+        "promotion_status": payload.get("promotion_status"),
+        "gate_count": payload.get("gate_count"),
+        "passed_gate_count": payload.get("passed_gate_count"),
+        "failed_gate_count": payload.get("failed_gate_count"),
+        "missing_gate_count": payload.get("missing_gate_count"),
+    }
+    for key in (
+        "highest_severity",
+        "severity_counts",
+        "warning_gate_count",
+        "review_gate_count",
+        "rejected_gate_count",
+        "blocked_gate_count",
+        "decision_reason_codes",
+    ):
+        if key in payload:
+            summary[key] = payload.get(key)
+    return canonicalize_value(summary)
 
 
 def _counts_by_run_type(entries: Sequence[Any]) -> dict[str, int]:
@@ -4571,6 +4585,7 @@ def _scenario_matrix_row(
         "review_entry_count": _coerce_int(review.get("entry_count")),
         "review_promotion_status": final_outcomes.get("review_promotion_status"),
         "review_promotion_gate_status": final_outcomes.get("review_promotion_gate_status"),
+        "review_promotion_highest_severity": final_outcomes.get("review_promotion_highest_severity"),
     }
     ranking_metric, ranking_value = _scenario_ranking_metric(row)
     row["ranking_metric"] = ranking_metric
@@ -4646,6 +4661,7 @@ def _scenario_matrix_fieldnames(sweep_keys: Sequence[str]) -> list[str]:
         "review_entry_count",
         "review_promotion_status",
         "review_promotion_gate_status",
+        "review_promotion_highest_severity",
         "campaign_run_id",
         "campaign_summary_path",
         "fingerprint",

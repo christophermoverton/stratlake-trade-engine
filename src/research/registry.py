@@ -21,6 +21,13 @@ ALPHA_EVALUATION_RUN_TYPE = "alpha_evaluation"
 _VALID_RUN_TYPES = frozenset({STRATEGY_RUN_TYPE, PORTFOLIO_RUN_TYPE, ALPHA_EVALUATION_RUN_TYPE})
 _VALID_REVIEW_STATUSES = frozenset({"candidate", "promoted", "rejected", "needs_review"})
 _REVIEW_METADATA_SCHEMA_VERSION = 1
+_PROMOTION_TO_REVIEW_STATUS = {
+    "eligible": "candidate",
+    "warn": "needs_review",
+    "needs_review": "needs_review",
+    "rejected": "rejected",
+    "blocked": "rejected",
+}
 
 
 class RegistryError(RuntimeError):
@@ -97,6 +104,7 @@ def build_review_metadata(
             promotion_status=resolved_promotion_status,
             promotion_gate_summary=normalized_summary,
         ),
+        "decision_reason_codes": _resolve_review_reason_codes(normalized_summary),
         "decision_source": _resolve_review_source(
             normalized_review.get("decision_source") if normalized_review is not None else None,
             promotion_gate_summary=normalized_summary,
@@ -465,10 +473,9 @@ def _resolve_review_status(raw_status: object, *, promotion_status: str | None) 
             formatted = ", ".join(sorted(_VALID_REVIEW_STATUSES))
             raise ValueError(f"review.status must be one of: {formatted}.")
         return normalized
-    if promotion_status == "eligible":
-        return "candidate"
-    if promotion_status == "blocked":
-        return "rejected"
+    mapped = _PROMOTION_TO_REVIEW_STATUS.get(promotion_status or "")
+    if mapped is not None:
+        return mapped
     return "needs_review"
 
 
@@ -486,11 +493,16 @@ def _resolve_review_reason(
         passed = promotion_gate_summary.get("passed_gate_count")
         gate_count = promotion_gate_summary.get("gate_count")
         evaluation_status = _coerce_optional_string(promotion_gate_summary.get("evaluation_status"))
-        summary_suffix = (
-            ""
-            if evaluation_status is None
-            else f", evaluation={evaluation_status}"
-        )
+        highest_severity = _coerce_optional_string(promotion_gate_summary.get("highest_severity"))
+        reason_codes = _resolve_review_reason_codes(promotion_gate_summary)
+        suffixes = []
+        if evaluation_status is not None:
+            suffixes.append(f"evaluation={evaluation_status}")
+        if highest_severity is not None:
+            suffixes.append(f"highest_severity={highest_severity}")
+        if reason_codes:
+            suffixes.append("reason_codes=" + ",".join(reason_codes))
+        summary_suffix = "" if not suffixes else ", " + ", ".join(suffixes)
         return (
             f"promotion gates produced '{promotion_status}' "
             f"({passed if isinstance(passed, int) else 0}/{gate_count if isinstance(gate_count, int) else 0} passed"
@@ -499,6 +511,21 @@ def _resolve_review_reason(
     if review_status == "needs_review":
         return "promotion metadata absent; manual review required."
     return f"review status derived from promotion outcome '{promotion_status}'."
+
+
+def _resolve_review_reason_codes(promotion_gate_summary: Mapping[str, Any] | None) -> list[str]:
+    if not isinstance(promotion_gate_summary, Mapping):
+        return []
+    raw_codes = promotion_gate_summary.get("decision_reason_codes")
+    if not isinstance(raw_codes, list):
+        return []
+    return sorted(
+        {
+            code.strip()
+            for code in (str(item) for item in raw_codes)
+            if code.strip()
+        }
+    )
 
 
 def _resolve_review_source(raw_source: object, *, promotion_gate_summary: Mapping[str, Any] | None) -> str:

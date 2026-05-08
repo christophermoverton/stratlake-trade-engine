@@ -359,3 +359,202 @@ def test_default_output_root_is_canonical_even_with_custom_artifact_root(
 
     assert result.output_dir == Path("artifacts") / "promotion_governance" / "default_root_report"
     assert result.manifest_path.exists()
+
+
+def _campaign_fixture(tmp_path: Path) -> Path:
+    artifact_root = tmp_path / "artifacts"
+    campaign_dir = artifact_root / "research_campaigns" / "campaign_orchestration"
+    scenario_a_dir = campaign_dir / "scenarios" / "scenario_a"
+    campaign_summary = {
+        "run_type": "research_campaign_orchestration",
+        "orchestration_run_id": "campaign_orchestration",
+        "status": "completed",
+        "scenario_count": 2,
+        "scenario_status_counts": {"completed": 2},
+        "final_outcomes": {
+            "review_promotion_status": "needs_review",
+            "review_promotion_gate_status": "fail",
+            "review_promotion_highest_severity": "review",
+            "review_promotion_decision_reason_codes": ["severity_review"],
+            "review_promotion_gate_summary": {
+                "promotion_status": "needs_review",
+                "evaluation_status": "fail",
+                "highest_severity": "review",
+                "decision_reason_codes": ["severity_review"],
+                "gate_count": 2,
+            },
+        },
+        "scenarios": [
+            {
+                "scenario_id": "scenario_a",
+                "description": "blocked scenario",
+                "status": "completed",
+                "campaign_run_id": "campaign_a",
+                "selected_run_ids": {"strategy_run_ids": ["strategy_blocked"]},
+                "final_outcomes": {
+                    "review_promotion_gate_summary": {
+                        "promotion_status": "blocked",
+                        "evaluation_status": "fail",
+                        "highest_severity": "block",
+                        "decision_reason_codes": ["severity_block", "gate_failed_threshold"],
+                        "gate_count": 1,
+                    }
+                },
+            },
+            {
+                "scenario_id": "scenario_missing",
+                "description": "missing scenario artifacts",
+                "status": "completed",
+                "campaign_run_id": "campaign_missing",
+                "selected_run_ids": {"strategy_run_ids": ["strategy_missing"]},
+                "final_outcomes": {
+                    "review_promotion_gate_summary": {
+                        "promotion_status": "needs_review",
+                        "evaluation_status": "fail",
+                        "highest_severity": "review",
+                        "decision_reason_codes": ["severity_review"],
+                        "gate_count": 1,
+                    }
+                },
+            },
+        ],
+    }
+    scenario_catalog = {
+        "scenario_count": 2,
+        "scenarios": [
+            {"scenario_id": "scenario_a", "description": "blocked scenario"},
+            {"scenario_id": "scenario_missing", "description": "missing scenario artifacts"},
+        ],
+    }
+    _write_json(campaign_dir / "summary.json", campaign_summary)
+    _write_json(
+        campaign_dir / "manifest.json",
+        {
+            "run_type": "research_campaign_orchestration",
+            "orchestration_run_id": "campaign_orchestration",
+            "artifact_files": [
+                "summary.json",
+                "manifest.json",
+                "scenario_catalog.json",
+                "scenarios/scenario_a/summary.json",
+                "scenarios/scenario_a/manifest.json",
+            ],
+        },
+    )
+    _write_json(campaign_dir / "scenario_catalog.json", scenario_catalog)
+    _write_json(campaign_dir / "checkpoint.json", {"stage_states": {"review": "completed"}})
+    scenario_summary = {
+        "run_type": "research_campaign",
+        "campaign_run_id": "campaign_a",
+        "status": "completed",
+        "scenario": {
+            "orchestration_run_id": "campaign_orchestration",
+            "scenario_id": "scenario_a",
+            "description": "blocked scenario",
+        },
+        "selected_run_ids": {"strategy_run_ids": ["strategy_blocked"]},
+        "output_paths": {"strategy_artifact": (tmp_path / "missing" / "strategy_blocked").as_posix()},
+        "final_outcomes": {
+            "review_promotion_gate_summary": {
+                "promotion_status": "blocked",
+                "evaluation_status": "fail",
+                "highest_severity": "block",
+                "decision_reason_codes": ["severity_block", "gate_failed_threshold"],
+                "gate_count": 1,
+            }
+        },
+    }
+    _write_json(scenario_a_dir / "summary.json", scenario_summary)
+    _write_json(
+        scenario_a_dir / "manifest.json",
+        {
+            "run_type": "research_campaign",
+            "campaign_run_id": "campaign_a",
+            "promotion_gate_summary": {
+                "promotion_status": "blocked",
+                "evaluation_status": "fail",
+                "highest_severity": "block",
+                "decision_reason_codes": ["severity_block", "gate_failed_threshold"],
+                "gate_count": 1,
+            },
+        },
+    )
+    _write_json(scenario_a_dir / "checkpoint.json", {"stage_states": {"review": "completed"}})
+    return artifact_root
+
+
+def test_campaign_artifacts_are_discovered_and_normalized_into_governance_rows(tmp_path: Path) -> None:
+    artifact_root = _campaign_fixture(tmp_path)
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+
+    campaign_rows = [row for row in rows if row["workflow_type"] == "campaign"]
+    scenario_rows = [row for row in rows if row["workflow_type"] == "campaign_scenario"]
+    assert [row["run_id"] for row in campaign_rows] == ["campaign_orchestration"]
+    assert [row["scenario_id"] for row in scenario_rows] == ["scenario_a", "scenario_missing"]
+    assert campaign_rows[0]["promotion_status"] == "needs_review"
+    assert campaign_rows[0]["highest_severity"] == "review"
+    assert campaign_rows[0]["decision_reason_codes"] == "severity_review"
+    assert scenario_rows[0]["promotion_status"] == "blocked"
+    assert scenario_rows[0]["highest_severity"] == "block"
+    assert scenario_rows[0]["decision_reason_codes"] == "gate_failed_threshold|severity_block"
+
+
+def test_campaign_validation_detects_rollup_and_missing_scenario_artifact_issues(tmp_path: Path) -> None:
+    artifact_root = _campaign_fixture(tmp_path)
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert validation["status"] == "fail"
+    assert validation["counts_by_check"]["campaign_highest_severity_mismatch"] == 1
+    assert validation["counts_by_check"]["campaign_missing_scenario_reason_codes"] == 1
+    assert validation["counts_by_check"]["scenario_catalog_missing_scenario_dir"] == 1
+    assert validation["counts_by_check"]["checkpoint_completed_scenario_missing_summary"] == 1
+    assert validation["counts_by_check"]["checkpoint_completed_scenario_missing_manifest"] == 1
+    assert validation["counts_by_check"]["scenario_summary_missing_child_artifacts"] == 1
+
+
+def test_campaign_records_are_written_to_existing_governance_outputs(tmp_path: Path) -> None:
+    artifact_root = _campaign_fixture(tmp_path)
+
+    result = run_promotion_governance_report(
+        artifact_root=artifact_root,
+        output_dir=tmp_path / "campaign_governance",
+        report_id="campaign_report",
+    )
+
+    summary = json.loads(result.summary_path.read_text(encoding="utf-8"))
+    validation_text = result.validation_path.read_text(encoding="utf-8")
+    manifest_text = result.manifest_path.read_text(encoding="utf-8")
+    matrix_text = result.outcome_matrix_path.read_text(encoding="utf-8")
+    assert summary["campaign_count"] == 1
+    assert summary["campaign_scenario_count"] == 2
+    assert summary["workflow_type_counts"]["campaign"] == 1
+    assert summary["workflow_type_counts"]["campaign_scenario"] == 2
+    assert "campaign_governance_summary.csv" not in manifest_text
+    assert "promotion_decision" not in manifest_text
+    assert "promotion_readiness" not in manifest_text
+    assert not any(str(tmp_path) in payload for payload in [validation_text, manifest_text, matrix_text])
+
+    with result.outcome_matrix_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    assert [row["workflow_type"] for row in rows] == ["campaign", "campaign_scenario", "campaign_scenario"]
+    assert [row["run_id"] for row in rows] == [
+        "campaign_orchestration",
+        "campaign_orchestration:scenario_a",
+        "campaign_orchestration:scenario_missing",
+    ]
+
+
+def test_campaign_loader_gracefully_handles_artifact_root_without_campaigns(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "empty_artifacts"
+    artifact_root.mkdir()
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+
+    assert dataset.records == []
+    assert dataset.sources["campaign_record_count"] == 0
+    assert dataset.sources["campaign_scenario_record_count"] == 0

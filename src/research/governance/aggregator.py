@@ -58,11 +58,15 @@ def build_governance_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     review = status_counts.get("needs_review", 0) + status_counts.get("warn", 0)
     summary = {
         "row_count": row_count,
+        "campaign_count": sum(row["workflow_type"] == "campaign" for row in rows),
+        "campaign_scenario_count": sum(row["workflow_type"] == "campaign_scenario" for row in rows),
         "promotion_status_counts": status_counts,
         "highest_severity_counts": highest_severity_counts,
         "severity_counts": severity_counts,
         "reason_code_counts": reason_code_counts,
         "workflow_type_counts": workflow_type_counts,
+        "campaign_status_counts": _counts(row.get("campaign_status", "") for row in rows if row["workflow_type"] == "campaign"),
+        "scenario_status_counts": _counts(row.get("scenario_status", "") for row in rows if row["workflow_type"] == "campaign_scenario"),
         "warning_total": severity_counts["warn"],
         "review_total": severity_counts["review"],
         "reject_total": severity_counts["reject"],
@@ -136,6 +140,7 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
     entry = record.registry_entry
     manifest = record.manifest or {}
     summary = record.promotion_gate_summary or {}
+    metadata = record.governance_metadata
     metrics = _mapping(entry.get("metrics_summary")) or _mapping(entry.get("metrics")) or _mapping(manifest.get("metric_summary"))
     review_metadata = _mapping(entry.get("review_metadata"))
     return {
@@ -148,9 +153,9 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
         "triggered_gate_names": "|".join(_triggered_gate_names(record.promotion_gates)),
         "registry_path": _relative_path(record.registry_path, base_dir=base_dir),
         "manifest_path": _relative_path(record.manifest_path, base_dir=base_dir),
-        "campaign_id": _text(entry.get("campaign_id") or manifest.get("campaign_run_id")),
-        "scenario_id": _text(entry.get("scenario_id") or manifest.get("scenario_id")),
-        "candidate_id": _text(entry.get("candidate_id")),
+        "campaign_id": _text(metadata.get("campaign_id") or entry.get("campaign_id") or manifest.get("campaign_run_id")),
+        "scenario_id": _text(metadata.get("scenario_id") or entry.get("scenario_id") or manifest.get("scenario_id")),
+        "candidate_id": _text(metadata.get("selected_candidate_id") or metadata.get("candidate_id") or entry.get("candidate_id")),
         "strategy_name": _text(entry.get("strategy_name") or manifest.get("strategy_name")),
         "portfolio_name": _text(entry.get("portfolio_name") or manifest.get("portfolio_name")),
         "alpha_model_name": _text(entry.get("alpha_name") or entry.get("alpha_model_name") or manifest.get("alpha_name")),
@@ -158,6 +163,8 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
         "p_value": _number_or_empty(metrics.get("p_value")),
         "hit_rate_p_value": _number_or_empty(metrics.get("hit_rate_p_value")),
         "sharpe_stability_ratio": _number_or_empty(metrics.get("sharpe_stability_ratio")),
+        "campaign_status": _text(metadata.get("campaign_status")),
+        "scenario_status": _text(metadata.get("scenario_status")),
     }
 
 

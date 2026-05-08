@@ -21,6 +21,7 @@ class GovernanceSourceRecord:
     review_summary: dict[str, Any] | None = None
     candidate_review_summary_path: Path | None = None
     candidate_review_summary: dict[str, Any] | None = None
+    governance_metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)

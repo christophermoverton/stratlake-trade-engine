@@ -28,6 +28,7 @@ PROMOTION_TO_REVIEW_STATUS = {
     "blocked": "rejected",
 }
 PATH_FIELDS = ("registry_path", "manifest_path")
+SEVERITY_RANK = {"warn": 0, "review": 1, "reject": 2, "block": 3}
 
 
 def validate_governance_consistency(
@@ -45,6 +46,7 @@ def validate_governance_consistency(
             continue
         findings.extend(_record_findings(record, row))
         findings.extend(_path_findings(row))
+    findings.extend(_campaign_rollup_findings(records))
 
     counts_by_severity: dict[str, int] = {}
     counts_by_check: dict[str, int] = {}
@@ -223,6 +225,148 @@ def _record_findings(record: GovernanceSourceRecord, row: Mapping[str, Any]) -> 
     return findings
 
 
+def _campaign_rollup_findings(records: list[GovernanceSourceRecord]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    campaign_records = [record for record in records if record.workflow_type == "campaign"]
+    scenario_records = [record for record in records if record.workflow_type == "campaign_scenario"]
+    scenarios_by_campaign: dict[str, list[GovernanceSourceRecord]] = {}
+    for scenario in scenario_records:
+        campaign_id = _metadata_string(scenario, "campaign_id")
+        if campaign_id is None:
+            continue
+        scenarios_by_campaign.setdefault(campaign_id, []).append(scenario)
+        findings.extend(_scenario_artifact_findings(scenario))
+
+    for campaign in campaign_records:
+        campaign_id = _metadata_string(campaign, "campaign_id") or campaign.run_id
+        metadata = campaign.governance_metadata
+        for scenario_id in _metadata_list(metadata.get("scenario_catalog_missing_ids")):
+            findings.append(
+                _finding(
+                    "scenario_catalog_missing_scenario_dir",
+                    campaign,
+                    severity="warning",
+                    details={"campaign_id": campaign_id, "scenario_id": scenario_id},
+                )
+            )
+        child_scenarios = sorted(
+            scenarios_by_campaign.get(campaign_id, []),
+            key=lambda item: (_metadata_string(item, "scenario_id") or "", item.run_id),
+        )
+        if not child_scenarios:
+            continue
+        campaign_summary = campaign.promotion_gate_summary
+        child_summaries = [
+            scenario.promotion_gate_summary
+            for scenario in child_scenarios
+            if isinstance(scenario.promotion_gate_summary, Mapping)
+        ]
+        if not child_summaries or not isinstance(campaign_summary, Mapping):
+            continue
+        expected_highest = _highest_severity(
+            _coerce_string(summary.get("highest_severity"))
+            for summary in child_summaries
+        )
+        observed_highest = _coerce_string(campaign_summary.get("highest_severity"))
+        if expected_highest is not None and observed_highest is not None and observed_highest != expected_highest:
+            findings.append(
+                _finding(
+                    "campaign_highest_severity_mismatch",
+                    campaign,
+                    severity="error",
+                    details={
+                        "campaign_id": campaign_id,
+                        "campaign_highest_severity": observed_highest,
+                        "scenario_highest_severity": expected_highest,
+                    },
+                )
+            )
+        campaign_codes = set(_string_list(campaign_summary.get("decision_reason_codes")))
+        scenario_codes = sorted(
+            {
+                code
+                for summary in child_summaries
+                for code in _string_list(summary.get("decision_reason_codes"))
+            }
+        )
+        missing_codes = [code for code in scenario_codes if code not in campaign_codes]
+        if missing_codes:
+            findings.append(
+                _finding(
+                    "campaign_missing_scenario_reason_codes",
+                    campaign,
+                    severity="warning",
+                    details={"campaign_id": campaign_id, "missing_reason_codes": missing_codes},
+                )
+            )
+    return findings
+
+
+def _scenario_artifact_findings(record: GovernanceSourceRecord) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    metadata = record.governance_metadata
+    scenario_id = _metadata_string(record, "scenario_id")
+    stage_states = metadata.get("checkpoint_stage_states")
+    completed_like = False
+    if isinstance(stage_states, Mapping):
+        completed_like = any(str(value) in {"completed", "reused"} for value in stage_states.values())
+    if not completed_like:
+        completed_like = str(metadata.get("scenario_status") or "") in {"completed", "reused"}
+    if completed_like and not bool(metadata.get("scenario_summary_present", True)):
+        findings.append(
+            _finding(
+                "checkpoint_completed_scenario_missing_summary",
+                record,
+                severity="warning",
+                details={"scenario_id": scenario_id},
+            )
+        )
+    if completed_like and not bool(metadata.get("scenario_manifest_present", True)):
+        findings.append(
+            _finding(
+                "checkpoint_completed_scenario_missing_manifest",
+                record,
+                severity="warning",
+                details={"scenario_id": scenario_id},
+            )
+        )
+
+    manifest_summary = None
+    if isinstance(record.manifest, Mapping) and isinstance(record.manifest.get("promotion_gate_summary"), Mapping):
+        manifest_summary = record.manifest["promotion_gate_summary"]
+    if isinstance(manifest_summary, Mapping) and isinstance(record.promotion_gate_summary, Mapping):
+        row_status = normalize_promotion_status(record.promotion_gate_summary.get("promotion_status"))
+        manifest_status = normalize_promotion_status(manifest_summary.get("promotion_status"))
+        if row_status is not None and manifest_status is not None and row_status != manifest_status:
+            findings.append(
+                _finding(
+                    "scenario_promotion_status_mismatch",
+                    record,
+                    severity="error",
+                    details={
+                        "scenario_id": scenario_id,
+                        "scenario_promotion_status": row_status,
+                        "manifest_promotion_status": manifest_status,
+                    },
+                )
+            )
+    missing_child_paths = _metadata_list(metadata.get("missing_child_artifact_paths"))
+    if missing_child_paths:
+        findings.append(
+            _finding(
+                "scenario_summary_missing_child_artifacts",
+                record,
+                severity="warning",
+                details={
+                    "scenario_id": scenario_id,
+                    "missing_child_artifact_count": len(missing_child_paths),
+                    "missing_child_artifacts": [_sanitize_detail_path(path) for path in missing_child_paths],
+                },
+            )
+        )
+    return findings
+
+
 def _path_findings(row: Mapping[str, Any]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     run_id = str(row.get("run_id") or "")
@@ -266,12 +410,19 @@ def _finding(
 def _message(check_id: str) -> str:
     messages = {
         "candidate_review_context_mismatch": "Candidate-review promotion context does not match the normalized governance row.",
+        "campaign_highest_severity_mismatch": "Campaign rollup highest severity does not match child scenario severity.",
+        "campaign_missing_scenario_reason_codes": "Campaign rollup omits decision reason codes observed in child scenarios.",
+        "checkpoint_completed_scenario_missing_manifest": "Scenario is completed or reused but its manifest is missing.",
+        "checkpoint_completed_scenario_missing_summary": "Scenario is completed or reused but its summary is missing.",
         "legacy_status_normalized": "Legacy status alias was normalized for governance validation.",
         "manifest_run_id_mismatch": "Manifest run id does not match the source record run id.",
         "missing_or_stale_manifest_link": "Manifest path is missing or stale.",
         "missing_promotion_summary": "Promotion summary is missing; governance row cannot cite canonical promotion status.",
         "registry_promotion_status_mismatch": "Registry promotion status differs from promotion_gate_summary.promotion_status.",
         "review_status_mismatch": "Review status differs from the canonical M31 promotion-to-review mapping.",
+        "scenario_catalog_missing_scenario_dir": "Scenario catalog references a missing scenario directory.",
+        "scenario_promotion_status_mismatch": "Scenario summary promotion status differs from scenario manifest promotion_gate_summary.",
+        "scenario_summary_missing_child_artifacts": "Scenario summary references child artifact paths that are missing.",
         "unknown_promotion_status": "Promotion status is not one of the canonical M31 promotion statuses.",
         "unknown_review_status": "Review status is not one of the canonical M31 review statuses.",
     }
@@ -326,6 +477,40 @@ def _coerce_string(value: Any) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def _metadata_string(record: GovernanceSourceRecord, key: str) -> str | None:
+    return _coerce_string(record.governance_metadata.get(key))
+
+
+def _metadata_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted({str(item).strip() for item in value if str(item).strip()})
+
+
+def _string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return sorted({str(item).strip() for item in value if str(item).strip()})
+
+
+def _highest_severity(values: Any) -> str | None:
+    severities = [
+        value
+        for value in values
+        if value in SEVERITY_RANK
+    ]
+    if not severities:
+        return None
+    return max(severities, key=lambda severity: SEVERITY_RANK[severity])
+
+
+def _sanitize_detail_path(value: str) -> str:
+    path_fragment = value.split(":", 1)
+    if len(path_fragment) == 2:
+        return f"{path_fragment[0]}:{Path(path_fragment[1]).name}"
+    return Path(value).name
 
 
 def _safe_path(path: Path) -> str:

@@ -522,6 +522,13 @@ Issue #345: Add canonical readiness-gated promotion examples and validation. Com
 * Validate `eligible`, `warn`, `needs_review`, and `blocked` propagation through promotion artifacts, registry/review metadata, campaign summaries, scenario rows, and candidate-review context.
 * Add `docs/m31_release_notes.md`.
 
+Issue #347: Add real-world data readiness-gated promotion case study. Completed in this branch.
+
+* Reuse the `real_world_campaign_case_study.py` artifact-first pattern: runnable docs/example script, deterministic output root, stitched review/campaign/candidate summaries, and local fixture-backed validation.
+* Add `docs/examples/m31_real_world_readiness_gated_promotion_case_study.py` plus companion notes in `docs/examples/m31_real_world_readiness_gated_promotion_case_study.md`.
+* Compute M30 diagnostics from pinned market-shaped price/return rows and gate them through `source: metrics`.
+* Validate `eligible`, `needs_review`, and `blocked` propagation without live market data, network access, or new promotion decision artifacts.
+
 Issue #346: Close readiness artifact parity and review coverage gaps.
 
 * Add portfolio single-run `metrics_readiness.json`.

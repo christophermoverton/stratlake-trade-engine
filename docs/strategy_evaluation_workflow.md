@@ -398,6 +398,18 @@ The case study writes deterministic synthetic artifacts under
 `promotion_gates.json`, `promotion_gate_summary`, registry/review metadata,
 campaign summaries, scenario rows, and candidate-review `promotion_context`.
 
+For a market-shaped companion that reuses the established real-world campaign
+case-study pattern without requiring live data or local feature partitions, run:
+
+```bash
+python docs/examples/m31_real_world_readiness_gated_promotion_case_study.py
+```
+
+It computes M30 diagnostics from pinned price and return rows, gates them
+through the same `source: metrics` policy, and writes deterministic artifacts
+under
+`docs/examples/output/m31_real_world_readiness_gated_promotion_case_study/`.
+
 ## Artifact Structure
 
 Every run writes to:

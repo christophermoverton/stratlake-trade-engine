@@ -299,6 +299,13 @@ metric payloads and `source: metrics` readiness gates to demonstrate stable
 `decision_reason_codes`, `highest_severity`, campaign propagation, and
 candidate-review `promotion_context` preservation.
 
+The real-world companion is
+`docs/examples/m31_real_world_readiness_gated_promotion_case_study.py`. It
+reuses the `real_world_campaign_case_study.py` artifact-first pattern while
+using a pinned market-shaped fixture, so validation remains deterministic and
+does not require live market data, network access, or optional local feature
+partitions.
+
 ### `config.json`
 
 Contains the strategy configuration used for the experiment run, making the

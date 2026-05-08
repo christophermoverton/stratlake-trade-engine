@@ -366,6 +366,14 @@ For a small deterministic M31 propagation example, run
 synthetic promotion-gate artifacts, campaign summaries, scenario rows, and
 candidate-review context without live data or external services.
 
+For a market-shaped companion that follows the established real-world campaign
+case-study convention, run
+`docs/examples/m31_real_world_readiness_gated_promotion_case_study.py`. It uses
+a pinned local fixture to compute M30 diagnostics before evaluating the same
+readiness gate config, then writes registry, review, campaign, and
+candidate-review summaries under
+`docs/examples/output/m31_real_world_readiness_gated_promotion_case_study/`.
+
 The canonical checkpoint stage states are:
 
 * `completed`

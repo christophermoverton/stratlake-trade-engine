@@ -133,6 +133,21 @@ Start with:
 * [docs/experiment_artifact_logging.md](docs/experiment_artifact_logging.md)
 * [docs/examples/statistical_diagnostics_readiness_example.py](docs/examples/statistical_diagnostics_readiness_example.py)
 
+### Milestone 31: Readiness-Aware Promotion Policy
+
+Milestone 31 routes the Milestone 30 diagnostics through the existing
+`promotion_gates.json` policy path. Severity-aware gates map readiness failures
+to `warn`, `needs_review`, `rejected`, or `blocked` promotion outcomes while
+downstream registry, campaign, review, milestone, and candidate-review surfaces
+consume the shared `promotion_gate_summary`.
+
+Start with:
+
+* [docs/m31_release_notes.md](docs/m31_release_notes.md)
+* [docs/examples/m31_readiness_gated_promotion_case_study.py](docs/examples/m31_readiness_gated_promotion_case_study.py)
+* [docs/examples/m31_real_world_readiness_gated_promotion_case_study.py](docs/examples/m31_real_world_readiness_gated_promotion_case_study.py)
+* [docs/examples/m31_real_world_readiness_gated_promotion_case_study.md](docs/examples/m31_real_world_readiness_gated_promotion_case_study.md)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

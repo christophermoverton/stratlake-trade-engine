@@ -28,7 +28,7 @@ candidate-review context.
   summaries preserve readiness-aware context from existing artifacts without
   re-evaluating severity downstream.
 
-## Canonical Example
+## Canonical Examples
 
 Run the deterministic example:
 
@@ -54,13 +54,37 @@ outcomes, stable reason codes, registry/review metadata propagation, campaign
 final outcome propagation, scenario severity context, and candidate-review
 `promotion_context` preservation.
 
+Run the real-world companion example:
+
+```bash
+python docs/examples/m31_real_world_readiness_gated_promotion_case_study.py
+```
+
+The companion reuses the `real_world_campaign_case_study.py` artifact-first
+pattern: a runnable docs/example script, deterministic outputs under
+`docs/examples/output/`, stitched review/campaign/candidate summaries, and local
+fixture-backed validation. It uses a pinned market-shaped fixture rather than
+repository-local `features_daily` partitions so release validation does not
+require network access, live market data, or optional local data. It writes:
+
+```text
+docs/examples/output/m31_real_world_readiness_gated_promotion_case_study/
+```
+
+The real-world companion computes M30 diagnostics from market-shaped price and
+return rows, then gates `effective_n`, `p_value`, `hit_rate_p_value`,
+`autocorr_lag1`, `split_mean_diff_p`, and `sharpe_stability_ratio` through
+`source: metrics`. It demonstrates `eligible`, `needs_review`, and `blocked`
+outcomes for a fixed data snapshot.
+
 ## Validation
 
 Recommended release checks:
 
 ```bash
-python -m pytest tests/test_promotion_gates.py tests/test_experiment_registry.py tests/test_research_review.py tests/test_candidate_review.py tests/test_cli_run_research_campaign.py tests/test_campaign_milestone_reporting.py tests/test_m31_readiness_gated_promotion_case_study.py
+python -m pytest tests/test_promotion_gates.py tests/test_experiment_registry.py tests/test_research_review.py tests/test_candidate_review.py tests/test_cli_run_research_campaign.py tests/test_campaign_milestone_reporting.py tests/test_m31_readiness_gated_promotion_case_study.py tests/test_m31_real_world_readiness_gated_promotion_case_study.py
 python docs/examples/m31_readiness_gated_promotion_case_study.py
+python docs/examples/m31_real_world_readiness_gated_promotion_case_study.py
 ```
 
 ## Non-Goals

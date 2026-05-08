@@ -109,6 +109,7 @@ def review_candidate_selection(
         diversification_summary=diversification_summary,
         candidate_selection_summary=candidate_summary_payload,
         portfolio_metrics=portfolio_metrics,
+        portfolio_manifest=portfolio_manifest,
         candidate_selection_run_id=candidate_selection_run_id,
         portfolio_run_id=portfolio_run_id,
     )
@@ -162,6 +163,7 @@ def review_candidate_selection(
             "candidate_summary": int(len(candidate_summary)),
             "candidate_contributions": int(len(candidate_contributions)),
         },
+        "promotion_context": review_summary.get("promotion_context"),
     }
     _write_json(manifest_json, manifest_payload)
 
@@ -454,6 +456,7 @@ def _build_review_summary(
     diversification_summary: dict[str, Any],
     candidate_selection_summary: dict[str, Any],
     portfolio_metrics: dict[str, Any],
+    portfolio_manifest: dict[str, Any],
     candidate_selection_run_id: str,
     portfolio_run_id: str,
 ) -> dict[str, Any]:
@@ -494,6 +497,10 @@ def _build_review_summary(
         "weakest_contributors": weakest_contributors,
         "diversification_summary": diversification_summary,
         "portfolio_metrics": portfolio_metrics,
+        "promotion_context": _build_promotion_context(
+            candidate_summary=candidate_summary,
+            portfolio_manifest=portfolio_manifest,
+        ),
         "key_observations": [
             {
                 "name": "selection_rate",
@@ -525,6 +532,59 @@ def _build_review_summary(
             },
         ],
     }
+
+
+def _build_promotion_context(
+    *,
+    candidate_summary: pd.DataFrame,
+    portfolio_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        "candidate_promotion_status_counts": _status_counts(candidate_summary, "promotion_status"),
+        "candidate_review_status_counts": _status_counts(candidate_summary, "review_status"),
+        "portfolio_promotion_gate_summary": _promotion_gate_summary(portfolio_manifest),
+    }
+
+
+def _promotion_gate_summary(payload: dict[str, Any]) -> dict[str, Any] | None:
+    summary = payload.get("promotion_gate_summary")
+    if not isinstance(summary, dict):
+        return None
+    return _json_safe_mapping(summary)
+
+
+def _status_counts(frame: pd.DataFrame, column: str) -> dict[str, int]:
+    if column not in frame.columns:
+        return {}
+    counts: dict[str, int] = {}
+    for value in frame[column].dropna().astype("string").tolist():
+        normalized = str(value).strip()
+        if normalized:
+            counts[normalized] = counts.get(normalized, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _json_safe_mapping(value: dict[str, Any]) -> dict[str, Any]:
+    return {
+        str(key): _json_safe_value(value[key])
+        for key in sorted(value)
+    }
+
+
+def _json_safe_value(value: Any) -> Any:
+    if isinstance(value, dict):
+        return _json_safe_mapping(value)
+    if isinstance(value, list):
+        return [_json_safe_value(item) for item in value]
+    if isinstance(value, tuple):
+        return [_json_safe_value(item) for item in value]
+    if isinstance(value, Path):
+        return value.as_posix()
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            return None
+        return value
+    return value
 
 
 def _build_markdown_report(

@@ -300,7 +300,34 @@ def _write_portfolio_artifacts(root: Path) -> Path:
         encoding="utf-8",
     )
     (run_dir / "manifest.json").write_text(
-        json.dumps({"run_id": "portfolio_test", "run_type": "portfolio"}, indent=2, sort_keys=True),
+        json.dumps(
+            {
+                "run_id": "portfolio_test",
+                "run_type": "portfolio",
+                "promotion_gate_summary": {
+                    "blocked_gate_count": 0,
+                    "decision_reason_codes": ["severity_warn", "gate_failed_threshold"],
+                    "evaluation_status": "fail",
+                    "failed_gate_count": 1,
+                    "gate_count": 2,
+                    "highest_severity": "warn",
+                    "missing_gate_count": 0,
+                    "passed_gate_count": 1,
+                    "promotion_status": "warn",
+                    "rejected_gate_count": 0,
+                    "review_gate_count": 0,
+                    "severity_counts": {
+                        "block": 0,
+                        "reject": 0,
+                        "review": 0,
+                        "warn": 1,
+                    },
+                    "warning_gate_count": 1,
+                },
+            },
+            indent=2,
+            sort_keys=True,
+        ),
         encoding="utf-8",
     )
     return run_dir
@@ -324,6 +351,69 @@ def test_candidate_review_generates_required_artifacts(tmp_path: Path) -> None:
     assert result.total_candidates == 3
     assert result.selected_candidates == 1
     assert result.rejected_candidates == 2
+
+    review_summary = json.loads(result.candidate_review_summary_json.read_text(encoding="utf-8"))
+    manifest = json.loads(result.manifest_json.read_text(encoding="utf-8"))
+    expected_promotion_context = {
+        "candidate_promotion_status_counts": {
+            "blocked": 1,
+            "eligible": 2,
+        },
+        "candidate_review_status_counts": {
+            "candidate": 3,
+        },
+        "portfolio_promotion_gate_summary": {
+            "blocked_gate_count": 0,
+            "decision_reason_codes": ["severity_warn", "gate_failed_threshold"],
+            "evaluation_status": "fail",
+            "failed_gate_count": 1,
+            "gate_count": 2,
+            "highest_severity": "warn",
+            "missing_gate_count": 0,
+            "passed_gate_count": 1,
+            "promotion_status": "warn",
+            "rejected_gate_count": 0,
+            "review_gate_count": 0,
+            "severity_counts": {
+                "block": 0,
+                "reject": 0,
+                "review": 0,
+                "warn": 1,
+            },
+            "warning_gate_count": 1,
+        },
+    }
+    assert review_summary["promotion_context"] == expected_promotion_context
+    assert manifest["promotion_context"] == expected_promotion_context
+
+
+def test_candidate_review_handles_legacy_artifacts_without_promotion_context(tmp_path: Path) -> None:
+    candidate_dir = _write_candidate_selection_artifacts(tmp_path / "artifacts" / "candidate_selection")
+    portfolio_dir = _write_portfolio_artifacts(tmp_path / "artifacts" / "portfolios")
+    for filename in ("candidate_universe.csv", "selected_candidates.csv", "rejected_candidates.csv"):
+        path = candidate_dir / filename
+        frame = pd.read_csv(path)
+        frame = frame.drop(columns=["promotion_status", "review_status"], errors="ignore")
+        frame.to_csv(path, index=False)
+    portfolio_manifest = json.loads((portfolio_dir / "manifest.json").read_text(encoding="utf-8"))
+    portfolio_manifest.pop("promotion_gate_summary", None)
+    (portfolio_dir / "manifest.json").write_text(
+        json.dumps(portfolio_manifest, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    result = review_candidate_selection(
+        candidate_selection_artifact_dir=candidate_dir,
+        portfolio_artifact_dir=portfolio_dir,
+        include_markdown_report=False,
+    )
+
+    review_summary = json.loads(result.candidate_review_summary_json.read_text(encoding="utf-8"))
+    assert review_summary["promotion_context"] == {
+        "candidate_promotion_status_counts": {},
+        "candidate_review_status_counts": {},
+        "portfolio_promotion_gate_summary": None,
+    }
 
 
 def test_candidate_decision_status_and_reasons_are_correct(tmp_path: Path) -> None:

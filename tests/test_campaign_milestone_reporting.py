@@ -404,6 +404,37 @@ def test_generate_campaign_milestone_report_surfaces_readiness_promotion_statuse
     ]
 
 
+def test_generate_campaign_milestone_report_maps_m31_promotion_statuses(
+    tmp_path: Path,
+) -> None:
+    expectations = {
+        "eligible": "accepted",
+        "needs_review": "deferred",
+        "rejected": "rejected",
+        "blocked": "rejected",
+    }
+    for promotion_status, expected_decision_status in expectations.items():
+        campaign_dir = _campaign_artifact_fixture(tmp_path / promotion_status)
+        campaign_summary = json.loads((campaign_dir / "summary.json").read_text(encoding="utf-8"))
+        promotion_gates_path = Path(campaign_summary["output_paths"]["review_promotion_gates"])
+        _write_json(
+            promotion_gates_path,
+            {
+                "evaluation_status": "pass" if promotion_status == "eligible" else "fail",
+                "promotion_status": promotion_status,
+                "gate_count": 1,
+                "passed_gate_count": 1 if promotion_status == "eligible" else 0,
+                "failed_gate_count": 0 if promotion_status == "eligible" else 1,
+                "missing_gate_count": 0,
+            },
+        )
+
+        _summary_path, decision_log_path, _manifest_path = generate_campaign_milestone_report(campaign_dir)
+
+        decision_log_payload = json.loads(decision_log_path.read_text(encoding="utf-8"))
+        assert decision_log_payload["decisions"][1]["status"] == expected_decision_status
+
+
 def test_generate_campaign_milestone_report_is_deterministic_for_identical_campaign_inputs(tmp_path: Path) -> None:
     campaign_dir = _campaign_artifact_fixture(tmp_path)
 

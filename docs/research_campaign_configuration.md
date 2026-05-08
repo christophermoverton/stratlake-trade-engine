@@ -349,6 +349,17 @@ the full workflow:
   * key alpha, strategy, candidate-selection, portfolio, and review metrics
   * output file paths for downstream stage artifacts
   * final review and promotion outcomes when review promotion gates are present
+  * readiness-aware promotion context from `promotion_gate_summary`, including
+    `highest_severity`, `severity_counts`, and `decision_reason_codes` when
+    those fields are present in the review `promotion_gates.json`
+
+Candidate review remains an explainability stage, not a promotion policy stage.
+It preserves naturally available promotion context in
+`candidate_review_summary.json` and `manifest.json` under `promotion_context`:
+candidate-level `promotion_status` counts, candidate-level `review_status`
+counts, and the portfolio `promotion_gate_summary` when the upstream portfolio
+manifest has one. Legacy candidate or portfolio artifacts without those fields
+produce empty counts and `null` portfolio summary values.
 
 The canonical checkpoint stage states are:
 

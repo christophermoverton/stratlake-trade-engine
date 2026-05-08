@@ -210,7 +210,7 @@ Campaign review promotion propagation is currently limited to reading the unifie
 * `failed_gate_count`
 * `missing_gate_count`
 
-Candidate review in `src/research/candidate_review/review.py` is explainability-oriented. It consumes candidate selection artifacts and portfolio artifacts to write candidate decisions, summaries, contributions, diversification summaries, markdown, and a manifest. It does not evaluate promotion gates or readiness policy today.
+Candidate review in `src/research/candidate_review/review.py` is explainability-oriented. It consumes candidate selection artifacts and portfolio artifacts to write candidate decisions, summaries, contributions, diversification summaries, markdown, and a manifest. It does not evaluate promotion gates or readiness policy. After Issue #344 it preserves naturally available readiness context under `promotion_context`: candidate `promotion_status` counts, candidate `review_status` counts, and the portfolio `promotion_gate_summary` when present. Legacy artifacts without those fields remain valid and emit empty counts plus a `null` portfolio promotion summary.
 
 Milestone reporting in `src/research/reporting/campaign_milestone_report.py` loads campaign `summary.json`, campaign `manifest.json`, review summary, review `promotion_gates.json`, and candidate review summary. It derives milestone decisions from campaign execution state and review promotion artifacts. Its current decision vocabulary includes accepted/rejected/deferred style milestone decisions, with review promotion status handling that recognizes values like `approved`, `blocked`, and `rejected`. Existing examples also mention `review_ready`, `pending`, and `deferred`. This is not yet aligned to the proposed M31 vocabulary.
 
@@ -509,11 +509,11 @@ Issue #343: Propagate expanded promotion outcomes through registry, review, camp
 * Align milestone decision mapping to the new vocabulary while preserving older labels.
 * Add registry, review metadata, campaign-summary, and milestone tests.
 
-Issue #344: Add readiness-aware promotion examples and docs.
+Issue #344: Complete readiness-aware propagation hardening. Completed in this branch.
 
-* Document M30 metric gate examples.
-* Update artifact and workflow docs.
-* Avoid a new policy file unless implementation proves reusable config fragments are insufficient.
+* Audit remaining registry, review, campaign, candidate-review, manifest, and milestone surfaces.
+* Preserve candidate-review promotion context without making candidate review own policy logic.
+* Add tests for scenario matrix severity, milestone M31 status mapping, and legacy candidate-review compatibility.
 
 Issue #345: Harden campaign/candidate review reporting around readiness outcomes.
 

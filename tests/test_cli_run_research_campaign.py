@@ -12,6 +12,7 @@ from src.cli.run_research_campaign import (
     CampaignPreflightResult,
     _campaign_review_promotion_summary,
     _resolve_candidate_selection_reference,
+    _scenario_matrix_row,
     parse_args,
     print_summary,
     run_cli,
@@ -100,6 +101,42 @@ def test_campaign_review_promotion_summary_keeps_legacy_artifacts_minimal(tmp_pa
         "passed_gate_count": 1,
         "promotion_status": "eligible",
     }
+
+
+def test_scenario_matrix_row_preserves_review_highest_severity(tmp_path: Path) -> None:
+    scenario_result = SimpleNamespace(
+        scenario_id="scenario-a",
+        description="readiness warning",
+        source="matrix",
+        sweep_values={"threshold": 0.05},
+        fingerprint="abc123",
+        result=SimpleNamespace(
+            campaign_run_id="campaign-a",
+            campaign_summary_path=tmp_path / "summary.json",
+            preflight_summary={"status": "passed"},
+            campaign_summary={
+                "status": "completed",
+                "key_metrics": {
+                    "alpha_runs": [],
+                    "strategy_runs": [],
+                    "candidate_selection": {},
+                    "portfolio": {},
+                    "review": {"entry_count": 3},
+                },
+                "final_outcomes": {
+                    "review_promotion_status": "warn",
+                    "review_promotion_gate_status": "fail",
+                    "review_promotion_highest_severity": "warn",
+                },
+            },
+        ),
+    )
+
+    row = _scenario_matrix_row(scenario_result, sweep_keys=["threshold"])
+
+    assert row["review_promotion_status"] == "warn"
+    assert row["review_promotion_gate_status"] == "fail"
+    assert row["review_promotion_highest_severity"] == "warn"
 
 
 def _write_feature_fixture(root: Path, dataset: str = "features_daily") -> Path:

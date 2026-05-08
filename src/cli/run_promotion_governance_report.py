@@ -17,13 +17,16 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--artifact_root",
         dest="artifact_root",
         default="artifacts",
-        help="Artifact root used to resolve manifests and optional review contexts.",
+        help="Input artifact root used to resolve manifests and optional review contexts.",
     )
     parser.add_argument(
         "--output-dir",
         "--output_dir",
         dest="output_dir",
-        help="Output root or concrete report directory. Defaults to artifacts/promotion_governance/<report_id>.",
+        help=(
+            "Output root or concrete report directory. Defaults to the canonical "
+            "artifacts/promotion_governance/<report_id> path even when --artifact-root is customized."
+        ),
     )
     parser.add_argument("--report-id", "--report_id", dest="report_id", help="Optional deterministic report id override.")
     parser.add_argument(
@@ -31,7 +34,10 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         "--strict_validation",
         dest="strict_validation",
         action="store_true",
-        help="Raise a non-zero CLI error after writing artifacts when consistency validation fails.",
+        help=(
+            "Write the full governance artifact bundle, then raise a non-zero CLI error if validation fails. "
+            "Use consistency_validation.json as the canonical validation evidence."
+        ),
     )
     return parser.parse_args(argv)
 

@@ -4,12 +4,13 @@ from collections import Counter
 import hashlib
 import math
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping
 
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 from .models import GovernanceSourceRecord
+from .validator import normalize_promotion_status, normalize_review_status
 
 OUTCOME_MATRIX_COLUMNS = [
     "run_id",
@@ -38,9 +39,10 @@ SEVERITIES = ("warn", "review", "reject", "block")
 def build_governance_outcome_rows(
     records: list[GovernanceSourceRecord],
     *,
-    base_dir: str | Path = Path.cwd(),
+    base_dir: str | Path | None = None,
 ) -> list[dict[str, Any]]:
-    rows = [_record_to_row(record, base_dir=Path(base_dir)) for record in records]
+    resolved_base_dir = Path.cwd() if base_dir is None else Path(base_dir)
+    rows = [_record_to_row(record, base_dir=resolved_base_dir) for record in records]
     return sorted(rows, key=lambda row: (str(row["workflow_type"]), str(row["run_id"])))
 
 
@@ -139,9 +141,9 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
     return {
         "run_id": record.run_id,
         "workflow_type": record.workflow_type,
-        "promotion_status": _text(summary.get("promotion_status") or entry.get("promotion_status")),
+        "promotion_status": _text(normalize_promotion_status(summary.get("promotion_status") or entry.get("promotion_status"))),
         "highest_severity": _text(summary.get("highest_severity")),
-        "review_status": _text(entry.get("review_status") or review_metadata.get("status")),
+        "review_status": _text(normalize_review_status(entry.get("review_status") or review_metadata.get("status"))),
         "decision_reason_codes": "|".join(_string_list(summary.get("decision_reason_codes"))),
         "triggered_gate_names": "|".join(_triggered_gate_names(record.promotion_gates)),
         "registry_path": _relative_path(record.registry_path, base_dir=base_dir),
@@ -217,12 +219,18 @@ def _fraction(numerator: int, denominator: int) -> float:
 def _relative_path(path: Path | None, *, base_dir: Path) -> str:
     if path is None:
         return ""
+    if not path.is_absolute() and _is_windows_absolute_path(path):
+        return PureWindowsPath(str(path)).name
     try:
         return Path(os.path.relpath(path.resolve(), start=base_dir.resolve())).as_posix()
     except OSError:
         return path.as_posix() if not path.is_absolute() else path.name
     except ValueError:
         return path.as_posix() if not path.is_absolute() else path.name
+
+
+def _is_windows_absolute_path(path: Path) -> bool:
+    return PureWindowsPath(str(path)).is_absolute()
 
 
 def _mapping(value: Any) -> dict[str, Any]:

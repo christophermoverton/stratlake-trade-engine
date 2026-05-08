@@ -3,7 +3,7 @@ from __future__ import annotations
 import csv
 import json
 import os
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping
 
 from src.research.registry import canonicalize_value
@@ -40,6 +40,19 @@ def run_promotion_governance_report(
     report_id: str | None = None,
     strict_validation: bool = False,
 ) -> GovernanceReportResult:
+    """Write one deterministic promotion governance report bundle.
+
+    When ``output_dir`` is omitted, reports are written to the canonical M32
+    location ``artifacts/promotion_governance/<report_id>/`` even if
+    ``artifact_root`` points elsewhere. ``artifact_root`` is only an input
+    discovery root.
+
+    When ``strict_validation`` is true, the full governance artifact bundle is
+    still written first. A validation failure raises only after
+    ``consistency_validation.json`` and the rest of the bundle are available for
+    debugging; that JSON file is the canonical validation evidence artifact.
+    """
+
     dataset = load_governance_artifacts(registry_path=registry_path, artifact_root=artifact_root)
     rows = build_governance_outcome_rows(dataset.records)
     resolved_report_id = report_id or build_governance_report_id(rows)
@@ -228,7 +241,7 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], *, fieldnames: list[str])
 def _sanitize_sources(sources: Mapping[str, Any]) -> dict[str, Any]:
     sanitized: dict[str, Any] = {}
     for key, value in sorted(sources.items()):
-        if isinstance(value, str) and (Path(value).is_absolute() or "\\" in value):
+        if isinstance(value, str) and (Path(value).is_absolute() or PureWindowsPath(value).is_absolute() or "\\" in value):
             sanitized[key] = _relative_to_cwd(Path(value))
         else:
             sanitized[key] = value
@@ -236,6 +249,8 @@ def _sanitize_sources(sources: Mapping[str, Any]) -> dict[str, Any]:
 
 
 def _relative_to_cwd(path: Path) -> str:
+    if PureWindowsPath(str(path)).is_absolute() and not path.is_absolute():
+        return PureWindowsPath(str(path)).name
     try:
         return Path(os.path.relpath(path.resolve(), start=Path.cwd().resolve())).as_posix()
     except (OSError, ValueError):

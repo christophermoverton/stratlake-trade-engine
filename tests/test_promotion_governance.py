@@ -4,6 +4,8 @@ import csv
 import json
 from pathlib import Path
 
+import pytest
+
 from src.research.governance import (
     build_governance_outcome_rows,
     build_governance_summary,
@@ -201,3 +203,159 @@ def test_governance_writer_emits_expected_relative_artifact_bundle(tmp_path: Pat
         rows = list(csv.DictReader(handle))
     assert [row["run_id"] for row in rows] == ["strategy_blocked", "strategy_eligible"]
     assert rows[0]["triggered_gate_names"] == "min_effective_n"
+
+
+def test_strict_validation_writes_artifacts_before_raising(tmp_path: Path) -> None:
+    artifact_root = _artifact_fixture(tmp_path)
+    output_root = tmp_path / "strict_governance"
+    report_dir = output_root / "strict_report"
+
+    with pytest.raises(ValueError, match="validation failed"):
+        run_promotion_governance_report(
+            registry_path=artifact_root / "registry.jsonl",
+            artifact_root=artifact_root,
+            output_dir=output_root,
+            report_id="strict_report",
+            strict_validation=True,
+        )
+
+    assert (report_dir / "consistency_validation.json").exists()
+    assert (report_dir / "promotion_governance_summary.json").exists()
+    assert (report_dir / "promotion_outcome_matrix.csv").exists()
+    validation = json.loads((report_dir / "consistency_validation.json").read_text(encoding="utf-8"))
+    assert validation["status"] == "fail"
+
+
+def test_legacy_status_aliases_normalize_without_changing_canonical_outputs(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    registry_path = artifact_root / "registry.jsonl"
+    run_dir = artifact_root / "legacy_alias"
+    summary = {
+        "promotion_status": "review",
+        "evaluation_status": "fail",
+        "highest_severity": "review",
+        "decision_reason_codes": ["severity_review"],
+        "gate_count": 1,
+    }
+    _write_json(run_dir / "manifest.json", {"run_id": "legacy_alias", "promotion_gate_summary": summary})
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "legacy_alias",
+            "run_type": "strategy",
+            "artifact_path": run_dir.as_posix(),
+            "promotion_status": "needs work",
+            "review_status": "needs_work",
+            "promotion_gate_summary": summary,
+        },
+    )
+
+    dataset = load_governance_artifacts(registry_path=registry_path, artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert rows[0]["promotion_status"] == "needs_review"
+    assert rows[0]["review_status"] == "needs_review"
+    assert validation["status"] == "pass"
+    assert validation["counts_by_check"]["legacy_status_normalized"] >= 3
+    assert all(finding["severity"] == "info" for finding in validation["findings"])
+
+
+def test_unknown_statuses_still_produce_validation_findings(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    registry_path = artifact_root / "registry.jsonl"
+    run_dir = artifact_root / "unknown_status"
+    summary = {
+        "promotion_status": "mystery",
+        "evaluation_status": "fail",
+        "gate_count": 1,
+    }
+    _write_json(run_dir / "manifest.json", {"run_id": "unknown_status", "promotion_gate_summary": summary})
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "unknown_status",
+            "run_type": "strategy",
+            "artifact_path": run_dir.as_posix(),
+            "promotion_status": "mystery",
+            "review_status": "candidate",
+            "promotion_gate_summary": summary,
+        },
+    )
+
+    dataset = load_governance_artifacts(registry_path=registry_path, artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert rows[0]["promotion_status"] == "mystery"
+    assert validation["status"] == "fail"
+    assert validation["counts_by_check"]["unknown_promotion_status"] == 1
+
+
+def test_path_sanitization_handles_windows_mixed_and_external_paths(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "input_artifacts"
+    registry_path = artifact_root / "registry.jsonl"
+    promotion_summary = {
+        "promotion_status": "eligible",
+        "evaluation_status": "pass",
+        "gate_count": 1,
+        "decision_reason_codes": [],
+    }
+    raw_paths = [
+        r"C:\external\strategy_win_abs",
+        r"artifacts\strategies/mixed_slashes",
+        (tmp_path.parent / "outside_artifacts" / "external_run").as_posix(),
+    ]
+    for index, raw_path in enumerate(raw_paths):
+        append_registry_entry(
+            registry_path,
+            {
+                "run_id": f"path_case_{index}",
+                "run_type": "strategy",
+                "artifact_path": raw_path,
+                "promotion_status": "eligible",
+                "review_status": "candidate",
+                "promotion_gate_summary": promotion_summary,
+            },
+        )
+
+    result = run_promotion_governance_report(
+        registry_path=registry_path,
+        artifact_root=artifact_root,
+        output_dir=tmp_path / "path_governance",
+        report_id="path_report",
+    )
+
+    payloads = [
+        result.manifest_path.read_text(encoding="utf-8"),
+        result.summary_path.read_text(encoding="utf-8"),
+        result.validation_path.read_text(encoding="utf-8"),
+        result.outcome_matrix_path.read_text(encoding="utf-8"),
+    ]
+    forbidden = [str(tmp_path), tmp_path.as_posix(), "C:\\", "C:/"]
+    assert not any(token in payload for token in forbidden for payload in payloads)
+
+    with result.outcome_matrix_path.open("r", encoding="utf-8", newline="") as handle:
+        rows = list(csv.DictReader(handle))
+    for row in rows:
+        assert not Path(row["registry_path"]).is_absolute()
+        assert not Path(row["manifest_path"]).is_absolute()
+        assert "\\" not in row["registry_path"]
+        assert "\\" not in row["manifest_path"]
+
+
+def test_default_output_root_is_canonical_even_with_custom_artifact_root(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    custom_artifact_root = _artifact_fixture(tmp_path / "custom")
+    monkeypatch.chdir(tmp_path)
+
+    result = run_promotion_governance_report(
+        registry_path=custom_artifact_root / "registry.jsonl",
+        artifact_root=custom_artifact_root,
+        report_id="default_root_report",
+    )
+
+    assert result.output_dir == Path("artifacts") / "promotion_governance" / "default_root_report"
+    assert result.manifest_path.exists()

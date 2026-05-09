@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
 
 from src.research.promotion import DEFAULT_PROMOTION_ARTIFACT_FILENAME
@@ -566,7 +566,7 @@ def _resolve_artifact_dir(entry: Mapping[str, Any], *, artifact_root: Path) -> P
         _nested_string(entry.get("artifact_paths"), "output_dir"),
     ):
         if isinstance(raw_path, str) and raw_path.strip():
-            return Path(raw_path)
+            return _path_from_registry_text(raw_path)
     run_id = entry.get("run_id")
     if isinstance(run_id, str) and run_id.strip():
         return artifact_root / run_id
@@ -904,7 +904,7 @@ def _resolve_manifest_path(entry: Mapping[str, Any], *, artifact_dir: Path | Non
         _nested_string(entry.get("artifact_paths"), "manifest"),
     ):
         if isinstance(raw_path, str) and raw_path.strip():
-            return Path(raw_path)
+            return _path_from_registry_text(raw_path)
     if artifact_dir is None:
         return None
     return artifact_dir / "manifest.json"
@@ -952,6 +952,26 @@ def _load_json_if_exists(path: Path | None) -> dict[str, Any] | None:
     except (OSError, json.JSONDecodeError):
         return None
     return payload if isinstance(payload, dict) else None
+
+
+def _path_from_registry_text(raw_path: str) -> Path:
+    """Build a filesystem path from registry text without breaking discovery.
+
+    Registry paths are used for real manifest/gate reads, so absolute paths must
+    remain native filesystem values. Relative registry text can be serialized
+    with mixed Windows/POSIX separators; normalize only that relative case so
+    Linux treats backslashes as separators instead of literal filename
+    characters.
+    """
+
+    text = raw_path.strip()
+    if (
+        Path(text).is_absolute()
+        or PureWindowsPath(text).is_absolute()
+        or PurePosixPath(text.replace("\\", "/")).is_absolute()
+    ):
+        return Path(text)
+    return Path(text.replace("\\", "/"))
 
 
 __all__ = ["load_governance_artifacts"]

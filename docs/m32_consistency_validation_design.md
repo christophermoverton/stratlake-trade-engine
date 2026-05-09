@@ -89,6 +89,10 @@ Representative core findings:
 * `unknown_review_status`: review status is not canonical.
 * `registry_promotion_status_mismatch`: registry status differs from
   `promotion_gate_summary.promotion_status` after normalization.
+* `manifest_registry_promotion_summary_mismatch`: manifest
+  `promotion_gate_summary` differs from registry `promotion_gate_summary`.
+* `manifest_promotion_gates_summary_mismatch`: manifest
+  `promotion_gate_summary` differs from the `promotion_gates.json` summary.
 * `review_status_mismatch`: review status differs from the M31
   promotion-to-review mapping after normalization.
 * `missing_or_stale_manifest_link`: a manifest path exists in metadata but does
@@ -116,6 +120,10 @@ Candidate-review validation covers promotion context and evidence paths:
   from known governance records.
 * `candidate_review_duplicate_upstream_run_ids`: upstream run IDs contain
   duplicates.
+* `candidate_review_selected_candidate_id_mismatch`: summary and manifest
+  disagree on selected candidate IDs.
+* `candidate_review_selected_run_id_mismatch`: summary and manifest disagree on
+  selected run IDs.
 * `candidate_review_stale_artifact_evidence_path`: required candidate-review
   evidence path is missing.
 
@@ -134,6 +142,8 @@ is available:
 
 * `campaign_highest_severity_mismatch`: campaign rollup highest severity does
   not match child scenario maximum severity.
+* `campaign_id_mismatch`: campaign manifest identity differs from the
+  governance campaign ID.
 * `campaign_missing_scenario_reason_codes`: campaign rollup omits reason codes
   observed in child scenarios.
 * `scenario_catalog_missing_scenario_dir`: scenario catalog references a
@@ -144,6 +154,8 @@ is available:
   is missing `manifest.json`.
 * `scenario_promotion_status_mismatch`: scenario summary promotion status
   differs from scenario manifest `promotion_gate_summary`.
+* `scenario_id_mismatch`: scenario manifest identity differs from the
+  governance scenario ID.
 * `scenario_summary_missing_child_artifacts`: scenario summary references child
   artifact paths that are missing.
 

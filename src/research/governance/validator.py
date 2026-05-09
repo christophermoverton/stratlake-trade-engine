@@ -126,6 +126,7 @@ def _record_findings(record: GovernanceSourceRecord, row: Mapping[str, Any]) -> 
                 },
             )
         )
+    findings.extend(_equivalent_promotion_summary_findings(record))
 
     review_raw_status = _coerce_string(entry.get("review_status"))
     if review_raw_status is None:
@@ -296,6 +297,36 @@ def _candidate_review_findings(records: list[GovernanceSourceRecord]) -> list[di
                     details={"selected_run_ids": selected_run_ids},
                 )
             )
+        summary = record.candidate_review_summary or {}
+        manifest = record.manifest or {}
+        summary_candidate_ids = _candidate_identifier_values(summary)
+        manifest_candidate_ids = _candidate_identifier_values(manifest)
+        if summary_candidate_ids and manifest_candidate_ids and summary_candidate_ids != manifest_candidate_ids:
+            findings.append(
+                _finding(
+                    "candidate_review_selected_candidate_id_mismatch",
+                    record,
+                    severity="warning",
+                    details={
+                        "manifest_selected_candidate_ids": manifest_candidate_ids,
+                        "summary_selected_candidate_ids": summary_candidate_ids,
+                    },
+                )
+            )
+        summary_run_ids = _selected_run_identifier_values(summary)
+        manifest_run_ids = _selected_run_identifier_values(manifest)
+        if summary_run_ids and manifest_run_ids and summary_run_ids != manifest_run_ids:
+            findings.append(
+                _finding(
+                    "candidate_review_selected_run_id_mismatch",
+                    record,
+                    severity="warning",
+                    details={
+                        "manifest_selected_run_ids": manifest_run_ids,
+                        "summary_selected_run_ids": summary_run_ids,
+                    },
+                )
+            )
         # Candidate-review stale-path validation is intentionally limited to
         # required evidence. Future best-effort paths belong under
         # optional_artifact_evidence_paths and do not warn when absent.
@@ -328,6 +359,19 @@ def _campaign_rollup_findings(records: list[GovernanceSourceRecord]) -> list[dic
 
     for campaign in campaign_records:
         campaign_id = _metadata_string(campaign, "campaign_id") or campaign.run_id
+        if isinstance(campaign.manifest, Mapping):
+            manifest_campaign_id = _coerce_string(
+                campaign.manifest.get("orchestration_run_id") or campaign.manifest.get("campaign_run_id")
+            )
+            if manifest_campaign_id is not None and manifest_campaign_id != campaign_id:
+                findings.append(
+                    _finding(
+                        "campaign_id_mismatch",
+                        campaign,
+                        severity="warning",
+                        details={"campaign_id": campaign_id, "manifest_campaign_id": manifest_campaign_id},
+                    )
+                )
         metadata = campaign.governance_metadata
         for scenario_id in _metadata_list(metadata.get("scenario_catalog_missing_ids")):
             findings.append(
@@ -395,6 +439,17 @@ def _scenario_artifact_findings(record: GovernanceSourceRecord) -> list[dict[str
     findings: list[dict[str, Any]] = []
     metadata = record.governance_metadata
     scenario_id = _metadata_string(record, "scenario_id")
+    if isinstance(record.manifest, Mapping):
+        manifest_scenario_id = _coerce_string(record.manifest.get("scenario_id"))
+        if manifest_scenario_id is not None and scenario_id is not None and manifest_scenario_id != scenario_id:
+            findings.append(
+                _finding(
+                    "scenario_id_mismatch",
+                    record,
+                    severity="warning",
+                    details={"manifest_scenario_id": manifest_scenario_id, "scenario_id": scenario_id},
+                )
+            )
     stage_states = metadata.get("checkpoint_stage_states")
     completed_like = False
     if isinstance(stage_states, Mapping):
@@ -505,24 +560,83 @@ def _message(check_id: str) -> str:
         "candidate_review_missing_promotion_context": "Candidate-review summary is missing promotion context.",
         "candidate_review_missing_selected_candidate_id": "Candidate-review metadata includes selected runs but no selected candidate id.",
         "candidate_review_missing_upstream_run_reference": "Candidate-review selected run id is not present in governance records.",
+        "candidate_review_selected_candidate_id_mismatch": "Candidate-review summary and manifest disagree on selected candidate ids.",
+        "candidate_review_selected_run_id_mismatch": "Candidate-review summary and manifest disagree on selected run ids.",
         "candidate_review_stale_artifact_evidence_path": "Candidate-review artifact evidence path is missing or stale.",
+        "campaign_id_mismatch": "Campaign manifest identity differs from governance campaign id.",
         "campaign_highest_severity_mismatch": "Campaign rollup highest severity does not match child scenario severity.",
         "campaign_missing_scenario_reason_codes": "Campaign rollup omits decision reason codes observed in child scenarios.",
         "checkpoint_completed_scenario_missing_manifest": "Scenario is completed or reused but its manifest is missing.",
         "checkpoint_completed_scenario_missing_summary": "Scenario is completed or reused but its summary is missing.",
         "legacy_status_normalized": "Legacy status alias was normalized for governance validation.",
+        "manifest_promotion_gates_summary_mismatch": "Manifest promotion_gate_summary differs from promotion_gates.json summary.",
+        "manifest_registry_promotion_summary_mismatch": "Manifest promotion_gate_summary differs from registry promotion_gate_summary.",
         "manifest_run_id_mismatch": "Manifest run id does not match the source record run id.",
         "missing_or_stale_manifest_link": "Manifest path is missing or stale.",
         "missing_promotion_summary": "Promotion summary is missing; governance row cannot cite canonical promotion status.",
         "registry_promotion_status_mismatch": "Registry promotion status differs from promotion_gate_summary.promotion_status.",
         "review_status_mismatch": "Review status differs from the canonical M31 promotion-to-review mapping.",
         "scenario_catalog_missing_scenario_dir": "Scenario catalog references a missing scenario directory.",
+        "scenario_id_mismatch": "Scenario manifest identity differs from governance scenario id.",
         "scenario_promotion_status_mismatch": "Scenario summary promotion status differs from scenario manifest promotion_gate_summary.",
         "scenario_summary_missing_child_artifacts": "Scenario summary references child artifact paths that are missing.",
         "unknown_promotion_status": "Promotion status is not one of the canonical M31 promotion statuses.",
         "unknown_review_status": "Review status is not one of the canonical M31 review statuses.",
     }
     return messages.get(check_id, check_id)
+
+
+def _equivalent_promotion_summary_findings(record: GovernanceSourceRecord) -> list[dict[str, Any]]:
+    manifest_status = _promotion_summary_status(record.manifest)
+    registry_status = _promotion_summary_status(record.registry_entry)
+    gates_status = _promotion_summary_status(record.promotion_gates)
+    findings: list[dict[str, Any]] = []
+    if manifest_status[0] is not None and registry_status[0] is not None and manifest_status[0] != registry_status[0]:
+        findings.append(
+            _finding(
+                "manifest_registry_promotion_summary_mismatch",
+                record,
+                severity="error",
+                details={
+                    "manifest_promotion_status": manifest_status[0],
+                    "manifest_raw_promotion_status": manifest_status[1],
+                    "registry_summary_promotion_status": registry_status[0],
+                    "registry_summary_raw_promotion_status": registry_status[1],
+                },
+            )
+        )
+    if manifest_status[0] is not None and gates_status[0] is not None and manifest_status[0] != gates_status[0]:
+        findings.append(
+            _finding(
+                "manifest_promotion_gates_summary_mismatch",
+                record,
+                severity="error",
+                details={
+                    "manifest_promotion_status": manifest_status[0],
+                    "manifest_raw_promotion_status": manifest_status[1],
+                    "promotion_gates_promotion_status": gates_status[0],
+                    "promotion_gates_raw_promotion_status": gates_status[1],
+                },
+            )
+        )
+    return findings
+
+
+def _promotion_summary_status(payload: Mapping[str, Any] | None) -> tuple[str | None, str | None]:
+    summary = _promotion_summary_payload(payload)
+    raw_status = _coerce_string(summary.get("promotion_status") if isinstance(summary, Mapping) else None)
+    return normalize_promotion_status(raw_status), raw_status
+
+
+def _promotion_summary_payload(payload: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    summary = payload.get("promotion_gate_summary")
+    if isinstance(summary, Mapping):
+        return dict(summary)
+    if "promotion_status" in payload and "gate_count" in payload:
+        return dict(payload)
+    return None
 
 
 def _normalization_findings(
@@ -579,6 +693,46 @@ def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return sorted({str(item).strip() for item in value if str(item).strip()})
+
+
+def _candidate_identifier_values(payload: Mapping[str, Any] | None) -> list[str]:
+    values: list[str] = []
+    for key in ("candidate_id", "candidate_ids", "selected_candidate_id", "selected_candidate_ids"):
+        values.extend(_identifier_values(payload, key))
+        values.extend(_identifier_values(_nested_mapping(payload, "selected_run_ids"), key))
+    return sorted(set(values))
+
+
+def _selected_run_identifier_values(payload: Mapping[str, Any] | None) -> list[str]:
+    values: list[str] = []
+    for key in ("selected_run_id", "selected_run_ids"):
+        values.extend(_identifier_values(payload, key))
+    return sorted(set(values))
+
+
+def _identifier_values(payload: Any, key: str) -> list[str]:
+    if not isinstance(payload, Mapping):
+        return []
+    value = payload.get(key)
+    if isinstance(value, list):
+        return sorted({str(item).strip() for item in value if str(item).strip()})
+    if isinstance(value, Mapping):
+        values: set[str] = set()
+        for item in value.values():
+            if isinstance(item, list):
+                values.update(str(part).strip() for part in item if str(part).strip())
+            elif item is not None and str(item).strip():
+                values.add(str(item).strip())
+        return sorted(values)
+    if value is not None and str(value).strip():
+        return [str(value).strip()]
+    return []
+
+
+def _nested_mapping(value: Any, key: str) -> Any:
+    if not isinstance(value, Mapping):
+        return None
+    return value.get(key)
 
 
 def _highest_severity(values: Any) -> str | None:

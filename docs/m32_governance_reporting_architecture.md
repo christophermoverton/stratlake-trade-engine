@@ -46,6 +46,18 @@ Governance reports read those artifacts and produce observability outputs. If a
 canonical promotion summary is missing, governance can report that condition,
 but it does not infer a replacement decision.
 
+For run records where equivalent summaries are present in multiple places, M32
+uses a deterministic read precedence:
+
+1. manifest `promotion_gate_summary`
+2. registry `promotion_gate_summary`
+3. `promotion_gates.json` summary
+
+Registry top-level `promotion_status` is treated as supporting evidence and is
+validated against the selected canonical summary. Conflicts among equivalent
+summary fields are reported in `consistency_validation.json`; governance does
+not resolve them by replaying gates.
+
 ## Governance Package Layout
 
 * `src/research/governance/models.py` defines immutable result and source

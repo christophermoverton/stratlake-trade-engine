@@ -557,9 +557,16 @@ def _add_record(
 
 
 def _resolve_artifact_dir(entry: Mapping[str, Any], *, artifact_root: Path) -> Path | None:
-    raw_path = entry.get("artifact_path")
-    if isinstance(raw_path, str) and raw_path.strip():
-        return Path(raw_path)
+    for raw_path in (
+        entry.get("artifact_path"),
+        entry.get("artifact_dir"),
+        _nested_string(entry.get("artifact_paths"), "artifact_dir"),
+        _nested_string(entry.get("artifact_paths"), "root"),
+        _nested_string(entry.get("artifact_paths"), "run_dir"),
+        _nested_string(entry.get("artifact_paths"), "output_dir"),
+    ):
+        if isinstance(raw_path, str) and raw_path.strip():
+            return Path(raw_path)
     run_id = entry.get("run_id")
     if isinstance(run_id, str) and run_id.strip():
         return artifact_root / run_id
@@ -891,9 +898,13 @@ def _mapping_list(value: Any) -> list[dict[str, Any]]:
 
 
 def _resolve_manifest_path(entry: Mapping[str, Any], *, artifact_dir: Path | None) -> Path | None:
-    raw_path = entry.get("manifest_path")
-    if isinstance(raw_path, str) and raw_path.strip():
-        return Path(raw_path)
+    for raw_path in (
+        entry.get("manifest_path"),
+        _nested_string(entry.get("artifact_paths"), "manifest_path"),
+        _nested_string(entry.get("artifact_paths"), "manifest"),
+    ):
+        if isinstance(raw_path, str) and raw_path.strip():
+            return Path(raw_path)
     if artifact_dir is None:
         return None
     return artifact_dir / "manifest.json"
@@ -904,19 +915,32 @@ def _promotion_gate_summary(
     manifest: Mapping[str, Any] | None,
     promotion_gates: Mapping[str, Any] | None,
 ) -> dict[str, Any] | None:
-    for payload in (entry, manifest, promotion_gates):
-        if not isinstance(payload, Mapping):
-            continue
-        summary = payload.get("promotion_gate_summary")
-        if isinstance(summary, Mapping):
-            return dict(summary)
-        if "promotion_status" in payload and "gate_count" in payload:
-            return dict(payload)
+    """Resolve equivalent promotion summaries without replaying policy.
+
+    Run-record precedence is manifest `promotion_gate_summary`, registry
+    `promotion_gate_summary`, then the `promotion_gates.json` artifact summary.
+    The selected summary is observational only; validation reports conflicts
+    among equivalent fields.
+    """
+
+    for payload in (manifest, entry, promotion_gates):
+        summary = _promotion_summary_payload(payload)
+        if summary is not None:
+            return summary
     review_metadata = entry.get("review_metadata")
     if isinstance(review_metadata, Mapping):
-        nested = review_metadata.get("promotion_gate_summary")
-        if isinstance(nested, Mapping):
-            return dict(nested)
+        return _promotion_summary_payload(review_metadata)
+    return None
+
+
+def _promotion_summary_payload(payload: Mapping[str, Any] | None) -> dict[str, Any] | None:
+    if not isinstance(payload, Mapping):
+        return None
+    summary = payload.get("promotion_gate_summary")
+    if isinstance(summary, Mapping):
+        return dict(summary)
+    if "promotion_status" in payload and "gate_count" in payload:
+        return dict(payload)
     return None
 
 

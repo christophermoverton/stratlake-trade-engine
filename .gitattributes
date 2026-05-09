@@ -1,2 +1,51 @@
-*.csv text eol=lf
+# Default text normalization.
+* text=auto eol=lf
+
+# Repository metadata and environment templates.
+.gitattributes text eol=lf
+.gitignore text eol=lf
+.env.example text eol=lf
+
+# Source and configuration text files.
+*.py text eol=lf
+*.md text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.toml text eol=lf
 *.json text eol=lf
+*.jsonl text eol=lf
+*.csv text eol=lf
+*.txt text eol=lf
+*.cfg text eol=lf
+*.ini text eol=lf
+*.sql text eol=lf
+
+# Scripts.
+*.sh text eol=lf
+*.ps1 text eol=lf
+*.bat text eol=lf
+*.cmd text eol=lf
+
+# Common web/text assets if present.
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
+*.ts text eol=lf
+
+# Binary artifacts.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary
+*.pdf binary
+*.parquet binary
+*.duckdb binary
+*.db binary
+*.sqlite binary
+*.zip binary
+*.gz binary
+*.tar binary
+*.pkl binary
+*.pickle binary
+*.ico binary

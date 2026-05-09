@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import csv
 import json
-from pathlib import Path
+import os
+from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping
 
-from src.artifacts.safety import portable_path
 from src.research.registry import canonicalize_value
 
 from .aggregator import (
@@ -254,19 +254,20 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], *, fieldnames: list[str])
 def _sanitize_sources(sources: Mapping[str, Any]) -> dict[str, Any]:
     sanitized: dict[str, Any] = {}
     for key, value in sorted(sources.items()):
-        if isinstance(value, str) and _looks_path_like(value):
-            sanitized[key] = portable_path(value, roots=(Path.cwd(),))
+        if isinstance(value, str) and (Path(value).is_absolute() or PureWindowsPath(value).is_absolute() or "\\" in value):
+            sanitized[key] = _relative_to_cwd(Path(value))
         else:
             sanitized[key] = value
     return sanitized
 
 
 def _relative_to_cwd(path: Path) -> str:
-    return portable_path(path, roots=(Path.cwd(),))
-
-
-def _looks_path_like(value: str) -> bool:
-    return "/" in value or "\\" in value or value.startswith("file://")
+    if PureWindowsPath(str(path)).is_absolute() and not path.is_absolute():
+        return PureWindowsPath(str(path)).name
+    try:
+        return Path(os.path.relpath(path.resolve(), start=Path.cwd().resolve())).as_posix()
+    except (OSError, ValueError):
+        return path.name if path.is_absolute() else path.as_posix()
 
 
 __all__ = [

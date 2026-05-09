@@ -1,9 +1,9 @@
 from __future__ import annotations
 
+import os
 from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping
 
-from src.artifacts.safety import portable_path
 from src.research.registry import canonicalize_value
 
 from .models import GovernanceSourceRecord
@@ -750,14 +750,21 @@ def _highest_severity(values: Any) -> str | None:
 
 
 def _sanitize_detail_path(value: str) -> str:
+    if Path(value).is_absolute() or PureWindowsPath(value).is_absolute():
+        return PureWindowsPath(value).name
     path_fragment = value.split(":", 1)
-    if len(path_fragment) == 2 and not PureWindowsPath(value).drive:
-        return f"{path_fragment[0]}:{portable_path(path_fragment[1], roots=(Path.cwd(),))}"
-    return portable_path(value, roots=(Path.cwd(),))
+    if len(path_fragment) == 2:
+        return f"{path_fragment[0]}:{Path(path_fragment[1]).name}"
+    return Path(value).name
 
 
 def _safe_path(path: Path) -> str:
-    return portable_path(path, roots=(Path.cwd(),))
+    if not path.is_absolute() and PureWindowsPath(str(path)).is_absolute():
+        return PureWindowsPath(str(path)).name
+    try:
+        return Path(os.path.relpath(path.resolve(), start=Path.cwd().resolve())).as_posix()
+    except (OSError, ValueError):
+        return path.as_posix() if not path.is_absolute() else path.name
 
 
 __all__ = [

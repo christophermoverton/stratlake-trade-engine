@@ -3,10 +3,10 @@ from __future__ import annotations
 from collections import Counter
 import hashlib
 import math
-from pathlib import Path
+import os
+from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping
 
-from src.artifacts.safety import portable_path
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 from .models import GovernanceSourceRecord
@@ -165,16 +165,8 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
         "review_status": _text(normalize_review_status(entry.get("review_status") or review_metadata.get("status"))),
         "decision_reason_codes": "|".join(_string_list(summary.get("decision_reason_codes"))),
         "triggered_gate_names": "|".join(_triggered_gate_names(summary, record.promotion_gates)),
-        "registry_path": _relative_path(
-            record.registry_path,
-            base_dir=base_dir,
-            roots=_record_path_roots(record, path=record.registry_path),
-        ),
-        "manifest_path": _relative_path(
-            record.manifest_path,
-            base_dir=base_dir,
-            roots=_record_path_roots(record, path=record.manifest_path),
-        ),
+        "registry_path": _relative_path(record.registry_path, base_dir=base_dir),
+        "manifest_path": _relative_path(record.manifest_path, base_dir=base_dir),
         "campaign_id": _text(metadata.get("campaign_id") or entry.get("campaign_id") or manifest.get("campaign_run_id")),
         "scenario_id": _text(metadata.get("scenario_id") or entry.get("scenario_id") or manifest.get("scenario_id")),
         "candidate_id": _text(metadata.get("selected_candidate_id") or metadata.get("candidate_id") or entry.get("candidate_id")),
@@ -258,24 +250,21 @@ def _fraction(numerator: int, denominator: int) -> float:
     return float(numerator / denominator)
 
 
-def _relative_path(path: Path | None, *, base_dir: Path, roots: tuple[Path, ...] = ()) -> str:
+def _relative_path(path: Path | None, *, base_dir: Path) -> str:
     if path is None:
         return ""
-    return portable_path(path, roots=(base_dir, *roots))
+    if not path.is_absolute() and _is_windows_absolute_path(path):
+        return PureWindowsPath(str(path)).name
+    try:
+        return Path(os.path.relpath(path.resolve(), start=base_dir.resolve())).as_posix()
+    except OSError:
+        return path.as_posix() if not path.is_absolute() else path.name
+    except ValueError:
+        return path.as_posix() if not path.is_absolute() else path.name
 
 
-def _record_path_roots(record: GovernanceSourceRecord, *, path: Path | None) -> tuple[Path, ...]:
-    roots: list[Path] = []
-    if record.artifact_dir is not None:
-        roots.append(record.artifact_dir.parent)
-    if record.registry_path is not None:
-        roots.append(record.registry_path.parent)
-    if path is not None and path.is_absolute():
-        # Use grandparent when available (parent != grandparent) so that a
-        # manifest nested two levels deep can be expressed relative to its
-        # run-family root. Fall back to parent for top-level paths.
-        roots.append(path.parent.parent if path.parent.parent != path.parent else path.parent)
-    return tuple(roots)
+def _is_windows_absolute_path(path: Path) -> bool:
+    return PureWindowsPath(str(path)).is_absolute()
 
 
 def _mapping(value: Any) -> dict[str, Any]:

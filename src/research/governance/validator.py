@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 from pathlib import Path, PureWindowsPath
 from typing import Any, Mapping
 
@@ -758,11 +757,10 @@ def _sanitize_detail_path(value: str) -> str:
 
 
 def _safe_path(path: Path) -> str:
-    try:
-        relative = Path(os.path.relpath(path.resolve(), start=Path.cwd().resolve()))
-    except (OSError, ValueError):
-        return portable_path(path, roots=(Path.cwd(),))
-    return portable_path(relative)
+    value = str(path)
+    if PureWindowsPath(value).is_absolute():
+        return portable_path(value)
+    return portable_path(path, roots=(Path.cwd(),))
 
 
 __all__ = [

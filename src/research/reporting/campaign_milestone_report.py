@@ -6,6 +6,7 @@ from pathlib import Path
 import re
 from typing import Any, Mapping
 
+from src.artifacts.safety import portable_path
 from src.research.reporting.milestone_artifacts import (
     MilestoneDecisionEntry,
     MilestoneReport,
@@ -816,10 +817,7 @@ def _normalize_embedded_path(value: str, *, artifact_dir: Path) -> str:
     stripped = value.strip()
     if not stripped:
         return stripped
-    candidate = Path(stripped)
-    if candidate.is_absolute():
-        return _relative_path(artifact_dir, candidate)
-    return candidate.as_posix()
+    return portable_path(stripped, roots=(artifact_dir,))
 
 
 def _replace_absolute_path_fragments(value: str, *, artifact_dir: Path) -> str:

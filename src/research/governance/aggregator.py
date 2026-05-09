@@ -164,7 +164,7 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
         "highest_severity": _text(summary.get("highest_severity")),
         "review_status": _text(normalize_review_status(entry.get("review_status") or review_metadata.get("status"))),
         "decision_reason_codes": "|".join(_string_list(summary.get("decision_reason_codes"))),
-        "triggered_gate_names": "|".join(_triggered_gate_names(record.promotion_gates)),
+        "triggered_gate_names": "|".join(_triggered_gate_names(summary, record.promotion_gates)),
         "registry_path": _relative_path(record.registry_path, base_dir=base_dir),
         "manifest_path": _relative_path(record.manifest_path, base_dir=base_dir),
         "campaign_id": _text(metadata.get("campaign_id") or entry.get("campaign_id") or manifest.get("campaign_run_id")),
@@ -186,11 +186,16 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
     }
 
 
-def _triggered_gate_names(promotion_gates: Mapping[str, Any] | None) -> list[str]:
-    if not isinstance(promotion_gates, Mapping):
-        return []
-    results = promotion_gates.get("results")
-    if not isinstance(results, list):
+def _triggered_gate_names(*payloads: Mapping[str, Any] | None) -> list[str]:
+    results = None
+    for payload in payloads:
+        if not isinstance(payload, Mapping):
+            continue
+        candidate_results = payload.get("results")
+        if isinstance(candidate_results, list):
+            results = candidate_results
+            break
+    if results is None:
         return []
     names = []
     for result in results:

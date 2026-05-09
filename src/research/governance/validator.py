@@ -587,6 +587,9 @@ def _message(check_id: str) -> str:
 
 
 def _equivalent_promotion_summary_findings(record: GovernanceSourceRecord) -> list[dict[str, Any]]:
+    # Equivalent-summary validation is intentionally status-focused. Older or
+    # partial summaries may omit reason codes, severity counts, or gate result
+    # metadata while still preserving the canonical promotion decision status.
     manifest_status = _promotion_summary_status(record.manifest)
     registry_status = _promotion_summary_status(record.registry_entry)
     gates_status = _promotion_summary_status(record.promotion_gates)

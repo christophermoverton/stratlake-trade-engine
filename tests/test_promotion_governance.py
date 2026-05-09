@@ -232,12 +232,14 @@ def test_manifest_promotion_summary_precedes_equivalent_registry_and_gate_fields
         "highest_severity": "warn",
         "decision_reason_codes": ["severity_warn"],
         "gate_count": 1,
+        "results": [{"gate_id": "manifest_gate", "status": "fail"}],
     }
     registry_summary = {
         "promotion_status": "eligible",
         "evaluation_status": "pass",
         "decision_reason_codes": [],
         "gate_count": 1,
+        "results": [{"gate_id": "registry_gate", "status": "fail"}],
     }
     gates_summary = {
         "promotion_status": "blocked",
@@ -245,6 +247,7 @@ def test_manifest_promotion_summary_precedes_equivalent_registry_and_gate_fields
         "highest_severity": "block",
         "decision_reason_codes": ["severity_block"],
         "gate_count": 1,
+        "results": [{"gate_id": "promotion_gates_artifact_gate", "status": "fail"}],
     }
     _write_json(run_dir / "manifest.json", {"run_id": "summary_precedence", "promotion_gate_summary": manifest_summary})
     _write_json(run_dir / "promotion_gates.json", gates_summary)
@@ -265,10 +268,62 @@ def test_manifest_promotion_summary_precedes_equivalent_registry_and_gate_fields
     validation = validate_governance_consistency(dataset.records, rows)
 
     assert rows[0]["promotion_status"] == "warn"
+    assert rows[0]["highest_severity"] == "warn"
     assert rows[0]["decision_reason_codes"] == "severity_warn"
+    assert rows[0]["triggered_gate_names"] == "manifest_gate"
     assert validation["counts_by_check"]["registry_promotion_status_mismatch"] == 1
     assert validation["counts_by_check"]["manifest_registry_promotion_summary_mismatch"] == 1
     assert validation["counts_by_check"]["manifest_promotion_gates_summary_mismatch"] == 1
+
+
+def test_equivalent_promotion_summary_validation_is_status_focused(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts" / "strategies"
+    registry_path = artifact_root / "registry.jsonl"
+    run_dir = artifact_root / "status_only_equivalence"
+    manifest_summary = {
+        "promotion_status": "needs_review",
+        "evaluation_status": "fail",
+        "highest_severity": "review",
+        "decision_reason_codes": ["manifest_reason"],
+        "gate_count": 1,
+    }
+    registry_summary = {
+        "promotion_status": "needs_review",
+        "evaluation_status": "fail",
+        "highest_severity": "warn",
+        "decision_reason_codes": ["registry_reason"],
+        "gate_count": 1,
+    }
+    gates_summary = {
+        "promotion_status": "needs_review",
+        "evaluation_status": "fail",
+        "highest_severity": "block",
+        "decision_reason_codes": ["gates_reason"],
+        "gate_count": 1,
+    }
+    _write_json(run_dir / "manifest.json", {"run_id": "status_only_equivalence", "promotion_gate_summary": manifest_summary})
+    _write_json(run_dir / "promotion_gates.json", gates_summary)
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "status_only_equivalence",
+            "run_type": "strategy",
+            "artifact_path": run_dir.as_posix(),
+            "promotion_status": "needs_review",
+            "review_status": "needs_review",
+            "promotion_gate_summary": registry_summary,
+        },
+    )
+
+    dataset = load_governance_artifacts(registry_path=registry_path, artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert rows[0]["promotion_status"] == "needs_review"
+    assert rows[0]["highest_severity"] == "review"
+    assert rows[0]["decision_reason_codes"] == "manifest_reason"
+    assert "manifest_registry_promotion_summary_mismatch" not in validation["counts_by_check"]
+    assert "manifest_promotion_gates_summary_mismatch" not in validation["counts_by_check"]
 
 
 def test_governance_loader_resolves_artifact_paths_aliases_deterministically(tmp_path: Path) -> None:

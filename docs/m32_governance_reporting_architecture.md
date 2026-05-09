@@ -229,6 +229,11 @@ Candidate-review records use `workflow_type=candidate_review`. They preserve:
 These fields make candidate-selection context visible in the outcome matrix and
 summary outputs without changing candidate-selection execution behavior.
 
+When candidate-review summary and manifest payloads disagree on selected or
+upstream run IDs, governance preserves observed lineage as a sorted
+pipe-delimited union in `upstream_run_ids` and emits validation findings for the
+disagreement.
+
 ## Required Vs Optional Evidence Paths
 
 Candidate-review metadata distinguishes required and optional evidence:

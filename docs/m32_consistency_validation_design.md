@@ -102,6 +102,11 @@ Representative core findings:
 * `non_relative_artifact_path`: generated governance path fields are not
   relative.
 
+Equivalent promotion summary checks compare normalized `promotion_status`
+values only. They intentionally do not require full payload equality, because
+older or partial summaries may omit reason codes, severity counts, or gate
+metadata while still preserving the canonical decision status.
+
 ## Candidate-Review Checks
 
 Candidate-review validation covers promotion context and evidence paths:

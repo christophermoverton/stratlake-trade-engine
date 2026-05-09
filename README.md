@@ -148,6 +148,41 @@ Start with:
 * [docs/examples/m31_real_world_readiness_gated_promotion_case_study.py](docs/examples/m31_real_world_readiness_gated_promotion_case_study.py)
 * [docs/examples/m31_real_world_readiness_gated_promotion_case_study.md](docs/examples/m31_real_world_readiness_gated_promotion_case_study.md)
 
+### Milestone 32: Promotion Governance Observability
+
+Milestone 32 adds deterministic governance reports over existing promotion
+artifacts. It aggregates and validates `promotion_gate_summary` outcomes across
+registry, manifest, campaign, scenario, review, and candidate-review workflows.
+It does not replay gates or recompute promotion decisions.
+
+Run a governance report:
+
+```powershell
+python -m src.cli.run_promotion_governance_report --artifact-root artifacts
+```
+
+Reports write under `artifacts/promotion_governance/<report_id>/` by default
+and include `promotion_governance_summary.json`,
+`promotion_outcome_matrix.csv`, `consistency_validation.json`, and
+`manifest.json`.
+
+Python usage:
+
+```python
+from src.research.governance import run_promotion_governance_report
+
+result = run_promotion_governance_report(
+    artifact_root="artifacts",
+    output_dir="artifacts/promotion_governance/m32_example",
+)
+```
+
+Start with:
+
+* [docs/m32_release_notes.md](docs/m32_release_notes.md)
+* [docs/m32_governance_reporting_architecture.md](docs/m32_governance_reporting_architecture.md)
+* [docs/m32_consistency_validation_design.md](docs/m32_consistency_validation_design.md)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

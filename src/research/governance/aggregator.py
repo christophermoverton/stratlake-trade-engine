@@ -27,6 +27,10 @@ OUTCOME_MATRIX_COLUMNS = [
     "campaign_status",
     "scenario_status",
     "candidate_id",
+    "candidate_selection_run_id",
+    "selected_candidate_id",
+    "selected_run_id",
+    "upstream_run_ids",
     "strategy_name",
     "portfolio_name",
     "alpha_model_name",
@@ -62,6 +66,9 @@ def build_governance_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "row_count": row_count,
         "campaign_count": sum(row["workflow_type"] == "campaign" for row in rows),
         "campaign_scenario_count": sum(row["workflow_type"] == "campaign_scenario" for row in rows),
+        "candidate_review_count": sum(row["workflow_type"] == "candidate_review" for row in rows),
+        "candidate_selection_count": len(_non_empty_values(row.get("candidate_selection_run_id") for row in rows)),
+        "selected_candidate_count": len(_non_empty_values(row.get("selected_candidate_id") for row in rows)),
         "promotion_status_counts": status_counts,
         "highest_severity_counts": highest_severity_counts,
         "severity_counts": severity_counts,
@@ -69,6 +76,11 @@ def build_governance_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "workflow_type_counts": workflow_type_counts,
         "campaign_status_counts": _counts(row.get("campaign_status", "") for row in rows if row["workflow_type"] == "campaign"),
         "scenario_status_counts": _counts(row.get("scenario_status", "") for row in rows if row["workflow_type"] == "campaign_scenario"),
+        "candidate_status_counts": _counts(
+            row.get("promotion_status", "")
+            for row in rows
+            if row["workflow_type"] == "candidate_review" or row.get("candidate_id")
+        ),
         "warning_total": severity_counts["warn"],
         "review_total": severity_counts["review"],
         "reject_total": severity_counts["reject"],
@@ -158,6 +170,10 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
         "campaign_id": _text(metadata.get("campaign_id") or entry.get("campaign_id") or manifest.get("campaign_run_id")),
         "scenario_id": _text(metadata.get("scenario_id") or entry.get("scenario_id") or manifest.get("scenario_id")),
         "candidate_id": _text(metadata.get("selected_candidate_id") or metadata.get("candidate_id") or entry.get("candidate_id")),
+        "candidate_selection_run_id": _text(metadata.get("candidate_selection_run_id") or entry.get("candidate_selection_run_id")),
+        "selected_candidate_id": _text(metadata.get("selected_candidate_id") or entry.get("selected_candidate_id")),
+        "selected_run_id": _text(metadata.get("selected_run_id") or entry.get("selected_run_id")),
+        "upstream_run_ids": "|".join(_string_list(metadata.get("upstream_run_ids") or entry.get("upstream_run_ids"))),
         "strategy_name": _text(entry.get("strategy_name") or manifest.get("strategy_name")),
         "portfolio_name": _text(entry.get("portfolio_name") or manifest.get("portfolio_name")),
         "alpha_model_name": _text(entry.get("alpha_name") or entry.get("alpha_model_name") or manifest.get("alpha_name")),
@@ -208,6 +224,10 @@ def _counts(values: Any) -> dict[str, int]:
         if text:
             counts[text] += 1
     return dict(sorted(counts.items()))
+
+
+def _non_empty_values(values: Any) -> set[str]:
+    return {_text(value) for value in values if _text(value)}
 
 
 def _top_reason_codes(counts: Mapping[str, int], *, prefix_filter: set[str]) -> list[dict[str, Any]]:

@@ -156,6 +156,12 @@ def _candidate_review_context_records(*, artifact_root: Path, known_run_ids: set
             portfolio_summary = promotion_context.get("portfolio_promotion_gate_summary")
             if isinstance(portfolio_summary, Mapping):
                 promotion_gate_summary = dict(portfolio_summary)
+        metadata = _candidate_review_metadata(
+            summary=summary,
+            manifest=manifest,
+            summary_path=summary_path,
+            manifest_path=manifest_path,
+        )
         records.append(
             GovernanceSourceRecord(
                 run_id=governance_id,
@@ -166,17 +172,65 @@ def _candidate_review_context_records(*, artifact_root: Path, known_run_ids: set
                 promotion_gate_summary=promotion_gate_summary,
                 candidate_review_summary_path=summary_path,
                 candidate_review_summary=summary,
-                governance_metadata={
-                    "candidate_id": run_id,
-                    "artifact_evidence_paths": _evidence_paths(
-                        artifact_dir=summary_path.parent,
-                        manifest_path=manifest_path,
-                        candidate_review_summary_path=summary_path,
-                    ),
-                },
+                governance_metadata=metadata,
             )
         )
     return records
+
+
+def _candidate_review_metadata(
+    *,
+    summary: Mapping[str, Any],
+    manifest: Mapping[str, Any] | None,
+    summary_path: Path,
+    manifest_path: Path,
+) -> dict[str, Any]:
+    promotion_context = summary.get("promotion_context")
+    selected_candidate_ids = _selected_candidate_ids_from_payloads(summary, manifest)
+    selected_run_ids = _selected_run_ids_from_payloads(summary, manifest)
+    upstream_run_ids = _upstream_run_ids_from_payloads(summary, manifest, selected_run_ids=selected_run_ids)
+    raw_upstream_run_ids = _raw_upstream_run_ids_from_payloads(summary, manifest)
+    candidate_selection_run_id = _nested_string(summary, "candidate_selection_run_id") or _nested_string(
+        manifest,
+        "candidate_selection_run_id",
+    )
+    selected_candidate_id = (
+        _nested_string(summary, "selected_candidate_id")
+        or _nested_string(manifest, "selected_candidate_id")
+        or (selected_candidate_ids[0] if selected_candidate_ids else None)
+    )
+    selected_run_id = (
+        _nested_string(summary, "selected_run_id")
+        or _nested_string(manifest, "selected_run_id")
+        or (selected_run_ids[0] if selected_run_ids else None)
+    )
+    metadata = {
+        "candidate_selection_run_id": candidate_selection_run_id,
+        "candidate_id": selected_candidate_id or candidate_selection_run_id or summary_path.parent.name,
+        "selected_candidate_id": selected_candidate_id,
+        "selected_candidate_ids": selected_candidate_ids,
+        "selected_run_id": selected_run_id,
+        "selected_run_ids": selected_run_ids,
+        "portfolio_run_id": _nested_string(summary, "portfolio_run_id") or _nested_string(manifest, "portfolio_run_id"),
+        "strategy_run_id": _nested_string(summary, "strategy_run_id") or _nested_string(manifest, "strategy_run_id"),
+        "alpha_run_id": _nested_string(summary, "alpha_run_id") or _nested_string(manifest, "alpha_run_id"),
+        "upstream_run_ids": upstream_run_ids,
+        "upstream_run_ids_raw": raw_upstream_run_ids,
+        "candidate_promotion_status_counts": (
+            dict(promotion_context.get("candidate_promotion_status_counts"))
+            if isinstance(promotion_context, Mapping) and isinstance(promotion_context.get("candidate_promotion_status_counts"), Mapping)
+            else {}
+        ),
+        "promotion_context_present": isinstance(promotion_context, Mapping),
+        "candidate_review_summary_path": summary_path.as_posix(),
+        "candidate_review_manifest_path": manifest_path.as_posix(),
+        "artifact_evidence_paths": _evidence_paths(
+            artifact_dir=summary_path.parent,
+            manifest_path=manifest_path,
+            candidate_review_summary_path=summary_path,
+        ),
+    }
+    return canonicalize_value(metadata)
 
 
 def _campaign_records(*, artifact_root: Path, known_keys: set[tuple[str, str]]) -> list[GovernanceSourceRecord]:
@@ -599,6 +653,119 @@ def _selected_candidate_ids(summary: Mapping[str, Any]) -> list[str]:
         elif value is not None and str(value).strip():
             values.append(str(value))
     return sorted(set(values))
+
+
+def _selected_candidate_ids_from_payloads(
+    summary: Mapping[str, Any],
+    manifest: Mapping[str, Any] | None,
+) -> list[str]:
+    values: list[str] = []
+    for payload in (summary, manifest):
+        if not isinstance(payload, Mapping):
+            continue
+        values.extend(_candidate_id_values(payload, "candidate_id"))
+        values.extend(_candidate_id_values(payload, "candidate_ids"))
+        values.extend(_candidate_id_values(payload, "selected_candidate_id"))
+        values.extend(_candidate_id_values(payload, "selected_candidate_ids"))
+        values.extend(_candidate_id_values(payload.get("selected_run_ids"), "candidate_id"))
+        values.extend(_candidate_id_values(payload.get("selected_run_ids"), "candidate_ids"))
+        values.extend(_candidate_id_values(payload.get("selected_run_ids"), "selected_candidate_id"))
+        values.extend(_candidate_id_values(payload.get("selected_run_ids"), "selected_candidate_ids"))
+    return sorted(set(values))
+
+
+def _selected_run_ids_from_payloads(
+    summary: Mapping[str, Any],
+    manifest: Mapping[str, Any] | None,
+) -> list[str]:
+    values: list[str] = []
+    for payload in (summary, manifest):
+        if not isinstance(payload, Mapping):
+            continue
+        values.extend(_candidate_id_values(payload, "selected_run_id"))
+        values.extend(_candidate_id_values(payload, "selected_run_ids"))
+    return sorted(set(values))
+
+
+def _upstream_run_ids_from_payloads(
+    summary: Mapping[str, Any],
+    manifest: Mapping[str, Any] | None,
+    *,
+    selected_run_ids: list[str],
+) -> list[str]:
+    values = list(selected_run_ids)
+    for payload in (summary, manifest):
+        if not isinstance(payload, Mapping):
+            continue
+        for key in ("upstream_run_id", "upstream_run_ids", "portfolio_run_id", "strategy_run_id", "alpha_run_id"):
+            values.extend(_candidate_id_values(payload, key))
+        input_artifacts = payload.get("input_artifacts")
+        if isinstance(input_artifacts, Mapping):
+            for key in ("portfolio_run_id", "strategy_run_id", "alpha_run_id", "upstream_run_ids"):
+                values.extend(_candidate_id_values(input_artifacts, key))
+    return sorted(set(values))
+
+
+def _raw_upstream_run_ids_from_payloads(
+    summary: Mapping[str, Any],
+    manifest: Mapping[str, Any] | None,
+) -> list[str]:
+    values = _raw_upstream_run_id_values(summary)
+    if values:
+        return values
+    return _raw_upstream_run_id_values(manifest)
+
+
+def _raw_upstream_run_id_values(payload: Mapping[str, Any] | None) -> list[str]:
+    if not isinstance(payload, Mapping):
+        return []
+    selected_values: list[str] = []
+    for key in ("selected_run_id", "selected_run_ids"):
+        selected_values.extend(_raw_candidate_id_values(payload, key))
+    if selected_values:
+        return selected_values
+    upstream_values: list[str] = []
+    for key in ("upstream_run_id", "upstream_run_ids"):
+        upstream_values.extend(_raw_candidate_id_values(payload, key))
+    return upstream_values
+
+
+def _raw_candidate_id_values(payload: Any, key: str) -> list[str]:
+    if not isinstance(payload, Mapping):
+        return []
+    value = payload.get(key)
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, Mapping):
+        values: list[str] = []
+        for item in value.values():
+            if isinstance(item, list):
+                values.extend(str(part).strip() for part in item if str(part).strip())
+            elif item is not None and str(item).strip():
+                values.append(str(item).strip())
+        return values
+    if value is not None and str(value).strip():
+        return [str(value).strip()]
+    return []
+
+
+def _candidate_id_values(payload: Any, key: str) -> list[str]:
+    if not isinstance(payload, Mapping):
+        return []
+    value = payload.get(key)
+    if isinstance(value, list):
+        return sorted({str(item).strip() for item in value if str(item).strip()})
+    if isinstance(value, Mapping):
+        values: set[str] = set()
+        for item in value.values():
+            if isinstance(item, list):
+                values.update(str(part).strip() for part in item if str(part).strip())
+            elif item is not None and str(item).strip():
+                values.add(str(item).strip())
+        return sorted(values)
+    if value is not None and str(value).strip():
+        return [str(value).strip()]
+    return []
 
 
 def _scenario_count(

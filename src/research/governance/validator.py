@@ -35,6 +35,7 @@ def validate_governance_consistency(
         findings.extend(_record_findings(record, row))
         findings.extend(_path_findings(row))
     findings.extend(_campaign_rollup_findings(records))
+    findings.extend(_candidate_review_findings(records))
 
     counts_by_severity: dict[str, int] = {}
     counts_by_check: dict[str, int] = {}
@@ -191,6 +192,25 @@ def _record_findings(record: GovernanceSourceRecord, row: Mapping[str, Any]) -> 
                     details={"manifest_run_id": manifest_run_id},
                 )
             )
+        if record.workflow_type == "candidate_review":
+            candidate_selection_run_id = _metadata_string(record, "candidate_selection_run_id")
+            manifest_candidate_selection_run_id = _coerce_string(record.manifest.get("candidate_selection_run_id"))
+            if (
+                candidate_selection_run_id is not None
+                and manifest_candidate_selection_run_id is not None
+                and manifest_candidate_selection_run_id != candidate_selection_run_id
+            ):
+                findings.append(
+                    _finding(
+                        "candidate_review_manifest_run_id_mismatch",
+                        record,
+                        severity="warning",
+                        details={
+                            "candidate_selection_run_id": candidate_selection_run_id,
+                            "manifest_candidate_selection_run_id": manifest_candidate_selection_run_id,
+                        },
+                    )
+                )
 
     if record.candidate_review_summary is not None:
         context = record.candidate_review_summary.get("promotion_context")
@@ -210,6 +230,84 @@ def _record_findings(record: GovernanceSourceRecord, row: Mapping[str, Any]) -> 
                         details={"context_promotion_status": context_status, "promotion_status": promotion_status},
                     )
                 )
+    return findings
+
+
+def _candidate_review_findings(records: list[GovernanceSourceRecord]) -> list[dict[str, Any]]:
+    findings: list[dict[str, Any]] = []
+    known_run_ids = {record.run_id for record in records}
+    known_run_ids.update(
+        str(record.registry_entry.get("run_id"))
+        for record in records
+        if record.registry_entry.get("run_id") is not None
+    )
+    for record in records:
+        if record.workflow_type != "candidate_review":
+            continue
+        metadata = record.governance_metadata
+        if not bool(metadata.get("promotion_context_present")):
+            findings.append(_finding("candidate_review_missing_promotion_context", record, severity="warning"))
+        context = record.candidate_review_summary.get("promotion_context") if record.candidate_review_summary else None
+        portfolio_summary = context.get("portfolio_promotion_gate_summary") if isinstance(context, Mapping) else None
+        context_status = (
+            normalize_promotion_status(portfolio_summary.get("promotion_status"))
+            if isinstance(portfolio_summary, Mapping)
+            else None
+        )
+        if context_status is not None and context_status not in CANONICAL_PROMOTION_STATUSES:
+            findings.append(
+                _finding(
+                    "candidate_review_context_unknown_promotion_status",
+                    record,
+                    severity="error",
+                    details={"context_promotion_status": context_status},
+                )
+            )
+        raw_upstream_run_ids = _metadata_list_preserve_duplicates(metadata.get("upstream_run_ids_raw"))
+        duplicate_upstream_ids = sorted(
+            {run_id for run_id in raw_upstream_run_ids if raw_upstream_run_ids.count(run_id) > 1}
+        )
+        if duplicate_upstream_ids:
+            findings.append(
+                _finding(
+                    "candidate_review_duplicate_upstream_run_ids",
+                    record,
+                    severity="warning",
+                    details={"upstream_run_ids": duplicate_upstream_ids},
+                )
+            )
+        selected_run_ids = _metadata_list(metadata.get("selected_run_ids"))
+        missing_upstream_ids = [run_id for run_id in selected_run_ids if run_id not in known_run_ids]
+        if missing_upstream_ids:
+            findings.append(
+                _finding(
+                    "candidate_review_missing_upstream_run_reference",
+                    record,
+                    severity="warning",
+                    details={"missing_upstream_run_ids": missing_upstream_ids},
+                )
+            )
+        if selected_run_ids and not _metadata_string(record, "selected_candidate_id"):
+            findings.append(
+                _finding(
+                    "candidate_review_missing_selected_candidate_id",
+                    record,
+                    severity="warning",
+                    details={"selected_run_ids": selected_run_ids},
+                )
+            )
+        for field, path_value in sorted(_mapping(metadata.get("artifact_evidence_paths")).items()):
+            path = Path(str(path_value))
+            if path.exists():
+                continue
+            findings.append(
+                _finding(
+                    "candidate_review_stale_artifact_evidence_path",
+                    record,
+                    severity="warning",
+                    details={"field": field, "path": _sanitize_detail_path(str(path_value))},
+                )
+            )
     return findings
 
 
@@ -398,6 +496,13 @@ def _finding(
 def _message(check_id: str) -> str:
     messages = {
         "candidate_review_context_mismatch": "Candidate-review promotion context does not match the normalized governance row.",
+        "candidate_review_context_unknown_promotion_status": "Candidate-review promotion context has an unknown promotion status.",
+        "candidate_review_duplicate_upstream_run_ids": "Candidate-review upstream run ids contain duplicates.",
+        "candidate_review_manifest_run_id_mismatch": "Candidate-review manifest candidate selection run id does not match the review summary.",
+        "candidate_review_missing_promotion_context": "Candidate-review summary is missing promotion context.",
+        "candidate_review_missing_selected_candidate_id": "Candidate-review metadata includes selected runs but no selected candidate id.",
+        "candidate_review_missing_upstream_run_reference": "Candidate-review selected run id is not present in governance records.",
+        "candidate_review_stale_artifact_evidence_path": "Candidate-review artifact evidence path is missing or stale.",
         "campaign_highest_severity_mismatch": "Campaign rollup highest severity does not match child scenario severity.",
         "campaign_missing_scenario_reason_codes": "Campaign rollup omits decision reason codes observed in child scenarios.",
         "checkpoint_completed_scenario_missing_manifest": "Scenario is completed or reused but its manifest is missing.",
@@ -455,6 +560,16 @@ def _metadata_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
     return sorted({str(item).strip() for item in value if str(item).strip()})
+
+
+def _metadata_list_preserve_duplicates(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _mapping(value: Any) -> dict[str, Any]:
+    return dict(value) if isinstance(value, Mapping) else {}
 
 
 def _string_list(value: Any) -> list[str]:

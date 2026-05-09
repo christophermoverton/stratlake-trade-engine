@@ -118,7 +118,13 @@ def test_m31_readiness_style_governance_report_end_to_end_is_deterministic(tmp_p
     assert rows_by_key[("strategy", "m31_blocked_strategy")]["promotion_status"] == "blocked"
     assert rows_by_key[("strategy", "m31_blocked_strategy")]["triggered_gate_names"]
     assert rows_by_key[("review", "m31_review")]["review_status"] == ""
-    assert rows_by_key[("candidate_review", "candidate_review:m31_candidate_selection")]["promotion_status"] == "warn"
+    candidate_row = rows_by_key[("candidate_review", "candidate_review:m31_candidate_selection")]
+    assert candidate_row["promotion_status"] == "warn"
+    assert candidate_row["candidate_selection_run_id"] == "m31_candidate_selection"
+    assert candidate_row["candidate_id"] == "m31_candidate_eligible"
+    assert candidate_row["selected_candidate_id"] == "m31_candidate_eligible"
+    assert candidate_row["selected_run_id"] == "m31_eligible_strategy"
+    assert candidate_row["upstream_run_ids"] == "m31_eligible_strategy|m31_portfolio"
     scenario_row = rows_by_key[("campaign_scenario", "m31_readiness_campaign:blocked")]
     assert scenario_row["campaign_id"] == "m31_readiness_campaign"
     assert scenario_row["scenario_id"] == "blocked"
@@ -241,6 +247,9 @@ def _write_candidate_review_artifacts(artifact_root: Path, summaries: dict[str, 
         candidate_dir / "candidate_review_summary.json",
         {
             "candidate_selection_run_id": "m31_candidate_selection",
+            "selected_candidate_id": "m31_candidate_eligible",
+            "selected_run_ids": {"strategy_run_ids": ["m31_eligible_strategy"]},
+            "upstream_run_ids": ["m31_eligible_strategy"],
             "portfolio_run_id": "m31_portfolio",
             "promotion_context": {
                 "candidate_promotion_status_counts": _counts(summary["promotion_status"] for summary in summaries.values()),
@@ -253,6 +262,8 @@ def _write_candidate_review_artifacts(artifact_root: Path, summaries: dict[str, 
         {
             "run_type": "candidate_selection_review",
             "candidate_selection_run_id": "m31_candidate_selection",
+            "selected_candidate_id": "m31_candidate_eligible",
+            "selected_run_ids": {"strategy_run_ids": ["m31_eligible_strategy"]},
             "promotion_gate_summary": summaries["warn"],
         },
     )

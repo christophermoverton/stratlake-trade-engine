@@ -246,6 +246,9 @@ def test_governance_loader_discovers_review_and_candidate_review_contexts(tmp_pa
         candidate_dir / "candidate_review_summary.json",
         {
             "candidate_selection_run_id": "candidate_a",
+            "selected_candidate_id": "cand_a",
+            "selected_run_ids": {"strategy_run_ids": ["strategy_eligible"]},
+            "upstream_run_ids": ["strategy_eligible"],
             "promotion_context": {"portfolio_promotion_gate_summary": candidate_summary},
         },
     )
@@ -257,6 +260,80 @@ def test_governance_loader_discovers_review_and_candidate_review_contexts(tmp_pa
         ("candidate_review", "candidate_review:candidate_a", "blocked"),
         ("review", "review_a", "needs_review"),
     ]
+    candidate_row = rows[0]
+    assert candidate_row["candidate_selection_run_id"] == "candidate_a"
+    assert candidate_row["selected_candidate_id"] == "cand_a"
+    assert candidate_row["selected_run_id"] == "strategy_eligible"
+    assert candidate_row["upstream_run_ids"] == "strategy_eligible"
+
+
+def test_governance_loader_extracts_candidate_review_visibility_metadata(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    strategy_dir = artifact_root / "strategy_selected"
+    candidate_dir = artifact_root / "candidate_review" / "candidate_visibility"
+    promotion_summary = {
+        "promotion_status": "eligible",
+        "evaluation_status": "pass",
+        "decision_reason_codes": [],
+        "gate_count": 1,
+    }
+    append_registry_entry(
+        artifact_root / "registry.jsonl",
+        {
+            "run_id": "strategy_selected",
+            "run_type": "strategy",
+            "artifact_path": strategy_dir.as_posix(),
+            "promotion_status": "eligible",
+            "review_status": "candidate",
+            "promotion_gate_summary": promotion_summary,
+        },
+    )
+    _write_json(
+        candidate_dir / "candidate_review_summary.json",
+        {
+            "candidate_selection_run_id": "candidate_visibility",
+            "selected_candidate_ids": ["cand_b", "cand_a"],
+            "selected_run_ids": {"strategy_run_ids": ["strategy_selected"]},
+            "portfolio_run_id": "portfolio_selected",
+            "strategy_run_id": "strategy_selected",
+            "alpha_run_id": "alpha_selected",
+            "promotion_context": {
+                "candidate_promotion_status_counts": {"eligible": 1},
+                "portfolio_promotion_gate_summary": promotion_summary,
+            },
+        },
+    )
+    _write_json(
+        candidate_dir / "manifest.json",
+        {
+            "run_type": "candidate_selection_review",
+            "candidate_selection_run_id": "candidate_visibility",
+            "selected_candidate_id": "cand_a",
+            "upstream_run_ids": ["strategy_selected"],
+            "promotion_gate_summary": promotion_summary,
+        },
+    )
+
+    dataset = load_governance_artifacts(registry_path=artifact_root / "registry.jsonl", artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    summary = build_governance_summary(rows)
+    candidate_row = next(row for row in rows if row["workflow_type"] == "candidate_review")
+    candidate_record = next(record for record in dataset.records if record.workflow_type == "candidate_review")
+
+    assert candidate_row["candidate_id"] == "cand_a"
+    assert candidate_row["candidate_selection_run_id"] == "candidate_visibility"
+    assert candidate_row["selected_candidate_id"] == "cand_a"
+    assert candidate_row["selected_run_id"] == "strategy_selected"
+    assert candidate_row["upstream_run_ids"] == "alpha_selected|portfolio_selected|strategy_selected"
+    assert candidate_record.governance_metadata["portfolio_run_id"] == "portfolio_selected"
+    assert candidate_record.governance_metadata["strategy_run_id"] == "strategy_selected"
+    assert candidate_record.governance_metadata["alpha_run_id"] == "alpha_selected"
+    assert candidate_record.governance_metadata["candidate_promotion_status_counts"] == {"eligible": 1}
+    assert candidate_record.governance_metadata["promotion_context_present"] is True
+    assert summary["candidate_review_count"] == 1
+    assert summary["candidate_selection_count"] == 1
+    assert summary["selected_candidate_count"] == 1
+    assert summary["candidate_status_counts"] == {"eligible": 1}
 
 
 def test_governance_aggregation_and_row_order_are_deterministic(tmp_path: Path) -> None:
@@ -456,6 +533,74 @@ def test_candidate_review_context_mismatch_is_reported(tmp_path: Path) -> None:
 
     assert validation["status"] == "fail"
     assert validation["counts_by_check"]["candidate_review_context_mismatch"] == 1
+
+
+def test_candidate_review_validation_reports_missing_context_duplicate_and_missing_upstream(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    candidate_dir = artifact_root / "candidate_contexts" / "candidate_warning"
+    _write_json(
+        candidate_dir / "candidate_review_summary.json",
+        {
+            "candidate_selection_run_id": "candidate_warning",
+            "selected_run_ids": {"strategy_run_ids": ["missing_strategy", "missing_strategy"]},
+        },
+    )
+    _write_json(
+        candidate_dir / "manifest.json",
+        {
+            "candidate_selection_run_id": "candidate_warning",
+            "selected_run_ids": {"strategy_run_ids": ["missing_strategy"]},
+        },
+    )
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert rows[0]["candidate_selection_run_id"] == "candidate_warning"
+    assert rows[0]["selected_run_id"] == "missing_strategy"
+    assert rows[0]["upstream_run_ids"] == "missing_strategy"
+    assert validation["status"] == "fail"
+    assert validation["counts_by_check"]["missing_promotion_summary"] == 1
+    assert validation["counts_by_check"]["candidate_review_missing_promotion_context"] == 1
+    assert validation["counts_by_check"]["candidate_review_duplicate_upstream_run_ids"] == 1
+    assert validation["counts_by_check"]["candidate_review_missing_upstream_run_reference"] == 1
+    assert validation["counts_by_check"]["candidate_review_missing_selected_candidate_id"] == 1
+
+
+def test_candidate_review_validation_reports_unknown_context_and_manifest_mismatch(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    candidate_dir = artifact_root / "candidate_contexts" / "candidate_error"
+    _write_json(
+        candidate_dir / "candidate_review_summary.json",
+        {
+            "candidate_selection_run_id": "candidate_error",
+            "selected_candidate_id": "cand_error",
+            "promotion_context": {
+                "portfolio_promotion_gate_summary": {
+                    "promotion_status": "mystery",
+                    "evaluation_status": "fail",
+                    "gate_count": 1,
+                }
+            },
+        },
+    )
+    _write_json(
+        candidate_dir / "manifest.json",
+        {
+            "candidate_selection_run_id": "different_candidate_error",
+        },
+    )
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+
+    assert rows[0]["promotion_status"] == "mystery"
+    assert validation["status"] == "fail"
+    assert validation["counts_by_check"]["unknown_promotion_status"] == 1
+    assert validation["counts_by_check"]["candidate_review_context_unknown_promotion_status"] == 1
+    assert validation["counts_by_check"]["candidate_review_manifest_run_id_mismatch"] == 1
 
 
 def test_governance_writer_emits_expected_relative_artifact_bundle(tmp_path: Path) -> None:

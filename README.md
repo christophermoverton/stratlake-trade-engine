@@ -196,6 +196,13 @@ Windows remains the historical development baseline. Linux and macOS support is
 emerging and should be treated as provisional until broader runtime and release
 validation is added.
 
+CI workflows use least-privilege `contents: read` permissions, cancel
+overlapping runs for the same workflow/ref, and use the built-in `pip` cache
+from `actions/setup-python` keyed on `pyproject.toml`. GitHub Actions are
+constrained to maintained major versions such as `actions/checkout@v4`,
+`actions/setup-python@v5`, and `actions/upload-artifact@v4`; full SHA pinning
+is reserved for a later security-hardening pass.
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

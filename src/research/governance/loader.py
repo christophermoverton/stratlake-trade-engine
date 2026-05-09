@@ -229,6 +229,7 @@ def _candidate_review_metadata(
             manifest_path=manifest_path,
             candidate_review_summary_path=summary_path,
         ),
+        "optional_artifact_evidence_paths": {},
     }
     return canonicalize_value(metadata)
 

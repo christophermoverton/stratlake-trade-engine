@@ -603,6 +603,77 @@ def test_candidate_review_validation_reports_unknown_context_and_manifest_mismat
     assert validation["counts_by_check"]["candidate_review_manifest_run_id_mismatch"] == 1
 
 
+def test_candidate_review_required_evidence_warns_while_optional_evidence_is_ignored(tmp_path: Path) -> None:
+    required_path = tmp_path / "missing_required" / "candidate_review_summary.json"
+    optional_path = tmp_path / "missing_optional" / "candidate_explainability.json"
+    record = GovernanceSourceRecord(
+        run_id="candidate_review:evidence_case",
+        workflow_type="candidate_review",
+        promotion_gate_summary={"promotion_status": "eligible", "gate_count": 1},
+        governance_metadata={
+            "promotion_context_present": True,
+            "artifact_evidence_paths": {
+                "candidate_review_summary_path": required_path.as_posix(),
+            },
+            "optional_artifact_evidence_paths": {
+                "candidate_explainability_path": optional_path.as_posix(),
+            },
+        },
+    )
+    rows = build_governance_outcome_rows([record])
+
+    validation = validate_governance_consistency([record], rows)
+
+    assert validation["status"] == "fail"
+    assert validation["counts_by_check"] == {"candidate_review_stale_artifact_evidence_path": 1}
+    finding = validation["findings"][0]
+    assert finding["details"] == {
+        "field": "candidate_review_summary_path",
+        "path": "candidate_review_summary.json",
+    }
+    assert str(tmp_path) not in json.dumps(validation)
+    assert optional_path.name not in json.dumps(validation)
+
+
+def test_candidate_review_loader_marks_required_and_optional_evidence_separately(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    candidate_dir = artifact_root / "candidate_contexts" / "candidate_evidence"
+    promotion_summary = {
+        "promotion_status": "eligible",
+        "evaluation_status": "pass",
+        "decision_reason_codes": [],
+        "gate_count": 1,
+    }
+    _write_json(
+        candidate_dir / "candidate_review_summary.json",
+        {
+            "candidate_selection_run_id": "candidate_evidence",
+            "selected_candidate_id": "cand_evidence",
+            "promotion_context": {
+                "portfolio_promotion_gate_summary": promotion_summary,
+            },
+        },
+    )
+    _write_json(
+        candidate_dir / "manifest.json",
+        {
+            "candidate_selection_run_id": "candidate_evidence",
+            "promotion_gate_summary": promotion_summary,
+        },
+    )
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    candidate_record = next(record for record in dataset.records if record.workflow_type == "candidate_review")
+
+    assert sorted(candidate_record.governance_metadata["artifact_evidence_paths"]) == [
+        "artifact_dir",
+        "candidate_review_summary_path",
+        "manifest_path",
+    ]
+    assert candidate_record.governance_metadata["optional_artifact_evidence_paths"] == {}
+    assert validate_governance_consistency(dataset.records, build_governance_outcome_rows(dataset.records))["status"] == "pass"
+
+
 def test_governance_writer_emits_expected_relative_artifact_bundle(tmp_path: Path) -> None:
     artifact_root = _artifact_fixture(tmp_path)
 

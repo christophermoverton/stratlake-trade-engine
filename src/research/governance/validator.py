@@ -296,6 +296,9 @@ def _candidate_review_findings(records: list[GovernanceSourceRecord]) -> list[di
                     details={"selected_run_ids": selected_run_ids},
                 )
             )
+        # Candidate-review stale-path validation is intentionally limited to
+        # required evidence. Future best-effort paths belong under
+        # optional_artifact_evidence_paths and do not warn when absent.
         for field, path_value in sorted(_mapping(metadata.get("artifact_evidence_paths")).items()):
             path = Path(str(path_value))
             if path.exists():
@@ -590,6 +593,8 @@ def _highest_severity(values: Any) -> str | None:
 
 
 def _sanitize_detail_path(value: str) -> str:
+    if Path(value).is_absolute() or PureWindowsPath(value).is_absolute():
+        return PureWindowsPath(value).name
     path_fragment = value.split(":", 1)
     if len(path_fragment) == 2:
         return f"{path_fragment[0]}:{Path(path_fragment[1]).name}"

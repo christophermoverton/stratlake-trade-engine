@@ -218,6 +218,16 @@ committing the updated LF-normalized lock file. Editable installs should use
 `python -m pip install -e ".[dev]" -c requirements-dev.lock`; the lock supports
 development and validation reproducibility, not package publication.
 
+GitHub Release publication is tag-driven through the `Release` workflow. Pushing
+a `v*` tag, for example
+`v0.33.0-cross-platform-reproducibility-release-automation`, runs a constrained
+editable install, focused packaging/dependency/path/line-ending validation,
+docs/path lint, and `python -m build` before creating the GitHub Release with
+the repository-managed `GITHUB_TOKEN`. Local `gh auth` is not required for
+release publication. The workflow attaches deterministic release notes and the
+docs/path lint report to the GitHub Release, uploads package build outputs as
+workflow artifacts only, and does not publish to PyPI/TestPyPI.
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

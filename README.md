@@ -203,6 +203,12 @@ constrained to maintained major versions such as `actions/checkout@v4`,
 `actions/setup-python@v5`, and `actions/upload-artifact@v4`; full SHA pinning
 is reserved for a later security-hardening pass.
 
+Packaging metadata declares an explicit PEP 517 setuptools build backend.
+Editable development installs remain the primary local workflow, and CI
+validates package metadata, a stable import smoke, and a local wheel/sdist
+build. Package publication is intentionally out of scope for M33 packaging
+readiness.
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

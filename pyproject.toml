@@ -1,3 +1,7 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
 name = "stratlake-trade-engine"
 version = "0.1.0"
@@ -21,9 +25,14 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
+    "build",
     "pytest",
     "ruff",
 ]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*", "cli*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

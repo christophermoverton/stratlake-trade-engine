@@ -30,12 +30,14 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.lock
 
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev]" -c requirements-dev.lock
 
       - name: Import smoke
         run: python -c "from src.artifacts.safety import portable_path; print(portable_path('docs\\manifest.json'))"
@@ -48,6 +50,7 @@ jobs:
           tests/test_line_ending_policy.py
           tests/test_docs_path_portability.py
           tests/test_packaging_readiness.py
+          tests/test_dependency_reproducibility.py
 
       - name: Run focused cross-platform pytest slice
         run: >
@@ -57,6 +60,7 @@ jobs:
           tests/test_line_ending_policy.py
           tests/test_docs_path_portability.py
           tests/test_packaging_readiness.py
+          tests/test_dependency_reproducibility.py
           tests/test_promotion_governance.py
           tests/test_campaign_milestone_reporting.py
 
@@ -83,12 +87,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.lock
 
       - name: Install dev dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev]" -c requirements-dev.lock
 
       - name: Run ruff
         run: python -m ruff check src/ tests/
@@ -105,12 +111,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.lock
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev]" -c requirements-dev.lock
 
       - name: Run docs/path lint
         run: python -m src.cli.run_docs_path_lint --output artifacts/qa/docs_path_lint.json
@@ -135,12 +143,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.lock
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev]" -c requirements-dev.lock
 
       - name: Run deterministic rerun validation
         run: python -m src.cli.run_deterministic_rerun_validation --output artifacts/qa/deterministic_rerun.json
@@ -165,12 +175,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.lock
 
       - name: Install build dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev]" -c requirements-dev.lock
 
       - name: Validate package metadata and import
         run: python -m pytest tests/test_packaging_readiness.py
@@ -190,12 +202,14 @@ jobs:
         with:
           python-version: "3.11"
           cache: pip
-          cache-dependency-path: pyproject.toml
+          cache-dependency-path: |
+            pyproject.toml
+            requirements-dev.lock
 
       - name: Install dependencies
         run: |
           python -m pip install --upgrade pip
-          python -m pip install -e ".[dev]"
+          python -m pip install -e ".[dev]" -c requirements-dev.lock
 
       - name: Run pytest
         run: python -m pytest --tb=short -q

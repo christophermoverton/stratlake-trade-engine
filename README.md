@@ -209,6 +209,15 @@ validates package metadata, a stable import smoke, and a local wheel/sdist
 build. Package publication is intentionally out of scope for M33 packaging
 readiness.
 
+Development and CI installs use `requirements-dev.lock` as a committed
+constraints file to reduce transitive dependency drift while keeping
+`pyproject.toml` canonical for project dependency declarations. Refresh the
+lock after intentional dependency changes by installing the dev environment,
+running `python -m pip freeze --all --exclude-editable`, sorting the output, and
+committing the updated LF-normalized lock file. Editable installs should use
+`python -m pip install -e ".[dev]" -c requirements-dev.lock`; the lock supports
+development and validation reproducibility, not package publication.
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

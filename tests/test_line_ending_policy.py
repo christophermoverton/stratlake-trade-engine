@@ -21,6 +21,7 @@ EXPECTED_TEXT_POLICIES = {
     "*.js": "text eol=lf",
     "*.json": "text eol=lf",
     "*.jsonl": "text eol=lf",
+    "*.lock": "text eol=lf",
     "*.md": "text eol=lf",
     "*.ps1": "text eol=lf",
     "*.py": "text eol=lf",

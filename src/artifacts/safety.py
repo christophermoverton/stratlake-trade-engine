@@ -222,6 +222,11 @@ def _is_relative_path_text(value: str) -> bool:
 
 
 def _relative_to_any_root(value: str, roots: Sequence[str | os.PathLike[str]]) -> str | None:
+    # Skip native resolution for Windows absolute paths (e.g. C:\external\...).
+    # On Linux, Path("C:\\external\\run") treats the whole string as a relative
+    # filename (backslash is a valid name character), so resolve() would silently
+    # root it under CWD and produce a spurious "relative" match that re-encodes the
+    # drive letter after backslash-to-slash normalisation (e.g. "C:/external/run").
     is_windows_abs = PureWindowsPath(value).is_absolute()
     for root in roots:
         if not is_windows_abs:

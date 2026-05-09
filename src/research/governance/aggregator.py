@@ -271,6 +271,9 @@ def _record_path_roots(record: GovernanceSourceRecord, *, path: Path | None) -> 
     if record.registry_path is not None:
         roots.append(record.registry_path.parent)
     if path is not None and path.is_absolute():
+        # Use grandparent when available (parent != grandparent) so that a
+        # manifest nested two levels deep can be expressed relative to its
+        # run-family root. Fall back to parent for top-level paths.
         roots.append(path.parent.parent if path.parent.parent != path.parent else path.parent)
     return tuple(roots)
 

@@ -38,13 +38,18 @@ def load_strategies_registry(registry_path: Path | None = None) -> list[dict[str
     Raises:
         StrategyRegistryError: If registry file not found or invalid.
     """
+    default_registry_path = (
+        Path(__file__).resolve().parents[3]
+        / "artifacts"
+        / "registry"
+        / "strategies.jsonl"
+    )
     if registry_path is None:
-        registry_path = (
-            Path(__file__).resolve().parents[3]
-            / "artifacts"
-            / "registry"
-            / "strategies.jsonl"
-        )
+        registry_path = default_registry_path
+    if not registry_path.exists() and registry_path == default_registry_path:
+        from src.research.strategies.registry_gen import write_strategies_registry
+
+        write_strategies_registry(registry_path)
 
     if not registry_path.exists():
         raise StrategyRegistryError(f"Registry not found at {registry_path}")

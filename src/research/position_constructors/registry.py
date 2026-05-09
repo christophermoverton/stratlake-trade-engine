@@ -83,7 +83,10 @@ def load_position_constructor_registry(
 ) -> dict[str, PositionConstructorDefinition]:
     registry_path = Path(path)
     if not registry_path.exists():
-        raise PositionConstructorError(f"Position constructor registry not found: {registry_path.as_posix()}")
+        if registry_path == DEFAULT_POSITION_CONSTRUCTORS_REGISTRY:
+            _write_default_position_constructor_registry(registry_path)
+        else:
+            raise PositionConstructorError(f"Position constructor registry not found: {registry_path.as_posix()}")
 
     definitions: dict[str, PositionConstructorDefinition] = {}
     with registry_path.open("r", encoding="utf-8") as handle:
@@ -107,6 +110,88 @@ def load_position_constructor_registry(
     if not definitions:
         raise PositionConstructorError("Position constructor registry is empty.")
     return definitions
+
+
+def _write_default_position_constructor_registry(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for payload in _default_position_constructor_registry_payloads():
+            handle.write(json.dumps(canonicalize_value(payload), sort_keys=True, allow_nan=False) + "\n")
+
+
+def _optional_parameter_schema(parameter_type: str) -> dict[str, Any]:
+    return {"type": parameter_type, "required": False}
+
+
+def _default_position_constructor_registry_payloads() -> list[dict[str, Any]]:
+    shared_optional = {
+        "max_long_positions": _optional_parameter_schema("int"),
+        "max_short_positions": _optional_parameter_schema("int"),
+        "max_long_weight": _optional_parameter_schema("float"),
+        "max_short_weight": _optional_parameter_schema("float"),
+        "long_position_scale": _optional_parameter_schema("float"),
+        "short_position_scale": _optional_parameter_schema("float"),
+        "short_max_exposure": _optional_parameter_schema("float"),
+        "exclude_short": _optional_parameter_schema("bool"),
+        "short_availability": _optional_parameter_schema("object"),
+        "hard_to_borrow": _optional_parameter_schema("object"),
+        "short_availability_policy": _optional_parameter_schema("string"),
+        "hard_to_borrow_penalty_bps": _optional_parameter_schema("float"),
+        "max_short_positions_with_constraints": _optional_parameter_schema("int"),
+    }
+    return [
+        {
+            "constructor_id": "identity_weights",
+            "version": "1.0.0",
+            "inputs": ["target_weight"],
+            "parameters": {**shared_optional},
+            "tags": ["deterministic"],
+        },
+        {
+            "constructor_id": "rank_dollar_neutral",
+            "version": "1.0.0",
+            "inputs": ["cross_section_rank"],
+            "parameters": {
+                "gross_long": {"type": "float", "required": True},
+                "gross_short": {"type": "float", "required": True},
+                **shared_optional,
+            },
+            "tags": ["deterministic", "market_neutral"],
+        },
+        {
+            "constructor_id": "top_bottom_equal_weight",
+            "version": "1.0.0",
+            "inputs": ["ternary_quantile", "binary_signal"],
+            "parameters": {
+                "gross_long": {"type": "float", "required": True},
+                "gross_short": {"type": "float", "required": True},
+                **shared_optional,
+            },
+            "tags": ["deterministic"],
+        },
+        {
+            "constructor_id": "softmax_long_only",
+            "version": "1.0.0",
+            "inputs": ["prediction_score", "cross_section_rank"],
+            "parameters": {
+                "gross_exposure": {"type": "float", "required": True},
+                "temperature": _optional_parameter_schema("float"),
+                **shared_optional,
+            },
+            "tags": ["deterministic", "long_only"],
+        },
+        {
+            "constructor_id": "zscore_clip_scale",
+            "version": "1.0.0",
+            "inputs": ["signed_zscore", "spread_zscore"],
+            "parameters": {
+                "clip": {"type": "float", "required": True},
+                "gross_exposure": {"type": "float", "required": True},
+                **shared_optional,
+            },
+            "tags": ["deterministic"],
+        },
+    ]
 
 
 def normalize_position_constructor_config(

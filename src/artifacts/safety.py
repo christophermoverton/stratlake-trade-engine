@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 import json
 import os
-from pathlib import Path
-from typing import Any, Literal, Mapping
+from pathlib import Path, PurePosixPath, PureWindowsPath
+from typing import Any, Literal, Mapping, Sequence
 from uuid import uuid4
 
 CollisionPolicy = Literal["fail", "reuse"]
@@ -17,6 +17,34 @@ _MARKER_FILENAMES = frozenset({RUNNING_MARKER, SUCCESS_MARKER, FAILED_MARKER})
 
 class ArtifactCollisionError(FileExistsError):
     """Raised when an artifact root cannot be safely reused."""
+
+
+def portable_path(
+    path: str | os.PathLike[str],
+    *,
+    roots: Sequence[str | os.PathLike[str]] = (),
+    placeholder: str | None = None,
+) -> str:
+    """Render a path-like value as a deterministic portable artifact reference.
+
+    Native ``Path`` objects should still be used for filesystem operations.
+    This helper is only for persisted references in JSON, CSV, Markdown, and
+    manifests where local absolute roots should not leak.
+    """
+
+    raw = os.fspath(path).strip()
+    if not raw:
+        return raw
+    if raw.startswith("file://"):
+        return placeholder or "[external-path]"
+    if _is_relative_path_text(raw):
+        return _normalize_relative_path_text(raw)
+
+    relative = _relative_to_any_root(raw, roots)
+    if relative is not None:
+        return _normalize_relative_path_text(relative)
+
+    return placeholder or _portable_name(raw)
 
 
 def safe_create_run_dir(path: str | Path, *, collision_policy: CollisionPolicy = "fail") -> Path:
@@ -129,7 +157,11 @@ def read_run_status(run_dir: str | Path) -> dict[str, Any]:
     if not root.exists():
         return {"status": "missing", "marker_path": None, "metadata": None}
     if not root.is_dir():
-        return {"status": "not_directory", "marker_path": root.as_posix(), "metadata": None}
+        return {
+            "status": "not_directory",
+            "marker_path": portable_path(root, roots=(Path.cwd(),)),
+            "metadata": None,
+        }
 
     for status, marker in (
         ("completed", SUCCESS_MARKER),
@@ -140,7 +172,7 @@ def read_run_status(run_dir: str | Path) -> dict[str, Any]:
         if marker_path.exists():
             return {
                 "status": status,
-                "marker_path": marker_path.as_posix(),
+                "marker_path": portable_path(marker_path, roots=(Path.cwd(), root)),
                 "metadata": _read_marker(marker_path),
             }
 
@@ -179,3 +211,73 @@ def _remove_marker(path: Path) -> None:
         path.unlink()
     except FileNotFoundError:
         return
+
+
+def _is_relative_path_text(value: str) -> bool:
+    return not (
+        Path(value).is_absolute()
+        or PureWindowsPath(value).is_absolute()
+        or PurePosixPath(value.replace("\\", "/")).is_absolute()
+    )
+
+
+def _relative_to_any_root(value: str, roots: Sequence[str | os.PathLike[str]]) -> str | None:
+    is_windows_abs = PureWindowsPath(value).is_absolute()
+    for root in roots:
+        if not is_windows_abs:
+            native_relative = _native_relative_to_root(value, root)
+            if native_relative is not None:
+                return native_relative
+        windows_relative = _windows_relative_to_root(value, root)
+        if windows_relative is not None:
+            return windows_relative
+        posix_relative = _posix_relative_to_root(value, root)
+        if posix_relative is not None:
+            return posix_relative
+    return None
+
+
+def _native_relative_to_root(value: str, root: str | os.PathLike[str]) -> str | None:
+    try:
+        return Path(value).resolve().relative_to(Path(root).resolve()).as_posix()
+    except (OSError, RuntimeError, ValueError):
+        return None
+
+
+def _windows_relative_to_root(value: str, root: str | os.PathLike[str]) -> str | None:
+    try:
+        value_path = PureWindowsPath(value)
+        root_path = PureWindowsPath(os.fspath(root))
+        if not value_path.is_absolute() or not root_path.is_absolute():
+            return None
+        return value_path.relative_to(root_path).as_posix()
+    except ValueError:
+        return None
+
+
+def _posix_relative_to_root(value: str, root: str | os.PathLike[str]) -> str | None:
+    normalized_value = value.replace("\\", "/")
+    normalized_root = os.fspath(root).replace("\\", "/")
+    try:
+        value_path = PurePosixPath(normalized_value)
+        root_path = PurePosixPath(normalized_root)
+        if not value_path.is_absolute() or not root_path.is_absolute():
+            return None
+        return value_path.relative_to(root_path).as_posix()
+    except ValueError:
+        return None
+
+
+def _normalize_relative_path_text(value: str) -> str:
+    normalized = value.replace("\\", "/")
+    while normalized.startswith("./"):
+        normalized = normalized[2:]
+    return normalized or "."
+
+
+def _portable_name(value: str) -> str:
+    windows_name = PureWindowsPath(value).name
+    if windows_name:
+        return windows_name
+    posix_name = PurePosixPath(value.replace("\\", "/")).name
+    return posix_name or "[external-path]"

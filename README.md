@@ -184,6 +184,18 @@ Start with:
 * [docs/m32_consistency_validation_design.md](docs/m32_consistency_validation_design.md)
 * [docs/architecture/cross_platform_reproducibility_audit.md](docs/architecture/cross_platform_reproducibility_audit.md)
 
+### Milestone 33: Cross-Platform Validation Posture
+
+Milestone 33 introduces a focused CI smoke matrix on Windows, Ubuntu, and macOS
+for installability, import, path portability, line-ending policy, docs/path
+linting, promotion-governance reporting, and campaign milestone reporting. The
+full pytest suite remains on the primary CI validation path while the
+cross-platform matrix builds confidence in portability-sensitive surfaces.
+
+Windows remains the historical development baseline. Linux and macOS support is
+emerging and should be treated as provisional until broader runtime and release
+validation is added.
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

@@ -143,6 +143,7 @@ def test_register_alpha_evaluation_run_persists_review_metadata_round_trip(tmp_p
     assert entry["review_status"] == "promoted"
     assert entry["review_metadata"] == {
         "decision_reason": "alpha review board promoted run",
+        "decision_reason_codes": [],
         "decision_source": "manual_review",
         "promotion_gate_summary": None,
         "promotion_status": None,

@@ -182,6 +182,7 @@ Start with:
 * [docs/m32_release_notes.md](docs/m32_release_notes.md)
 * [docs/m32_governance_reporting_architecture.md](docs/m32_governance_reporting_architecture.md)
 * [docs/m32_consistency_validation_design.md](docs/m32_consistency_validation_design.md)
+* [docs/architecture/cross_platform_reproducibility_audit.md](docs/architecture/cross_platform_reproducibility_audit.md)
 
 ### Milestone 27: Market Simulation Stress Testing Case Study
 

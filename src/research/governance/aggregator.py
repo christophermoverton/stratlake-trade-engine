@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections import Counter
 import hashlib
 import math
-from pathlib import Path, PureWindowsPath
+from pathlib import Path
 from typing import Any, Mapping
 
 from src.artifacts.safety import portable_path
@@ -261,9 +261,6 @@ def _fraction(numerator: int, denominator: int) -> float:
 def _relative_path(path: Path | None, *, base_dir: Path, roots: tuple[Path, ...] = ()) -> str:
     if path is None:
         return ""
-    value = str(path)
-    if PureWindowsPath(value).is_absolute():
-        return portable_path(value)
     return portable_path(path, roots=(base_dir, *roots))
 
 

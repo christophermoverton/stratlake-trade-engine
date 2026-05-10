@@ -4,6 +4,8 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import sys
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_PATH = REPO_ROOT / "docs" / "examples" / "real_world_campaign_case_study.py"
@@ -19,10 +21,23 @@ def _load_example_module():
     return module
 
 
+def _has_campaign_input_data() -> bool:
+    curated_root = REPO_ROOT / "data" / "curated"
+    return curated_root.exists() and any(curated_root.rglob("*.parquet"))
+
+
 def test_real_world_campaign_case_study_checkpoint_demo_reuses_second_run(tmp_path: Path) -> None:
+    if not _has_campaign_input_data():
+        pytest.skip("Campaign example requires curated parquet inputs not present in CI.")
+
     module = _load_example_module()
 
-    artifacts = module.run_checkpoint_demo(output_root=tmp_path / "campaign_checkpoint_demo", verbose=False)
+    try:
+        artifacts = module.run_checkpoint_demo(output_root=tmp_path / "campaign_checkpoint_demo", verbose=False)
+    except Exception as exc:
+        if "Dataset `features_daily` has no parquet files" in str(exc):
+            pytest.skip("Campaign example requires curated parquet inputs not present in CI.")
+        raise
 
     checkpoint_demo = artifacts.summary["checkpoint_demo"]
     assert checkpoint_demo["same_campaign_run_id"] is True

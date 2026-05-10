@@ -898,7 +898,7 @@ def test_candidate_review_required_evidence_warns_while_optional_evidence_is_ign
     finding = validation["findings"][0]
     assert finding["details"] == {
         "field": "candidate_review_summary_path",
-        "path": "candidate_review_summary.json",
+        "path": "external/missing_required/candidate_review_summary.json",
     }
     assert str(tmp_path) not in json.dumps(validation)
     assert optional_path.name not in json.dumps(validation)

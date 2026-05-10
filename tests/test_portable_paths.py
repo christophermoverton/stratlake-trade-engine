@@ -57,6 +57,14 @@ def test_portable_path_does_not_leak_unrooted_local_absolute_paths() -> None:
         assert not any(pattern.search(rendered) for pattern in FORBIDDEN_LOCAL_PATH_PATTERNS)
 
 
+def test_portable_path_strips_mixed_separator_windows_drive_paths() -> None:
+    rendered = portable_path("C:\\external\\strategy_win_abs/manifest.json", roots=(REPO_ROOT,))
+
+    assert rendered == "external/strategy_win_abs/manifest.json"
+    assert "\\" not in rendered
+    assert not any(pattern.search(rendered) for pattern in FORBIDDEN_LOCAL_PATH_PATTERNS)
+
+
 def test_env_example_is_guarded_by_docs_path_lint() -> None:
     report = lint_guarded_surfaces(REPO_ROOT)
 

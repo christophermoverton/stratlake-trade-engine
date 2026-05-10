@@ -236,6 +236,8 @@ def _relative_to_any_root(value: str, roots: Sequence[str | os.PathLike[str]]) -
 
 
 def _native_relative_to_root(value: str, root: str | os.PathLike[str]) -> str | None:
+    if PureWindowsPath(value).is_absolute() and not Path(value).is_absolute():
+        return None
     try:
         return Path(value).resolve().relative_to(Path(root).resolve()).as_posix()
     except (OSError, RuntimeError, ValueError):
@@ -274,8 +276,18 @@ def _normalize_relative_path_text(value: str) -> str:
 
 
 def _portable_name(value: str) -> str:
-    windows_name = PureWindowsPath(value).name
-    if windows_name:
-        return windows_name
-    posix_name = PurePosixPath(value.replace("\\", "/")).name
-    return posix_name or "[external-path]"
+    parts = _portable_external_parts(value)
+    if parts:
+        return "external/" + "/".join(parts[-2:])
+    return "[external-path]"
+
+
+def _portable_external_parts(value: str) -> list[str]:
+    normalized = value.replace("\\", "/")
+    windows_path = PureWindowsPath(value)
+    path_parts = windows_path.parts if windows_path.drive else PurePosixPath(normalized).parts
+    return [
+        part.strip(":")
+        for part in path_parts
+        if part not in {"", "/", "\\", windows_path.anchor, windows_path.drive}
+    ]

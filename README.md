@@ -182,6 +182,51 @@ Start with:
 * [docs/m32_release_notes.md](docs/m32_release_notes.md)
 * [docs/m32_governance_reporting_architecture.md](docs/m32_governance_reporting_architecture.md)
 * [docs/m32_consistency_validation_design.md](docs/m32_consistency_validation_design.md)
+* [docs/architecture/cross_platform_reproducibility_audit.md](docs/architecture/cross_platform_reproducibility_audit.md)
+
+### Milestone 33: Cross-Platform Validation Posture
+
+Milestone 33 introduces a focused CI smoke matrix on Windows, Ubuntu, and macOS
+for installability, import, path portability, line-ending policy, docs/path
+linting, promotion-governance reporting, and campaign milestone reporting. The
+full pytest suite remains on the primary CI validation path while the
+cross-platform matrix builds confidence in portability-sensitive surfaces.
+
+Windows remains the historical development baseline. Linux and macOS support is
+emerging and should be treated as provisional until broader runtime and release
+validation is added.
+
+CI workflows use least-privilege `contents: read` permissions, cancel
+overlapping runs for the same workflow/ref, and use the built-in `pip` cache
+from `actions/setup-python` keyed on `pyproject.toml`. GitHub Actions are
+constrained to maintained major versions such as `actions/checkout@v4`,
+`actions/setup-python@v5`, and `actions/upload-artifact@v4`; full SHA pinning
+is reserved for a later security-hardening pass.
+
+Packaging metadata declares an explicit PEP 517 setuptools build backend.
+Editable development installs remain the primary local workflow, and CI
+validates package metadata, a stable import smoke, and a local wheel/sdist
+build. Package publication is intentionally out of scope for M33 packaging
+readiness.
+
+Development and CI installs use `requirements-dev.lock` as a committed
+constraints file to reduce transitive dependency drift while keeping
+`pyproject.toml` canonical for project dependency declarations. Refresh the
+lock after intentional dependency changes by installing the dev environment,
+running `python -m pip freeze --all --exclude-editable`, sorting the output, and
+committing the updated LF-normalized lock file. Editable installs should use
+`python -m pip install -e ".[dev]" -c requirements-dev.lock`; the lock supports
+development and validation reproducibility, not package publication.
+
+GitHub Release publication is tag-driven through the `Release` workflow. Pushing
+a `v*` tag, for example
+`v0.33.0-cross-platform-reproducibility-release-automation`, runs a constrained
+editable install, focused packaging/dependency/path/line-ending validation,
+docs/path lint, and `python -m build` before creating the GitHub Release with
+the repository-managed `GITHUB_TOKEN`. Local `gh auth` is not required for
+release publication. The workflow attaches deterministic release notes and the
+docs/path lint report to the GitHub Release, uploads package build outputs as
+workflow artifacts only, and does not publish to PyPI/TestPyPI.
 
 ### Milestone 27: Market Simulation Stress Testing Case Study
 

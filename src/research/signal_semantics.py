@@ -142,7 +142,10 @@ def load_signal_type_registry(path: str | Path = DEFAULT_SIGNAL_TYPES_REGISTRY) 
 
     registry_path = Path(path)
     if not registry_path.exists():
-        raise SignalSemanticsError(f"Signal type registry not found: {registry_path.as_posix()}")
+        if registry_path == DEFAULT_SIGNAL_TYPES_REGISTRY:
+            _write_default_signal_type_registry(registry_path)
+        else:
+            raise SignalSemanticsError(f"Signal type registry not found: {registry_path.as_posix()}")
 
     definitions: dict[str, SignalTypeDefinition] = {}
     with registry_path.open("r", encoding="utf-8") as handle:
@@ -166,6 +169,146 @@ def load_signal_type_registry(path: str | Path = DEFAULT_SIGNAL_TYPES_REGISTRY) 
     if not definitions:
         raise SignalSemanticsError("Signal type registry is empty.")
     return definitions
+
+
+def _write_default_signal_type_registry(path: Path) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", encoding="utf-8", newline="\n") as handle:
+        for payload in _default_signal_type_registry_payloads():
+            handle.write(json.dumps(canonicalize_signal_payload(payload), sort_keys=True, allow_nan=False) + "\n")
+
+
+def _default_signal_type_registry_payloads() -> list[dict[str, Any]]:
+    return [
+        {
+            "signal_type_id": "prediction_score",
+            "version": "1.0.0",
+            "status": "active",
+            "domain": "real",
+            "codomain": "real",
+            "description": "Raw model prediction score.",
+            "validation_rules": {
+                "required_columns": ["symbol", "ts_utc", "value"],
+                "cross_sectional": True,
+                "min_cross_section_size": 1,
+            },
+            "transformation_policies": {"deterministic": True},
+            "compatible_position_constructors": ["softmax_long_only", "zscore_clip_scale"],
+            "semantic_flags": {"directional": True, "ordinal": False, "probabilistic": True, "executable": False},
+        },
+        {
+            "signal_type_id": "cross_section_rank",
+            "version": "1.0.0",
+            "status": "active",
+            "domain": "real",
+            "codomain": "rank",
+            "description": "Cross-sectional rank signal.",
+            "validation_rules": {
+                "required_columns": ["symbol", "ts_utc", "value"],
+                "cross_sectional": True,
+                "min_cross_section_size": 1,
+            },
+            "transformation_policies": {"deterministic": True},
+            "compatible_position_constructors": ["rank_dollar_neutral", "softmax_long_only"],
+            "semantic_flags": {"directional": True, "ordinal": True, "probabilistic": False, "executable": True},
+        },
+        {
+            "signal_type_id": "cross_section_percentile",
+            "version": "1.0.0",
+            "status": "active",
+            "domain": "real",
+            "codomain": "unit_interval",
+            "description": "Cross-sectional percentile signal.",
+            "validation_rules": {
+                "required_columns": ["symbol", "ts_utc", "value"],
+                "cross_sectional": True,
+                "min_cross_section_size": 1,
+                "min_value": 0.0,
+                "max_value": 1.0,
+            },
+            "transformation_policies": {"deterministic": True},
+            "compatible_position_constructors": ["softmax_long_only"],
+            "semantic_flags": {"directional": False, "ordinal": True, "probabilistic": True, "executable": False},
+        },
+        {
+            "signal_type_id": "signed_zscore",
+            "version": "1.0.0",
+            "status": "active",
+            "domain": "real",
+            "codomain": "real",
+            "description": "Signed z-score signal.",
+            "validation_rules": {
+                "required_columns": ["symbol", "ts_utc", "value"],
+                "cross_sectional": True,
+                "min_cross_section_size": 1,
+            },
+            "transformation_policies": {"deterministic": True},
+            "compatible_position_constructors": ["zscore_clip_scale"],
+            "semantic_flags": {"directional": True, "ordinal": False, "probabilistic": False, "executable": True},
+        },
+        {
+            "signal_type_id": "ternary_quantile",
+            "version": "1.0.0",
+            "status": "active",
+            "domain": "real",
+            "codomain": "ternary",
+            "description": "Ternary quantile bucket signal.",
+            "validation_rules": {
+                "required_columns": ["symbol", "ts_utc", "value"],
+                "cross_sectional": True,
+                "min_cross_section_size": 1,
+                "allowed_values": [-1, 0, 1],
+            },
+            "transformation_policies": {"deterministic": True},
+            "compatible_position_constructors": ["identity_weights", "top_bottom_equal_weight"],
+            "semantic_flags": {"directional": True, "ordinal": True, "probabilistic": False, "executable": True},
+        },
+        {
+            "signal_type_id": "binary_signal",
+            "version": "1.0.0",
+            "status": "active",
+            "domain": "real",
+            "codomain": "binary",
+            "description": "Binary long-only signal.",
+            "validation_rules": {
+                "required_columns": ["symbol", "ts_utc", "value"],
+                "cross_sectional": True,
+                "min_cross_section_size": 1,
+                "allowed_values": [0, 1],
+            },
+            "transformation_policies": {"deterministic": True},
+            "compatible_position_constructors": ["identity_weights", "top_bottom_equal_weight"],
+            "semantic_flags": {"directional": False, "ordinal": True, "probabilistic": False, "executable": True},
+        },
+        {
+            "signal_type_id": "spread_zscore",
+            "version": "1.0.0",
+            "status": "active",
+            "domain": "real",
+            "codomain": "real",
+            "description": "Spread z-score signal.",
+            "validation_rules": {
+                "required_columns": ["symbol", "ts_utc", "value"],
+                "cross_sectional": True,
+                "min_cross_section_size": 1,
+            },
+            "transformation_policies": {"deterministic": True},
+            "compatible_position_constructors": ["zscore_clip_scale"],
+            "semantic_flags": {"directional": True, "ordinal": False, "probabilistic": False, "executable": True},
+        },
+        {
+            "signal_type_id": "target_weight",
+            "version": "1.0.0",
+            "status": "active",
+            "domain": "real",
+            "codomain": "real",
+            "description": "Direct target portfolio weight signal.",
+            "validation_rules": {"required_columns": ["symbol", "ts_utc", "value"], "cross_sectional": False},
+            "transformation_policies": {"deterministic": True},
+            "compatible_position_constructors": ["identity_weights"],
+            "semantic_flags": {"directional": True, "ordinal": False, "probabilistic": False, "executable": True},
+        },
+    ]
 
 
 def resolve_signal_type_definition(

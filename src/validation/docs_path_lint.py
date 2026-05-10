@@ -9,14 +9,20 @@ from src.artifacts.safety import atomic_write_json
 
 
 DEFAULT_GUARDED_SURFACES: tuple[str, ...] = (
+    ".env.example",
+    ".github/workflows/**/*.yml",
+    ".github/workflows/**/*.yaml",
     "README.md",
+    "CONTRIBUTING.md",
     "docs/**/*.md",
     "docs/examples/**/*.md",
     "docs/examples/**/*.py",
     "examples/**/*.py",
 )
 
-_WINDOWS_ABSOLUTE_PATH = re.compile(r"(?P<path>(?:[A-Za-z]:[\\/]|/[A-Za-z]:/)[^\s\])\[\(\)\"'`<>]+)")
+_WINDOWS_ABSOLUTE_PATH = re.compile(
+    r"(?P<path>(?<![A-Za-z])(?:[A-Za-z]:[\\/]|/[A-Za-z]:/)[^\s\])\[\(\)\"'`<>]+)"
+)
 _UNIX_HOME_ABSOLUTE_PATH = re.compile(r"(?P<path>/(?:Users|home)/[^\s\])\[\(\)\"'`<>]+)")
 _FILE_URI_PATH = re.compile(r"(?P<path>file://[^\s\])\[\(\)\"'`<>]+)")
 

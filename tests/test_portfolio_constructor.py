@@ -289,6 +289,67 @@ def test_compute_portfolio_returns_rejects_leverage_violation() -> None:
         compute_portfolio_returns(returns_wide, weights_wide)
 
 
+def test_compute_portfolio_returns_allows_tiny_gross_exposure_float_overshoot() -> None:
+    returns_wide = _returns_two_strategies()
+    weights_wide = pd.DataFrame(
+        {
+            "alpha": [0.5000000000004258, 0.5000000000004258, 0.5000000000004258],
+            "beta": [0.4999999999995742, 0.4999999999995742, 0.4999999999995742],
+            "gamma": [8.515e-13, 8.515e-13, 8.515e-13],
+        },
+        index=returns_wide.index,
+        dtype="float64",
+    )
+    returns_wide = returns_wide.assign(gamma=0.0)
+
+    portfolio_returns = compute_portfolio_returns(returns_wide, weights_wide)
+
+    diagnostics = portfolio_returns.attrs["portfolio_validation"]["weight_diagnostics"]
+    assert diagnostics["max_gross_exposure"] > 1.0
+    assert diagnostics["max_gross_exposure"] < 1.0 + 1e-8
+
+
+def test_compute_portfolio_returns_allows_tiny_leverage_float_overshoot() -> None:
+    returns_wide = _returns_two_strategies()
+    weights_wide = pd.DataFrame(
+        {
+            "alpha": [1.0000000000004259, 1.0000000000004259, 1.0000000000004259],
+            "beta": [-4.259e-13, -4.259e-13, -4.259e-13],
+        },
+        index=returns_wide.index,
+        dtype="float64",
+    )
+
+    portfolio_returns = compute_portfolio_returns(
+        returns_wide,
+        weights_wide,
+        validation_config={"max_gross_exposure": 2.0, "max_leverage": 1.0},
+    )
+
+    diagnostics = portfolio_returns.attrs["portfolio_validation"]["weight_diagnostics"]
+    assert diagnostics["max_leverage"] > 1.0
+    assert diagnostics["max_leverage"] < 1.0 + 1e-8
+
+
+def test_compute_portfolio_returns_still_rejects_material_leverage_violation() -> None:
+    returns_wide = _returns_two_strategies()
+    weights_wide = pd.DataFrame(
+        {
+            "alpha": [1.1, 1.1, 1.1],
+            "beta": [-0.1, -0.1, -0.1],
+        },
+        index=returns_wide.index,
+        dtype="float64",
+    )
+
+    with pytest.raises(ValueError, match="leverage exceeds configured maximum"):
+        compute_portfolio_returns(
+            returns_wide,
+            weights_wide,
+            validation_config={"max_gross_exposure": 2.0, "max_leverage": 1.0},
+        )
+
+
 def test_compute_portfolio_returns_rejects_single_sleeve_cap_violation() -> None:
     returns_wide = _returns_two_strategies()
     weights_wide = EqualWeightAllocator().allocate(returns_wide)

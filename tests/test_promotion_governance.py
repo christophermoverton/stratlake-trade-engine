@@ -371,6 +371,72 @@ def test_governance_loader_resolves_artifact_paths_aliases_deterministically(tmp
         assert str(tmp_path) not in payload
 
 
+def test_governance_loader_reads_mixed_separator_relative_registry_paths_on_linux(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    registry_path = artifact_root / "registry.jsonl"
+    run_dir = artifact_root / "mixed" / "nested"
+    summary = {
+        "promotion_status": "eligible",
+        "evaluation_status": "pass",
+        "decision_reason_codes": ["manifest_summary_observed"],
+        "gate_count": 1,
+    }
+    _write_json(run_dir / "manifest.json", {"run_id": "mixed_separator", "promotion_gate_summary": summary})
+    _write_json(
+        run_dir / "promotion_gates.json",
+        {
+            **summary,
+            "results": [{"gate_id": "existing_gate_artifact", "status": "fail"}],
+        },
+    )
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "mixed_separator",
+            "run_type": "strategy",
+            "artifact_path": r"mixed\nested",
+            "manifest_path": r"mixed\nested/manifest.json",
+            "promotion_status": "eligible",
+            "review_status": "candidate",
+        },
+    )
+    monkeypatch.chdir(artifact_root)
+
+    dataset = load_governance_artifacts(registry_path=registry_path, artifact_root=Path("."))
+    rows = build_governance_outcome_rows(dataset.records)
+    result = run_promotion_governance_report(
+        registry_path=registry_path,
+        artifact_root=Path("."),
+        output_dir=tmp_path / "mixed_separator_governance",
+        report_id="mixed_separator_report",
+    )
+
+    assert len(dataset.records) == 1
+    assert dataset.records[0].manifest is not None
+    assert dataset.records[0].promotion_gates is not None
+    assert rows[0]["manifest_path"] == "mixed/nested/manifest.json"
+    assert rows[0]["promotion_status"] == "eligible"
+    assert rows[0]["decision_reason_codes"] == "manifest_summary_observed"
+    assert rows[0]["triggered_gate_names"] == "existing_gate_artifact"
+
+    payloads = [
+        result.manifest_path.read_text(encoding="utf-8"),
+        result.summary_path.read_text(encoding="utf-8"),
+        result.validation_path.read_text(encoding="utf-8"),
+        result.outcome_matrix_path.read_text(encoding="utf-8"),
+    ]
+    forbidden = ["\\", "/tmp/", "/home/", "/Users/", "C:/Users/", "C:\\Users\\", "file://"]
+    assert not any(token in payload for token in forbidden for payload in payloads)
+
+    with result.outcome_matrix_path.open("r", encoding="utf-8", newline="") as handle:
+        [row] = list(csv.DictReader(handle))
+    assert row["manifest_path"] == "mixed/nested/manifest.json"
+    assert row["registry_path"] == "registry.jsonl"
+
+
 def test_governance_loader_discovers_review_and_candidate_review_contexts(tmp_path: Path) -> None:
     artifact_root = tmp_path / "artifacts"
     review_dir = artifact_root / "reviews" / "review_a"
@@ -832,7 +898,7 @@ def test_candidate_review_required_evidence_warns_while_optional_evidence_is_ign
     finding = validation["findings"][0]
     assert finding["details"] == {
         "field": "candidate_review_summary_path",
-        "path": "candidate_review_summary.json",
+        "path": "external/missing_required/candidate_review_summary.json",
     }
     assert str(tmp_path) not in json.dumps(validation)
     assert optional_path.name not in json.dumps(validation)

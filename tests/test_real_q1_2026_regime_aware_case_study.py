@@ -4,6 +4,8 @@ from importlib.util import module_from_spec, spec_from_file_location
 from pathlib import Path
 import sys
 
+import pytest
+
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 EXAMPLE_PATH = REPO_ROOT / "docs" / "examples" / "real_q1_2026_regime_aware_case_study.py"
@@ -19,7 +21,15 @@ def _load_example_module():
     return module
 
 
+def _has_2026_feature_partitions() -> bool:
+    curated_root = REPO_ROOT / "data" / "curated"
+    return curated_root.exists() and any(curated_root.rglob("*2026*.parquet"))
+
+
 def test_real_q1_2026_regime_aware_case_study_runs_and_writes_expected_outputs(tmp_path: Path) -> None:
+    if not _has_2026_feature_partitions():
+        pytest.skip("Real Q1 2026 case study requires curated 2026 parquet feature partitions not present in CI.")
+
     module = _load_example_module()
 
     artifacts = module.run_case_study(output_root=tmp_path / "real_q1_case_study", verbose=False)
@@ -44,6 +54,9 @@ def test_real_q1_2026_regime_aware_case_study_runs_and_writes_expected_outputs(t
 
 
 def test_real_q1_2026_regime_aware_case_study_is_deterministic_and_portable(tmp_path: Path) -> None:
+    if not _has_2026_feature_partitions():
+        pytest.skip("Real Q1 2026 case study requires curated 2026 parquet feature partitions not present in CI.")
+
     module = _load_example_module()
 
     first = module.run_case_study(output_root=tmp_path / "first", verbose=False)
@@ -63,6 +76,9 @@ def test_real_q1_2026_regime_aware_case_study_is_deterministic_and_portable(tmp_
 
 
 def test_real_q1_2026_regime_aware_case_study_bundles_load_via_notebook_helpers(tmp_path: Path) -> None:
+    if not _has_2026_feature_partitions():
+        pytest.skip("Real Q1 2026 case study requires curated 2026 parquet feature partitions not present in CI.")
+
     module = _load_example_module()
 
     artifacts = module.run_case_study(output_root=tmp_path / "bundle_load", verbose=False)

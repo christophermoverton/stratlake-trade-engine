@@ -1,0 +1,126 @@
+{
+  "audit_scope": {
+    "baseline": "Windows is the only currently trusted development and validation environment for StratLake.",
+    "linux_macos_status": "Linux and macOS support is unverified until CI and runtime validation prove otherwise.",
+    "reviewed_areas": [
+      ".env.example",
+      ".gitattributes",
+      ".github/workflows",
+      "CONTRIBUTING.md",
+      "README.md",
+      "docs",
+      "docs/examples",
+      "pyproject.toml",
+      "scripts",
+      "src",
+      "tests"
+    ]
+  },
+  "categories": [
+    "must_fix_m33",
+    "should_fix_m33",
+    "future_improvement",
+    "accepted_windows_only_assumption"
+  ],
+  "findings": [
+    {
+      "category": "must_fix_m33",
+      "evidence": "The primary CI workflow uses a single hosted Ubuntu runner for lint, docs path lint, deterministic rerun validation, and pytest; no Windows or macOS matrix validates the repository's trusted local platform or the intended cross-platform targets.",
+      "id": "xplat-ci-coverage-001",
+      "path": ".github/workflows/ci.yml",
+      "recommendation": "Add a later M33 CI matrix that runs focused smoke, docs path lint, and deterministic artifact checks on Windows, Linux, and macOS before treating non-Windows support as proven.",
+      "risk": "Platform-specific path, shell, dependency, and filesystem behavior can remain invisible because only one Linux runner is exercised in pull-request CI.",
+      "severity": "high"
+    },
+    {
+      "category": "should_fix_m33",
+      "evidence": "Developer-facing setup docs use many PowerShell code fences and Windows virtual-environment invocation examples, while POSIX alternatives are sparse outside CONTRIBUTING.md.",
+      "id": "xplat-shell-docs-001",
+      "path": "README.md",
+      "recommendation": "Add paired POSIX shell examples for canonical setup, validation, and run commands while keeping Windows examples clearly labeled.",
+      "risk": "Linux and macOS users may copy commands that require PowerShell path syntax or Windows virtual-environment layouts.",
+      "severity": "medium"
+    },
+    {
+      "category": "should_fix_m33",
+      "evidence": "The environment template includes commented workstation-style absolute examples for both Windows drive-letter roots and Unix home roots.",
+      "id": "xplat-env-paths-001",
+      "path": ".env.example",
+      "recommendation": "Prefer repository-relative or placeholder-only examples, and keep docs path lint coverage aligned with environment templates if absolute examples remain necessary.",
+      "risk": "Local machine path templates can be copied into committed artifacts, reports, notebooks, or shared configuration.",
+      "severity": "medium"
+    },
+    {
+      "category": "must_fix_m33",
+      "evidence": "Repository text normalization currently declares LF endings for CSV and JSON files only.",
+      "id": "xplat-line-endings-001",
+      "path": ".gitattributes",
+      "recommendation": "Extend text normalization policy for Python, Markdown, YAML, TOML, shell, and workflow files after confirming there are no intentional CRLF-only files.",
+      "risk": "Shell scripts, Markdown fixtures, workflow files, and generated text comparisons can behave differently across Windows, Linux, and macOS clones.",
+      "severity": "high"
+    },
+    {
+      "category": "must_fix_m33",
+      "evidence": "The project metadata declares dependencies and optional development dependencies but has no explicit build-system table.",
+      "id": "xplat-packaging-001",
+      "path": "pyproject.toml",
+      "recommendation": "Add an explicit PEP 517 build-system and verify editable installs and package builds on Windows, Linux, and macOS in later M33 work.",
+      "risk": "Installer behavior can vary by pip version and platform, weakening reproducible setup and release automation readiness.",
+      "severity": "high"
+    },
+    {
+      "category": "future_improvement",
+      "evidence": "The docs path lint checks release-facing docs, examples, and README content for absolute Windows paths, Unix home paths, and file URI leakage, but it does not currently guard environment templates, workflow files, or committed generated JSON and CSV artifacts.",
+      "id": "xplat-docs-path-lint-001",
+      "path": "src/validation/docs_path_lint.py",
+      "recommendation": "Broaden guarded surfaces carefully or add a sibling artifact-path lint so generated manifests, reports, and templates receive deterministic path-safety checks.",
+      "risk": "Committed artifacts and configuration templates can carry local absolute paths without being caught by the existing docs-focused lint.",
+      "severity": "medium"
+    },
+    {
+      "category": "should_fix_m33",
+      "evidence": "Artifact safety helpers resolve output roots and status marker paths to absolute paths before returning or rendering diagnostics.",
+      "id": "xplat-artifact-absolute-paths-001",
+      "path": "src/artifacts/safety.py",
+      "recommendation": "Audit report and manifest writers to ensure persisted artifact references are repository-relative when possible and POSIX-style when serialized.",
+      "risk": "Absolute local output roots can leak into machine-readable reports, making artifacts non-portable across workstations and operating systems.",
+      "severity": "medium"
+    },
+    {
+      "category": "future_improvement",
+      "evidence": "Many tests and example workflows use temporary directories and resolved paths to verify deterministic artifacts, but there is no dedicated case-sensitivity audit.",
+      "id": "xplat-case-sensitivity-001",
+      "path": "tests",
+      "recommendation": "Add a later audit for case-colliding filenames, import casing, and path lookup assumptions before claiming support on case-sensitive filesystems.",
+      "risk": "Code that works on the default Windows case-insensitive filesystem may fail on typical Linux filesystems.",
+      "severity": "medium"
+    },
+    {
+      "category": "accepted_windows_only_assumption",
+      "evidence": "Current local validation and historical development have primarily occurred on Windows, and this audit intentionally does not claim runtime support elsewhere.",
+      "id": "xplat-windows-baseline-001",
+      "path": "README.md",
+      "recommendation": "Keep Windows as the trusted baseline until targeted M33 fixes and CI/runtime validation establish Linux and macOS support.",
+      "risk": "Treating unverified platforms as supported would overstate release readiness.",
+      "severity": "informational"
+    },
+    {
+      "category": "should_fix_m33",
+      "evidence": "Repository examples include scripts that change process working directory and serialize path-like values for summary files; some helpers return absolute POSIX-rendered paths when a relative root cannot be derived.",
+      "id": "xplat-example-path-serialization-001",
+      "path": "docs/examples",
+      "recommendation": "Review example summary and manifest writers for repository-relative path serialization and avoid process-wide working-directory dependencies where practical.",
+      "risk": "Example outputs can become machine-specific or sensitive to invocation directory differences across shells and operating systems.",
+      "severity": "medium"
+    }
+  ],
+  "issue": "360",
+  "out_of_scope": [
+    "Adding Windows, Linux, or macOS CI matrix jobs",
+    "Implementing release automation",
+    "Adding dependency lockfiles",
+    "Publishing packages",
+    "Changing trading, alpha, ML, strategy, portfolio, or promotion-governance decision logic"
+  ],
+  "schema_version": 1
+}

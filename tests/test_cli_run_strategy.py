@@ -77,14 +77,14 @@ def test_parse_args_accepts_evaluation_flag_without_path() -> None:
     args = parse_args(["--strategy", "momentum_v1", "--evaluation"])
 
     assert args.strategy == "momentum_v1"
-    assert args.evaluation.endswith("configs\\evaluation.yml")
+    assert Path(args.evaluation).as_posix().endswith("configs/evaluation.yml")
 
 
 def test_parse_args_accepts_robustness_flag_without_path() -> None:
     args = parse_args(["--strategy", "momentum_v1", "--robustness"])
 
     assert args.strategy == "momentum_v1"
-    assert args.robustness.endswith("configs\\robustness.yml")
+    assert Path(args.robustness).as_posix().endswith("configs/robustness.yml")
 
 
 def test_parse_args_accepts_strict_flag() -> None:

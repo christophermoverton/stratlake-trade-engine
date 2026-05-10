@@ -3,12 +3,15 @@ from __future__ import annotations
 import argparse
 from dataclasses import dataclass
 import json
+import os
 from pathlib import Path
 import shutil
 import sys
 from types import SimpleNamespace
 from typing import Any
 from unittest.mock import patch
+
+import pandas as pd
 
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -35,6 +38,48 @@ def _write_json(path: Path, payload: Any) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8", newline="\n")
     return path
+
+
+def _write_feature_fixture(output_root: Path) -> Path:
+    features_root = output_root / "data"
+    dataset_root = features_root / "features_daily"
+    dataset_root.mkdir(parents=True, exist_ok=True)
+    frame = pd.DataFrame(
+        [
+            {
+                "symbol": "AAA",
+                "ts_utc": pd.Timestamp("2026-01-02T00:00:00Z"),
+                "timeframe": "1D",
+                "date": "2026-01-02",
+                "close": 101.0,
+                "target_ret_5d": 0.012,
+                "feature_ret_1d": 0.002,
+                "feature_ret_5d": 0.01,
+                "feature_ret_20d": 0.025,
+                "feature_vol_20d": 0.18,
+                "feature_sma_20": 100.2,
+                "feature_sma_50": 99.8,
+                "feature_close_to_sma20": 0.008,
+            },
+            {
+                "symbol": "BBB",
+                "ts_utc": pd.Timestamp("2026-01-02T00:00:00Z"),
+                "timeframe": "1D",
+                "date": "2026-01-02",
+                "close": 89.0,
+                "target_ret_5d": -0.006,
+                "feature_ret_1d": -0.001,
+                "feature_ret_5d": -0.004,
+                "feature_ret_20d": 0.011,
+                "feature_vol_20d": 0.21,
+                "feature_sma_20": 89.4,
+                "feature_sma_50": 90.1,
+                "feature_close_to_sma20": -0.004,
+            },
+        ]
+    )
+    frame.to_parquet(dataset_root / "part-000.parquet", index=False)
+    return features_root
 
 
 def _read_json(path: Path) -> dict[str, Any]:
@@ -603,10 +648,11 @@ def run_example(*, output_root: Path | None = None, verbose: bool = True, reset_
         shutil.rmtree(resolved_output_root)
     resolved_output_root.mkdir(parents=True, exist_ok=True)
 
+    features_root = _write_feature_fixture(resolved_output_root)
     config = _resolved_config(resolved_output_root)
     patchers = _build_stage_stubs(resolved_output_root)
 
-    with ExitStackCompat(patchers):
+    with patch.dict(os.environ, {"FEATURES_ROOT": features_root.as_posix()}), ExitStackCompat(patchers):
         first = run_research_campaign(config)
         second = run_research_campaign(config)
 

@@ -38,7 +38,8 @@ def test_canonical_execution_pipelines_run(relative_path: str, summary_key: str,
     assert (tmp_path / Path(relative_path).stem / "summary.json").exists()
 
 
-def test_campaign_orchestration_pipeline_runs(tmp_path: Path) -> None:
+def test_campaign_orchestration_pipeline_runs(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("FEATURES_ROOT", str(tmp_path / "empty_external_features_root"))
     module = _load_example_module(
         REPO_ROOT / "docs/examples/pipelines/research_campaign_orchestration/pipeline.py"
     )

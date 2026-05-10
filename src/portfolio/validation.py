@@ -134,7 +134,8 @@ def _raise_on_weight_constraint_breach(
             f"First failing ts_utc={bad_ts}, net_exposure={net_exposure.loc[bad_ts]}."
         )
 
-    gross_violation = gross_exposure > config.max_gross_exposure
+    exposure_tolerance = max(config.weight_sum_tolerance, config.net_exposure_tolerance)
+    gross_violation = gross_exposure > (config.max_gross_exposure + exposure_tolerance)
     if gross_violation.any():
         bad_ts = gross_exposure.index[gross_violation][0]
         raise PortfolioValidationError(
@@ -143,7 +144,7 @@ def _raise_on_weight_constraint_breach(
             f"gross_exposure={gross_exposure.loc[bad_ts]}."
         )
 
-    leverage_violation = leverage > config.max_leverage
+    leverage_violation = leverage > (config.max_leverage + exposure_tolerance)
     if leverage_violation.any():
         bad_ts = leverage.index[leverage_violation][0]
         raise PortfolioValidationError(

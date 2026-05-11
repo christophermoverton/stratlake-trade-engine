@@ -96,12 +96,37 @@ Thresholds are represented by `WalkForwardEfficiencyThresholds` so later configu
 
 WFE findings use check IDs such as `walk_forward_efficiency.robust`, `walk_forward_efficiency.weak`, `walk_forward_efficiency.broken`, `walk_forward_efficiency.undefined`, and `walk_forward_efficiency.missing`. These findings are review evidence only. They do not automatically change promotion governance decisions in Issue 385; governance integration is deferred to later M34 work.
 
+## Sample-Size And Trade-Count Guardrails
+
+Issue 386 adds deterministic evidence-sufficiency guardrails. These checks flag research outputs that may look attractive but rest on too few observations, too few trades, too little out-of-sample evidence, insufficient split-level support, missing trade metadata, or thin regime coverage.
+
+The default thresholds are represented by `SampleSizeThresholds` and are intentionally configurable. They are guardrails for review, not universal institutional requirements. The current checks include:
+
+- `sample_size.minimum_total_samples`
+- `sample_size.minimum_total_trades`
+- `sample_size.minimum_oos_trades`
+- `sample_size.minimum_trades_per_split`
+- `sample_size.minimum_unique_periods`
+- `sample_size.minimum_regime_coverage`
+- `sample_size.minimum_trades_per_regime`
+- `sample_size.missing_sample_count`
+- `sample_size.missing_trade_count`
+- `sample_size.missing_oos_trade_count`
+
+Sample count and unique period checks focus on whether the observation base is broad enough to support inference. Trade-count checks focus on whether the realized decision set is thick enough to trust reported performance, especially out of sample. Split-level checks prevent one aggregate count from hiding fragile validation folds.
+
+Regime-aware checks run only when regime trade-count metadata is supplied. If no regime metadata is available, the report degrades gracefully and does not fail regime coverage by assumption. When regime metadata is present, the guardrails check both the number of represented regimes and the minimum trades per regime.
+
+Missing metadata is emitted as deterministic `missing` validations and findings rather than causing opaque failures. Non-finite values are treated as unavailable and are not serialized into canonical artifacts.
+
+As with WFE, sample-size findings are robustness evidence for human or later governance review. Issue 386 does not change promotion governance decisions.
+
 ## Extension Points
 
 Later M34 issues can populate the existing artifacts with real diagnostics:
 
 - Additional walk-forward efficiency extraction sources in `walk_forward_efficiency.csv`
-- Sample-size and trade-count checks in `sample_size_validation.json`
+- Additional sample-size and trade-count extraction sources in `sample_size_validation.json`
 - Sensitivity or fragility rows in `sensitivity_summary.csv`
 - Multiple-testing families and trial-count metadata in `multiple_testing_summary.json`
 - Purged or embargoed validation findings through the shared finding schema

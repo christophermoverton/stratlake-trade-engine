@@ -75,11 +75,32 @@ Artifacts must not persist local absolute paths, file URIs, or machine-specific 
 
 `manifest.json` records portable artifact references, source artifact references, source run IDs, schema version, writer metadata, and the canonical generated artifact inventory.
 
+## Walk-Forward Efficiency
+
+Issue 385 adds the first concrete diagnostic: Walk-Forward Efficiency. WFE measures whether in-sample performance transfers to out-of-sample validation periods:
+
+```text
+WFE = Sharpe_OOS / Sharpe_IS
+```
+
+The default deterministic status bands are:
+
+- `robust`: WFE is at least `0.75`
+- `acceptable`: WFE is at least `0.50` and below `0.75`
+- `weak`: WFE is at least `0.00` and below `0.50`
+- `broken`: WFE is below `0.00`, or the in-sample Sharpe is negative
+- `undefined`: WFE cannot be computed because an input is non-finite or the in-sample Sharpe is zero or near zero
+- `missing`: required in-sample or out-of-sample Sharpe evidence is absent
+
+Thresholds are represented by `WalkForwardEfficiencyThresholds` so later configuration work can tune the bands without changing artifact consumers. WFE rows are written to `walk_forward_efficiency.csv` using the Issue 384 column contract. Split dates, trade counts, threshold values, source run IDs, and edge-case reasons are included in the row `details` field and in matching robustness findings.
+
+WFE findings use check IDs such as `walk_forward_efficiency.robust`, `walk_forward_efficiency.weak`, `walk_forward_efficiency.broken`, `walk_forward_efficiency.undefined`, and `walk_forward_efficiency.missing`. These findings are review evidence only. They do not automatically change promotion governance decisions in Issue 385; governance integration is deferred to later M34 work.
+
 ## Extension Points
 
 Later M34 issues can populate the existing artifacts with real diagnostics:
 
-- Walk-forward efficiency rows in `walk_forward_efficiency.csv`
+- Additional walk-forward efficiency extraction sources in `walk_forward_efficiency.csv`
 - Sample-size and trade-count checks in `sample_size_validation.json`
 - Sensitivity or fragility rows in `sensitivity_summary.csv`
 - Multiple-testing families and trial-count metadata in `multiple_testing_summary.json`
@@ -90,4 +111,4 @@ The contract supports optional strategy, alpha, portfolio, campaign, governance,
 
 ## Non-Goals
 
-This contract does not implement walk-forward efficiency calculations, sample-size validation logic, sensitivity reruns, multiple-testing haircuts, DSR, PBO, purged validation, dashboards, external services, or promotion governance decision changes. Those belong to later M34 issues and should consume this bundle rather than redefining it.
+This contract does not implement sample-size validation logic, sensitivity reruns, multiple-testing haircuts, DSR, PBO, purged validation, dashboards, external services, or promotion governance decision changes. Those belong to later M34 issues and should consume this bundle rather than redefining it.

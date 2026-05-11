@@ -33,6 +33,8 @@ def build_robustness_summary(
             status_counts[getattr(row, "status", "not_evaluated")] += 1
 
     artifact_names = sorted(generated_artifacts or [])
+    status_order = [*ROBUSTNESS_STATUS_ORDER, "not_evaluated"]
+    status_order.extend(status for status in sorted(status_counts) if status not in status_order)
     summary = {
         "artifact_count": len(artifact_names),
         "checks_missing": sorted(set(report.checks_missing)),
@@ -42,11 +44,7 @@ def build_robustness_summary(
         "generated_artifacts": artifact_names,
         "highest_severity": highest_severity([row["severity"] for row in finding_rows]),
         "report_id": report.report_id,
-        "robustness_status_counts": {
-            status: status_counts.get(status, 0)
-            for status in [*ROBUSTNESS_STATUS_ORDER, "not_evaluated"]
-            if status_counts.get(status, 0)
-        },
+        "robustness_status_counts": {status: status_counts.get(status, 0) for status in status_order if status_counts.get(status, 0)},
         "source_run_count": len(report.source_run_ids()),
         "source_run_ids": report.source_run_ids(),
         "workflow_type_counts": {key: workflow_counts[key] for key in sorted(workflow_counts)},

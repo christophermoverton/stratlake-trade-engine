@@ -38,7 +38,7 @@ from src.research.walk_forward import (
     load_walk_forward_config,
 )
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
+REPO_ROOT = Path(__file__).resolve().parents[3]
 STRATEGIES_CONFIG = REPO_ROOT / "configs" / "strategies.yml"
 _LOWER_IS_BETTER_METRICS = {
     "max_drawdown",

@@ -147,6 +147,16 @@ def test_finding_serialization_normalizes_severity_and_paths(tmp_path: Path) -> 
     assert payload["details"]["absolute"] == "artifacts/run_a/wfe.csv"
 
 
+def test_robustness_package_preserves_public_import_compatibility() -> None:
+    from src.research.robustness import RobustnessReport as ImportedReport
+    from src.research.robustness import run_robustness_experiment
+    from src.research.robustness import write_robustness_report_bundle as imported_writer
+
+    assert ImportedReport is RobustnessReport
+    assert callable(run_robustness_experiment)
+    assert imported_writer is write_robustness_report_bundle
+
+
 def test_summary_serialization_is_deterministic() -> None:
     report = RobustnessReport(
         report_id="summary_contract",

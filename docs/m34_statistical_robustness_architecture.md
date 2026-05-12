@@ -121,6 +121,56 @@ Missing metadata is emitted as deterministic `missing` validations and findings 
 
 As with WFE, sample-size findings are robustness evidence for human or later governance review. Issue 386 does not change promotion governance decisions.
 
+## Parameter Sensitivity And Fragility Analysis
+
+Issue 387 adds deterministic parameter sensitivity diagnostics for local robustness testing around a selected configuration. The objective is to identify fragile optima where small perturbations materially degrade performance. The objective is not to introduce a new optimization loop.
+
+For a base configuration $\theta$ and perturbation $\theta'$, the sensitivity layer compares a selected metric $M$:
+
+$$
+\Delta M = M(\theta') - M(\theta)
+$$
+
+Direction-aware deterioration is computed from metric direction metadata:
+
+$$
+D =
+\begin{cases}
+M(\theta) - M(\theta') & \text{if higher is better} \\
+M(\theta') - M(\theta) & \text{if lower is better}
+\end{cases}
+$$
+
+Relative deterioration is only computed when the base metric is finite and safely away from zero:
+
+$$
+\\text{relative_deterioration} = \frac{D}{|M(\theta)|}
+$$
+
+When $|M(\theta)|$ is below the configured near-zero guard, relative deterioration is marked undefined to avoid unstable ratios. Absolute delta and deterioration remain available when both metric values are finite.
+
+Sensitivity statuses are deterministic and configurable:
+
+- `improved`
+- `stable`
+- `mildly_sensitive`
+- `fragile`
+- `undefined`
+- `missing`
+
+The sensitivity module supports both dataclass and mapping inputs so it can consume precomputed candidate outputs and explicit sensitivity-grid metadata without re-running strategy engines. Findings include direction metadata (`higher_is_better`), perturbation metadata (`perturbation_type`, `perturbation_size`), parameter distance fields, and threshold values used for classification.
+
+Numeric parameter perturbations emit:
+
+- `parameter_distance`
+- `normalized_parameter_distance`
+
+Categorical perturbations do not force numeric distance calculations.
+
+Rows are emitted through `sensitivity_summary.csv` using the existing Issue 384 column contract. Extended evidence (deterioration, relative deterioration, perturbation metadata, thresholds, reasons, and source references) is stored in deterministic `details` payloads. Findings are emitted as structured `RobustnessFinding` records with check IDs like `sensitivity.fragile`, `sensitivity.mildly_sensitive`, `sensitivity.undefined`, and `sensitivity.missing`.
+
+Sensitivity findings are review evidence. They do not automatically reject runs or change promotion governance decisions.
+
 ## Extension Points
 
 Later M34 issues can populate the existing artifacts with real diagnostics:

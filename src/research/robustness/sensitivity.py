@@ -9,6 +9,7 @@ from src.research.registry import canonicalize_value
 from .models import RobustnessFinding, SensitivitySummaryRow
 
 SENSITIVITY_CHECK_PREFIX = "sensitivity"
+METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE = "absolute_magnitude_lower_is_better"
 SENSITIVITY_STATUSES: tuple[str, ...] = (
     "improved",
     "stable",
@@ -87,6 +88,7 @@ class SensitivityInput:
     scenario_id: str = ""
     perturbation_type: str = ""
     perturbation_size: float | int | str | None = None
+    metric_transform: str = ""
     details: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -178,16 +180,54 @@ def evaluate_parameter_sensitivity(
         )
 
     absolute_delta = _stable_float(perturbed_metric - base_metric)
-    deterioration = (
-        _stable_float(base_metric - perturbed_metric)
-        if higher_is_better
-        else _stable_float(perturbed_metric - base_metric)
-    )
     parameter_distance = _parameter_distance(normalized.base_value, normalized.perturbed_value)
     normalized_distance = _normalized_parameter_distance(
         normalized.base_value,
         normalized.perturbed_value,
         epsilon=resolved.near_zero_base_metric,
+    )
+
+    metric_transform = (normalized.metric_transform or "").strip()
+    if metric_transform == METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE:
+        base_for_cmp = abs(base_metric)
+        perturbed_for_cmp = abs(perturbed_metric)
+        deterioration = _stable_float(perturbed_for_cmp - base_for_cmp)
+        if base_for_cmp <= resolved.near_zero_base_metric:
+            return SensitivityEvaluation(
+                status="undefined",
+                reason="near_zero_base_metric",
+                absolute_delta=absolute_delta,
+                deterioration=deterioration,
+                relative_deterioration=None,
+                base_metric_value=base_metric,
+                perturbed_metric_value=perturbed_metric,
+                parameter_distance=parameter_distance,
+                normalized_parameter_distance=normalized_distance,
+                higher_is_better=higher_is_better,
+            )
+        relative_deterioration = _stable_float(deterioration / base_for_cmp)
+        status = classify_fragility(
+            deterioration=deterioration,
+            relative_deterioration=relative_deterioration,
+            thresholds=resolved,
+        )
+        return SensitivityEvaluation(
+            status=status,
+            reason=f"{status}_threshold",
+            absolute_delta=absolute_delta,
+            deterioration=deterioration,
+            relative_deterioration=relative_deterioration,
+            base_metric_value=base_metric,
+            perturbed_metric_value=perturbed_metric,
+            parameter_distance=parameter_distance,
+            normalized_parameter_distance=normalized_distance,
+            higher_is_better=higher_is_better,
+        )
+
+    deterioration = (
+        _stable_float(base_metric - perturbed_metric)
+        if higher_is_better
+        else _stable_float(perturbed_metric - base_metric)
     )
 
     if abs(base_metric) <= resolved.near_zero_base_metric:
@@ -357,6 +397,7 @@ def _coerce_input(record: SensitivityInput | Mapping[str, Any]) -> SensitivityIn
         scenario_id=str(record.get("scenario_id") or ""),
         perturbation_type=str(record.get("perturbation_type") or ""),
         perturbation_size=_first_present(record, "perturbation_size", "distance", "step_size"),
+        metric_transform=str(record.get("metric_transform") or "").strip(),
         details=details,
     )
 
@@ -379,6 +420,7 @@ def _details_payload(
         "parameter_distance": evaluation.parameter_distance,
         "parameter_name": record.parameter_name,
         "perturbation_size": _finite_float_or_none(record.perturbation_size),
+        "metric_transform": record.metric_transform or None,
         "perturbation_type": record.perturbation_type,
         "perturbed_metric_value": evaluation.perturbed_metric_value,
         "perturbed_value": record.perturbed_value,
@@ -506,6 +548,7 @@ def _finding_message(record: SensitivityInput, status: str) -> str:
 
 
 __all__ = [
+    "METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE",
     "SENSITIVITY_CHECK_PREFIX",
     "SENSITIVITY_STATUSES",
     "SensitivityEvaluation",

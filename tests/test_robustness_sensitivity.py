@@ -6,6 +6,7 @@ from pathlib import Path
 
 from src.research.robustness import (
     FINDINGS_FILENAME,
+    METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE,
     SUMMARY_FILENAME,
     RobustnessReport,
     SensitivityInput,
@@ -295,3 +296,142 @@ def _contains_absolute_path(value: object) -> bool:
             or normalized.startswith("/home/")
         )
     return False
+
+
+# ---------------------------------------------------------------------------
+# Named financial-metric tests
+# ---------------------------------------------------------------------------
+
+
+def test_sharpe_ratio_fragile_deterioration() -> None:
+    """Sharpe drops from 1.20 → 0.72: relative deterioration = 0.4 > 0.25 → fragile."""
+    result = evaluate_parameter_sensitivity(
+        _record(
+            parameter_name="lookback",
+            metric_name="sharpe_ratio",
+            base_metric_value=1.20,
+            perturbed_metric_value=0.72,
+            higher_is_better=True,
+        )
+    )
+    assert result.status == "fragile"
+    assert abs(result.deterioration - 0.48) < 1e-9  # type: ignore[operator]
+    assert abs(result.relative_deterioration - 0.4) < 1e-9  # type: ignore[operator]
+
+
+def test_mean_ic_mildly_sensitive() -> None:
+    """mean_IC drops 0.045 → 0.041: relative = 0.004/0.045 ≈ 0.089 → mildly_sensitive."""
+    result = evaluate_parameter_sensitivity(
+        _record(
+            parameter_name="regularization_alpha",
+            metric_name="mean_ic",
+            base_metric_value=0.045,
+            perturbed_metric_value=0.041,
+            higher_is_better=True,
+        )
+    )
+    assert result.status == "mildly_sensitive"
+    assert result.deterioration is not None and result.deterioration > 0
+
+
+def test_annualized_volatility_increase_fragile() -> None:
+    """Annualized vol rises 0.12 → 0.18 (lower-is-better): relative = 0.06/0.12 = 0.5 → fragile."""
+    result = evaluate_parameter_sensitivity(
+        _record(
+            parameter_name="lookback",
+            metric_name="annualized_volatility",
+            base_metric_value=0.12,
+            perturbed_metric_value=0.18,
+            higher_is_better=False,
+        )
+    )
+    assert result.status == "fragile"
+    assert abs(result.deterioration - 0.06) < 1e-9  # type: ignore[operator]
+    assert abs(result.relative_deterioration - 0.5) < 1e-9  # type: ignore[operator]
+
+
+def test_transaction_cost_increase_fragile() -> None:
+    """Total transaction cost triples 0.015 → 0.045 (lower-is-better): relative = 2.0 → fragile."""
+    result = evaluate_parameter_sensitivity(
+        _record(
+            parameter_name="trade_frequency",
+            metric_name="total_transaction_cost",
+            base_metric_value=0.015,
+            perturbed_metric_value=0.045,
+            higher_is_better=False,
+        )
+    )
+    assert result.status == "fragile"
+    assert abs(result.deterioration - 0.030) < 1e-9  # type: ignore[operator]
+
+
+def test_rmse_increase_fragile() -> None:
+    """RMSE rises 0.018 → 0.029 (lower-is-better): relative ≈ 0.61 → fragile."""
+    result = evaluate_parameter_sensitivity(
+        _record(
+            parameter_name="regularization_alpha",
+            metric_name="rmse",
+            base_metric_value=0.018,
+            perturbed_metric_value=0.029,
+            higher_is_better=False,
+        )
+    )
+    assert result.status == "fragile"
+    assert result.deterioration is not None and result.deterioration > 0
+
+
+def test_negative_drawdown_magnitude_transform_fragile() -> None:
+    """max_drawdown: base=-0.12, perturbed=-0.28.
+
+    With metric_transform='absolute_magnitude_lower_is_better':
+    base_for_cmp=0.12, perturbed_for_cmp=0.28
+    deterioration=0.16, relative≈1.33 → fragile.
+    absolute_delta stays raw: -0.28 - (-0.12) = -0.16.
+    """
+    result = evaluate_parameter_sensitivity(
+        _record(
+            metric_name="max_drawdown",
+            base_metric_value=-0.12,
+            perturbed_metric_value=-0.28,
+            higher_is_better=False,
+            metric_transform=METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE,
+        )
+    )
+    assert result.status == "fragile"
+    assert abs(result.deterioration - 0.16) < 1e-9  # type: ignore[operator]
+    assert result.relative_deterioration is not None
+    assert abs(result.relative_deterioration - (0.16 / 0.12)) < 1e-9
+    # raw absolute_delta is perturbed - base = -0.28 - (-0.12) = -0.16
+    assert abs(result.absolute_delta - (-0.16)) < 1e-9  # type: ignore[operator]
+
+
+def test_negative_drawdown_magnitude_transform_details_payload() -> None:
+    """metric_transform appears in details payload for magnitude-transformed evaluations."""
+    rows = build_sensitivity_summary_rows(
+        [
+            _record(
+                metric_name="max_drawdown",
+                base_metric_value=-0.12,
+                perturbed_metric_value=-0.28,
+                higher_is_better=False,
+                metric_transform=METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE,
+            )
+        ]
+    )
+    assert rows[0].status == "fragile"
+    assert rows[0].details.get("metric_transform") == METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE
+
+
+def test_negative_drawdown_improvement_with_magnitude_transform() -> None:
+    """Drawdown improves: base=-0.28, perturbed=-0.12 → deterioration negative → improved."""
+    result = evaluate_parameter_sensitivity(
+        _record(
+            metric_name="max_drawdown",
+            base_metric_value=-0.28,
+            perturbed_metric_value=-0.12,
+            higher_is_better=False,
+            metric_transform=METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE,
+        )
+    )
+    assert result.status == "improved"
+    assert result.deterioration is not None and result.deterioration < 0

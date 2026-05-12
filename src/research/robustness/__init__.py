@@ -41,6 +41,7 @@ from .sample_size import (
     evaluate_sample_size_guardrails,
 )
 from .sensitivity import (
+    METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE,
     SENSITIVITY_CHECK_PREFIX,
     SENSITIVITY_STATUSES,
     SensitivityEvaluation,
@@ -106,6 +107,7 @@ __all__ = [
     "SensitivityInput",
     "SensitivityThresholds",
     "SensitivitySummaryRow",
+    "METRIC_TRANSFORM_ABSOLUTE_MAGNITUDE",
     "SENSITIVITY_CHECK_PREFIX",
     "SENSITIVITY_STATUSES",
     "StrategyVariant",

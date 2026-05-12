@@ -144,7 +144,7 @@ $$
 Relative deterioration is only computed when the base metric is finite and safely away from zero:
 
 $$
-\\text{relative_deterioration} = \frac{D}{|M(\theta)|}
+\text{relative\_deterioration} = \frac{D}{|M(\theta)|}
 $$
 
 When $|M(\theta)|$ is below the configured near-zero guard, relative deterioration is marked undefined to avoid unstable ratios. Absolute delta and deterioration remain available when both metric values are finite.

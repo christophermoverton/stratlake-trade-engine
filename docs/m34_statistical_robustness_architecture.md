@@ -1,12 +1,12 @@
 # M34 Statistical Robustness Artifact Contract
 
-Milestone 34 adds a statistical robustness evidence layer for research outputs. The first contract is intentionally small: it defines deterministic schemas, writer behavior, manifest conventions, and a Markdown skeleton that later diagnostics can populate without changing artifact names or downstream integration points.
+Milestone 34 adds a statistical robustness evidence layer for research outputs. The framework is artifact-first: diagnostics write deterministic JSON, CSV, Markdown, and manifest outputs that notebooks, APIs, CLI tools, pipelines, and governance reports can inspect without adding a competing execution path.
 
 ## Purpose
 
-The robustness bundle answers a different question than promotion governance. Governance reporting observes existing promotion outcomes, reason codes, and review metadata. Robustness validation records whether research evidence is statistically defensible enough to trust, including walk-forward efficiency, sample-size adequacy, sensitivity, multiple-testing metadata, and future temporal validation checks.
+The robustness bundle answers a different question than promotion governance. Governance reporting asks: what decision or outcome was recorded? Statistical robustness validation asks: is the research evidence trustworthy enough to interpret? M34 records walk-forward efficiency, sample-size adequacy, sensitivity and fragility, multiple-testing metadata, purged and embargoed temporal-validation foundations, and read-only governance context.
 
-Issue 384 does not calculate those diagnostics. It creates the durable artifact interface that later M34 issues can extend.
+Robustness findings are review evidence. They do not silently change recorded promotion decisions, replay promotion gates, or reject candidates unless a future explicit policy layer chooses to enforce them.
 
 ## Canonical Bundle
 
@@ -288,9 +288,25 @@ Missing robustness reports degrade gracefully: governance rows are still emitted
 
 Future work may add explicit promotion-policy enforcement based on robustness evidence, but that must be configured intentionally in a separate policy layer. Issue 390 only adds observable, portable, deterministic governance context.
 
+## Examples And Release Validation
+
+Issue 391 adds the CI-safe documentation example:
+
+```bash
+python docs/examples/robustness_report_example.py
+```
+
+The example writes deterministic synthetic artifacts under:
+
+```text
+docs/examples/output/robustness_report_example/
+```
+
+It exercises WFE, sample-size, sensitivity, multiple-testing, temporal-validation, and governance-context surfaces without real market data or external services. The companion guide `docs/m34_robustness_validation_examples.md` explains the artifact inventory and what is intentionally synthetic. Release-readiness validation is documented in `docs/m34_release_validation_checklist.md`.
+
 ## Extension Points
 
-Later M34 issues can populate the existing artifacts with real diagnostics:
+Future work can extend the existing artifacts and primitives with additional sources or formal statistical methods:
 
 - Additional walk-forward efficiency extraction sources in `walk_forward_efficiency.csv`
 - Additional sample-size and trade-count extraction sources in `sample_size_validation.json`
@@ -303,4 +319,4 @@ The contract supports optional strategy, alpha, portfolio, campaign, governance,
 
 ## Non-Goals
 
-This contract does not implement multiple-testing haircuts, DSR, PBO, purged validation, dashboards, external services, or promotion governance decision changes. Those belong to later M34 issues and should consume this bundle rather than redefining it.
+M34 does not implement multiple-testing haircuts, Deflated Sharpe Ratio, Probability of Backtest Overfitting, full Combinatorial Purged Cross-Validation, dashboards, external services, LLM black-swan simulation, or promotion governance decision changes. Future work should consume the existing artifact contracts and temporal-validation primitives rather than redefining them.

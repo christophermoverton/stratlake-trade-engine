@@ -1,0 +1,17 @@
+{
+  "checks": [
+    {
+      "check_id": "temporal_validation.pass",
+      "details": {
+        "split_count": 2
+      },
+      "message": "Purged temporal split plan passed leakage checks.",
+      "split_id": "",
+      "status": "pass"
+    }
+  ],
+  "finding_count": 0,
+  "overall_status": "pass",
+  "schema_version": 1,
+  "split_count": 2
+}

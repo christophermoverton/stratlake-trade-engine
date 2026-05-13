@@ -171,6 +171,40 @@ Rows are emitted through `sensitivity_summary.csv` using the existing Issue 384 
 
 Sensitivity findings are review evidence. They do not automatically reject runs or change promotion governance decisions.
 
+## Multiple-Testing And Trial-Count Metadata
+
+Issue 388 adds deterministic multiple-testing metadata. The goal is transparency: a high Sharpe ratio, hit rate, information coefficient, or other selected metric is less informative when it was chosen from a large search space than when it came from a small controlled experiment. Trying many candidates, configurations, parameters, factors, models, strategies, portfolios, campaigns, or scenarios increases the chance that one result looks strong by luck, data snooping, or overfitting.
+
+The first implementation records the size of the search space without claiming a formal statistical correction. It accepts explicit metadata from robustness configs, campaign manifests, comparison leaderboards, registries, or manual mappings. The effective trial count is computed conservatively as the maximum available value across explicit trial-count fields:
+
+- `candidate_count`
+- `tested_configuration_count`
+- `parameter_combination_count`
+- `scenario_count`
+- `factor_count`
+- `model_count`
+- `portfolio_count`
+- `campaign_count`
+
+Only present, finite, non-negative integer count values are used. Missing trial-count metadata is emitted as `multiple_testing.missing_trial_count_metadata`. Non-finite, negative, fractional, or otherwise invalid count metadata is emitted as `multiple_testing.undefined_trial_count_metadata`. These cases are findings, not opaque failures.
+
+Trial-count statuses are deterministic and configurable through `MultipleTestingThresholds`:
+
+- `low_risk`: controlled search space under the configured low-risk maximum
+- `moderate_risk`: non-trivial search space that warrants context
+- `high_risk`: large search space where selection bias and data-snooping concern are material
+- `extreme_risk`: very large search space requiring strong caution
+- `missing`: no explicit trial-count metadata is available
+- `undefined`: trial-count metadata is present but invalid
+
+The emitted `multiple_testing_summary.json` rows preserve the Issue 384 artifact contract. Additional evidence is stored in deterministic row `details`, including the effective trial count, all supplied count fields, trial-count source, selected rank, selection metric, selection metric value, thresholds, reason, and support flags for future statistical methods.
+
+Selected-rank metadata is recorded when available. If rank `1` is selected from a large configured search space, the report emits `multiple_testing.selected_rank_warning` to make the search-order dependency visible. If candidate count is present but selected rank is missing, if selected rank exceeds candidate count, or if selected rank exists without a selection metric, the same structured check ID is emitted with a reason in details. Rank alone is not interpreted as statistical significance.
+
+This issue does not implement Deflated Sharpe Ratio, Probability of Backtest Overfitting, Combinatorial Symmetric Cross-Validation, statistical haircuts, or any new optimization loop. The artifact may mark DSR, PBO, and haircut support as false so downstream readers can distinguish metadata-only evidence from formal corrections. Those methods remain future extension points and should only be claimed when their assumptions, inputs, implementation, and tests are represented.
+
+Multiple-testing findings are review evidence. They do not automatically reject runs or change promotion governance decisions.
+
 ## Extension Points
 
 Later M34 issues can populate the existing artifacts with real diagnostics:
@@ -178,7 +212,7 @@ Later M34 issues can populate the existing artifacts with real diagnostics:
 - Additional walk-forward efficiency extraction sources in `walk_forward_efficiency.csv`
 - Additional sample-size and trade-count extraction sources in `sample_size_validation.json`
 - Sensitivity or fragility rows in `sensitivity_summary.csv`
-- Multiple-testing families and trial-count metadata in `multiple_testing_summary.json`
+- Additional multiple-testing extraction sources in `multiple_testing_summary.json`
 - Purged or embargoed validation findings through the shared finding schema
 - Governance integration through upstream governance artifact references
 
@@ -186,4 +220,4 @@ The contract supports optional strategy, alpha, portfolio, campaign, governance,
 
 ## Non-Goals
 
-This contract does not implement sample-size validation logic, sensitivity reruns, multiple-testing haircuts, DSR, PBO, purged validation, dashboards, external services, or promotion governance decision changes. Those belong to later M34 issues and should consume this bundle rather than redefining it.
+This contract does not implement multiple-testing haircuts, DSR, PBO, purged validation, dashboards, external services, or promotion governance decision changes. Those belong to later M34 issues and should consume this bundle rather than redefining it.

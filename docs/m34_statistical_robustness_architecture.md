@@ -205,6 +205,57 @@ This issue does not implement Deflated Sharpe Ratio, Probability of Backtest Ove
 
 Multiple-testing findings are review evidence. They do not automatically reject runs or change promotion governance decisions.
 
+## Purged And Embargoed Temporal Validation
+
+Issue 389 adds deterministic temporal-validation primitives for leakage-aware financial time-series research. Standard random k-fold validation is unsafe for many financial workflows because observations are ordered, labels can depend on future horizons, return windows can overlap, and training samples immediately adjacent to validation periods can carry contaminated information.
+
+The first implementation builds ordered temporal folds from explicit observation metadata rather than random folds. Observations are sorted by timestamp and observation ID, then contiguous validation blocks are selected. Training candidates are all observations outside the validation block before purge and embargo rules are applied.
+
+Each observation may include a label interval:
+
+```text
+[label_start, label_end)
+```
+
+The interval uses half-open semantics. A training label interval overlaps a validation label interval only when:
+
+```text
+train_label_start < validation_label_end
+and
+train_label_end > validation_label_start
+```
+
+That means a training interval ending exactly at validation start does not overlap, and a training interval starting exactly at validation end does not overlap. If explicit label intervals are missing, an optional configured `label_horizon` can fill them from the observation timestamp. Otherwise missing label metadata is surfaced as a temporal-validation finding.
+
+Purging removes training observations whose label intervals overlap validation label intervals. Embargoing then removes training observations whose timestamps fall inside the post-validation embargo window:
+
+```text
+[validation_end, validation_end + embargo_window)
+```
+
+The current foundation applies embargo to the observation timestamp. This keeps the first artifact deterministic and easy to audit; future integrations can extend the convention if a workflow needs embargo on label starts or other event timestamps.
+
+The purged split helper emits dedicated artifacts without changing the canonical Issue 384 robustness bundle:
+
+- `purged_split_plan.json`
+- `purged_split_summary.csv`
+- `leakage_validation.json`
+
+The split plan records configuration, split windows, train and validation IDs, purged IDs, embargoed IDs, counts, and deterministic details needed for validation. Leakage validation checks include train/validation ID overlap, purged interval overlap, embargo violations, missing timestamps, insufficient train or validation observations, duplicate IDs, and invalid split configuration.
+
+Temporal-validation findings use check IDs such as:
+
+- `temporal_validation.pass`
+- `temporal_validation.train_validation_overlap`
+- `temporal_validation.purged_interval_overlap`
+- `temporal_validation.embargo_violation`
+- `temporal_validation.missing_timestamp`
+- `temporal_validation.insufficient_train_observations`
+- `temporal_validation.insufficient_validation_observations`
+- `temporal_validation.invalid_split_config`
+
+This is a foundation for future Combinatorial Purged Cross-Validation and PBO work, not a full CPCV implementation. It does not add random folds, DSR, PBO, statistical haircuts, or new promotion decision logic. Temporal-validation findings are review evidence unless a future governance policy explicitly chooses to make them blocking.
+
 ## Extension Points
 
 Later M34 issues can populate the existing artifacts with real diagnostics:
@@ -213,7 +264,7 @@ Later M34 issues can populate the existing artifacts with real diagnostics:
 - Additional sample-size and trade-count extraction sources in `sample_size_validation.json`
 - Sensitivity or fragility rows in `sensitivity_summary.csv`
 - Additional multiple-testing extraction sources in `multiple_testing_summary.json`
-- Purged or embargoed validation findings through the shared finding schema
+- CPCV/PBO integrations on top of the purged and embargoed temporal-validation primitives
 - Governance integration through upstream governance artifact references
 
 The contract supports optional strategy, alpha, portfolio, campaign, governance, and generic upstream artifact references. Missing references are valid and degrade to empty manifest sections.

@@ -11,6 +11,11 @@ M32 is read-only with respect to promotion policy. It observes and audits
 existing promotion outcomes. It does not make, replay, or recompute promotion
 decisions.
 
+M34 robustness evidence can be attached as governance context when a robustness
+report is referenced by a run. That context is observational only: it does not
+change the canonical promotion summary, promotion status, review status, or
+promotion reason codes.
+
 ## What M32 Does
 
 * Loads registry, manifest, review, candidate-review, campaign, and scenario
@@ -150,9 +155,26 @@ No candidate-specific or campaign-specific required artifact is added by M32.
 * `p_value`
 * `hit_rate_p_value`
 * `sharpe_stability_ratio`
+* `robustness_report_path`
+* `robustness_status`
+* `wfe_status`
+* `sample_size_status`
+* `sensitivity_status`
+* `multiple_testing_status`
+* `temporal_validation_status`
+* `robustness_finding_count`
+* `highest_robustness_severity`
+* `robustness_reason_codes`
+* `robustness_available`
 
 List-like values such as reason codes and upstream run IDs are pipe-delimited
 and sorted deterministically.
+
+Robustness reason codes are reported separately from promotion
+`decision_reason_codes`. For example, a weak walk-forward diagnostic may appear
+as `weak_walk_forward_efficiency` in `robustness_reason_codes`, but it does not
+become a promotion gate failure unless a future explicit policy layer chooses to
+enforce it.
 
 ## Governance Summary
 
@@ -245,6 +267,23 @@ Candidate-review metadata distinguishes required and optional evidence:
 
 Validation details sanitize absolute paths so local machine paths are not
 written into governance artifacts.
+
+## Robustness Evidence Context
+
+Governance can surface M34 robustness reports when a registry or manifest
+includes a `robustness_report_path`, or when a robustness summary is colocated
+with the run artifacts. The adapter reads existing robustness artifacts such as
+`robustness_summary.json`, `robustness_findings.json`,
+`walk_forward_efficiency.csv`, `sample_size_validation.json`,
+`sensitivity_summary.csv`, `multiple_testing_summary.json`, and optional
+`leakage_validation.json`.
+
+If robustness evidence is available, the outcome matrix records the overall
+robustness status, per-diagnostic statuses, finding count, highest robustness
+severity, portable robustness report path, and sorted robustness reason codes.
+If robustness evidence is missing or malformed, governance still emits the row
+with deterministic missing context. It does not infer or recompute a promotion
+decision from robustness metadata.
 
 ## Status Normalization
 

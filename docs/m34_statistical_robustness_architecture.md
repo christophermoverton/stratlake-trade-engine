@@ -256,6 +256,38 @@ Temporal-validation findings use check IDs such as:
 
 This is a foundation for future Combinatorial Purged Cross-Validation and PBO work, not a full CPCV implementation. It does not add random folds, DSR, PBO, statistical haircuts, or new promotion decision logic. Temporal-validation findings are review evidence unless a future governance policy explicitly chooses to make them blocking.
 
+## Promotion Governance Context
+
+Issue 390 adds deterministic integration hooks that make M34 robustness evidence visible in promotion governance outputs. The integration preserves the M32 boundary: governance reporting observes recorded promotion outcomes, while robustness validation records whether the statistical evidence is trustworthy. Robustness findings do not silently recompute `promotion_status`, `review_status`, promotion gate results, or decision reason codes.
+
+Governance-visible robustness fields include:
+
+- `robustness_report_path`
+- `robustness_status`
+- `wfe_status`
+- `sample_size_status`
+- `sensitivity_status`
+- `multiple_testing_status`
+- `temporal_validation_status`
+- `robustness_finding_count`
+- `highest_robustness_severity`
+- `robustness_reason_codes`
+- `robustness_available`
+
+When a robustness report is available, the governance adapter reads the summary and finding artifacts, derives diagnostic statuses, computes the highest robustness severity using the M34 severity order, and maps known findings to review-oriented robustness reason codes. Examples include:
+
+- `walk_forward_efficiency.weak` -> `weak_walk_forward_efficiency`
+- `sample_size.minimum_total_trades` -> `thin_trade_sample`
+- `sensitivity.fragile` -> `fragile_parameter_optimum`
+- `multiple_testing.high_risk` -> `large_search_space_warning`
+- `temporal_validation.embargo_violation` -> `temporal_validation_embargo_violation`
+
+Unknown non-info robustness findings map to `robustness_review_finding` so reviewers still see that robustness evidence needs attention.
+
+Missing robustness reports degrade gracefully: governance rows are still emitted with `robustness_available=false`, `robustness_status=missing`, and deterministic missing-context details. Malformed or conflicting robustness artifacts are surfaced as needs-review context rather than causing promotion governance to replay policy or fail closed.
+
+Future work may add explicit promotion-policy enforcement based on robustness evidence, but that must be configured intentionally in a separate policy layer. Issue 390 only adds observable, portable, deterministic governance context.
+
 ## Extension Points
 
 Later M34 issues can populate the existing artifacts with real diagnostics:

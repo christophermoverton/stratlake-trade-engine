@@ -7,6 +7,10 @@ from pathlib import Path
 from typing import Any, Mapping
 
 from src.artifacts.safety import portable_path
+from src.research.robustness.governance_integration import (
+    ROBUSTNESS_GOVERNANCE_FIELDS,
+    summarize_robustness_for_governance,
+)
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 from .models import GovernanceSourceRecord
@@ -38,6 +42,7 @@ OUTCOME_MATRIX_COLUMNS = [
     "p_value",
     "hit_rate_p_value",
     "sharpe_stability_ratio",
+    *ROBUSTNESS_GOVERNANCE_FIELDS,
 ]
 SEVERITIES = ("warn", "review", "reject", "block")
 
@@ -58,6 +63,7 @@ def build_governance_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     highest_severity_counts = _counts(row["highest_severity"] for row in rows)
     workflow_type_counts = _counts(row["workflow_type"] for row in rows)
     reason_code_counts = _reason_code_counts(rows)
+    robustness_reason_code_counts = _robustness_reason_code_counts(rows)
     severity_counts = {severity: highest_severity_counts.get(severity, 0) for severity in SEVERITIES}
     eligible = status_counts.get("eligible", 0)
     blocked = status_counts.get("blocked", 0)
@@ -73,6 +79,9 @@ def build_governance_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
         "highest_severity_counts": highest_severity_counts,
         "severity_counts": severity_counts,
         "reason_code_counts": reason_code_counts,
+        "robustness_available_count": sum(str(row.get("robustness_available", "")).lower() == "true" for row in rows),
+        "robustness_reason_code_counts": robustness_reason_code_counts,
+        "robustness_status_counts": _counts(row.get("robustness_status", "") for row in rows),
         "workflow_type_counts": workflow_type_counts,
         "campaign_status_counts": _counts(row.get("campaign_status", "") for row in rows if row["workflow_type"] == "campaign"),
         "scenario_status_counts": _counts(row.get("scenario_status", "") for row in rows if row["workflow_type"] == "campaign_scenario"),
@@ -157,7 +166,8 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
     metadata = record.governance_metadata
     metrics = _mapping(entry.get("metrics_summary")) or _mapping(entry.get("metrics")) or _mapping(manifest.get("metric_summary"))
     review_metadata = _mapping(entry.get("review_metadata"))
-    return {
+    robustness_context = _mapping(metadata.get("robustness_context"))
+    row = {
         "run_id": record.run_id,
         "workflow_type": record.workflow_type,
         "promotion_status": _text(normalize_promotion_status(summary.get("promotion_status") or entry.get("promotion_status"))),
@@ -192,6 +202,25 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
         "campaign_status": _text(metadata.get("campaign_status")),
         "scenario_status": _text(metadata.get("scenario_status")),
     }
+    if robustness_context:
+        row.update(summarize_robustness_for_governance(robustness_context))
+    else:
+        row.update(
+            {
+                "highest_robustness_severity": "info",
+                "multiple_testing_status": "missing",
+                "robustness_available": "false",
+                "robustness_finding_count": 0,
+                "robustness_reason_codes": "",
+                "robustness_report_path": "",
+                "robustness_status": "missing",
+                "sample_size_status": "missing",
+                "sensitivity_status": "missing",
+                "temporal_validation_status": "missing",
+                "wfe_status": "missing",
+            }
+        )
+    return row
 
 
 def _triggered_gate_names(*payloads: Mapping[str, Any] | None) -> list[str]:
@@ -221,6 +250,13 @@ def _reason_code_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
     counts: Counter[str] = Counter()
     for row in rows:
         counts.update(_split_codes(row["decision_reason_codes"]))
+    return dict(sorted(counts.items()))
+
+
+def _robustness_reason_code_counts(rows: list[dict[str, Any]]) -> dict[str, int]:
+    counts: Counter[str] = Counter()
+    for row in rows:
+        counts.update(_split_codes(row.get("robustness_reason_codes", "")))
     return dict(sorted(counts.items()))
 
 

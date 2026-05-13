@@ -1,0 +1,51 @@
+{
+  "column_contract": [
+    "workflow_type",
+    "run_id",
+    "family_id",
+    "trial_count",
+    "effective_trial_count",
+    "adjustment_method",
+    "status",
+    "details"
+  ],
+  "families": [
+    {
+      "adjustment_method": "metadata_only",
+      "details": {
+        "candidate_count": 160,
+        "dsr_supported": false,
+        "effective_trial_count": 160,
+        "example_input": "synthetic_fixture",
+        "haircut_supported": false,
+        "model_count": 2,
+        "parameter_combination_count": 80,
+        "pbo_supported": false,
+        "reason": "high_risk_threshold",
+        "scenario_count": 4,
+        "selected_rank": 1,
+        "selected_rank_status": "recorded",
+        "selection_metric": "sharpe_ratio",
+        "selection_metric_value": 1.2,
+        "tested_configuration_count": 160,
+        "thresholds": {
+          "extreme_risk_trial_count_min": 1000,
+          "high_risk_trial_count_min": 101,
+          "low_risk_trial_count_max": 10,
+          "moderate_risk_trial_count_max": 100,
+          "selected_rank_warning_threshold": 100
+        },
+        "trial_count_source": "explicit_config",
+        "trial_count_status": "high_risk"
+      },
+      "effective_trial_count": 160,
+      "family_id": "docs_example_selection",
+      "run_id": "docs_m34_synthetic_strategy",
+      "status": "high_risk",
+      "trial_count": 160,
+      "workflow_type": "strategy"
+    }
+  ],
+  "report_id": "robustness_report_example",
+  "schema_version": 1
+}

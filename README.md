@@ -228,6 +228,32 @@ release publication. The workflow attaches deterministic release notes and the
 docs/path lint report to the GitHub Release, uploads package build outputs as
 workflow artifacts only, and does not publish to PyPI/TestPyPI.
 
+### Milestone 34: Statistical Robustness And Overfitting Guardrails
+
+Milestone 34 adds an artifact-first robustness layer for research review. It
+emits deterministic evidence for Walk-Forward Efficiency, sample-size and
+trade-count sufficiency, parameter sensitivity and fragility,
+multiple-testing/trial-count metadata, purged and embargoed temporal-validation
+foundations, and governance-visible robustness context.
+
+Robustness evidence is review context. It helps reviewers interpret whether a
+strong-looking result is statistically trustworthy, but it does not silently
+change recorded promotion decisions or replay promotion policy.
+
+Run the CI-safe synthetic example:
+
+```bash
+python docs/examples/robustness_report_example.py
+```
+
+Start with:
+
+* [docs/m34_statistical_robustness_architecture.md](docs/m34_statistical_robustness_architecture.md)
+* [docs/m34_robustness_validation_examples.md](docs/m34_robustness_validation_examples.md)
+* [docs/m34_release_notes.md](docs/m34_release_notes.md)
+* [docs/m34_release_validation_checklist.md](docs/m34_release_validation_checklist.md)
+* [docs/examples/robustness_report_example.py](docs/examples/robustness_report_example.py)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing
@@ -1542,6 +1568,10 @@ Start here:
 * [docs/regime_policy_stress_testing.md](docs/regime_policy_stress_testing.md)
 * [docs/market_simulation_stress_testing.md](docs/market_simulation_stress_testing.md)
 * [docs/market_simulation_models_and_integrations.md](docs/market_simulation_models_and_integrations.md)
+* [docs/m34_statistical_robustness_architecture.md](docs/m34_statistical_robustness_architecture.md)
+* [docs/m34_robustness_validation_examples.md](docs/m34_robustness_validation_examples.md)
+* [docs/m34_release_notes.md](docs/m34_release_notes.md)
+* [docs/m34_release_validation_checklist.md](docs/m34_release_validation_checklist.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
@@ -1582,6 +1612,7 @@ Examples:
 * [docs/examples/full_year_regime_policy_benchmark_case_study.md](docs/examples/full_year_regime_policy_benchmark_case_study.md)
 * [docs/examples/m27_market_simulation_case_study.md](docs/examples/m27_market_simulation_case_study.md)
 * [docs/examples/m27_market_simulation_case_study_report.md](docs/examples/m27_market_simulation_case_study_report.md)
+* [docs/examples/robustness_report_example.py](docs/examples/robustness_report_example.py)
 * [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)

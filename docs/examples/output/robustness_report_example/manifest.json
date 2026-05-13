@@ -1,0 +1,174 @@
+{
+  "artifact_files": [
+    "manifest.json",
+    "multiple_testing_summary.json",
+    "robustness_findings.json",
+    "robustness_report.md",
+    "robustness_summary.json",
+    "sample_size_validation.json",
+    "sensitivity_summary.csv",
+    "walk_forward_efficiency.csv"
+  ],
+  "artifact_type": "statistical_robustness_report",
+  "artifacts": {
+    "manifest.json": {
+      "artifact_type": "manifest",
+      "path": "manifest.json"
+    },
+    "multiple_testing_summary.json": {
+      "artifact_type": "multiple_testing_summary_contract",
+      "fields": [
+        "workflow_type",
+        "run_id",
+        "family_id",
+        "trial_count",
+        "effective_trial_count",
+        "adjustment_method",
+        "status",
+        "details"
+      ],
+      "path": "multiple_testing_summary.json"
+    },
+    "robustness_findings.json": {
+      "artifact_type": "robustness_findings",
+      "path": "robustness_findings.json"
+    },
+    "robustness_report.md": {
+      "artifact_type": "markdown_report",
+      "path": "robustness_report.md"
+    },
+    "robustness_summary.json": {
+      "artifact_type": "robustness_summary",
+      "path": "robustness_summary.json"
+    },
+    "sample_size_validation.json": {
+      "artifact_type": "sample_size_validation_contract",
+      "fields": [
+        "workflow_type",
+        "run_id",
+        "check_id",
+        "sample_count",
+        "trade_count",
+        "minimum_sample_count",
+        "minimum_trade_count",
+        "status",
+        "details"
+      ],
+      "path": "sample_size_validation.json"
+    },
+    "sensitivity_summary.csv": {
+      "artifact_type": "sensitivity_summary_contract",
+      "columns": [
+        "workflow_type",
+        "run_id",
+        "scenario_id",
+        "parameter",
+        "baseline_value",
+        "scenario_value",
+        "metric",
+        "baseline_metric_value",
+        "scenario_metric_value",
+        "delta",
+        "status",
+        "details"
+      ],
+      "path": "sensitivity_summary.csv"
+    },
+    "walk_forward_efficiency.csv": {
+      "artifact_type": "walk_forward_efficiency_contract",
+      "columns": [
+        "workflow_type",
+        "run_id",
+        "split_id",
+        "train_period",
+        "test_period",
+        "in_sample_metric",
+        "out_of_sample_metric",
+        "walk_forward_efficiency",
+        "status",
+        "details"
+      ],
+      "path": "walk_forward_efficiency.csv"
+    }
+  },
+  "created_at_utc": "2026-01-01T00:00:00Z",
+  "manifest_schema_version": 1,
+  "output_dir": "docs/examples/output/robustness_report_example",
+  "report_id": "robustness_report_example",
+  "robustness_status": "needs_review",
+  "schema_version": 1,
+  "source_artifacts": [
+    {
+      "artifact_type": "example_script",
+      "description": "Synthetic M34 robustness example input.",
+      "metadata": {},
+      "path": "docs/examples/robustness_report_example.py",
+      "reference_group": "strategy"
+    }
+  ],
+  "source_run_references": [
+    "docs_m34_source_run",
+    "docs_m34_synthetic_strategy"
+  ],
+  "summary": {
+    "artifact_count": 8,
+    "checks_missing": [],
+    "checks_present": [
+      "governance_context",
+      "multiple_testing",
+      "sample_size",
+      "sensitivity",
+      "temporal_validation",
+      "walk_forward_efficiency"
+    ],
+    "finding_count": 8,
+    "finding_count_by_severity": {
+      "blocked": 0,
+      "info": 0,
+      "needs_review": 4,
+      "reject": 0,
+      "warning": 4
+    },
+    "generated_artifacts": [
+      "manifest.json",
+      "multiple_testing_summary.json",
+      "robustness_findings.json",
+      "robustness_report.md",
+      "robustness_summary.json",
+      "sample_size_validation.json",
+      "sensitivity_summary.csv",
+      "walk_forward_efficiency.csv"
+    ],
+    "highest_severity": "needs_review",
+    "report_id": "robustness_report_example",
+    "robustness_status_counts": {
+      "acceptable": 1,
+      "fragile": 1,
+      "high_risk": 1,
+      "needs_review": 5,
+      "pass": 5,
+      "weak": 1
+    },
+    "source_run_count": 2,
+    "source_run_ids": [
+      "docs_m34_source_run",
+      "docs_m34_synthetic_strategy"
+    ],
+    "workflow_type_counts": {
+      "strategy": 9
+    }
+  },
+  "writer": {
+    "config": {
+      "advanced_methods": {
+        "cpcv_supported": false,
+        "dsr_supported": false,
+        "haircut_supported": false,
+        "pbo_supported": false
+      },
+      "example": "robustness_report_example",
+      "fixture_type": "deterministic_synthetic"
+    },
+    "name": "robustness_report_writer"
+  }
+}

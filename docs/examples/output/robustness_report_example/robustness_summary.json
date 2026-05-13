@@ -1,0 +1,48 @@
+{
+  "artifact_count": 8,
+  "checks_missing": [],
+  "checks_present": [
+    "governance_context",
+    "multiple_testing",
+    "sample_size",
+    "sensitivity",
+    "temporal_validation",
+    "walk_forward_efficiency"
+  ],
+  "finding_count": 8,
+  "finding_count_by_severity": {
+    "blocked": 0,
+    "info": 0,
+    "needs_review": 4,
+    "reject": 0,
+    "warning": 4
+  },
+  "generated_artifacts": [
+    "manifest.json",
+    "multiple_testing_summary.json",
+    "robustness_findings.json",
+    "robustness_report.md",
+    "robustness_summary.json",
+    "sample_size_validation.json",
+    "sensitivity_summary.csv",
+    "walk_forward_efficiency.csv"
+  ],
+  "highest_severity": "needs_review",
+  "report_id": "robustness_report_example",
+  "robustness_status_counts": {
+    "acceptable": 1,
+    "fragile": 1,
+    "high_risk": 1,
+    "needs_review": 5,
+    "pass": 5,
+    "weak": 1
+  },
+  "source_run_count": 2,
+  "source_run_ids": [
+    "docs_m34_source_run",
+    "docs_m34_synthetic_strategy"
+  ],
+  "workflow_type_counts": {
+    "strategy": 9
+  }
+}

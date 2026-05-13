@@ -1,0 +1,155 @@
+{
+  "config": {
+    "embargo_window": "1D",
+    "label_horizon": null,
+    "min_train_observations": 2,
+    "min_validation_observations": 2,
+    "n_splits": 2,
+    "time_unit": "timestamp",
+    "validation_window_size": 2
+  },
+  "generated_artifacts": [
+    "leakage_validation.json",
+    "purged_split_plan.json",
+    "purged_split_summary.csv"
+  ],
+  "observation_count": 6,
+  "overall_status": "pass",
+  "run_id": "docs_m34_synthetic_strategy",
+  "schema_version": 1,
+  "split_count": 2,
+  "splits": [
+    {
+      "details": {
+        "embargo_end": "2025-06-03T00:00:00Z",
+        "embargo_window": "1D",
+        "train_label_intervals": {
+          "obs_003": {
+            "label_end": "2025-06-04T00:00:00Z",
+            "label_start": "2025-06-03T00:00:00Z"
+          },
+          "obs_004": {
+            "label_end": "2025-06-05T00:00:00Z",
+            "label_start": "2025-06-04T00:00:00Z"
+          },
+          "obs_005": {
+            "label_end": "2025-06-06T00:00:00Z",
+            "label_start": "2025-06-05T00:00:00Z"
+          },
+          "obs_006": {
+            "label_end": "2025-06-07T00:00:00Z",
+            "label_start": "2025-06-06T00:00:00Z"
+          }
+        },
+        "train_timestamps": {
+          "obs_003": "2025-06-03T00:00:00Z",
+          "obs_004": "2025-06-04T00:00:00Z",
+          "obs_005": "2025-06-05T00:00:00Z",
+          "obs_006": "2025-06-06T00:00:00Z"
+        },
+        "validation_label_intervals": {
+          "obs_001": {
+            "label_end": "2025-06-02T00:00:00Z",
+            "label_start": "2025-06-01T00:00:00Z"
+          },
+          "obs_002": {
+            "label_end": "2025-06-03T00:00:00Z",
+            "label_start": "2025-06-02T00:00:00Z"
+          }
+        },
+        "window_semantics": "[start, end)"
+      },
+      "embargo_window": "[2025-06-02T00:00:00Z, 2025-06-03T00:00:00Z)",
+      "embargoed_observation_ids": [],
+      "leakage_status": "pass",
+      "n_embargoed_observations": 0,
+      "n_purged_observations": 0,
+      "n_train_observations": 4,
+      "n_validation_observations": 2,
+      "purge_window": "[2025-06-01T00:00:00Z, 2025-06-03T00:00:00Z)",
+      "purged_observation_ids": [],
+      "split_id": "purged_0000",
+      "train_end": "2025-06-06T00:00:00Z",
+      "train_observation_ids": [
+        "obs_003",
+        "obs_004",
+        "obs_005",
+        "obs_006"
+      ],
+      "train_start": "2025-06-03T00:00:00Z",
+      "validation_end": "2025-06-02T00:00:00Z",
+      "validation_observation_ids": [
+        "obs_001",
+        "obs_002"
+      ],
+      "validation_start": "2025-06-01T00:00:00Z"
+    },
+    {
+      "details": {
+        "embargo_end": "2025-06-05T00:00:00Z",
+        "embargo_window": "1D",
+        "train_label_intervals": {
+          "obs_001": {
+            "label_end": "2025-06-02T00:00:00Z",
+            "label_start": "2025-06-01T00:00:00Z"
+          },
+          "obs_002": {
+            "label_end": "2025-06-03T00:00:00Z",
+            "label_start": "2025-06-02T00:00:00Z"
+          },
+          "obs_005": {
+            "label_end": "2025-06-06T00:00:00Z",
+            "label_start": "2025-06-05T00:00:00Z"
+          },
+          "obs_006": {
+            "label_end": "2025-06-07T00:00:00Z",
+            "label_start": "2025-06-06T00:00:00Z"
+          }
+        },
+        "train_timestamps": {
+          "obs_001": "2025-06-01T00:00:00Z",
+          "obs_002": "2025-06-02T00:00:00Z",
+          "obs_005": "2025-06-05T00:00:00Z",
+          "obs_006": "2025-06-06T00:00:00Z"
+        },
+        "validation_label_intervals": {
+          "obs_003": {
+            "label_end": "2025-06-04T00:00:00Z",
+            "label_start": "2025-06-03T00:00:00Z"
+          },
+          "obs_004": {
+            "label_end": "2025-06-05T00:00:00Z",
+            "label_start": "2025-06-04T00:00:00Z"
+          }
+        },
+        "window_semantics": "[start, end)"
+      },
+      "embargo_window": "[2025-06-04T00:00:00Z, 2025-06-05T00:00:00Z)",
+      "embargoed_observation_ids": [],
+      "leakage_status": "pass",
+      "n_embargoed_observations": 0,
+      "n_purged_observations": 0,
+      "n_train_observations": 4,
+      "n_validation_observations": 2,
+      "purge_window": "[2025-06-03T00:00:00Z, 2025-06-05T00:00:00Z)",
+      "purged_observation_ids": [],
+      "split_id": "purged_0001",
+      "train_end": "2025-06-06T00:00:00Z",
+      "train_observation_ids": [
+        "obs_001",
+        "obs_002",
+        "obs_005",
+        "obs_006"
+      ],
+      "train_start": "2025-06-01T00:00:00Z",
+      "validation_end": "2025-06-04T00:00:00Z",
+      "validation_observation_ids": [
+        "obs_003",
+        "obs_004"
+      ],
+      "validation_start": "2025-06-03T00:00:00Z"
+    }
+  ],
+  "valid_observation_count": 6,
+  "workflow_type": "strategy"
+}

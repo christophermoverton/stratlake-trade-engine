@@ -5,6 +5,7 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
 
 from src.research.promotion import DEFAULT_PROMOTION_ARTIFACT_FILENAME
+from src.research.robustness.governance_integration import load_robustness_governance_context
 from src.research.registry import canonicalize_value, default_registry_path, load_registry
 
 from .models import GovernanceDataset, GovernanceSourceRecord
@@ -76,6 +77,13 @@ def _record_from_registry_entry(
     promotion_gate_path = None if artifact_dir is None else artifact_dir / DEFAULT_PROMOTION_ARTIFACT_FILENAME
     promotion_gates = _load_json_if_exists(promotion_gate_path)
     summary = _promotion_gate_summary(entry, manifest, promotion_gates)
+    robustness_context = _robustness_context(
+        entry=entry,
+        manifest=manifest,
+        artifact_dir=artifact_dir,
+        workflow_type=workflow_type,
+        run_id=run_id,
+    )
     return GovernanceSourceRecord(
         run_id=run_id,
         workflow_type=workflow_type,
@@ -88,6 +96,7 @@ def _record_from_registry_entry(
         promotion_gates=promotion_gates,
         promotion_gate_summary=summary,
         governance_metadata={
+            "robustness_context": robustness_context,
             "artifact_evidence_paths": _evidence_paths(
                 artifact_dir=artifact_dir,
                 manifest_path=manifest_path,
@@ -570,6 +579,50 @@ def _resolve_artifact_dir(entry: Mapping[str, Any], *, artifact_root: Path) -> P
     run_id = entry.get("run_id")
     if isinstance(run_id, str) and run_id.strip():
         return artifact_root / run_id
+    return None
+
+
+def _robustness_context(
+    *,
+    entry: Mapping[str, Any],
+    manifest: Mapping[str, Any] | None,
+    artifact_dir: Path | None,
+    workflow_type: str,
+    run_id: str,
+) -> dict[str, Any]:
+    robustness_path = _robustness_report_path(entry, manifest=manifest, artifact_dir=artifact_dir)
+    context = load_robustness_governance_context(
+        robustness_path,
+        workflow_type=workflow_type,
+        run_id=run_id,
+        roots=tuple(path for path in (artifact_dir, artifact_dir.parent if artifact_dir is not None else None) if path is not None),
+    )
+    return context.to_dict()
+
+
+def _robustness_report_path(
+    entry: Mapping[str, Any],
+    *,
+    manifest: Mapping[str, Any] | None,
+    artifact_dir: Path | None,
+) -> Path | None:
+    for raw_path in (
+        entry.get("robustness_report_path"),
+        _nested_string(entry.get("artifact_paths"), "robustness_report_path"),
+        _nested_string(entry.get("artifact_paths"), "robustness_report"),
+        _nested_string(manifest, "robustness_report_path"),
+        _nested_string(manifest, "robustness_report"),
+        _nested_string(_nested_mapping(manifest, "artifact_paths"), "robustness_report_path"),
+    ):
+        if isinstance(raw_path, str) and raw_path.strip():
+            return _path_from_registry_text(raw_path)
+    if artifact_dir is not None:
+        for candidate in (
+            artifact_dir / "robustness_summary.json",
+            artifact_dir / "robustness" / "robustness_summary.json",
+        ):
+            if candidate.exists():
+                return candidate
     return None
 
 

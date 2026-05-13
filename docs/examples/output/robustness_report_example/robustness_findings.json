@@ -1,0 +1,253 @@
+{
+  "finding_count": 8,
+  "findings": [
+    {
+      "check_id": "multiple_testing.high_risk",
+      "details": {
+        "candidate_count": 160,
+        "dsr_supported": false,
+        "effective_trial_count": 160,
+        "example_input": "synthetic_fixture",
+        "haircut_supported": false,
+        "model_count": 2,
+        "parameter_combination_count": 80,
+        "pbo_supported": false,
+        "reason": "high_risk_threshold",
+        "scenario_count": 4,
+        "selected_rank": 1,
+        "selected_rank_status": "recorded",
+        "selection_metric": "sharpe_ratio",
+        "selection_metric_value": 1.2,
+        "tested_configuration_count": 160,
+        "thresholds": {
+          "extreme_risk_trial_count_min": 1000,
+          "high_risk_trial_count_min": 101,
+          "low_risk_trial_count_max": 10,
+          "moderate_risk_trial_count_max": 100,
+          "selected_rank_warning_threshold": 100
+        },
+        "trial_count_source": "explicit_config",
+        "trial_count_status": "high_risk"
+      },
+      "message": "Multiple-testing metadata indicates a large search space for 'docs_example_selection'.",
+      "run_id": "docs_m34_synthetic_strategy",
+      "severity": "needs_review",
+      "workflow_type": "strategy"
+    },
+    {
+      "check_id": "sample_size.minimum_oos_trades",
+      "details": {
+        "check_id": "sample_size.minimum_oos_trades",
+        "configured_check_id": "sample_size.minimum_oos_trades",
+        "example_input": "synthetic_fixture",
+        "observed_value": 8,
+        "reason": "below_minimum_oos_trades",
+        "required_threshold": 10,
+        "sample_scope": "out_of_sample",
+        "status": "needs_review",
+        "thresholds": {
+          "minimum_oos_trades": 10,
+          "minimum_regime_count": 2,
+          "minimum_total_samples": 252,
+          "minimum_total_trades": 30,
+          "minimum_trades_per_regime": 5,
+          "minimum_trades_per_split": 5,
+          "minimum_unique_periods": 30,
+          "missing_metadata_severity": "needs_review",
+          "thin_sample_severity": "warning",
+          "thin_trade_count_severity": "needs_review"
+        }
+      },
+      "message": "Sample-size guardrail 'sample_size.minimum_oos_trades' needs review.",
+      "run_id": "docs_m34_synthetic_strategy",
+      "severity": "needs_review",
+      "workflow_type": "strategy"
+    },
+    {
+      "check_id": "sample_size.minimum_total_trades",
+      "details": {
+        "check_id": "sample_size.minimum_total_trades",
+        "configured_check_id": "sample_size.minimum_total_trades",
+        "example_input": "synthetic_fixture",
+        "observed_value": 24,
+        "reason": "below_minimum_total_trades",
+        "required_threshold": 30,
+        "status": "needs_review",
+        "thresholds": {
+          "minimum_oos_trades": 10,
+          "minimum_regime_count": 2,
+          "minimum_total_samples": 252,
+          "minimum_total_trades": 30,
+          "minimum_trades_per_regime": 5,
+          "minimum_trades_per_split": 5,
+          "minimum_unique_periods": 30,
+          "missing_metadata_severity": "needs_review",
+          "thin_sample_severity": "warning",
+          "thin_trade_count_severity": "needs_review"
+        }
+      },
+      "message": "Sample-size guardrail 'sample_size.minimum_total_trades' needs review.",
+      "run_id": "docs_m34_synthetic_strategy",
+      "severity": "needs_review",
+      "workflow_type": "strategy"
+    },
+    {
+      "check_id": "sensitivity.fragile",
+      "details": {
+        "absolute_delta": -0.38,
+        "base_metric_value": 1.2,
+        "base_value": 20,
+        "deterioration": 0.38,
+        "example_input": "synthetic_fixture",
+        "fragility_status": "fragile",
+        "higher_is_better": true,
+        "metric_name": "sharpe_ratio",
+        "normalized_parameter_distance": 0.25,
+        "parameter_distance": 5.0,
+        "parameter_name": "lookback_days",
+        "perturbation_size": 5.0,
+        "perturbation_type": "local_numeric_grid",
+        "perturbed_metric_value": 0.82,
+        "perturbed_value": 25,
+        "reason": "fragile_threshold",
+        "relative_delta": 0.316666666667,
+        "relative_deterioration": 0.316666666667,
+        "scenario_id": "lookback_plus_5",
+        "thresholds": {
+          "default_higher_is_better": true,
+          "fragile_relative_delta_min": 0.25,
+          "mild_absolute_delta_max": 0.1,
+          "mild_relative_delta_max": 0.15,
+          "near_zero_base_metric": 1e-12,
+          "stable_absolute_delta_max": 0.02,
+          "stable_relative_delta_max": 0.05
+        }
+      },
+      "message": "Sensitivity check is fragile for 'lookback_days' scenario 'lookback_plus_5'.",
+      "run_id": "docs_m34_synthetic_strategy",
+      "severity": "needs_review",
+      "workflow_type": "strategy"
+    },
+    {
+      "check_id": "multiple_testing.selected_rank_warning",
+      "details": {
+        "candidate_count": 160,
+        "dsr_supported": false,
+        "effective_trial_count": 160,
+        "example_input": "synthetic_fixture",
+        "haircut_supported": false,
+        "model_count": 2,
+        "parameter_combination_count": 80,
+        "pbo_supported": false,
+        "rank_reason": "top_rank_selected_from_large_search_space",
+        "reason": "high_risk_threshold",
+        "scenario_count": 4,
+        "selected_rank": 1,
+        "selected_rank_status": "recorded",
+        "selection_metric": "sharpe_ratio",
+        "selection_metric_value": 1.2,
+        "tested_configuration_count": 160,
+        "thresholds": {
+          "extreme_risk_trial_count_min": 1000,
+          "high_risk_trial_count_min": 101,
+          "low_risk_trial_count_max": 10,
+          "moderate_risk_trial_count_max": 100,
+          "selected_rank_warning_threshold": 100
+        },
+        "trial_count_source": "explicit_config",
+        "trial_count_status": "high_risk"
+      },
+      "message": "Top-ranked result was selected from a large search space.",
+      "run_id": "docs_m34_synthetic_strategy",
+      "severity": "warning",
+      "workflow_type": "strategy"
+    },
+    {
+      "check_id": "sample_size.minimum_total_samples",
+      "details": {
+        "check_id": "sample_size.minimum_total_samples",
+        "configured_check_id": "sample_size.minimum_total_samples",
+        "example_input": "synthetic_fixture",
+        "observed_value": 180,
+        "reason": "below_minimum_total_samples",
+        "required_threshold": 252,
+        "status": "needs_review",
+        "thresholds": {
+          "minimum_oos_trades": 10,
+          "minimum_regime_count": 2,
+          "minimum_total_samples": 252,
+          "minimum_total_trades": 30,
+          "minimum_trades_per_regime": 5,
+          "minimum_trades_per_split": 5,
+          "minimum_unique_periods": 30,
+          "missing_metadata_severity": "needs_review",
+          "thin_sample_severity": "warning",
+          "thin_trade_count_severity": "needs_review"
+        }
+      },
+      "message": "Sample-size guardrail 'sample_size.minimum_total_samples' needs review.",
+      "run_id": "docs_m34_synthetic_strategy",
+      "severity": "warning",
+      "workflow_type": "strategy"
+    },
+    {
+      "check_id": "sample_size.minimum_unique_periods",
+      "details": {
+        "check_id": "sample_size.minimum_unique_periods",
+        "configured_check_id": "sample_size.minimum_unique_periods",
+        "example_input": "synthetic_fixture",
+        "observed_value": 28,
+        "reason": "below_minimum_unique_periods",
+        "required_threshold": 30,
+        "sample_scope": "unique_periods",
+        "status": "needs_review",
+        "thresholds": {
+          "minimum_oos_trades": 10,
+          "minimum_regime_count": 2,
+          "minimum_total_samples": 252,
+          "minimum_total_trades": 30,
+          "minimum_trades_per_regime": 5,
+          "minimum_trades_per_split": 5,
+          "minimum_unique_periods": 30,
+          "missing_metadata_severity": "needs_review",
+          "thin_sample_severity": "warning",
+          "thin_trade_count_severity": "needs_review"
+        }
+      },
+      "message": "Sample-size guardrail 'sample_size.minimum_unique_periods' needs review.",
+      "run_id": "docs_m34_synthetic_strategy",
+      "severity": "warning",
+      "workflow_type": "strategy"
+    },
+    {
+      "check_id": "walk_forward_efficiency.weak",
+      "details": {
+        "example_input": "synthetic_fixture",
+        "metric": "sharpe_ratio",
+        "n_trades_is": 34,
+        "n_trades_oos": 5,
+        "reason": "weak_threshold",
+        "sharpe_is": 1.3,
+        "sharpe_oos": 0.2,
+        "split_id": "split_002",
+        "test_end": "2025-05-31",
+        "test_start": "2025-05-01",
+        "thresholds": {
+          "acceptable_min": 0.5,
+          "near_zero_is_sharpe": 1e-12,
+          "robust_min": 0.75,
+          "weak_min": 0.0
+        },
+        "train_end": "2025-04-30",
+        "train_start": "2025-02-01",
+        "wfe": 0.153846153846,
+        "wfe_status": "weak"
+      },
+      "message": "Walk-forward efficiency is weak for split 'split_002'.",
+      "run_id": "docs_m34_synthetic_strategy",
+      "severity": "warning",
+      "workflow_type": "strategy"
+    }
+  ],
+  "report_id": "robustness_report_example"
+}

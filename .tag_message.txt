@@ -1,0 +1,32 @@
+M33: Cross-Platform Reproducibility & Release Automation
+
+Merge commit: 34dee1a
+
+Related Issues (all closed):
+- #375: M33 CI validation wrap-up
+- #381: Portfolio validation float-noise tolerance
+- #382: Campaign orchestration example CI self-containment
+- #378: Governance output path sanitization
+- #377: Governance path assertion resolution
+- #376: Real-data example conditional skipping
+
+Key Achievements:
+- Cross-platform CI smoke matrix (Ubuntu, Windows, macOS)
+- Dependency-lock constrained installs (requirements-dev.lock)
+- Full test suite green (1853 passed, 8 skipped)
+- Portable path serialization fixes
+- Governance tests all passing (45 tests)
+- CI-safe canonical examples with conditional skipping
+- Release workflow validation (tag-driven)
+- Line-ending policy enforcement
+- Expanded docs/path lint (229 guarded files, 0 findings)
+
+All post-merge validations passed:
+- 110 comprehensive tests: PASS
+- Docs/path lint: 0 findings
+- Ruff linting: ALL PASS
+- git diff --check: PASS
+- Packaging validation: PASS
+- Deterministic rerun: PASS
+
+This release hardens StratLake's reproducibility posture across operating systems and release workflows.

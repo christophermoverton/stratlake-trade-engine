@@ -1,0 +1,3 @@
+split_id,train_start,train_end,validation_start,validation_end,purge_window,embargo_window,n_train_observations,n_validation_observations,n_purged_observations,n_embargoed_observations,leakage_status
+purged_0000,2025-06-03T00:00:00Z,2025-06-06T00:00:00Z,2025-06-01T00:00:00Z,2025-06-02T00:00:00Z,"[2025-06-01T00:00:00Z, 2025-06-03T00:00:00Z)","[2025-06-02T00:00:00Z, 2025-06-03T00:00:00Z)",4,2,0,0,pass
+purged_0001,2025-06-01T00:00:00Z,2025-06-06T00:00:00Z,2025-06-03T00:00:00Z,2025-06-04T00:00:00Z,"[2025-06-03T00:00:00Z, 2025-06-05T00:00:00Z)","[2025-06-04T00:00:00Z, 2025-06-05T00:00:00Z)",4,2,0,0,pass

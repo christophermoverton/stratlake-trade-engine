@@ -242,7 +242,7 @@ change recorded promotion decisions or replay promotion policy.
 
 Run the CI-safe synthetic example:
 
-```powershell
+```bash
 python docs/examples/robustness_report_example.py
 ```
 

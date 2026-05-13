@@ -51,6 +51,12 @@ Run the complete suite before merge:
 python -m pytest
 ```
 
+Known non-blocking warnings may appear in the full pytest run from legacy
+fixture scenarios, including low sample-size warnings, degenerate signal
+warnings, or open matplotlib figure warnings. These warnings do not block M34
+release validation when the full suite is green, but any new warning class
+introduced by M34 should be investigated before release.
+
 If package or release metadata changes are included in the same branch, also run
 the existing M33 packaging and cross-platform validation workflow rather than
 duplicating it locally.
@@ -111,6 +117,8 @@ Before creating a release tag:
 
 * confirm `docs/m34_release_notes.md` reflects the merged feature set
 * confirm advanced methods remain marked future unless separately implemented
+* use a single space after the issue prefix in final release commits, for
+  example: `Issue 391: docs(robustness): add M34 examples validation and release notes`
 * confirm release automation remains tag-driven and least-privilege
 * confirm package/build validation matches the existing M33 release workflow
 * confirm no promotion governance behavior changed without an explicit policy

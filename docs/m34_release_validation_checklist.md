@@ -25,6 +25,10 @@ python docs/examples/robustness_report_example.py
 python -m pytest tests/test_docs_path_portability.py
 ```
 
+Run the standalone example and `tests/test_robustness_example.py` serially,
+because both intentionally rewrite
+`docs/examples/output/robustness_report_example/`.
+
 Run governance regressions:
 
 ```bash
@@ -53,9 +57,10 @@ python -m pytest
 
 Known non-blocking warnings may appear in the full pytest run from legacy
 fixture scenarios, including low sample-size warnings, degenerate signal
-warnings, or open matplotlib figure warnings. These warnings do not block M34
-release validation when the full suite is green, but any new warning class
-introduced by M34 should be investigated before release.
+warnings, legacy consistency-warning fixture messages, or open matplotlib
+figure warnings. These warnings do not block M34 release validation when the
+full suite is green, but any new warning class introduced by M34 should be
+investigated before release.
 
 If package or release metadata changes are included in the same branch, also run
 the existing M33 packaging and cross-platform validation workflow rather than

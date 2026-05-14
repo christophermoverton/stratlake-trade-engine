@@ -132,3 +132,6 @@ extraction.
 - Governance evidence remains read-only review context; lineage edges do not
   replay promotion gates, enforce governance policy, or mutate promotion
   decisions.
+
+For a CLI-first local renderer over catalog records and evidence lineage, see
+[`docs/catalog_evidence_explorer.md`](catalog_evidence_explorer.md).

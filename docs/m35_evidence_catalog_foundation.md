@@ -71,3 +71,8 @@ when existing metadata explicitly references source runs, validation bundles,
 campaigns, scenarios, or source artifact paths. Those edges remain read-only
 catalog lineage; they do not create a graph database, graph cache, canonical
 lineage store, policy replay layer, or governance enforcement layer.
+
+Issue #397 adds a lightweight local evidence explorer over the existing catalog,
+query, and lineage APIs. See
+[`docs/catalog_evidence_explorer.md`](catalog_evidence_explorer.md) for CLI and
+Python rendering examples.

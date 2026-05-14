@@ -236,6 +236,9 @@ pd.DataFrame(records_to_rows(downstream))
 These notebook examples use the same read-only query APIs as the CLI. They do
 not execute strategies, portfolios, campaigns, validations, or notebooks.
 
+For a rendered local review surface over query results and evidence lineage,
+see [`docs/catalog_evidence_explorer.md`](catalog_evidence_explorer.md).
+
 ## Read-Only Guarantees
 
 The query API and CLI only call:

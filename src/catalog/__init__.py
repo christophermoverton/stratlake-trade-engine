@@ -10,6 +10,12 @@ Usage::
 """
 
 from src.catalog.indexer import build_artifact_records, build_catalog, build_catalog_record
+from src.catalog.explorer import (
+    build_evidence_explorer_view,
+    render_evidence_json,
+    render_evidence_markdown,
+    render_evidence_table,
+)
 from src.catalog.lineage import build_catalog_lookup, build_lineage_edges, build_run_lookup
 from src.catalog.models import ArtifactRecord, CatalogRecord, CatalogValidationStatus, LineageEdge
 from src.catalog.query import (
@@ -33,6 +39,7 @@ from src.catalog.validation import (
 
 __all__ = [
     "build_catalog",
+    "build_evidence_explorer_view",
     "build_artifact_records",
     "build_catalog_record",
     "build_lineage_edges",
@@ -47,6 +54,9 @@ __all__ = [
     "get_downstream_records",
     "records_to_dicts",
     "records_to_rows",
+    "render_evidence_json",
+    "render_evidence_markdown",
+    "render_evidence_table",
     "CatalogRecord",
     "ArtifactRecord",
     "LineageEdge",

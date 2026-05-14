@@ -10,6 +10,10 @@ queries.
 The query layer is read-only. It does not write files, create a cache, update a
 registry, repair artifacts, or execute research workflows.
 
+For the M35 evidence catalog overview and release-readiness docs, see
+[`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
+and [`docs/m35_release_notes.md`](m35_release_notes.md).
+
 ## Python API
 
 ```python

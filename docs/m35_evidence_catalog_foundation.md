@@ -1,5 +1,7 @@
 # M35 Evidence Catalog Foundation
 
+Milestone title: `M35 - Artifact Lineage, Discovery, and Robustness-Aware Research Catalog`
+
 Milestone 35 extends the M29 read-only catalog model so evidence bundles created
 by later milestones are discoverable beside strategy, alpha, portfolio, QA, and
 review artifacts. This is an extension of `src.catalog`; it is not a second
@@ -63,8 +65,9 @@ The M35 foundation only reads existing artifacts:
 * it does not introduce a persistent database, persistent cache, search backend,
   live monitor, or dashboard service.
 
-Discovery facets, lineage edges, explorer rendering, notebook ergonomics, and
-release documentation are intentionally left to Issues #395 through #400.
+M35 adds discovery facets, lineage edges, local explorer rendering,
+notebook/API ergonomics, deterministic validation coverage, and release
+documentation as thin layers over the same read-only catalog records.
 
 Issue #396 adds derived in-memory lineage edges over these same record families
 when existing metadata explicitly references source runs, validation bundles,
@@ -86,3 +89,7 @@ discovery chain. See
 [`docs/m35_evidence_discovery_validation.md`](m35_evidence_discovery_validation.md)
 for the targeted test slice, portability checks, and read-only boundary
 regressions.
+
+Issue #400 finalizes release readiness. See
+[`docs/m35_release_notes.md`](m35_release_notes.md) and
+[`docs/m35_release_validation_checklist.md`](m35_release_validation_checklist.md).

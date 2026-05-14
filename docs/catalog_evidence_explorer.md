@@ -9,6 +9,10 @@ catalog.
 The explorer is read-only. It does not mutate source artifacts, replay
 promotion gates, enforce governance decisions, or update promotion outcomes.
 
+For the full M35 architecture and release-readiness context, see
+[`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
+and [`docs/m35_release_notes.md`](m35_release_notes.md).
+
 ## CLI Usage
 
 Render Markdown for all catalog records:

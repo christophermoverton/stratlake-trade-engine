@@ -192,8 +192,10 @@ for the source-of-truth mapping and missing-evidence semantics.
 
 ## Limitations and Non-Goals
 
-- **No query CLI.** Use Python directly; a catalog query CLI is deferred.
-- **No lineage graph.** Parent/child relationship extraction is deferred.
+- **No persistent query backend.** Query APIs and CLIs operate over in-memory
+  catalog records derived from existing artifacts.
+- **No persistent lineage graph.** Lineage APIs derive in-memory edges; they do
+  not create a graph database, graph cache, or canonical lineage store.
 - **No persistent cache.** There is no on-disk export of catalog results. If a
   cache is added in a future issue, it must be a derived, non-canonical artifact.
 - **No checksum computation.** `checksum_optional` is always `None` in this
@@ -207,6 +209,10 @@ for the source-of-truth mapping and missing-evidence semantics.
   require recursive discovery in a future issue.
 - Malformed JSON in metrics or summary files is silently skipped with a debug
   log entry.
+
+For the M35 evidence catalog release overview, see
+[`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
+and [`docs/m35_release_notes.md`](m35_release_notes.md).
 
 ---
 

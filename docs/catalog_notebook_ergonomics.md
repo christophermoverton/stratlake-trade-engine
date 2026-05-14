@@ -7,6 +7,10 @@ same catalog, query, lineage, and explorer APIs used by the CLI.
 The helpers live in `src.catalog` and return plain Python objects suitable for
 display in notebooks or conversion to data frames.
 
+For the full M35 architecture and release-readiness context, see
+[`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
+and [`docs/m35_release_notes.md`](m35_release_notes.md).
+
 ## Helpers
 
 ```python

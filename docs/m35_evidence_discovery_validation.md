@@ -78,7 +78,7 @@ counts, or release identifiers alone.
 
 ## Scope
 
-This document covers validation/regression for Issues #394 through #398. Broader
-release notes, milestone checklist integration, and final release documentation
-remain owned by Issue #400.
-
+This document covers validation/regression for Issues #394 through #399. Final
+release notes and milestone checklist integration live in
+[`docs/m35_release_notes.md`](m35_release_notes.md) and
+[`docs/m35_release_validation_checklist.md`](m35_release_validation_checklist.md).

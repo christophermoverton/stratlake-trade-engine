@@ -80,3 +80,9 @@ Python rendering examples.
 Issue #398 adds notebook-friendly wrappers over those same shared APIs. See
 [`docs/catalog_notebook_ergonomics.md`](catalog_notebook_ergonomics.md) and
 [`docs/examples/catalog_evidence_notebook_workflow.py`](examples/catalog_evidence_notebook_workflow.py).
+
+Issue #399 adds deterministic validation coverage for the full M35 evidence
+discovery chain. See
+[`docs/m35_evidence_discovery_validation.md`](m35_evidence_discovery_validation.md)
+for the targeted test slice, portability checks, and read-only boundary
+regressions.

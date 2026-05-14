@@ -254,6 +254,20 @@ Start with:
 * [docs/m34_release_validation_checklist.md](docs/m34_release_validation_checklist.md)
 * [docs/examples/robustness_report_example.py](docs/examples/robustness_report_example.py)
 
+### Milestone 35: Evidence Catalog Foundation
+
+Milestone 35 begins by extending the M29 catalog/indexer architecture so M34
+robustness bundles, M32 governance bundles, milestone validation bundles, and
+release-validation artifacts can be represented as first-class read-only catalog
+record families. The catalog remains derived from existing artifacts; it does
+not create a second registry, database, cache, search backend, or promotion
+policy layer.
+
+Start with:
+
+* [docs/m35_evidence_catalog_foundation.md](docs/m35_evidence_catalog_foundation.md)
+* [docs/catalog_indexer.md](docs/catalog_indexer.md)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

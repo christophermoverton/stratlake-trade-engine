@@ -38,6 +38,10 @@ The indexer scans the following directory families under `artifacts/`:
 | `reviews/<review_id>/` | `review` |
 | `candidate_selection/<run_id>/` | `candidate_selection` |
 | `regime_stress_tests/<run_id>/` | `regime_stress_test` |
+| `robustness/<report_id>/` | `robustness_bundle` |
+| `promotion_governance/<report_id>/` | `governance_bundle` |
+| `milestone_validation/<bundle_id>/` | `milestone_validation_bundle` |
+| `release_validation/<release_id>/` | `release_validation_artifact` |
 | `benchmark_pack_*/<run_id>/` | `benchmark_pack` |
 
 A directory is treated as an artifact root if it contains at least one of:
@@ -48,6 +52,9 @@ metrics_readiness.json                summary.json
 qa_summary.json    _SUCCESS.json      _FAILED.json
 _RUNNING.json      checkpoint.json    scenario_catalog.json
 decision_log.json
+robustness_summary.json              promotion_governance_summary.json
+consistency_validation.json          release_validation.json
+release_validation_summary.json
 ```
 
 ---
@@ -143,6 +150,31 @@ Each `CatalogRecord` includes a `CatalogValidationStatus` with:
 | `qa_status` | Value from `qa_summary.json` if present |
 | `validation_warnings` | List of warning codes |
 | `validation_errors` | List of error codes |
+
+## M35 Evidence Record Families
+
+M35 extends the M29 model with optional evidence fields on `CatalogRecord`.
+These fields are populated only from existing artifacts and remain absent or
+false when evidence is missing:
+
+| Field | Source |
+| --- | --- |
+| `record_family` | One of `robustness_bundle`, `governance_bundle`, `milestone_validation_bundle`, or `release_validation_artifact` for evidence roots. |
+| `robustness_status` | `robustness_summary.json`. |
+| `wfe_status` | `walk_forward_efficiency.csv`. |
+| `sample_size_status`, `trade_count_status` | `sample_size_validation.json`. |
+| `sensitivity_status`, `fragility_status` | `sensitivity_summary.csv`. |
+| `multiple_testing_status` | `multiple_testing_summary.json`. |
+| `temporal_validation_status` | `leakage_validation.json` and temporal-validation findings. |
+| `governance_status`, `promotion_review_status` | Existing governance or validation bundle summaries. |
+| `validation_readiness_present` | Milestone validation bundle summary presence. |
+| `release_validation_present` | Release-validation artifact presence. |
+
+The extension is read-only. It does not create a registry, database, persistent
+cache, search backend, policy simulation layer, or governance enforcement path.
+See
+[`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
+for the source-of-truth mapping and missing-evidence semantics.
 
 ### Warning Codes
 

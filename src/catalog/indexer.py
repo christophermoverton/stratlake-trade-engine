@@ -21,6 +21,7 @@ Output ordering:
 
 from __future__ import annotations
 
+import csv
 import hashlib
 import json
 import logging
@@ -61,6 +62,11 @@ _ARTIFACT_ROOT_INDICATORS: frozenset[str] = frozenset(
         "checkpoint.json",
         "scenario_catalog.json",
         "decision_log.json",
+        "robustness_summary.json",
+        "promotion_governance_summary.json",
+        "consistency_validation.json",
+        "release_validation.json",
+        "release_validation_summary.json",
     }
 )
 
@@ -75,6 +81,10 @@ _KNOWN_FAMILIES: tuple[str, ...] = (
     "reviews",
     "candidate_selection",
     "regime_stress_tests",
+    "robustness",
+    "promotion_governance",
+    "milestone_validation",
+    "release_validation",
 )
 
 # Registry paths relative to artifacts_root
@@ -118,6 +128,42 @@ _SCALAR_METRIC_KEYS: frozenset[str] = frozenset(
         "alpha",
         "information_ratio",
     }
+)
+
+_EVIDENCE_RECORD_FAMILIES: frozenset[str] = frozenset(
+    {
+        "robustness_bundle",
+        "governance_bundle",
+        "milestone_validation_bundle",
+        "release_validation_artifact",
+    }
+)
+
+_STATUS_ORDER: tuple[str, ...] = (
+    "missing",
+    "unavailable",
+    "pass",
+    "passed",
+    "robust",
+    "acceptable",
+    "low_risk",
+    "stable",
+    "improved",
+    "info",
+    "warning",
+    "moderate_risk",
+    "mildly_sensitive",
+    "weak",
+    "high_risk",
+    "needs_review",
+    "fragile",
+    "broken",
+    "extreme_risk",
+    "fail",
+    "failed",
+    "reject",
+    "undefined",
+    "blocked",
 )
 
 
@@ -242,8 +288,6 @@ def build_catalog_record(
 
     rel_root = _relative_posix(artifact_root, repo_root)
     run_id = _infer_run_id(artifact_root, registry_index)
-    run_type = _infer_run_type(artifact_root, run_id, registry_index)
-
     # Marker status
     marker_file, status, marker_path = _read_marker_status(artifact_root)
     source_marker_path = _relative_posix(Path(marker_path), repo_root) if marker_path else None
@@ -251,6 +295,7 @@ def build_catalog_record(
     # Manifest
     manifest_data, manifest_path = _load_manifest(artifact_root)
     source_manifest_path = _relative_posix(manifest_path, repo_root) if manifest_path else None
+    run_type = _infer_run_type(artifact_root, run_id, registry_index, manifest_data=manifest_data)
 
     # Metrics / summary files
     combined_meta: dict[str, Any] = {}
@@ -279,6 +324,9 @@ def build_catalog_record(
     registry = registry_entry or {}
     manifest = manifest_data or {}
     summary = combined_meta.get("summary.json") or {}
+    summary_run_type = _str_or_none(summary.get("run_type"))
+    if summary_run_type in _EVIDENCE_RECORD_FAMILIES:
+        run_type = summary_run_type
 
     strategy_name = _str_or_none(
         registry.get("strategy_name")
@@ -378,6 +426,18 @@ def build_catalog_record(
         if p.exists():
             source_files.append(_relative_posix(p, repo_root))
 
+    evidence = _extract_evidence_metadata(
+        artifact_root,
+        repo_root=repo_root,
+        run_type=run_type,
+        manifest_data=manifest_data,
+        summary_data=summary,
+    )
+    for source_file in evidence.pop("_source_files", []):
+        source_files.append(source_file)
+    if evidence.get("metadata"):
+        combined_meta["evidence"] = evidence["metadata"]
+
     # Validation status
     validation = _build_validation_status(
         artifact_root=artifact_root,
@@ -412,6 +472,19 @@ def build_catalog_record(
         qa_status=qa_status,
         review_status=review_status,
         promotion_status=promotion_status,
+        record_family=evidence.get("record_family"),
+        robustness_status=evidence.get("robustness_status"),
+        wfe_status=evidence.get("wfe_status"),
+        sample_size_status=evidence.get("sample_size_status"),
+        trade_count_status=evidence.get("trade_count_status"),
+        sensitivity_status=evidence.get("sensitivity_status"),
+        fragility_status=evidence.get("fragility_status"),
+        multiple_testing_status=evidence.get("multiple_testing_status"),
+        temporal_validation_status=evidence.get("temporal_validation_status"),
+        governance_status=evidence.get("governance_status"),
+        promotion_review_status=evidence.get("promotion_review_status"),
+        validation_readiness_present=bool(evidence.get("validation_readiness_present", False)),
+        release_validation_present=bool(evidence.get("release_validation_present", False)),
         tags=[],
         source_files=sorted(set(source_files)),
         metadata=combined_meta,
@@ -606,9 +679,15 @@ def _infer_run_type(
     artifact_root: Path,
     run_id: str | None,
     registry_index: dict[str, dict[str, Any]],
+    *,
+    manifest_data: dict[str, Any] | None = None,
 ) -> str:
     if run_id and run_id in registry_index:
         return _str_or_none(registry_index[run_id].get("run_type")) or "unknown"
+
+    manifest_run_type = _str_or_none((manifest_data or {}).get("run_type"))
+    if manifest_run_type:
+        return manifest_run_type
 
     parent_name = artifact_root.parent.name
     _FAMILY_TO_RUN_TYPE: dict[str, str] = {
@@ -621,6 +700,10 @@ def _infer_run_type(
         "reviews": "review",
         "candidate_selection": "candidate_selection",
         "regime_stress_tests": "regime_stress_test",
+        "robustness": "robustness_bundle",
+        "promotion_governance": "governance_bundle",
+        "milestone_validation": "milestone_validation_bundle",
+        "release_validation": "release_validation_artifact",
         "registry": "portfolio_template",
     }
     if parent_name in _FAMILY_TO_RUN_TYPE:
@@ -634,6 +717,302 @@ def _infer_run_type(
         return "benchmark_pack"
 
     return "unknown"
+
+
+def _extract_evidence_metadata(
+    artifact_root: Path,
+    *,
+    repo_root: Path,
+    run_type: str,
+    manifest_data: dict[str, Any] | None,
+    summary_data: dict[str, Any],
+) -> dict[str, Any]:
+    evidence: dict[str, Any] = {"_source_files": [], "metadata": {}}
+    record_family = _infer_record_family(artifact_root, run_type, manifest_data, summary_data)
+    if record_family is not None:
+        evidence["record_family"] = record_family
+
+    if record_family == "robustness_bundle":
+        _merge_evidence(evidence, _extract_robustness_evidence(artifact_root, repo_root=repo_root))
+    elif record_family == "governance_bundle":
+        _merge_evidence(evidence, _extract_governance_evidence(artifact_root, repo_root=repo_root))
+    elif record_family == "milestone_validation_bundle":
+        _merge_evidence(
+            evidence,
+            _extract_milestone_validation_evidence(
+                artifact_root,
+                repo_root=repo_root,
+                summary_data=summary_data,
+            ),
+        )
+    elif record_family == "release_validation_artifact":
+        _merge_evidence(evidence, _extract_release_validation_evidence(artifact_root, repo_root=repo_root))
+
+    return evidence
+
+
+def _infer_record_family(
+    artifact_root: Path,
+    run_type: str,
+    manifest_data: dict[str, Any] | None,
+    summary_data: dict[str, Any],
+) -> str | None:
+    manifest = manifest_data or {}
+    manifest_artifact_type = _str_or_none(manifest.get("artifact_type"))
+    summary_run_type = _str_or_none(summary_data.get("run_type"))
+    if (
+        run_type == "robustness_bundle"
+        or manifest_artifact_type == "robustness_report"
+        or (artifact_root / "robustness_summary.json").exists()
+    ):
+        return "robustness_bundle"
+    if (
+        run_type == "governance_bundle"
+        or _str_or_none(manifest.get("run_type")) == "promotion_governance"
+        or (artifact_root / "promotion_governance_summary.json").exists()
+    ):
+        return "governance_bundle"
+    if (
+        run_type == "milestone_validation_bundle"
+        or summary_run_type == "milestone_validation_bundle"
+        or _str_or_none(manifest.get("run_type")) == "milestone_validation_bundle"
+    ):
+        return "milestone_validation_bundle"
+    if (
+        run_type == "release_validation_artifact"
+        or (artifact_root / "release_validation.json").exists()
+        or (artifact_root / "release_validation_summary.json").exists()
+    ):
+        return "release_validation_artifact"
+    return None
+
+
+def _extract_robustness_evidence(artifact_root: Path, *, repo_root: Path) -> dict[str, Any]:
+    summary_path = artifact_root / "robustness_summary.json"
+    summary = load_json_file(summary_path) or {}
+    findings = _load_findings(artifact_root / "robustness_findings.json")
+    result: dict[str, Any] = {
+        "robustness_status": (
+            _str_or_none(summary.get("robustness_status"))
+            or _status_from_summary_counts(summary)
+            or "missing"
+        ),
+        "wfe_status": _status_from_csv(artifact_root / "walk_forward_efficiency.csv"),
+        "sample_size_status": _status_from_sample_size(artifact_root / "sample_size_validation.json"),
+        "trade_count_status": _status_from_sample_size(
+            artifact_root / "sample_size_validation.json",
+            check_fragments=("trade",),
+        ),
+        "sensitivity_status": _status_from_csv(artifact_root / "sensitivity_summary.csv"),
+        "multiple_testing_status": _status_from_multiple_testing(
+            artifact_root / "multiple_testing_summary.json"
+        ),
+        "temporal_validation_status": _status_from_temporal_validation(
+            artifact_root / "leakage_validation.json",
+            findings,
+        ),
+        "_source_files": _existing_relative_files(
+            artifact_root,
+            repo_root,
+            [
+                "robustness_summary.json",
+                "robustness_findings.json",
+                "walk_forward_efficiency.csv",
+                "sample_size_validation.json",
+                "sensitivity_summary.csv",
+                "multiple_testing_summary.json",
+                "leakage_validation.json",
+            ],
+        ),
+        "metadata": {
+            "finding_count": summary.get("finding_count", len(findings)),
+            "highest_severity": summary.get("highest_severity"),
+            "checks_present": summary.get("checks_present", []),
+            "checks_missing": summary.get("checks_missing", []),
+        },
+    }
+    result["fragility_status"] = result["sensitivity_status"]
+    return result
+
+
+def _extract_governance_evidence(artifact_root: Path, *, repo_root: Path) -> dict[str, Any]:
+    summary = load_json_file(artifact_root / "promotion_governance_summary.json") or {}
+    validation = load_json_file(artifact_root / "consistency_validation.json") or {}
+    manifest = load_json_file(artifact_root / "manifest.json") or {}
+    governance_status = _str_or_none(validation.get("status") or manifest.get("validation_status"))
+    return {
+        "governance_status": governance_status,
+        "promotion_review_status": _single_count_key(summary.get("review_status_counts")),
+        "_source_files": _existing_relative_files(
+            artifact_root,
+            repo_root,
+            [
+                "promotion_governance_summary.json",
+                "promotion_outcome_matrix.csv",
+                "consistency_validation.json",
+                "manifest.json",
+            ],
+        ),
+        "metadata": {
+            "row_count": summary.get("row_count") or manifest.get("row_count"),
+            "validation_finding_count": validation.get("finding_count"),
+        },
+    }
+
+
+def _extract_milestone_validation_evidence(
+    artifact_root: Path,
+    *,
+    repo_root: Path,
+    summary_data: dict[str, Any],
+) -> dict[str, Any]:
+    summary = summary_data or load_json_file(artifact_root / "summary.json") or {}
+    checks = summary.get("checks") if isinstance(summary.get("checks"), dict) else {}
+    return {
+        "validation_readiness_present": True,
+        "governance_status": _str_or_none(summary.get("status")),
+        "_source_files": _existing_relative_files(
+            artifact_root,
+            repo_root,
+            ["summary.json", "_SUCCESS.json", "_FAILED.json"],
+        ),
+        "metadata": {
+            "check_count": len(checks),
+            "include_full_pytest": summary.get("include_full_pytest"),
+            "include_cross_layer_validation": summary.get("include_cross_layer_validation"),
+        },
+    }
+
+
+def _extract_release_validation_evidence(artifact_root: Path, *, repo_root: Path) -> dict[str, Any]:
+    payload = (
+        load_json_file(artifact_root / "release_validation_summary.json")
+        or load_json_file(artifact_root / "release_validation.json")
+        or {}
+    )
+    return {
+        "release_validation_present": True,
+        "governance_status": _str_or_none(payload.get("status") or payload.get("validation_status")),
+        "_source_files": _existing_relative_files(
+            artifact_root,
+            repo_root,
+            ["release_validation_summary.json", "release_validation.json", "manifest.json"],
+        ),
+        "metadata": {
+            "release_id": payload.get("release_id"),
+            "finding_count": payload.get("finding_count"),
+        },
+    }
+
+
+def _merge_evidence(target: dict[str, Any], source: dict[str, Any]) -> None:
+    for key, value in source.items():
+        if key == "_source_files":
+            target.setdefault("_source_files", [])
+            target["_source_files"].extend(value)
+        elif key == "metadata":
+            target.setdefault("metadata", {})
+            target["metadata"].update(value)
+        else:
+            target[key] = value
+
+
+def _existing_relative_files(artifact_root: Path, repo_root: Path, filenames: list[str]) -> list[str]:
+    return [
+        _relative_posix(artifact_root / filename, repo_root)
+        for filename in sorted(filenames)
+        if (artifact_root / filename).exists()
+    ]
+
+
+def _status_from_csv(path: Path) -> str | None:
+    if not path.exists():
+        return None
+    try:
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            return _max_status(row.get("status", "") for row in csv.DictReader(handle))
+    except OSError:
+        return None
+
+
+def _status_from_sample_size(path: Path, *, check_fragments: tuple[str, ...] = ()) -> str | None:
+    payload = load_json_file(path)
+    checks = payload.get("checks") if isinstance(payload, dict) else None
+    if not isinstance(checks, list):
+        return None
+    statuses: list[str] = []
+    for item in checks:
+        if not isinstance(item, dict):
+            continue
+        check_id = str(item.get("check_id", "")).lower()
+        if check_fragments and not any(fragment in check_id for fragment in check_fragments):
+            continue
+        status = _str_or_none(item.get("status"))
+        if status:
+            statuses.append(status)
+    return _max_status(statuses)
+
+
+def _status_from_multiple_testing(path: Path) -> str | None:
+    payload = load_json_file(path)
+    families = payload.get("families") if isinstance(payload, dict) else None
+    if not isinstance(families, list):
+        return None
+    return _max_status(str(item.get("status", "")) for item in families if isinstance(item, dict))
+
+
+def _status_from_temporal_validation(path: Path, findings: list[dict[str, Any]]) -> str | None:
+    statuses = [
+        str(finding.get("details", {}).get("status", ""))
+        for finding in findings
+        if str(finding.get("check_id", "")).startswith("temporal_validation.")
+        and isinstance(finding.get("details"), dict)
+    ]
+    payload = load_json_file(path)
+    if payload is not None:
+        statuses.append(str(payload.get("overall_status", "")))
+    return _max_status(statuses)
+
+
+def _status_from_summary_counts(summary: dict[str, Any]) -> str | None:
+    counts = summary.get("robustness_status_counts")
+    if not isinstance(counts, dict):
+        return None
+    active: list[str] = []
+    for key, value in counts.items():
+        try:
+            count = int(value or 0)
+        except (TypeError, ValueError):
+            count = 0
+        if count > 0:
+            active.append(str(key))
+    return _max_status(active)
+
+
+def _load_findings(path: Path) -> list[dict[str, Any]]:
+    payload = load_json_file(path)
+    findings = payload.get("findings") if isinstance(payload, dict) else None
+    if not isinstance(findings, list):
+        return []
+    return [dict(item) for item in findings if isinstance(item, dict)]
+
+
+def _single_count_key(value: Any) -> str | None:
+    if not isinstance(value, dict) or len(value) != 1:
+        return None
+    return _str_or_none(next(iter(value)))
+
+
+def _max_status(values: Any) -> str | None:
+    statuses = [str(value).strip() for value in values if str(value).strip()]
+    if not statuses:
+        return None
+    return max(
+        statuses,
+        key=lambda value: _STATUS_ORDER.index(value)
+        if value in _STATUS_ORDER
+        else len(_STATUS_ORDER),
+    )
 
 
 def _resolve_artifact_dir(entry: dict[str, Any], artifacts_root: Path) -> Path | None:
@@ -839,7 +1218,7 @@ def _make_artifact_record(
         catalog_id=catalog_id,
         run_id=run_id,
         artifact_type=artifact_type,
-        path=_posix_str(abs_path),
+        path=_relative_posix(abs_path, repo_root),
         relative_path=relative_path,
         filename=filename,
         extension=extension,
@@ -954,7 +1333,7 @@ def _relative_posix(path: Path, base: Path) -> str:
     try:
         return path.relative_to(base).as_posix()
     except ValueError:
-        return path.as_posix()
+        return Path(path.name).as_posix()
 
 
 def _posix_str(path: Path) -> str:

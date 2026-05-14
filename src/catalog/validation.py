@@ -36,6 +36,15 @@ _COMMON_JSON_FILENAMES = frozenset(
         "checkpoint.json",
         "scenario_catalog.json",
         "decision_log.json",
+        "robustness_summary.json",
+        "robustness_findings.json",
+        "sample_size_validation.json",
+        "multiple_testing_summary.json",
+        "leakage_validation.json",
+        "promotion_governance_summary.json",
+        "consistency_validation.json",
+        "release_validation.json",
+        "release_validation_summary.json",
     }
 )
 _INTERNAL_UNDECLARED_FILENAMES = frozenset(
@@ -52,6 +61,15 @@ _INTERNAL_UNDECLARED_FILENAMES = frozenset(
         "checkpoint.json",
         "scenario_catalog.json",
         "decision_log.json",
+        "robustness_summary.json",
+        "robustness_findings.json",
+        "sample_size_validation.json",
+        "multiple_testing_summary.json",
+        "leakage_validation.json",
+        "promotion_governance_summary.json",
+        "consistency_validation.json",
+        "release_validation.json",
+        "release_validation_summary.json",
     }
 )
 

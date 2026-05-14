@@ -41,6 +41,21 @@ def _record(
     metrics_summary: dict | None = None,
     start_ts: str | None = None,
     end_ts: str | None = None,
+    record_family: str | None = None,
+    robustness_status: str | None = None,
+    wfe_status: str | None = None,
+    sample_size_status: str | None = None,
+    trade_count_status: str | None = None,
+    sensitivity_status: str | None = None,
+    fragility_status: str | None = None,
+    multiple_testing_status: str | None = None,
+    temporal_validation_status: str | None = None,
+    governance_status: str | None = None,
+    promotion_review_status: str | None = None,
+    review_status: str | None = "candidate",
+    promotion_status: str | None = "pending",
+    validation_readiness_present: bool = False,
+    release_validation_present: bool = False,
     metadata: dict | None = None,
 ) -> CatalogRecord:
     return CatalogRecord(
@@ -65,8 +80,21 @@ def _record(
         scenario_id=scenario_id,
         metrics_summary=metrics_summary,
         qa_status=None,
-        review_status="candidate",
-        promotion_status="pending",
+        review_status=review_status,
+        promotion_status=promotion_status,
+        record_family=record_family,
+        robustness_status=robustness_status,
+        wfe_status=wfe_status,
+        sample_size_status=sample_size_status,
+        trade_count_status=trade_count_status,
+        sensitivity_status=sensitivity_status,
+        fragility_status=fragility_status,
+        multiple_testing_status=multiple_testing_status,
+        temporal_validation_status=temporal_validation_status,
+        governance_status=governance_status,
+        promotion_review_status=promotion_review_status,
+        validation_readiness_present=validation_readiness_present,
+        release_validation_present=release_validation_present,
         tags=[],
         source_files=[],
         metadata=metadata or {},
@@ -111,6 +139,138 @@ def test_filter_by_names() -> None:
     assert [r.run_id for r in filter_catalog_records(records, allocator_name="hrp")] == ["portfolio_1"]
     assert [r.run_id for r in filter_catalog_records(records, alpha_model_name="alpha_fast")] == ["alpha_1"]
     assert [r.run_id for r in filter_catalog_records(records, regime_method="hmm")] == ["regime_1"]
+
+
+def test_filter_by_all_m35_evidence_fields() -> None:
+    robustness = _record(
+        "robustness_1",
+        "robustness_bundle",
+        record_family="robustness_bundle",
+        robustness_status="needs_review",
+        wfe_status="weak",
+        sample_size_status="warning",
+        trade_count_status="warning",
+        sensitivity_status="fragile",
+        fragility_status="fragile",
+        multiple_testing_status="high_risk",
+        temporal_validation_status="blocked",
+    )
+    governance = _record(
+        "governance_1",
+        "governance_bundle",
+        record_family="governance_bundle",
+        governance_status="pass",
+        promotion_review_status="needs_review",
+    )
+    milestone = _record(
+        "milestone_1",
+        "milestone_validation_bundle",
+        record_family="milestone_validation_bundle",
+        validation_readiness_present=True,
+    )
+    release = _record(
+        "release_1",
+        "release_validation_artifact",
+        record_family="release_validation_artifact",
+        release_validation_present=True,
+    )
+    records = [release, milestone, governance, robustness]
+
+    checks = [
+        ({"record_family": "robustness_bundle"}, ["robustness_1"]),
+        ({"robustness_status": "needs_review"}, ["robustness_1"]),
+        ({"wfe_status": "weak"}, ["robustness_1"]),
+        ({"sample_size_status": "warning"}, ["robustness_1"]),
+        ({"trade_count_status": "warning"}, ["robustness_1"]),
+        ({"sensitivity_status": "fragile"}, ["robustness_1"]),
+        ({"fragility_status": "fragile"}, ["robustness_1"]),
+        ({"multiple_testing_status": "high_risk"}, ["robustness_1"]),
+        ({"temporal_validation_status": "blocked"}, ["robustness_1"]),
+        ({"governance_status": "pass"}, ["governance_1"]),
+        ({"promotion_review_status": "needs_review"}, ["governance_1"]),
+        ({"validation_readiness_present": True}, ["milestone_1"]),
+        ({"release_validation_present": True}, ["release_1"]),
+    ]
+    for kwargs, expected in checks:
+        assert [record.run_id for record in filter_catalog_records(records, **kwargs)] == expected
+
+
+def test_combined_evidence_filters_and_missing_fields_are_safe() -> None:
+    records = [
+        _record(
+            "robustness_match",
+            "robustness_bundle",
+            record_family="robustness_bundle",
+            robustness_status="needs_review",
+            wfe_status="weak",
+        ),
+        _record(
+            "robustness_other",
+            "robustness_bundle",
+            record_family="robustness_bundle",
+            robustness_status="needs_review",
+            wfe_status=None,
+        ),
+        _record("strategy_sparse", "strategy", review_status=None, promotion_status=None),
+    ]
+
+    result = filter_catalog_records(records, robustness_status="needs_review", wfe_status="weak")
+
+    assert [record.run_id for record in result] == ["robustness_match"]
+    assert filter_catalog_records(records, temporal_validation_status="blocked") == []
+
+
+def test_governance_and_alias_boolean_filters() -> None:
+    records = [
+        _record(
+            "governance_match",
+            "governance_bundle",
+            record_family="governance_bundle",
+            governance_status="pass",
+        ),
+        _record(
+            "milestone_match",
+            "milestone_validation_bundle",
+            validation_readiness_present=True,
+        ),
+        _record("release_match", "release_validation_artifact", release_validation_present=True),
+    ]
+
+    assert [
+        record.run_id
+        for record in filter_catalog_records(
+            records,
+            record_family="governance_bundle",
+            governance_status="pass",
+        )
+    ] == ["governance_match"]
+    assert [record.run_id for record in filter_catalog_records(records, validation_bundle_present=True)] == [
+        "milestone_match"
+    ]
+    assert [record.run_id for record in filter_catalog_records(records, release_readiness_present=True)] == [
+        "release_match"
+    ]
+
+
+def test_conflicting_boolean_aliases_fail_fast() -> None:
+    records = [_record("milestone", "milestone_validation_bundle", validation_readiness_present=True)]
+
+    try:
+        filter_catalog_records(records, validation_readiness_present=True, validation_bundle_present=False)
+    except ValueError as exc:
+        assert "validation_bundle_present conflicts with validation_readiness_present" in str(exc)
+    else:
+        raise AssertionError("Expected conflicting alias filters to fail")
+
+
+def test_filter_by_review_and_promotion_status() -> None:
+    records = [
+        _record("candidate", "strategy", review_status="candidate", promotion_status="pending"),
+        _record("promoted", "strategy", review_status="promoted", promotion_status="passed"),
+    ]
+
+    assert [r.run_id for r in filter_catalog_records(records, review_status="promoted")] == ["promoted"]
+    assert [r.run_id for r in filter_catalog_records(records, promotion_status="pending")] == ["candidate"]
 
 
 def test_metric_threshold_filtering() -> None:

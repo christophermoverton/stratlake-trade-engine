@@ -74,6 +74,43 @@ def _make_template(artifacts_root: Path, run_id: str = "template_1") -> None:
     )
 
 
+def _make_robustness_bundle(artifacts_root: Path, report_id: str = "robustness_1") -> Path:
+    report_root = artifacts_root / "robustness" / report_id
+    _write_json(
+        report_root / "robustness_summary.json",
+        {"report_id": report_id, "robustness_status": "needs_review"},
+    )
+    (report_root / "walk_forward_efficiency.csv").write_text("run_id,status\nstrategy_1,weak\n", encoding="utf-8")
+    return report_root
+
+
+def _make_governance_bundle(artifacts_root: Path, report_id: str = "governance_1") -> Path:
+    report_root = artifacts_root / "promotion_governance" / report_id
+    _write_json(
+        report_root / "promotion_governance_summary.json",
+        {"row_count": 1, "review_status_counts": {"needs_review": 1}},
+    )
+    _write_json(report_root / "consistency_validation.json", {"status": "pass", "finding_count": 0})
+    _write_json(report_root / "manifest.json", {"run_type": "promotion_governance", "validation_status": "pass"})
+    return report_root
+
+
+def _make_milestone_bundle(artifacts_root: Path, bundle_id: str = "milestone_1") -> Path:
+    bundle_root = artifacts_root / "qa" / bundle_id
+    _write_json(
+        bundle_root / "summary.json",
+        {"run_type": "milestone_validation_bundle", "status": "passed", "checks": {}},
+    )
+    _write_json(bundle_root / "_SUCCESS.json", {"status": "completed"})
+    return bundle_root
+
+
+def _make_release_validation(artifacts_root: Path, release_id: str = "release_1") -> Path:
+    release_root = artifacts_root / "release_validation" / release_id
+    _write_json(release_root / "release_validation.json", {"release_id": release_id, "status": "pass"})
+    return release_root
+
+
 def test_cli_json_output_for_run_type_filter(tmp_path: Path, capsys) -> None:
     _make_strategy(tmp_path, "strategy_1")
     _make_portfolio(tmp_path, "portfolio_1")
@@ -133,6 +170,103 @@ def test_cli_metric_filter(tmp_path: Path, capsys) -> None:
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
     assert [record["run_id"] for record in payload] == ["strategy_high"]
+
+
+def test_cli_filters_robustness_evidence_json_matches_api_fields(tmp_path: Path, capsys) -> None:
+    _make_robustness_bundle(tmp_path)
+    _make_governance_bundle(tmp_path)
+
+    code = query_catalog_cli.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--artifacts-root",
+            ".",
+            "--record-family",
+            "robustness_bundle",
+            "--robustness-status",
+            "needs_review",
+            "--wfe-status",
+            "weak",
+            "--format",
+            "json",
+        ]
+    )
+
+    assert code == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert [record["run_type"] for record in payload] == ["robustness_bundle"]
+    assert payload[0]["record_family"] == "robustness_bundle"
+    assert payload[0]["robustness_status"] == "needs_review"
+    assert payload[0]["wfe_status"] == "weak"
+
+
+def test_cli_filters_governance_and_presence_aliases(tmp_path: Path, capsys) -> None:
+    _make_governance_bundle(tmp_path)
+    _make_milestone_bundle(tmp_path)
+    _make_release_validation(tmp_path)
+
+    governance_code = query_catalog_cli.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--artifacts-root",
+            ".",
+            "--record-family",
+            "governance_bundle",
+            "--governance-status",
+            "pass",
+            "--format",
+            "json",
+        ]
+    )
+    governance_payload = json.loads(capsys.readouterr().out)
+    validation_code = query_catalog_cli.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--artifacts-root",
+            ".",
+            "--validation-bundle-present",
+            "true",
+            "--format",
+            "json",
+        ]
+    )
+    validation_payload = json.loads(capsys.readouterr().out)
+    release_code = query_catalog_cli.main(
+        [
+            "--repo-root",
+            str(tmp_path),
+            "--artifacts-root",
+            ".",
+            "--release-readiness-present",
+            "true",
+            "--format",
+            "json",
+        ]
+    )
+    release_payload = json.loads(capsys.readouterr().out)
+
+    assert governance_code == 0
+    assert validation_code == 0
+    assert release_code == 0
+    assert [record["record_family"] for record in governance_payload] == ["governance_bundle"]
+    assert [record["validation_readiness_present"] for record in validation_payload] == [True]
+    assert [record["release_validation_present"] for record in release_payload] == [True]
+
+
+def test_cli_table_includes_evidence_columns(tmp_path: Path, capsys) -> None:
+    _make_robustness_bundle(tmp_path)
+
+    code = query_catalog_cli.main(
+        ["--repo-root", str(tmp_path), "--artifacts-root", ".", "--robustness-status", "needs_review"]
+    )
+
+    assert code == 0
+    out = capsys.readouterr().out
+    assert "record_family\trobustness_status\twfe_status" in out
+    assert "robustness_bundle\tneeds_review\tweak" in out
 
 
 def test_cli_include_templates(tmp_path: Path, capsys) -> None:

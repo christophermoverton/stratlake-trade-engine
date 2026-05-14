@@ -30,6 +30,7 @@ def _record(
     artifact_root: str | None = None,
     source_manifest_path: str | None = None,
     source_files: list[str] | None = None,
+    record_family: str | None = None,
 ) -> CatalogRecord:
     return CatalogRecord(
         catalog_id=f"catalog_{run_id}",
@@ -55,6 +56,7 @@ def _record(
         qa_status=None,
         review_status=None,
         promotion_status=None,
+        record_family=record_family,
         tags=[],
         source_files=source_files or [],
         metadata=metadata or {},
@@ -316,3 +318,183 @@ def test_read_only_behavior_for_source_files(tmp_path: Path) -> None:
     }
 
     assert before == after
+
+
+def test_run_to_robustness_evidence_from_explicit_source_run_ids(tmp_path: Path) -> None:
+    strategy = _record("strategy_a", "strategy")
+    robustness = _record(
+        "robustness_report",
+        "robustness_bundle",
+        record_family="robustness_bundle",
+        artifact_root="robustness/robustness_report",
+        source_files=["robustness/robustness_report/robustness_summary.json"],
+    )
+    _write_json(
+        tmp_path / "robustness" / "robustness_report" / "robustness_summary.json",
+        {"report_id": "robustness_report", "source_run_ids": ["strategy_a"]},
+    )
+
+    edges = build_lineage_edges([robustness, strategy], repo_root=tmp_path)
+    evidence_edges = [edge for edge in edges if edge.edge_type == "run_to_robustness_evidence"]
+
+    assert len(evidence_edges) == 1
+    assert evidence_edges[0].source_run_id == "strategy_a"
+    assert evidence_edges[0].target_run_id == "robustness_report"
+    assert evidence_edges[0].relationship_path == "robustness/robustness_report/robustness_summary.json"
+    assert "\\" not in evidence_edges[0].relationship_path
+
+
+def test_run_to_governance_evidence_from_outcome_matrix_rows(tmp_path: Path) -> None:
+    strategy = _record("strategy_a", "strategy")
+    governance = _record(
+        "governance_report",
+        "governance_bundle",
+        record_family="governance_bundle",
+        artifact_root="promotion_governance/governance_report",
+        source_files=["promotion_governance/governance_report/promotion_outcome_matrix.csv"],
+    )
+    matrix = tmp_path / "promotion_governance" / "governance_report" / "promotion_outcome_matrix.csv"
+    matrix.parent.mkdir(parents=True, exist_ok=True)
+    matrix.write_text("workflow_type,run_id,review_status\nstrategy,strategy_a,needs_review\n", encoding="utf-8")
+
+    edges = build_lineage_edges([governance, strategy], repo_root=tmp_path)
+    evidence_edges = [edge for edge in edges if edge.edge_type == "run_to_governance_evidence"]
+
+    assert len(evidence_edges) == 1
+    assert evidence_edges[0].source_run_id == "strategy_a"
+    assert evidence_edges[0].target_run_id == "governance_report"
+    assert evidence_edges[0].relationship_source == "promotion_outcome_matrix.csv:run_ids"
+
+
+def test_run_to_validation_bundle_from_explicit_validation_metadata() -> None:
+    strategy = _record("strategy_a", "strategy")
+    validation = _record(
+        "milestone_bundle",
+        "milestone_validation_bundle",
+        record_family="milestone_validation_bundle",
+        metadata={"source_run_ids": ["strategy_a"]},
+    )
+
+    edges = build_lineage_edges([validation, strategy])
+    evidence_edges = [edge for edge in edges if edge.edge_type == "run_to_validation_bundle"]
+
+    assert len(evidence_edges) == 1
+    assert evidence_edges[0].source_run_id == "strategy_a"
+    assert evidence_edges[0].target_run_id == "milestone_bundle"
+
+
+def test_validation_bundle_to_release_validation_from_explicit_release_metadata() -> None:
+    validation = _record(
+        "milestone_bundle",
+        "milestone_validation_bundle",
+        record_family="milestone_validation_bundle",
+    )
+    release = _record(
+        "release_validation",
+        "release_validation_artifact",
+        record_family="release_validation_artifact",
+        metadata={"validation_bundle_run_id": "milestone_bundle"},
+    )
+
+    edges = build_lineage_edges([release, validation])
+    release_edges = [edge for edge in edges if edge.edge_type == "validation_bundle_to_release_validation"]
+
+    assert len(release_edges) == 1
+    assert release_edges[0].source_run_id == "milestone_bundle"
+    assert release_edges[0].target_run_id == "release_validation"
+
+
+def test_campaign_and_scenario_to_evidence_bundle_from_explicit_references() -> None:
+    campaign = _record("campaign_run", "campaign", campaign_id="campaign_a")
+    scenario = _record("scenario_run", "campaign", scenario_id="scenario_a")
+    robustness = _record(
+        "robustness_report",
+        "robustness_bundle",
+        record_family="robustness_bundle",
+        metadata={"campaign_id": "campaign_a", "scenario_id": "scenario_a"},
+    )
+
+    edges = build_lineage_edges([robustness, campaign, scenario])
+
+    assert [
+        (edge.source_run_id, edge.target_run_id)
+        for edge in edges
+        if edge.edge_type == "campaign_to_evidence_bundle"
+    ] == [("campaign_run", "robustness_report")]
+    assert [
+        (edge.source_run_id, edge.target_run_id)
+        for edge in edges
+        if edge.edge_type == "scenario_to_evidence_bundle"
+    ] == [("scenario_run", "robustness_report")]
+
+
+def test_evidence_missing_references_are_skipped_and_deterministic() -> None:
+    robustness = _record(
+        "robustness_report",
+        "robustness_bundle",
+        record_family="robustness_bundle",
+        metadata={"source_run_ids": ["missing_run"]},
+    )
+
+    first = build_lineage_edges([robustness])
+    second = build_lineage_edges([robustness])
+
+    assert first == []
+    assert second == []
+
+
+def test_no_invented_evidence_edges_without_explicit_metadata() -> None:
+    strategy = _record("demo", "strategy")
+    robustness = _record(
+        "robustness_report_demo",
+        "robustness_bundle",
+        record_family="robustness_bundle",
+    )
+    governance = _record(
+        "governance_report",
+        "governance_bundle",
+        record_family="governance_bundle",
+        metadata={"row_count": 1},
+    )
+    release = _record(
+        "release_validation",
+        "release_validation_artifact",
+        record_family="release_validation_artifact",
+        metadata={"release_id": "m35"},
+    )
+
+    edges = build_lineage_edges([strategy, robustness, governance, release])
+
+    assert [edge for edge in edges if "evidence" in edge.edge_type or "release_validation" in edge.edge_type] == []
+
+
+def test_evidence_lineage_from_source_artifact_reference_path() -> None:
+    strategy = _record("strategy_a", "strategy", artifact_root="strategies/strategy_a")
+    robustness = _record(
+        "robustness_report",
+        "robustness_bundle",
+        record_family="robustness_bundle",
+        metadata={"source_artifacts": [{"path": "strategies/strategy_a/metrics.json"}]},
+    )
+
+    edges = build_lineage_edges([robustness, strategy])
+    evidence_edges = [edge for edge in edges if edge.edge_type == "run_to_robustness_evidence"]
+
+    assert len(evidence_edges) == 1
+    assert evidence_edges[0].metadata["artifact_reference"] == "strategies/strategy_a/metrics.json"
+
+
+def test_evidence_edge_ordering_is_deterministic() -> None:
+    strategy_a = _record("strategy_a", "strategy")
+    strategy_b = _record("strategy_b", "strategy")
+    robustness = _record(
+        "robustness_report",
+        "robustness_bundle",
+        record_family="robustness_bundle",
+        metadata={"source_run_ids": ["strategy_b", "strategy_a"]},
+    )
+
+    first = build_lineage_edges([robustness, strategy_b, strategy_a])
+    second = build_lineage_edges([strategy_a, robustness, strategy_b])
+
+    assert [edge.to_dict() for edge in first] == [edge.to_dict() for edge in second]

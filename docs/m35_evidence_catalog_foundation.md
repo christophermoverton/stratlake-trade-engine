@@ -65,3 +65,9 @@ The M35 foundation only reads existing artifacts:
 
 Discovery facets, lineage edges, explorer rendering, notebook ergonomics, and
 release documentation are intentionally left to Issues #395 through #400.
+
+Issue #396 adds derived in-memory lineage edges over these same record families
+when existing metadata explicitly references source runs, validation bundles,
+campaigns, scenarios, or source artifact paths. Those edges remain read-only
+catalog lineage; they do not create a graph database, graph cache, canonical
+lineage store, policy replay layer, or governance enforcement layer.

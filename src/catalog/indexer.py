@@ -316,7 +316,12 @@ def build_catalog_record(
     registry_entry = registry_index.get(run_id) if run_id else None
     source_registry_path: str | None = None
     if registry_entry is not None:
-        source_registry_path = _str_or_none(registry_entry.get("_registry_path"))
+        raw_registry_path = _str_or_none(registry_entry.get("_registry_path"))
+        source_registry_path = (
+            _relative_posix(Path(raw_registry_path), repo_root)
+            if raw_registry_path
+            else None
+        )
 
     # Field extraction (registry wins over summary wins over manifest).
     # Use safe helper dicts to avoid Python operator-precedence issues with

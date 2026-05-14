@@ -118,6 +118,19 @@ def test_strategy_root_with_registry_manifest_success(tmp_path):
     assert "metrics.json" in relpaths or any("metrics" in p for p in relpaths)
 
 
+def test_registry_source_path_is_repo_relative(tmp_path):
+    run_id = "strategy_with_registry"
+    make_strategy_root(tmp_path, run_id, with_registry=True)
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    record = next(r for r in records if r.run_id == run_id)
+
+    assert record.source_registry_path == "strategies/registry.jsonl"
+    assert not Path(record.source_registry_path).is_absolute()
+    assert all(not Path(path).is_absolute() for path in record.source_files)
+    assert all("\\" not in path and not path.startswith("file://") for path in record.source_files)
+
+
 # ---------------------------------------------------------------------------
 # Test 2: Artifact root without registry entry
 # ---------------------------------------------------------------------------
@@ -162,6 +175,27 @@ def test_registry_entry_without_artifact_root(tmp_path):
     r = ghost_records[0]
     assert r.status == "registry_only"
     assert "registry_entry_no_artifact_root" in r.validation.validation_warnings
+
+
+def test_registry_only_source_path_is_repo_relative(tmp_path):
+    run_id = "ghost_repo_relative"
+    registry_path = tmp_path / "strategies" / "registry.jsonl"
+    entry = {
+        "run_id": run_id,
+        "run_type": "strategy",
+        "strategy_name": "GhostPortableStrategy",
+        "artifact_dir": (tmp_path / "strategies" / run_id).as_posix(),
+    }
+    write_jsonl(registry_path, [entry])
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    record = next(r for r in records if r.run_id == run_id)
+
+    assert record.status == "registry_only"
+    assert record.source_registry_path == "strategies/registry.jsonl"
+    assert not Path(record.source_registry_path).is_absolute()
+    assert all(not Path(path).is_absolute() for path in record.source_files)
+    assert all("\\" not in path and not path.startswith("file://") for path in record.source_files)
 
 
 # ---------------------------------------------------------------------------

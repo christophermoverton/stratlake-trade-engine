@@ -268,6 +268,7 @@ Start with:
 * [docs/m35_evidence_catalog_foundation.md](docs/m35_evidence_catalog_foundation.md)
 * [docs/catalog_indexer.md](docs/catalog_indexer.md)
 * [docs/catalog_evidence_explorer.md](docs/catalog_evidence_explorer.md)
+* [docs/catalog_notebook_ergonomics.md](docs/catalog_notebook_ergonomics.md)
 
 ### Milestone 27: Market Simulation Stress Testing Case Study
 

@@ -76,3 +76,7 @@ Issue #397 adds a lightweight local evidence explorer over the existing catalog,
 query, and lineage APIs. See
 [`docs/catalog_evidence_explorer.md`](catalog_evidence_explorer.md) for CLI and
 Python rendering examples.
+
+Issue #398 adds notebook-friendly wrappers over those same shared APIs. See
+[`docs/catalog_notebook_ergonomics.md`](catalog_notebook_ergonomics.md) and
+[`docs/examples/catalog_evidence_notebook_workflow.py`](examples/catalog_evidence_notebook_workflow.py).

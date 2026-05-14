@@ -82,6 +82,9 @@ view = build_evidence_explorer_view(
 )
 ```
 
+Notebook-friendly wrappers for these same calls are documented in
+[`docs/catalog_notebook_ergonomics.md`](catalog_notebook_ergonomics.md).
+
 ## Output Formats
 
 Markdown output uses stable sections:

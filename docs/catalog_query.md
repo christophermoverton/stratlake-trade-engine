@@ -238,6 +238,8 @@ not execute strategies, portfolios, campaigns, validations, or notebooks.
 
 For a rendered local review surface over query results and evidence lineage,
 see [`docs/catalog_evidence_explorer.md`](catalog_evidence_explorer.md).
+For notebook-friendly wrappers over the same APIs, see
+[`docs/catalog_notebook_ergonomics.md`](catalog_notebook_ergonomics.md).
 
 ## Read-Only Guarantees
 

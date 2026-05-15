@@ -258,18 +258,23 @@ def _render_prov(graph: dict[str, Any]) -> dict[str, Any]:
 
 
 def _record_node(record: CatalogRecord) -> dict[str, Any]:
+    metadata = {
+        "catalog_id": record.catalog_id,
+        "run_id": record.run_id,
+        "run_type": record.run_type,
+        "record_family": record.record_family,
+        "status": record.status,
+        "artifact_root": _portable_text(record.artifact_root),
+    }
+    for key in ("dataset_lineage", "feature_lineage"):
+        value = record.metadata.get(key)
+        if isinstance(value, dict):
+            metadata[key] = _portable_json(value)
     return {
         "id": _catalog_node_id(record.catalog_id),
         "kind": "catalog_record",
         "name": record.run_id or record.catalog_id,
-        "metadata": {
-            "catalog_id": record.catalog_id,
-            "run_id": record.run_id,
-            "run_type": record.run_type,
-            "record_family": record.record_family,
-            "status": record.status,
-            "artifact_root": _portable_text(record.artifact_root),
-        },
+        "metadata": metadata,
     }
 
 

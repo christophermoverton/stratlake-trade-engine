@@ -44,6 +44,7 @@ def build_catalog_scale_tree(root: Path) -> None:
                 "run_id": run_id,
                 "run_type": "strategy",
                 "artifacts": ["summary.json", "metrics.json", "_SUCCESS.json"],
+                **(_lineage_metadata(run_id) if index == 0 else {}),
             },
         )
         strategy_registry.append(_registry_entry(run_id, "strategy", run_root.as_posix()))
@@ -68,6 +69,7 @@ def build_catalog_scale_tree(root: Path) -> None:
                 "run_id": run_id,
                 "run_type": "alpha_evaluation",
                 "artifacts": ["alpha_metrics.json", "_SUCCESS.json"],
+                **(_lineage_metadata(run_id) if index == 0 else {}),
             },
         )
         alpha_registry.append(_registry_entry(run_id, "alpha_evaluation", run_root.as_posix()))
@@ -94,6 +96,7 @@ def build_catalog_scale_tree(root: Path) -> None:
                 "run_type": "portfolio",
                 "component_run_ids": component_ids,
                 "artifacts": ["summary.json", "_SUCCESS.json"],
+                **(_lineage_metadata(run_id) if index == 0 else {}),
             },
         )
         portfolio_registry.append(_registry_entry(run_id, "portfolio", run_root.as_posix()))
@@ -110,6 +113,7 @@ def build_catalog_scale_tree(root: Path) -> None:
                 "run_type": "campaign",
                 "campaign_id": run_id,
                 "artifacts": ["_SUCCESS.json"],
+                **(_lineage_metadata(run_id) if index == 0 else {}),
             },
         )
 
@@ -226,6 +230,33 @@ def _registry_entry(run_id: str, run_type: str, artifact_dir: str) -> dict[str, 
         "run_type": run_type,
         "artifact_dir": artifact_dir,
         "timestamp": "2026-01-01T00:00:00Z",
+    }
+
+
+def _lineage_metadata(run_id: str) -> dict[str, Any]:
+    return {
+        "dataset_lineage": {
+            "logical_dataset_id": "features_daily",
+            "dataset_role": "feature_dataset",
+            "dataset_path": "data/curated/features_daily",
+            "dataset_contract_version": "feature_dataset_v1",
+            "schema_fingerprint": f"schema_{run_id}",
+            "partition_fingerprint": f"partition_{run_id}",
+            "row_count": 12,
+            "symbol_count": 2,
+            "timeframe": "1D",
+            "start": "2026-01-01",
+            "end": "2026-01-12",
+            "source_fingerprint": f"source_{run_id}",
+        },
+        "feature_lineage": {
+            "feature_group_names": ["returns", "trend"],
+            "feature_column_count": 2,
+            "feature_columns_fingerprint": f"columns_{run_id}",
+            "feature_schema_fingerprint": f"feature_schema_{run_id}",
+            "feature_contract_version": "feature_contract_v1",
+            "feature_build_config_fingerprint": f"build_{run_id}",
+        },
     }
 
 

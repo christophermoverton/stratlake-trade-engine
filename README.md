@@ -331,6 +331,11 @@ explicit lineage edges only; they add interoperability without adding a graph
 store, backend service, or inferred lineage. The `prov` export is PROV-style
 local JSON rather than formal W3C PROV conformance.
 
+Issue #407 adds optional deterministic dataset and feature lineage fingerprints.
+When explicit lineage metadata is present, catalog records and lineage exports
+surface it without changing old artifacts, inventing dataset edges, or adding a
+remote data catalog.
+
 Start with:
 
 * [docs/m36_release_notes.md](docs/m36_release_notes.md)

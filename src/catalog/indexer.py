@@ -442,6 +442,8 @@ def build_catalog_record(
         source_files.append(source_file)
     if evidence.get("metadata"):
         combined_meta["evidence"] = evidence["metadata"]
+    lineage_metadata = _extract_dataset_feature_lineage(registry, summary, manifest)
+    combined_meta.update(lineage_metadata)
 
     # Validation status
     validation = _build_validation_status(
@@ -920,6 +922,27 @@ def _merge_evidence(target: dict[str, Any], source: dict[str, Any]) -> None:
             target["metadata"].update(value)
         else:
             target[key] = value
+
+
+def _extract_dataset_feature_lineage(
+    registry: dict[str, Any],
+    summary: dict[str, Any],
+    manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Preserve explicit optional dataset/feature lineage blocks when present."""
+
+    result: dict[str, Any] = {}
+    for key in ("dataset_lineage", "feature_lineage"):
+        for source in (registry, summary, manifest):
+            value = source.get(key)
+            if isinstance(value, dict):
+                result[key] = _json_like(value)
+                break
+    return result
+
+
+def _json_like(value: dict[str, Any]) -> dict[str, Any]:
+    return json.loads(json.dumps(value, sort_keys=True, default=str))
 
 
 def _existing_relative_files(artifact_root: Path, repo_root: Path, filenames: list[str]) -> list[str]:

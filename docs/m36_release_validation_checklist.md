@@ -138,6 +138,20 @@ Run the focused Issue #406 lineage-export validation:
 .\.venv\Scripts\python.exe -m pytest tests\test_catalog_lineage.py tests\test_catalog_scale_baselines.py tests\test_catalog_derived_index.py tests\test_catalog_explorer.py tests\test_catalog_notebook_helpers.py -q
 ```
 
+Run the focused Issue #407 dataset/feature-lineage validation:
+
+```powershell
+.\.venv\Scripts\ruff.exe check src\catalog src\features src\cli tests\test_dataset_feature_lineage.py
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_dataset_feature_lineage.py -q
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_catalog_scale_baselines.py tests\test_catalog_derived_index.py tests\test_catalog_lineage_export.py tests\test_catalog_indexer.py tests\test_catalog_lineage.py tests\test_catalog_query.py -q
+```
+
 Run docs/path lint:
 
 ```powershell
@@ -189,6 +203,8 @@ Confirm M36 release-hardening issues did not change:
   never canonical
 - Issue #406 lineage exports remain derived from explicit catalog lineage only
 - exported lineage preserves original StratLake edge types and portable paths
+- Issue #407 dataset/feature lineage remains optional, deterministic, and
+  backward-compatible with older artifacts
 - no remote metadata service, production search backend, graph store, or second
   registry has been introduced
 

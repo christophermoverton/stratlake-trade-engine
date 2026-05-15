@@ -222,6 +222,32 @@ python -m src.cli.export_catalog_lineage --artifacts-root artifacts --format pro
 Issue #406 does not add a graph database, remote lineage backend, inferred
 unsupported relationships, artifact mutation, or a second registry.
 
+## Dataset And Feature Lineage Fingerprints
+
+Issue #407 adds optional deterministic dataset and feature lineage metadata for
+artifacts that already carry explicit provenance. The contract is intentionally
+small and backward-compatible:
+
+- `dataset_lineage`: logical dataset id, role, portable dataset path, contract
+  version, schema/partition/source fingerprints, row and symbol counts,
+  timeframe, and date bounds
+- `feature_lineage`: feature group names, column count, feature-column/schema
+  fingerprints, contract version, and build-config fingerprint
+
+Fingerprints use stable SHA-256 hashing over sorted JSON payloads, sorted column
+lists, sorted schema entries, and POSIX-style portable paths. They exclude
+wall-clock timestamps and local absolute paths.
+
+Existing feature metadata summaries now emit these blocks where dataset paths
+are explicit. Catalog records preserve explicit `dataset_lineage` and
+`feature_lineage` blocks found in manifests, summaries, or registry records;
+derived indexes serialize them automatically; lineage exports include them as
+record facets without creating new inferred edges.
+
+Issue #407 does not add a remote data catalog, migration framework, live-data
+system, inferred lineage layer, replacement feature contract, or second source
+of truth. Artifacts that do not contain the new optional blocks remain readable.
+
 ## Release Notes Semantics
 
 Human milestone release notes live in milestone docs such as this file. The

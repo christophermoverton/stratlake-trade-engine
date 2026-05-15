@@ -31,6 +31,14 @@ from src.catalog.lineage_export import (
     export_lineage_prov,
     validate_lineage_export,
 )
+from src.catalog.lineage_fingerprints import (
+    build_dataset_lineage,
+    build_feature_lineage,
+    dataset_schema_fingerprint,
+    feature_columns_fingerprint,
+    portable_dataset_path,
+    stable_json_fingerprint,
+)
 from src.catalog.models import ArtifactRecord, CatalogRecord, CatalogValidationStatus, LineageEdge
 from src.catalog.notebook import (
     build_notebook_evidence_view,
@@ -76,6 +84,12 @@ __all__ = [
     "export_lineage",
     "export_lineage_openlineage",
     "export_lineage_prov",
+    "stable_json_fingerprint",
+    "feature_columns_fingerprint",
+    "dataset_schema_fingerprint",
+    "portable_dataset_path",
+    "build_dataset_lineage",
+    "build_feature_lineage",
     "build_run_lookup",
     "build_catalog_lookup",
     "CatalogQuery",

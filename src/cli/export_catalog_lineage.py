@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 from typing import Sequence
 
-from src.catalog import build_lineage_edges, export_lineage, load_catalog_records
+from src.catalog import build_lineage_export_for_workflow
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -22,22 +22,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
     args = parse_args(argv)
-    repo_root = Path(args.repo_root)
-    artifacts_root = Path(args.artifacts_root)
-    if not artifacts_root.is_absolute():
-        artifacts_root = repo_root / artifacts_root
-
-    records = load_catalog_records(
-        artifacts_root,
-        repo_root=repo_root,
+    payload = build_lineage_export_for_workflow(
+        args.artifacts_root,
+        repo_root=args.repo_root,
         index_path=args.index,
-        mode=args.index_mode,
-    )
-    edges = build_lineage_edges(records, repo_root=repo_root)
-    payload = export_lineage(
-        records,
-        edges,
-        format=args.format,
+        index_mode=args.index_mode,
+        export_format=args.format,
         selected_run_id=args.selected_run_id,
     )
     text = json.dumps(payload, indent=2, sort_keys=True)

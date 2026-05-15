@@ -336,6 +336,10 @@ When explicit lineage metadata is present, catalog records and lineage exports
 surface it without changing old artifacts, inventing dataset edges, or adding a
 remote data catalog.
 
+Issue #408 adds thin shared workflow helpers so CLI commands, notebooks, and
+pipeline wrappers all compose the same catalog loading, evidence view, and
+lineage export APIs across `direct`, `index`, and `auto` modes.
+
 Start with:
 
 * [docs/m36_release_notes.md](docs/m36_release_notes.md)

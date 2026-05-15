@@ -248,6 +248,34 @@ Issue #407 does not add a remote data catalog, migration framework, live-data
 system, inferred lineage layer, replacement feature contract, or second source
 of truth. Artifacts that do not contain the new optional blocks remain readable.
 
+## CLI And API Ergonomics
+
+Issue #408 adds shared workflow helpers for the common M36 user journeys:
+
+- `load_catalog_for_workflow(...)`
+- `build_lineage_export_for_workflow(...)`
+- `build_evidence_view_for_workflow(...)`
+
+These helpers compose the existing direct-scan/index loader, lineage extractor,
+lineage exporter, and evidence explorer instead of duplicating behavior between
+CLI commands, notebooks, or pipeline wrappers. Direct scan remains the default.
+`index` mode requires a valid derived index, while `auto` uses a valid index when
+present and falls back only when the index file is absent.
+
+The CLI surface is now aligned around the same path and index options where they
+apply:
+
+```powershell
+python -m src.cli.catalog_index build --artifacts-root artifacts --output artifacts/catalog_index/catalog_index.sqlite
+python -m src.cli.query_catalog --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --format json
+python -m src.cli.export_catalog_lineage --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --format openlineage --output artifacts/lineage/openlineage.json
+python -m src.cli.explore_catalog_evidence --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --run-id strategy_000 --format json
+```
+
+Notebook and wrapper callers should prefer the shared helpers when they need to
+load records, build evidence views, or export lineage JSON. The helpers are thin
+composition surfaces, not a second implementation path.
+
 ## Release Notes Semantics
 
 Human milestone release notes live in milestone docs such as this file. The

@@ -9,6 +9,7 @@ from src.catalog import (
     CatalogQuery,
     build_catalog,
     build_evidence_explorer_view,
+    build_evidence_view_for_workflow,
     render_evidence_json,
     render_evidence_markdown,
     render_evidence_table,
@@ -21,6 +22,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--artifacts-root", default="artifacts", help="Artifact root to scan. Defaults to artifacts.")
     parser.add_argument("--repo-root", default=".", help="Repository root for relative catalog paths.")
+    parser.add_argument("--index", help="Optional derived catalog index path.")
+    parser.add_argument(
+        "--index-mode",
+        choices=("direct", "index", "auto"),
+        default="direct",
+        help="Catalog load mode. Defaults to canonical direct scan.",
+    )
     parser.add_argument("--run-id", help="Selected run_id to review with related evidence.")
     parser.add_argument("--catalog-id", help="Selected catalog_id to review with related evidence.")
     parser.add_argument("--record-family", help="Exact M35 evidence record-family filter.")
@@ -53,11 +61,6 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
 
 def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
     args = parse_args(argv)
-    repo_root = Path(args.repo_root)
-    artifacts_root = Path(args.artifacts_root)
-    if not artifacts_root.is_absolute():
-        artifacts_root = repo_root / artifacts_root
-
     query = CatalogQuery(
         record_family=args.record_family,
         robustness_status=args.robustness_status,
@@ -65,16 +68,33 @@ def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
         validation_readiness_present=args.validation_readiness_present,
         release_validation_present=args.release_validation_present,
     )
-    records = build_catalog(artifacts_root, repo_root=repo_root)
-    view = build_evidence_explorer_view(
-        records,
-        query=query,
-        selected_run_id=args.run_id,
-        selected_catalog_id=args.catalog_id,
-        include_lineage=args.include_lineage,
-        repo_root=repo_root,
-        limit=args.limit,
-    )
+    if args.index_mode == "direct":
+        repo_root = Path(args.repo_root)
+        artifacts_root = Path(args.artifacts_root)
+        if not artifacts_root.is_absolute():
+            artifacts_root = repo_root / artifacts_root
+        records = build_catalog(artifacts_root, repo_root=repo_root)
+        view = build_evidence_explorer_view(
+            records,
+            query=query,
+            selected_run_id=args.run_id,
+            selected_catalog_id=args.catalog_id,
+            include_lineage=args.include_lineage,
+            repo_root=repo_root,
+            limit=args.limit,
+        )
+    else:
+        view = build_evidence_view_for_workflow(
+            args.artifacts_root,
+            repo_root=args.repo_root,
+            index_path=args.index,
+            index_mode=args.index_mode,
+            query=query,
+            selected_run_id=args.run_id,
+            selected_catalog_id=args.catalog_id,
+            include_lineage=args.include_lineage,
+            limit=args.limit,
+        )
     rendered = _render(view, args.format)
     if args.output:
         output_path = Path(args.output)

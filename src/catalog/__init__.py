@@ -71,6 +71,12 @@ from src.catalog.validation import (
     validate_catalog,
     validate_record,
 )
+from src.catalog.workflows import (
+    build_evidence_view_for_workflow,
+    build_lineage_export_for_workflow,
+    load_catalog_for_workflow,
+    resolve_workflow_roots,
+)
 
 __all__ = [
     "build_catalog",
@@ -94,6 +100,10 @@ __all__ = [
     "build_catalog_lookup",
     "CatalogQuery",
     "build_notebook_evidence_view",
+    "load_catalog_for_workflow",
+    "build_lineage_export_for_workflow",
+    "build_evidence_view_for_workflow",
+    "resolve_workflow_roots",
     "evidence_for_run",
     "evidence_lineage_rows",
     "find_governance_evidence",

@@ -24,6 +24,13 @@ from src.catalog.explorer import (
     render_evidence_table,
 )
 from src.catalog.lineage import build_catalog_lookup, build_lineage_edges, build_run_lookup
+from src.catalog.lineage_export import (
+    LineageExportError,
+    export_lineage,
+    export_lineage_openlineage,
+    export_lineage_prov,
+    validate_lineage_export,
+)
 from src.catalog.models import ArtifactRecord, CatalogRecord, CatalogValidationStatus, LineageEdge
 from src.catalog.notebook import (
     build_notebook_evidence_view,
@@ -66,6 +73,9 @@ __all__ = [
     "load_catalog_records",
     "validate_derived_index",
     "build_lineage_edges",
+    "export_lineage",
+    "export_lineage_openlineage",
+    "export_lineage_prov",
     "build_run_lookup",
     "build_catalog_lookup",
     "CatalogQuery",
@@ -94,6 +104,7 @@ __all__ = [
     "CatalogRecord",
     "ArtifactRecord",
     "LineageEdge",
+    "LineageExportError",
     "CatalogValidationStatus",
     "CatalogValidationIssue",
     "CatalogValidationReport",
@@ -102,4 +113,5 @@ __all__ = [
     "validate_catalog",
     "validate_record",
     "validate_artifact_records",
+    "validate_lineage_export",
 ]

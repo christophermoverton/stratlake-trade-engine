@@ -124,6 +124,20 @@ Run the focused Issue #405 derived-index validation:
 .\.venv\Scripts\python.exe -m pytest tests\test_catalog_scale_baselines.py tests\test_catalog_indexer.py tests\test_catalog_query.py tests\test_catalog_lineage.py tests\test_catalog_explorer.py tests\test_catalog_notebook_helpers.py -q
 ```
 
+Run the focused Issue #406 lineage-export validation:
+
+```powershell
+.\.venv\Scripts\ruff.exe check src\catalog src\cli tests\test_catalog_lineage_export.py
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_catalog_lineage_export.py -q
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_catalog_lineage.py tests\test_catalog_scale_baselines.py tests\test_catalog_derived_index.py tests\test_catalog_explorer.py tests\test_catalog_notebook_helpers.py -q
+```
+
 Run docs/path lint:
 
 ```powershell
@@ -173,6 +187,8 @@ Confirm M36 release-hardening issues did not change:
 - direct artifact scanning remains the only catalog data source
 - the optional Issue #405 derived index remains disposable, rebuildable, and
   never canonical
+- Issue #406 lineage exports remain derived from explicit catalog lineage only
+- exported lineage preserves original StratLake edge types and portable paths
 - no remote metadata service, production search backend, graph store, or second
   registry has been introduced
 

@@ -173,6 +173,38 @@ Issue #405 does not add a remote metadata service, production search backend,
 graph store, artifact-writer dependency, second registry, or second source of
 truth.
 
+## Standards-Based Lineage Export
+
+Issue #406 adds deterministic local JSON exports over the existing explicit
+catalog lineage model. The exporter builds one normalized graph from
+`CatalogRecord` objects and `LineageEdge` objects, then renders:
+
+- OpenLineage-style JSON for run/dataset-oriented interchange
+- PROV-style JSON for provenance-oriented interchange
+
+Catalog records export as record/entity nodes. Existing
+`manifest_declares_artifact` edges also expose the already-declared artifact as
+an artifact/entity node so emitted relations remain closed. Every exported
+relationship preserves the original StratLake `edge_type`, source ids, target
+ids, and relationship metadata instead of pretending the external style is a
+perfect semantic match.
+
+Exports may cover the full graph or a selected run's direct one-hop
+neighborhood. They are deterministic, portable, local JSON only, and derived
+from explicit lineage already present in the catalog layer. Direct scan remains
+canonical; Issue #405 index-backed loading may accelerate record loading, but
+it does not become a lineage source of truth.
+
+Example commands:
+
+```powershell
+python -m src.cli.export_catalog_lineage --artifacts-root artifacts --format openlineage --output artifacts/lineage/openlineage.json
+python -m src.cli.export_catalog_lineage --artifacts-root artifacts --format prov --selected-run-id strategy_000 --output artifacts/lineage/strategy_000_prov.json
+```
+
+Issue #406 does not add a graph database, remote lineage backend, inferred
+unsupported relationships, artifact mutation, or a second registry.
+
 ## Release Notes Semantics
 
 Human milestone release notes live in milestone docs such as this file. The

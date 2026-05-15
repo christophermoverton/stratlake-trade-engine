@@ -325,6 +325,11 @@ record loading. Canonical artifacts remain the source of truth, direct scan is
 still the default, missing indexes can fall back safely, and stale or
 incompatible indexes require rebuild rather than being trusted.
 
+Issue #406 adds deterministic local lineage exports in OpenLineage-style and
+PROV-style JSON. These exports are rendered from existing catalog records and
+explicit lineage edges only; they add interoperability without adding a graph
+store, backend service, or inferred lineage.
+
 Start with:
 
 * [docs/m36_release_notes.md](docs/m36_release_notes.md)

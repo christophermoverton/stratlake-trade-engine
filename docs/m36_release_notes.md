@@ -137,6 +137,42 @@ Issue #404 does not add a derived metadata index, database, cache, graph store,
 search backend, or alternate canonical registry. Later M36 optimization work
 should compare against these baselines rather than guessing at scale behavior.
 
+## Optional Derived Metadata Index
+
+Issue #405 adds an optional local SQLite metadata index for faster evidence
+discovery while preserving canonical direct scans as the default behavior. The
+index is a disposable read model built from `build_catalog()`: it can be
+deleted, ignored, or rebuilt without changing source artifacts.
+
+The index metadata records its derived status, schema version, source artifact
+root, record count, evidence-family counts, source fingerprint, builder version,
+and `canonical_source: artifacts`. Record payloads keep the existing
+`CatalogRecord` shape and portable repository-relative paths.
+
+Supported loading modes are:
+
+- `direct`: canonical artifact scan; default
+- `index`: require a valid derived index
+- `auto`: use a valid index when present, fall back to direct scan only when the
+  index file is absent
+
+Index-backed records are fed through the existing in-memory query functions, so
+supported query filters must return the same results as direct scan. Missing
+indexes are safe; stale, mismatched, corrupt, or incompatible indexes fail with
+rebuild guidance rather than being silently trusted.
+
+Example commands:
+
+```powershell
+python -m src.cli.catalog_index build --artifacts-root artifacts --output artifacts/catalog_index/catalog_index.sqlite
+python -m src.cli.catalog_index validate --index artifacts/catalog_index/catalog_index.sqlite --artifacts-root artifacts
+python -m src.cli.query_catalog --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto
+```
+
+Issue #405 does not add a remote metadata service, production search backend,
+graph store, artifact-writer dependency, second registry, or second source of
+truth.
+
 ## Release Notes Semantics
 
 Human milestone release notes live in milestone docs such as this file. The

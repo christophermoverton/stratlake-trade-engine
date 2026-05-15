@@ -320,6 +320,11 @@ histories before any optional derived metadata index work. The baseline remains
 direct-scan only and exercises catalog indexing, query, lineage, explorer, and
 notebook helper surfaces without live data or new persistent storage.
 
+Issue #405 adds an optional disposable SQLite metadata index for faster catalog
+record loading. Canonical artifacts remain the source of truth, direct scan is
+still the default, missing indexes can fall back safely, and stale or
+incompatible indexes require rebuild rather than being trusted.
+
 Start with:
 
 * [docs/m36_release_notes.md](docs/m36_release_notes.md)

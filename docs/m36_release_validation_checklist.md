@@ -110,6 +110,20 @@ Run the broader catalog/evidence regression slice:
 .\.venv\Scripts\python.exe -m pytest tests\test_catalog_indexer.py tests\test_catalog_query.py tests\test_catalog_lineage.py tests\test_catalog_explorer.py tests\test_catalog_notebook_helpers.py tests\test_m35_evidence_discovery_validation.py tests\test_catalog_scale_baselines.py -q
 ```
 
+Run the focused Issue #405 derived-index validation:
+
+```powershell
+.\.venv\Scripts\ruff.exe check src\catalog src\cli tests\test_catalog_derived_index.py tests\test_catalog_scale_baselines.py tests\catalog_scale_fixtures.py
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_catalog_derived_index.py -q
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_catalog_scale_baselines.py tests\test_catalog_indexer.py tests\test_catalog_query.py tests\test_catalog_lineage.py tests\test_catalog_explorer.py tests\test_catalog_notebook_helpers.py -q
+```
+
 Run docs/path lint:
 
 ```powershell
@@ -157,8 +171,10 @@ Confirm M36 release-hardening issues did not change:
 - portable path serialization
 - CI-safe example behavior
 - direct artifact scanning remains the only catalog data source
-- no derived metadata index, database, persistent cache, graph store, or search
-  backend has been introduced by Issue #404
+- the optional Issue #405 derived index remains disposable, rebuildable, and
+  never canonical
+- no remote metadata service, production search backend, graph store, or second
+  registry has been introduced
 
 ## Post-Merge Validation On Main
 

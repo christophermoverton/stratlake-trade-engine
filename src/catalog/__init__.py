@@ -10,6 +10,13 @@ Usage::
 """
 
 from src.catalog.indexer import build_artifact_records, build_catalog, build_catalog_record
+from src.catalog.derived_index import (
+    DerivedIndexError,
+    DerivedIndexValidation,
+    build_derived_index,
+    load_catalog_records,
+    validate_derived_index,
+)
 from src.catalog.explorer import (
     build_evidence_explorer_view,
     render_evidence_json,
@@ -52,9 +59,12 @@ from src.catalog.validation import (
 
 __all__ = [
     "build_catalog",
+    "build_derived_index",
     "build_evidence_explorer_view",
     "build_artifact_records",
     "build_catalog_record",
+    "load_catalog_records",
+    "validate_derived_index",
     "build_lineage_edges",
     "build_run_lookup",
     "build_catalog_lookup",
@@ -87,6 +97,8 @@ __all__ = [
     "CatalogValidationStatus",
     "CatalogValidationIssue",
     "CatalogValidationReport",
+    "DerivedIndexError",
+    "DerivedIndexValidation",
     "validate_catalog",
     "validate_record",
     "validate_artifact_records",

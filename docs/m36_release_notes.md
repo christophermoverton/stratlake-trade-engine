@@ -14,6 +14,55 @@ Scalable evidence systems should make research artifacts faster to find, easier
 to export, and safer to release without weakening deterministic artifact
 provenance.
 
+## Summary
+
+M36 extends the M35 evidence catalog with release hardening and local
+interoperability surfaces while keeping canonical artifacts authoritative. The
+milestone adds:
+
+- release/version/workflow coherence for milestone work
+- full-SHA GitHub Actions pinning
+- deterministic synthetic catalog scale baselines
+- an optional disposable SQLite derived index
+- deterministic OpenLineage-style and PROV-style local JSON exports
+- optional dataset and feature lineage fingerprints
+- shared CLI/API workflow helpers
+- combined deterministic validation across the full M36 evidence stack
+
+The user-facing result is a catalog workflow that can still run directly from
+artifacts, optionally load records faster from a disposable index, export
+portable lineage views, and validate the whole path reproducibly before release.
+
+## Scope
+
+M36 includes real platform improvements, validation improvements, and release
+hardening:
+
+- platform improvements: optional derived index, local lineage export, explicit
+  dataset/feature lineage metadata, shared workflow helpers
+- validation improvements: scale baselines and combined deterministic
+  cross-feature validation
+- release hardening: version/tag semantics, milestone trigger coverage,
+  SHA-pinned workflow dependencies, and the final release checklist
+
+Deferred work stays deferred: no remote catalog, graph store, dashboard, service
+backend, formal W3C PROV conformance, OpenLineage backend integration, or
+inferred lineage layer is introduced.
+
+## Issue Summary
+
+| Issue | Outcome |
+| --- | --- |
+| `#402` | Clarified package-version versus milestone-tag semantics, branch naming, and milestone validation trigger coverage. |
+| `#403` | Pinned external GitHub Actions to full SHAs and documented refresh practice. |
+| `#404` | Added deterministic synthetic scale baselines over direct artifact scans. |
+| `#405` | Added the optional disposable SQLite derived catalog index. |
+| `#406` | Added deterministic OpenLineage-style and PROV-style local lineage exports. |
+| `#407` | Added optional deterministic dataset/feature lineage fingerprints. |
+| `#408` | Added thin shared CLI/API workflow helpers and aligned CLI ergonomics. |
+| `#409` | Added combined deterministic validation over the complete M36 evidence stack. |
+| `#410` | Consolidates documentation, examples, release notes, and release-readiness guidance. |
+
 ## Issue #402 Scope
 
 Issue #402 is a release and process hardening pass. It prepares M36 for later
@@ -276,6 +325,23 @@ Notebook and wrapper callers should prefer the shared helpers when they need to
 load records, build evidence views, or export lineage JSON. The helpers are thin
 composition surfaces, not a second implementation path.
 
+## CI-Safe Example Workflow
+
+The M36 CLI workflow is safe against an empty or sparse `artifacts/` tree; it is
+simply more informative after prior examples or research runs have produced
+artifacts:
+
+```powershell
+python -m src.cli.catalog_index build --artifacts-root artifacts --output artifacts/catalog_index/catalog_index.sqlite
+python -m src.cli.catalog_index validate --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite
+python -m src.cli.query_catalog --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --format json
+python -m src.cli.export_catalog_lineage --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --format openlineage --output artifacts/lineage/openlineage.json
+python -m src.cli.explore_catalog_evidence --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --format json --output artifacts/lineage/evidence_view.json
+```
+
+These commands use repository-relative paths only, keep direct scan available,
+and write generated outputs beneath `artifacts/`.
+
 ## Deterministic Validation
 
 Issue #409 adds a focused end-to-end validation layer for the combined M36
@@ -292,6 +358,59 @@ evidence stack. It proves:
 
 The validation suite keeps timings out of deterministic assertions and relies on
 the existing synthetic catalog tree rather than live data or external services.
+
+## Architecture Boundaries
+
+- the source artifact tree remains canonical
+- the SQLite index is derived, disposable, rebuildable, and not a replacement
+  for registries, manifests, or artifact contracts
+- OpenLineage-style and PROV-style exports are derived local JSON views over
+  existing catalog records and explicit lineage edges
+- PROV output is PROV-style, not formal W3C PROV conformance
+- selected-run export is one-hop only
+- dataset and feature lineage metadata is optional, explicit, and does not
+  invent dataset graph edges
+- no graph store, backend service, remote data catalog, dashboard, web server,
+  inferred lineage layer, governance mutation, or promotion mutation is added
+
+## Validation Summary
+
+M36 validation now covers workflow pinning, milestone branch triggers, package
+readiness, scale baselines, derived-index behavior, lineage export determinism,
+dataset/feature fingerprint preservation, CLI/API parity, docs/path lint,
+package builds, and full pytest. Issue #409 is the combined validation layer
+that proves those surfaces still agree when composed together.
+
+## Non-Goals
+
+M36 does not add:
+
+- remote metadata services or production search backends
+- graph databases, dashboards, or web servers
+- formal W3C PROV conformance or OpenLineage backend integration
+- inferred lineage beyond explicit metadata and edges
+- live-data requirements or a dataset migration framework
+- package publication to PyPI/TestPyPI
+- strategy, alpha, portfolio, campaign, governance, or promotion behavior
+  changes
+
+## Release Readiness
+
+Pre-merge review should use `docs/m36_release_validation_checklist.md`, with
+the focused Issue #409 suite plus the broader M36 regression slice as the
+minimum milestone-specific evidence. After merge, rerun the clean-checkout
+post-merge checks on `main` before pushing the candidate release tag:
+
+```text
+v0.36.0-scalable-evidence-interoperability-release-hardening
+```
+
+The tag should continue to trigger `.github/workflows/release.yml` through the
+existing `v*` pattern. Expected release evidence is the deterministic release
+body plus docs/path lint output, while wheel and sdist files remain workflow
+artifacts rather than package-publication uploads. Existing non-blocking test
+warnings from research diagnostics remain expected unless separately changed;
+local validation should not claim remote CI passed until CI actually reports it.
 
 ## Release Notes Semantics
 

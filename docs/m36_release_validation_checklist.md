@@ -76,7 +76,14 @@ When refreshing a pin:
 
 ## Pre-Merge Validation
 
-Run Ruff over the changed workflow/release-adjacent Python tests:
+Run Ruff over the M36 source and test surfaces:
+
+```powershell
+.\.venv\Scripts\ruff.exe check src\catalog src\cli src\data tests
+```
+
+Run Ruff over the changed workflow/release-adjacent Python tests when doing a
+narrow workflow-only pass:
 
 ```powershell
 .\.venv\Scripts\ruff.exe check tests
@@ -183,13 +190,13 @@ Run the focused Issue #409 deterministic combined-stack validation:
 Run docs/path lint:
 
 ```powershell
-.\.venv\Scripts\python.exe -m src.cli.run_docs_path_lint --output artifacts\qa\docs_path_lint_m36.json
+.\.venv\Scripts\python.exe -m src.cli.run_docs_path_lint --output artifacts\qa\docs_path_lint_m36_issue410.json
 ```
 
 Run package build validation:
 
 ```powershell
-.\.venv\Scripts\python.exe -m build
+.\.venv\Scripts\python.exe -m build --outdir artifacts\qa\m36_issue410_package_build
 ```
 
 When practical before merge, run the full suite:
@@ -213,6 +220,22 @@ Before creating a milestone release tag:
 - confirm GitHub Release assets remain deterministic release notes and
   docs/path lint evidence
 - confirm no package publication target was added
+
+## Release Tag Checklist
+
+Before pushing
+`v0.36.0-scalable-evidence-interoperability-release-hardening`:
+
+- confirm `main` contains the merged M36 documentation and tests
+- confirm the post-merge validation section below has been completed from a
+  clean checkout
+- confirm `.github/workflows/release.yml` still triggers only from `v*` tags
+- confirm `pyproject.toml` still reflects the intentional package-version
+  policy from Issue #402
+- confirm the expected GitHub Release evidence is deterministic release text
+  plus docs/path lint output
+- confirm package build outputs are expected as workflow artifacts only
+- do not claim hosted CI or release success until GitHub reports it
 
 ## Architecture Boundaries
 
@@ -238,6 +261,13 @@ Confirm M36 release-hardening issues did not change:
   and portability guarantees covered together
 - no remote metadata service, production search backend, graph store, or second
   registry has been introduced
+- source artifacts remain canonical; the optional index is not a second source
+  of truth
+- PROV output remains PROV-style rather than formal W3C PROV conformance
+- selected-run export remains one-hop only
+- dataset/feature lineage remains explicit and does not infer edges
+- no dashboard, web server, remote data catalog, or governance/promotion
+  mutation has been introduced
 
 ## Post-Merge Validation On Main
 
@@ -247,10 +277,28 @@ After merge:
 - verify milestone validation runs for the M36 branch or can be run manually
 - verify CI, release, and milestone validation workflows still use only pinned
   external action references
-- rerun the focused workflow/package metadata tests from a clean checkout
-- rerun docs/path lint
+- from a clean checkout on `main`, rerun:
+  `.\.venv\Scripts\python.exe -m pytest tests\test_m36_deterministic_validation.py -q`
+- rerun the documented M36 regression slice, focused workflow/package metadata
+  tests, docs/path lint, package build, and full pytest when practical
 - confirm documentation links resolve in the merged tree
 - confirm no generated machine-specific paths were committed
+
+## CI-Safe Example Workflow
+
+The M36 CLI flow is safe on empty or sparse artifact roots and becomes more
+useful after artifacts exist:
+
+```powershell
+python -m src.cli.catalog_index build --artifacts-root artifacts --output artifacts/catalog_index/catalog_index.sqlite
+python -m src.cli.catalog_index validate --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite
+python -m src.cli.query_catalog --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --format json
+python -m src.cli.export_catalog_lineage --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --format openlineage --output artifacts/lineage/openlineage.json
+python -m src.cli.explore_catalog_evidence --artifacts-root artifacts --index artifacts/catalog_index/catalog_index.sqlite --index-mode auto --format json --output artifacts/lineage/evidence_view.json
+```
+
+These commands use repository-relative paths and keep generated outputs under
+`artifacts/`.
 
 ## Release Notes
 

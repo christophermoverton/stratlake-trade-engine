@@ -281,11 +281,34 @@ Start with:
 
 ### Milestone 36: Scalable Evidence Interoperability and Release Hardening
 
-Milestone 36 starts with release-process hardening before larger catalog
-interoperability work. Issue #402 clarifies version semantics, milestone branch
-naming, release tag meaning, and validation workflow trigger coverage; it does
-not add derived catalog indexes, lineage export, dataset fingerprints, or any
-new catalog runtime behavior.
+Milestone 36 follows M35's read-only evidence catalog by making larger evidence
+histories faster to inspect, easier to export, and safer to release without
+weakening deterministic provenance.
+
+M36 adds:
+
+* optional disposable SQLite catalog indexing
+* deterministic OpenLineage-style and PROV-style local JSON exports
+* optional dataset and feature lineage fingerprints
+* shared CLI/API workflow helpers across direct, index, and auto modes
+* deterministic combined-stack validation
+* release workflow and validation hardening
+
+M36 keeps a deliberately narrow architecture:
+
+* canonical artifacts remain the source of truth
+* the derived index is optional, disposable, and never a registry replacement
+* exports are local standards-oriented JSON views, not backend integrations
+* `prov` output is PROV-style rather than formal W3C PROV conformance
+* selected-run export is a direct one-hop neighborhood
+* dataset and feature lineage metadata is explicit and optional
+* no graph store, remote catalog, dashboard, web server, inferred lineage layer,
+  or second source of truth is introduced
+
+The active M36 work began with release-process hardening before the larger
+catalog interoperability additions. Issue #402 clarifies version semantics,
+milestone branch naming, release tag meaning, and validation workflow trigger
+coverage.
 
 The active M36 branch is
 `feature/m36-scalable-evidence-interoperability-release-hardening`. Future

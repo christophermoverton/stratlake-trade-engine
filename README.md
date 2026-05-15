@@ -315,6 +315,11 @@ behavior. The maintenance procedure and validation expectations live in
 `docs/m36_release_notes.md` and
 `docs/m36_release_validation_checklist.md`.
 
+Issue #404 adds deterministic scale baselines over synthetic catalog artifact
+histories before any optional derived metadata index work. The baseline remains
+direct-scan only and exercises catalog indexing, query, lineage, explorer, and
+notebook helper surfaces without live data or new persistent storage.
+
 Start with:
 
 * [docs/m36_release_notes.md](docs/m36_release_notes.md)

@@ -111,6 +111,32 @@ SHA pinning is part of M36 release hardening. It strengthens workflow provenance
 without changing package publication scope, release tag semantics, catalog
 behavior, artifact contracts, or governance decisions.
 
+## Catalog Scale Baselines
+
+Issue #404 adds deterministic scale baselines before any optional derived
+metadata index work. The new synthetic test fixture builds a compact temporary
+artifact history spanning strategy, alpha, portfolio, campaign/scenario,
+robustness, governance, milestone-validation, release-validation, sparse, and
+registry-only cases.
+
+The required scale tests measure the existing direct-scan workflow only:
+
+- catalog indexing over the synthetic artifact root
+- evidence query filters
+- lineage edge extraction
+- explorer JSON, Markdown, and table rendering
+- notebook/API helper views and renderers
+
+Deterministic assertions cover record counts, family counts, query counts,
+lineage edge counts, ordering, path portability, and source immutability. A
+single intentionally broad elapsed-time ceiling protects against accidental
+pathological regressions while avoiding brittle micro-benchmark behavior; exact
+timings are environment-dependent and are not treated as deterministic output.
+
+Issue #404 does not add a derived metadata index, database, cache, graph store,
+search backend, or alternate canonical registry. Later M36 optimization work
+should compare against these baselines rather than guessing at scale behavior.
+
 ## Release Notes Semantics
 
 Human milestone release notes live in milestone docs such as this file. The

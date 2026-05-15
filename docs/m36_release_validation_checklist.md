@@ -94,6 +94,22 @@ Run focused workflow and package metadata tests:
 .\.venv\Scripts\python.exe -m pytest tests\test_github_actions_pinning.py tests\test_milestone_validation_workflow.py tests\test_release_workflow.py tests\test_packaging_readiness.py -q
 ```
 
+Run the focused Issue #404 scale baseline validation:
+
+```powershell
+.\.venv\Scripts\ruff.exe check tests\test_catalog_scale_baselines.py tests\catalog_scale_fixtures.py
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_catalog_scale_baselines.py -q
+```
+
+Run the broader catalog/evidence regression slice:
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_catalog_indexer.py tests\test_catalog_query.py tests\test_catalog_lineage.py tests\test_catalog_explorer.py tests\test_catalog_notebook_helpers.py tests\test_m35_evidence_discovery_validation.py tests\test_catalog_scale_baselines.py -q
+```
+
 Run docs/path lint:
 
 ```powershell
@@ -130,7 +146,7 @@ Before creating a milestone release tag:
 
 ## Architecture Boundaries
 
-Confirm Issue #402 did not change:
+Confirm M36 release-hardening issues did not change:
 
 - research artifact contracts
 - catalog indexing, query, lineage, explorer, or notebook behavior
@@ -140,6 +156,9 @@ Confirm Issue #402 did not change:
 - deterministic artifact provenance
 - portable path serialization
 - CI-safe example behavior
+- direct artifact scanning remains the only catalog data source
+- no derived metadata index, database, persistent cache, graph store, or search
+  backend has been introduced by Issue #404
 
 ## Post-Merge Validation On Main
 

@@ -340,6 +340,10 @@ Issue #408 adds thin shared workflow helpers so CLI commands, notebooks, and
 pipeline wrappers all compose the same catalog loading, evidence view, and
 lineage export APIs across `direct`, `index`, and `auto` modes.
 
+Issue #409 adds focused deterministic validation across the combined M36 stack:
+direct/index/helper parity, disposable-index rebuilds, lineage export stability,
+dataset/feature fingerprint preservation, CLI/API parity, and portability.
+
 Start with:
 
 * [docs/m36_release_notes.md](docs/m36_release_notes.md)

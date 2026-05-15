@@ -276,6 +276,23 @@ Notebook and wrapper callers should prefer the shared helpers when they need to
 load records, build evidence views, or export lineage JSON. The helpers are thin
 composition surfaces, not a second implementation path.
 
+## Deterministic Validation
+
+Issue #409 adds a focused end-to-end validation layer for the combined M36
+evidence stack. It proves:
+
+- direct scan, derived-index, auto-mode, and shared-helper record parity
+- derived-index deletion/rebuild disposability without canonical artifact mutation
+- deterministic OpenLineage-style and PROV-style export structure
+- preservation of dataset/feature lineage metadata across direct records,
+  index-loaded records, exports, and helper surfaces
+- CLI/API parity for build, query, export, and evidence exploration workflows
+- portable, read-only outputs with no absolute machine paths or URI leakage
+- continued release/workflow hardening assumptions from Issues #402 and #403
+
+The validation suite keeps timings out of deterministic assertions and relies on
+the existing synthetic catalog tree rather than live data or external services.
+
 ## Release Notes Semantics
 
 Human milestone release notes live in milestone docs such as this file. The

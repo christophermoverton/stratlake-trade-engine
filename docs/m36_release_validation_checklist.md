@@ -166,6 +166,20 @@ Run the focused Issue #408 CLI/API ergonomics validation:
 .\.venv\Scripts\python.exe -m pytest tests\test_catalog_derived_index.py tests\test_catalog_lineage_export.py tests\test_dataset_feature_lineage.py tests\test_catalog_scale_baselines.py tests\test_cli_query_catalog.py -q
 ```
 
+Run the focused Issue #409 deterministic combined-stack validation:
+
+```powershell
+.\.venv\Scripts\ruff.exe check src\catalog src\cli tests\test_m36_deterministic_validation.py
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_m36_deterministic_validation.py -q
+```
+
+```powershell
+.\.venv\Scripts\python.exe -m pytest tests\test_catalog_scale_baselines.py tests\test_catalog_derived_index.py tests\test_catalog_lineage_export.py tests\test_dataset_feature_lineage.py tests\test_catalog_cli_api_ergonomics.py tests\test_github_actions_pinning.py tests\test_milestone_validation_workflow.py tests\test_release_workflow.py tests\test_packaging_readiness.py -q
+```
+
 Run docs/path lint:
 
 ```powershell
@@ -220,6 +234,8 @@ Confirm M36 release-hardening issues did not change:
 - Issue #407 dataset/feature lineage remains optional, deterministic, and
   backward-compatible with older artifacts
 - Issue #408 workflow helpers remain thin wrappers over shared catalog APIs
+- Issue #409 deterministic validation keeps direct/index/export/helper parity
+  and portability guarantees covered together
 - no remote metadata service, production search backend, graph store, or second
   registry has been introduced
 

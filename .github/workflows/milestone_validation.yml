@@ -6,6 +6,7 @@ on:
     branches:
       - "milestone/**"
       - "m22/**"
+      - "feature/m*"
   pull_request:
     branches:
       - main
@@ -20,7 +21,7 @@ concurrency:
 jobs:
   milestone_validation:
     name: Milestone Validation Bundle
-    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'milestone/') || startsWith(github.head_ref, 'm22/')
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'milestone/') || startsWith(github.head_ref, 'm22/') || startsWith(github.head_ref, 'feature/m')
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code

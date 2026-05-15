@@ -279,6 +279,41 @@ Start with:
 * [docs/m35_release_notes.md](docs/m35_release_notes.md)
 * [docs/m35_release_validation_checklist.md](docs/m35_release_validation_checklist.md)
 
+### Milestone 36: Scalable Evidence Interoperability and Release Hardening
+
+Milestone 36 starts with release-process hardening before larger catalog
+interoperability work. Issue #402 clarifies version semantics, milestone branch
+naming, release tag meaning, and validation workflow trigger coverage; it does
+not add derived catalog indexes, lineage export, dataset fingerprints, or any
+new catalog runtime behavior.
+
+The active M36 branch is
+`feature/m36-scalable-evidence-interoperability-release-hardening`. Future
+milestone branches should use
+`feature/m<NUMBER>-<short-kebab-description>` so milestone validation workflows
+can cover them consistently. Legacy `milestone/**` and `m22/**` branch patterns
+remain supported by `.github/workflows/milestone_validation.yml`.
+
+Package version and milestone release tags are intentionally separate. The
+package version in `pyproject.toml` is Python distribution metadata for editable
+installs, local wheel/sdist validation, and package import metadata. It remains
+`0.1.0` until the package distribution semantics themselves need a version
+change. Milestone release tags identify repository release snapshots and
+validation evidence, for example
+`v0.36.0-scalable-evidence-interoperability-release-hardening`; they appear in
+GitHub Release tags, release notes, and release checklists, but they do not
+imply PyPI/TestPyPI publication.
+
+Future milestones should update milestone release notes, checklist docs, and
+candidate tag names for the milestone. They should preserve `pyproject.toml`
+unless the milestone intentionally changes package metadata, install behavior,
+or distribution compatibility.
+
+Start with:
+
+* [docs/m36_release_notes.md](docs/m36_release_notes.md)
+* [docs/m36_release_validation_checklist.md](docs/m36_release_validation_checklist.md)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing
@@ -1597,6 +1632,10 @@ Start here:
 * [docs/m34_robustness_validation_examples.md](docs/m34_robustness_validation_examples.md)
 * [docs/m34_release_notes.md](docs/m34_release_notes.md)
 * [docs/m34_release_validation_checklist.md](docs/m34_release_validation_checklist.md)
+* [docs/m35_release_notes.md](docs/m35_release_notes.md)
+* [docs/m35_release_validation_checklist.md](docs/m35_release_validation_checklist.md)
+* [docs/m36_release_notes.md](docs/m36_release_notes.md)
+* [docs/m36_release_validation_checklist.md](docs/m36_release_validation_checklist.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)

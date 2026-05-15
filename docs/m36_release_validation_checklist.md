@@ -52,12 +52,34 @@ Future milestone branches should use:
 feature/m<NUMBER>-<short-kebab-description>
 ```
 
+## GitHub Actions Supply-Chain Hardening
+
+Confirm every external `uses:` reference under `.github/workflows/` is pinned to
+a 40-character commit SHA unless a documented exception is intentionally added.
+The current workflow set has no local reusable actions and no unpinned external
+exceptions.
+
+Current reviewed pins:
+
+- `actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5`
+- `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`
+- `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`
+- `softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65`
+
+When refreshing a pin:
+
+- confirm the upstream tag and exact commit SHA before editing
+- update the nearby tag-to-SHA workflow comment
+- preserve workflow names, job names, matrices, inputs, and commands
+- rerun YAML parsing, pinning tests, focused workflow tests, docs/path lint,
+  package build validation, and full pytest when practical
+
 ## Pre-Merge Validation
 
 Run Ruff over the changed workflow/release-adjacent Python tests:
 
 ```powershell
-.\.venv\Scripts\ruff.exe check tests\test_milestone_validation_workflow.py tests\test_release_workflow.py tests\test_packaging_readiness.py
+.\.venv\Scripts\ruff.exe check tests
 ```
 
 Run YAML/workflow syntax sanity for CI, release, and milestone validation:
@@ -69,7 +91,7 @@ Run YAML/workflow syntax sanity for CI, release, and milestone validation:
 Run focused workflow and package metadata tests:
 
 ```powershell
-.\.venv\Scripts\python.exe -m pytest tests\test_milestone_validation_workflow.py tests\test_release_workflow.py tests\test_packaging_readiness.py -q
+.\.venv\Scripts\python.exe -m pytest tests\test_github_actions_pinning.py tests\test_milestone_validation_workflow.py tests\test_release_workflow.py tests\test_packaging_readiness.py -q
 ```
 
 Run docs/path lint:
@@ -96,6 +118,8 @@ Before creating a milestone release tag:
 
 - confirm the working tree is clean
 - confirm M36 release notes and checklist use repository-relative paths only
+- confirm external action references remain full-SHA pinned or explicitly
+  justified in the M36 release notes
 - confirm `.github/workflows/release.yml` remains tag-driven on `v*`
 - confirm the Release workflow still performs constrained editable install,
   focused release tests, docs/path lint, and `python -m build`
@@ -123,6 +147,8 @@ After merge:
 
 - verify primary CI is green
 - verify milestone validation runs for the M36 branch or can be run manually
+- verify CI, release, and milestone validation workflows still use only pinned
+  external action references
 - rerun the focused workflow/package metadata tests from a clean checkout
 - rerun docs/path lint
 - confirm documentation links resolve in the merged tree

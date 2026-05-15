@@ -78,6 +78,39 @@ requests from
 `feature/m36-scalable-evidence-interoperability-release-hardening` into `main`
 can run milestone validation.
 
+## GitHub Actions Supply-Chain Hardening
+
+Issue #403 pins every external GitHub Action reference in `.github/workflows/`
+to a full commit SHA. This reduces exposure to mutable tag movement while
+keeping the human-readable upstream tag context in workflow comments.
+
+Current workflow action inventory:
+
+| Action | Classification | Pinned SHA | Upstream tag represented |
+| --- | --- | --- | --- |
+| `actions/checkout` | GitHub-maintained | `34e114876b0b11c390a56381ad16ebd13914f8d5` | `v4` |
+| `actions/setup-python` | GitHub-maintained | `a26af69be951a213d495a4c3e4e4022e16d87065` | `v5` |
+| `actions/upload-artifact` | GitHub-maintained | `ea165f8d65b6e75b540449e92b4886f43607fa02` | `v4` |
+| `softprops/action-gh-release` | Third-party | `3bb12739c298aeb8a4eeaf626c5b8d85266b0e65` | `v2` |
+
+There are no local reusable actions in the current workflow set. There are no
+intentionally unpinned external action references in the current workflow set.
+
+To refresh a pinned action safely:
+
+1. Review the upstream release/tag page and the exact commit represented by the
+   desired tag.
+2. Replace the full SHA and update the nearby tag-to-SHA comment in every
+   affected workflow.
+3. Re-run workflow YAML parsing, workflow pinning tests, focused workflow tests,
+   docs/path lint, package build validation, and full pytest when practical.
+4. Re-check that workflow names, job names, matrices, install commands, release
+   artifacts, and milestone trigger coverage remain unchanged.
+
+SHA pinning is part of M36 release hardening. It strengthens workflow provenance
+without changing package publication scope, release tag semantics, catalog
+behavior, artifact contracts, or governance decisions.
+
 ## Release Notes Semantics
 
 Human milestone release notes live in milestone docs such as this file. The

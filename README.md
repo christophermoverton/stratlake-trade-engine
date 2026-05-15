@@ -199,9 +199,9 @@ validation is added.
 CI workflows use least-privilege `contents: read` permissions, cancel
 overlapping runs for the same workflow/ref, and use the built-in `pip` cache
 from `actions/setup-python` keyed on `pyproject.toml`. GitHub Actions are
-constrained to maintained major versions such as `actions/checkout@v4`,
-`actions/setup-python@v5`, and `actions/upload-artifact@v4`; full SHA pinning
-is reserved for a later security-hardening pass.
+SHA-pinned to reviewed upstream revisions while comments preserve the
+human-readable source tags such as `actions/checkout@v4`,
+`actions/setup-python@v5`, and `actions/upload-artifact@v4`.
 
 Packaging metadata declares an explicit PEP 517 setuptools build backend.
 Editable development installs remain the primary local workflow, and CI
@@ -308,6 +308,12 @@ Future milestones should update milestone release notes, checklist docs, and
 candidate tag names for the milestone. They should preserve `pyproject.toml`
 unless the milestone intentionally changes package metadata, install behavior,
 or distribution compatibility.
+
+Issue #403 pins external GitHub Actions in `.github/workflows/` to full commit
+SHAs while preserving the existing CI, milestone validation, and release job
+behavior. The maintenance procedure and validation expectations live in
+`docs/m36_release_notes.md` and
+`docs/m36_release_validation_checklist.md`.
 
 Start with:
 

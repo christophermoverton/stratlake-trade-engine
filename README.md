@@ -328,7 +328,8 @@ incompatible indexes require rebuild rather than being trusted.
 Issue #406 adds deterministic local lineage exports in OpenLineage-style and
 PROV-style JSON. These exports are rendered from existing catalog records and
 explicit lineage edges only; they add interoperability without adding a graph
-store, backend service, or inferred lineage.
+store, backend service, or inferred lineage. The `prov` export is PROV-style
+local JSON rather than formal W3C PROV conformance.
 
 Start with:
 

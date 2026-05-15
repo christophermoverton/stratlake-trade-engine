@@ -1,4 +1,15 @@
-"""Deterministic standards-oriented exports over explicit catalog lineage."""
+"""Deterministic standards-oriented exports over explicit catalog lineage.
+
+The ``prov`` format is PROV-style local JSON, not a formal W3C PROV
+conformance implementation. It uses a conservative ``wasDerivedFrom``-style
+relation while keeping StratLake's original ``edge_type`` as the authoritative
+semantic label.
+
+Selected-run exports intentionally emit only the selected catalog record and
+its direct one-hop neighborhood. The validator rejects URI-like strings as well
+as absolute local paths so today's local artifact exports cannot accidentally
+leak machine-specific locations; external URL metadata is not supported yet.
+"""
 
 from __future__ import annotations
 
@@ -55,13 +66,18 @@ def export_lineage_prov(
     *,
     selected_run_id: str | None = None,
 ) -> dict[str, Any]:
-    """Export explicit lineage as local PROV-style JSON."""
+    """Export explicit lineage as local PROV-style JSON, not formal PROV."""
 
     return export_lineage(records, edges, format="prov", selected_run_id=selected_run_id)
 
 
 def validate_lineage_export(payload: dict[str, Any]) -> None:
-    """Validate the closed, portable structure emitted by this module."""
+    """Validate the closed, portable structure emitted by this module.
+
+    URI-like strings are rejected deliberately. Current exports are local
+    artifact lineage payloads, so even future-looking ``https://`` metadata is
+    outside the supported contract until a separately scoped allowlist exists.
+    """
 
     required = {
         "schema_version",

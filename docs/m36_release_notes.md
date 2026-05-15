@@ -189,11 +189,28 @@ relationship preserves the original StratLake `edge_type`, source ids, target
 ids, and relationship metadata instead of pretending the external style is a
 perfect semantic match.
 
+The `prov` format is intentionally PROV-style local JSON, not a formal W3C PROV
+conformance implementation. It renders relations with a conservative
+`wasDerivedFrom`-style mapping, while the original StratLake `edge_type`
+remains the authoritative semantic label. Strict PROV conformance belongs in a
+separately scoped future issue.
+
 Exports may cover the full graph or a selected run's direct one-hop
 neighborhood. They are deterministic, portable, local JSON only, and derived
 from explicit lineage already present in the catalog layer. Direct scan remains
 canonical; Issue #405 index-backed loading may accelerate record loading, but
 it does not become a lineage source of truth.
+
+The selected-run neighborhood is intentionally non-recursive: it includes the
+selected catalog record, directly connected source/target records, and directly
+connected emitted artifact nodes only. It does not expand recursively across
+multi-hop graph paths.
+
+The portability validator currently rejects URI-like strings as well as absolute
+local paths. That strictness is deliberate for local artifact exports: it helps
+prevent accidental path leakage, and external URL metadata is not yet a
+supported lineage-export field. A future URL allowlist, if ever needed, should
+be handled separately with explicit tests.
 
 Example commands:
 

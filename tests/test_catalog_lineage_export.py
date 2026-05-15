@@ -37,6 +37,12 @@ def test_full_exports_are_deterministic_and_preserve_edge_types(tmp_path: Path) 
     assert {row["stratlake_edge_type"] for row in first["relationships"]} == {
         edge.edge_type for edge in edges
     }
+    assert {row["stratlake_edge_type"] for row in prov["relations"]} == {
+        edge.edge_type for edge in edges
+    }
+    assert {row["prov_relation"] for row in prov["relations"]} <= {"wasDerivedFrom"}
+    assert "w3c_prov_conformant" not in prov
+    assert "prov_conformance" not in prov
     validate_lineage_export(first)
     validate_lineage_export(prov)
     _assert_portable(first)
@@ -58,6 +64,8 @@ def test_selected_run_export_includes_direct_neighborhood(tmp_path: Path) -> Non
 
     assert payload["selected_run_id"] == "strategy_000"
     assert "portfolio_000" in entity_by_run_id
+    assert "portfolio_001" not in entity_by_run_id
+    assert any(entity["kind"] == "artifact" for entity in payload["entities"])
     assert all(
         relation["source_id"] == selected_id or relation["target_id"] == selected_id
         for relation in payload["relations"]
@@ -166,8 +174,62 @@ def test_export_does_not_mutate_source_artifacts(tmp_path: Path) -> None:
     assert snapshot_tree(tmp_path) == before
 
 
+@pytest.mark.parametrize(
+    "artifact_root",
+    [
+        "file:///tmp/artifacts/run",
+        "https://example.com/artifacts/run",
+        "C:/Users/example/artifacts/run",
+        "/tmp/artifacts/run",
+    ],
+)
+def test_validation_rejects_uri_like_or_absolute_paths(artifact_root: str) -> None:
+    payload = _portable_payload()
+    payload["nodes"][0]["facets"]["artifact_root"] = artifact_root
+
+    with pytest.raises(LineageExportError):
+        validate_lineage_export(payload)
+
+
+def test_validation_accepts_repository_relative_posix_paths() -> None:
+    payload = _portable_payload()
+    payload["nodes"][0]["facets"]["artifact_root"] = "artifacts/strategies/demo"
+
+    validate_lineage_export(payload)
+
+
 def _assert_portable(payload: dict[str, object]) -> None:
     serialized = json.dumps(payload, sort_keys=True)
     assert "file://" not in serialized
     assert "\\" not in serialized
     assert str(Path.cwd()) not in serialized
+
+
+def _portable_payload() -> dict:
+    return {
+        "schema_version": 1,
+        "format": "openlineage",
+        "exporter_version": "m36_issue406_v1",
+        "generated_marker": "deterministic",
+        "source": "catalog_lineage",
+        "selected_run_id": None,
+        "record_count": 1,
+        "edge_count": 0,
+        "nodes": [
+            {
+                "id": "catalog:demo",
+                "kind": "catalog_record",
+                "namespace": "stratlake",
+                "name": "demo",
+                "facets": {
+                    "catalog_id": "demo",
+                    "run_id": "demo",
+                    "run_type": "strategy",
+                    "record_family": None,
+                    "status": "completed",
+                    "artifact_root": "artifacts/strategies/demo",
+                },
+            }
+        ],
+        "relationships": [],
+    }

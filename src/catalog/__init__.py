@@ -10,6 +10,13 @@ Usage::
 """
 
 from src.catalog.indexer import build_artifact_records, build_catalog, build_catalog_record
+from src.catalog.derived_index import (
+    DerivedIndexError,
+    DerivedIndexValidation,
+    build_derived_index,
+    load_catalog_records,
+    validate_derived_index,
+)
 from src.catalog.explorer import (
     build_evidence_explorer_view,
     render_evidence_json,
@@ -17,6 +24,21 @@ from src.catalog.explorer import (
     render_evidence_table,
 )
 from src.catalog.lineage import build_catalog_lookup, build_lineage_edges, build_run_lookup
+from src.catalog.lineage_export import (
+    LineageExportError,
+    export_lineage,
+    export_lineage_openlineage,
+    export_lineage_prov,
+    validate_lineage_export,
+)
+from src.catalog.lineage_fingerprints import (
+    build_dataset_lineage,
+    build_feature_lineage,
+    dataset_schema_fingerprint,
+    feature_columns_fingerprint,
+    portable_dataset_path,
+    stable_json_fingerprint,
+)
 from src.catalog.models import ArtifactRecord, CatalogRecord, CatalogValidationStatus, LineageEdge
 from src.catalog.notebook import (
     build_notebook_evidence_view,
@@ -49,17 +71,39 @@ from src.catalog.validation import (
     validate_catalog,
     validate_record,
 )
+from src.catalog.workflows import (
+    build_evidence_view_for_workflow,
+    build_lineage_export_for_workflow,
+    load_catalog_for_workflow,
+    resolve_workflow_roots,
+)
 
 __all__ = [
     "build_catalog",
+    "build_derived_index",
     "build_evidence_explorer_view",
     "build_artifact_records",
     "build_catalog_record",
+    "load_catalog_records",
+    "validate_derived_index",
     "build_lineage_edges",
+    "export_lineage",
+    "export_lineage_openlineage",
+    "export_lineage_prov",
+    "stable_json_fingerprint",
+    "feature_columns_fingerprint",
+    "dataset_schema_fingerprint",
+    "portable_dataset_path",
+    "build_dataset_lineage",
+    "build_feature_lineage",
     "build_run_lookup",
     "build_catalog_lookup",
     "CatalogQuery",
     "build_notebook_evidence_view",
+    "load_catalog_for_workflow",
+    "build_lineage_export_for_workflow",
+    "build_evidence_view_for_workflow",
+    "resolve_workflow_roots",
     "evidence_for_run",
     "evidence_lineage_rows",
     "find_governance_evidence",
@@ -84,10 +128,14 @@ __all__ = [
     "CatalogRecord",
     "ArtifactRecord",
     "LineageEdge",
+    "LineageExportError",
     "CatalogValidationStatus",
     "CatalogValidationIssue",
     "CatalogValidationReport",
+    "DerivedIndexError",
+    "DerivedIndexValidation",
     "validate_catalog",
     "validate_record",
     "validate_artifact_records",
+    "validate_lineage_export",
 ]

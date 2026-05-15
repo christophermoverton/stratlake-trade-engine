@@ -9,6 +9,7 @@ from typing import Sequence
 from src.catalog import (
     CatalogQuery,
     build_catalog,
+    load_catalog_records,
     query_catalog,
     records_to_dicts,
     records_to_rows,
@@ -54,6 +55,13 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--artifacts-root", default="artifacts", help="Artifact root to scan. Defaults to artifacts.")
     parser.add_argument("--repo-root", default=".", help="Repository root for relative catalog paths.")
+    parser.add_argument("--index", help="Optional derived catalog index path.")
+    parser.add_argument(
+        "--index-mode",
+        choices=("direct", "index", "auto"),
+        default="direct",
+        help="Catalog load mode. Defaults to canonical direct scan.",
+    )
     parser.add_argument("--run-type", action="append", dest="run_types", help="Run type filter. May be repeated.")
     parser.add_argument("--status", action="append", dest="statuses", help="Status filter. May be repeated.")
     parser.add_argument("--strategy-name", help="Exact strategy name filter.")
@@ -167,7 +175,15 @@ def run_cli(argv: Sequence[str] | None = None) -> list[dict[str, object]] | dict
         include_templates=args.include_templates,
         include_unknown=not args.exclude_unknown,
     )
-    all_records = build_catalog(artifacts_root, repo_root=repo_root)
+    if args.index_mode == "direct":
+        all_records = build_catalog(artifacts_root, repo_root=repo_root)
+    else:
+        all_records = load_catalog_records(
+            artifacts_root,
+            repo_root=repo_root,
+            index_path=args.index,
+            mode=args.index_mode,
+        )
     records = query_catalog(all_records, query)
 
     if args.related:

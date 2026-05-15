@@ -11,6 +11,7 @@ import yaml
 
 from src.data.feature_names import FEATURE_ALIASES
 from src.data.load_features import FeaturePaths, load_features
+from src.catalog.lineage_fingerprints import build_dataset_lineage, build_feature_lineage
 
 DEFAULT_FEATURE_METADATA_PATH = Path("artifacts/features/feature_metadata.json")
 DEFAULT_FEATURE_REGISTRY_PATH = Path("configs/features.yml")
@@ -105,11 +106,14 @@ def build_feature_metadata_summary(
     source_dataset: str,
     feature_list: list[str],
     feature_aliases: dict[str, list[str]] | None = None,
+    dataset_path: str | Path | None = None,
 ) -> dict[str, Any]:
     feature_columns = _feature_columns(df)
     symbols = sorted(df["symbol"].dropna().astype(str).unique().tolist()) if "symbol" in df.columns else []
 
-    return {
+    schema = _data_types(df)
+    date_range = _date_range(df)
+    payload = {
         "dataset_name": dataset_name,
         "source_dataset": source_dataset,
         "feature_list": list(feature_list),
@@ -118,15 +122,41 @@ def build_feature_metadata_summary(
         "schema": {
             "column_names": list(df.columns),
             "feature_columns": feature_columns,
-            "data_types": _data_types(df),
+            "data_types": schema,
         },
         "metrics": {
             "row_count": int(len(df.index)),
             "symbol_coverage": int(len(symbols)),
-            "date_range": _date_range(df),
+            "date_range": date_range,
         },
         "feature_statistics": _feature_statistics(df, feature_columns),
     }
+    if dataset_path is not None:
+        payload["dataset_lineage"] = build_dataset_lineage(
+            logical_dataset_id=dataset_name,
+            dataset_role="feature_dataset",
+            dataset_path=dataset_path,
+            dataset_contract_version="feature_dataset_v1",
+            schema=schema,
+            row_count=len(df.index),
+            symbol_count=len(symbols),
+            timeframe=str(df["timeframe"].iloc[0]) if "timeframe" in df.columns and not df.empty else None,
+            start=date_range["start"],
+            end=date_range["end"],
+            source_payload={"source_dataset": source_dataset},
+        )
+        payload["feature_lineage"] = build_feature_lineage(
+            feature_group_names=feature_list,
+            feature_columns=feature_columns,
+            schema=schema,
+            feature_contract_version="feature_contract_v1",
+            build_config={
+                "dataset_name": dataset_name,
+                "source_dataset": source_dataset,
+                "feature_list": list(feature_list),
+            },
+        )
+    return payload
 
 
 def export_feature_metadata(
@@ -171,6 +201,7 @@ def export_feature_metadata(
                 source_dataset=str(entry.get("source_dataset", "")),
                 feature_list=feature_list,
                 feature_aliases=feature_aliases,
+                dataset_path=Path("data/curated") / dataset_name,
             )
         )
 

@@ -199,9 +199,9 @@ validation is added.
 CI workflows use least-privilege `contents: read` permissions, cancel
 overlapping runs for the same workflow/ref, and use the built-in `pip` cache
 from `actions/setup-python` keyed on `pyproject.toml`. GitHub Actions are
-constrained to maintained major versions such as `actions/checkout@v4`,
-`actions/setup-python@v5`, and `actions/upload-artifact@v4`; full SHA pinning
-is reserved for a later security-hardening pass.
+SHA-pinned to reviewed upstream revisions while comments preserve the
+human-readable source tags such as `actions/checkout@v4`,
+`actions/setup-python@v5`, and `actions/upload-artifact@v4`.
 
 Packaging metadata declares an explicit PEP 517 setuptools build backend.
 Editable development installs remain the primary local workflow, and CI
@@ -278,6 +278,99 @@ Start with:
 * [docs/m35_evidence_discovery_validation.md](docs/m35_evidence_discovery_validation.md)
 * [docs/m35_release_notes.md](docs/m35_release_notes.md)
 * [docs/m35_release_validation_checklist.md](docs/m35_release_validation_checklist.md)
+
+### Milestone 36: Scalable Evidence Interoperability and Release Hardening
+
+Milestone 36 follows M35's read-only evidence catalog by making larger evidence
+histories faster to inspect, easier to export, and safer to release without
+weakening deterministic provenance.
+
+M36 adds:
+
+* optional disposable SQLite catalog indexing
+* deterministic OpenLineage-style and PROV-style local JSON exports
+* optional dataset and feature lineage fingerprints
+* shared CLI/API workflow helpers across direct, index, and auto modes
+* deterministic combined-stack validation
+* release workflow and validation hardening
+
+M36 keeps a deliberately narrow architecture:
+
+* canonical artifacts remain the source of truth
+* the derived index is optional, disposable, and never a registry replacement
+* exports are local standards-oriented JSON views, not backend integrations
+* `prov` output is PROV-style rather than formal W3C PROV conformance
+* selected-run export is a direct one-hop neighborhood
+* dataset and feature lineage metadata is explicit and optional
+* no graph store, remote catalog, dashboard, web server, inferred lineage layer,
+  or second source of truth is introduced
+
+The active M36 work began with release-process hardening before the larger
+catalog interoperability additions. Issue #402 clarifies version semantics,
+milestone branch naming, release tag meaning, and validation workflow trigger
+coverage.
+
+The active M36 branch is
+`feature/m36-scalable-evidence-interoperability-release-hardening`. Future
+milestone branches should use
+`feature/m<NUMBER>-<short-kebab-description>` so milestone validation workflows
+can cover them consistently. Legacy `milestone/**` and `m22/**` branch patterns
+remain supported by `.github/workflows/milestone_validation.yml`.
+
+Package version and milestone release tags are intentionally separate. The
+package version in `pyproject.toml` is Python distribution metadata for editable
+installs, local wheel/sdist validation, and package import metadata. It remains
+`0.1.0` until the package distribution semantics themselves need a version
+change. Milestone release tags identify repository release snapshots and
+validation evidence, for example
+`v0.36.0-scalable-evidence-interoperability-release-hardening`; they appear in
+GitHub Release tags, release notes, and release checklists, but they do not
+imply PyPI/TestPyPI publication.
+
+Future milestones should update milestone release notes, checklist docs, and
+candidate tag names for the milestone. They should preserve `pyproject.toml`
+unless the milestone intentionally changes package metadata, install behavior,
+or distribution compatibility.
+
+Issue #403 pins external GitHub Actions in `.github/workflows/` to full commit
+SHAs while preserving the existing CI, milestone validation, and release job
+behavior. The maintenance procedure and validation expectations live in
+`docs/m36_release_notes.md` and
+`docs/m36_release_validation_checklist.md`.
+
+Issue #404 adds deterministic scale baselines over synthetic catalog artifact
+histories before any optional derived metadata index work. The baseline remains
+direct-scan only and exercises catalog indexing, query, lineage, explorer, and
+notebook helper surfaces without live data or new persistent storage.
+
+Issue #405 adds an optional disposable SQLite metadata index for faster catalog
+record loading. Canonical artifacts remain the source of truth, direct scan is
+still the default, missing indexes can fall back safely, and stale or
+incompatible indexes require rebuild rather than being trusted.
+
+Issue #406 adds deterministic local lineage exports in OpenLineage-style and
+PROV-style JSON. These exports are rendered from existing catalog records and
+explicit lineage edges only; they add interoperability without adding a graph
+store, backend service, or inferred lineage. The `prov` export is PROV-style
+local JSON rather than formal W3C PROV conformance.
+
+Issue #407 adds optional deterministic dataset and feature lineage fingerprints.
+When explicit lineage metadata is present, catalog records and lineage exports
+surface it without changing old artifacts, inventing dataset edges, or adding a
+remote data catalog.
+
+Issue #408 adds thin shared workflow helpers so CLI commands, notebooks, and
+pipeline wrappers all compose the same catalog loading, evidence view, and
+lineage export APIs across `direct`, `index`, and `auto` modes.
+
+Issue #409 adds focused deterministic validation across the combined M36 stack:
+direct/index/helper parity, disposable-index rebuilds, lineage export stability,
+dataset/feature fingerprint preservation, CLI/API parity, and portability.
+
+Start with:
+
+* [docs/m36_release_notes.md](docs/m36_release_notes.md)
+* [docs/m36_release_validation_checklist.md](docs/m36_release_validation_checklist.md)
 
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
@@ -1597,6 +1690,10 @@ Start here:
 * [docs/m34_robustness_validation_examples.md](docs/m34_robustness_validation_examples.md)
 * [docs/m34_release_notes.md](docs/m34_release_notes.md)
 * [docs/m34_release_validation_checklist.md](docs/m34_release_validation_checklist.md)
+* [docs/m35_release_notes.md](docs/m35_release_notes.md)
+* [docs/m35_release_validation_checklist.md](docs/m35_release_validation_checklist.md)
+* [docs/m36_release_notes.md](docs/m36_release_notes.md)
+* [docs/m36_release_validation_checklist.md](docs/m36_release_validation_checklist.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)

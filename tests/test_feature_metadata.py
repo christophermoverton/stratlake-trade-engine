@@ -178,3 +178,6 @@ def test_export_feature_metadata_writes_deterministic_dataset_summaries(tmp_path
         "min": -0.02,
         "max": 0.03,
     }
+    assert minute["dataset_lineage"]["dataset_path"] == "data/curated/features_1m"
+    assert daily["dataset_lineage"]["logical_dataset_id"] == "features_daily"
+    assert daily["feature_lineage"]["feature_column_count"] == 2

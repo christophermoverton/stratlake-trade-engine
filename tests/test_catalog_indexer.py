@@ -118,6 +118,19 @@ def test_strategy_root_with_registry_manifest_success(tmp_path):
     assert "metrics.json" in relpaths or any("metrics" in p for p in relpaths)
 
 
+def test_registry_source_path_is_repo_relative(tmp_path):
+    run_id = "strategy_with_registry"
+    make_strategy_root(tmp_path, run_id, with_registry=True)
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    record = next(r for r in records if r.run_id == run_id)
+
+    assert record.source_registry_path == "strategies/registry.jsonl"
+    assert not Path(record.source_registry_path).is_absolute()
+    assert all(not Path(path).is_absolute() for path in record.source_files)
+    assert all("\\" not in path and not path.startswith("file://") for path in record.source_files)
+
+
 # ---------------------------------------------------------------------------
 # Test 2: Artifact root without registry entry
 # ---------------------------------------------------------------------------
@@ -162,6 +175,27 @@ def test_registry_entry_without_artifact_root(tmp_path):
     r = ghost_records[0]
     assert r.status == "registry_only"
     assert "registry_entry_no_artifact_root" in r.validation.validation_warnings
+
+
+def test_registry_only_source_path_is_repo_relative(tmp_path):
+    run_id = "ghost_repo_relative"
+    registry_path = tmp_path / "strategies" / "registry.jsonl"
+    entry = {
+        "run_id": run_id,
+        "run_type": "strategy",
+        "strategy_name": "GhostPortableStrategy",
+        "artifact_dir": (tmp_path / "strategies" / run_id).as_posix(),
+    }
+    write_jsonl(registry_path, [entry])
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    record = next(r for r in records if r.run_id == run_id)
+
+    assert record.status == "registry_only"
+    assert record.source_registry_path == "strategies/registry.jsonl"
+    assert not Path(record.source_registry_path).is_absolute()
+    assert all(not Path(path).is_absolute() for path in record.source_files)
+    assert all("\\" not in path and not path.startswith("file://") for path in record.source_files)
 
 
 # ---------------------------------------------------------------------------
@@ -627,3 +661,147 @@ def test_review_status_from_top_level_field(tmp_path):
 
     assert r.review_status == "needs_review", f"Expected 'needs_review', got {r.review_status!r}"
     assert r.promotion_status == "pending", f"Expected 'pending', got {r.promotion_status!r}"
+
+
+def test_indexes_robustness_bundle_evidence_fields_and_portable_paths(tmp_path):
+    report_dir = tmp_path / "robustness" / "robustness_report_demo"
+    report_dir.mkdir(parents=True)
+    write_json(
+        report_dir / "robustness_summary.json",
+        {
+            "report_id": "robustness_report_demo",
+            "robustness_status": "needs_review",
+            "finding_count": 2,
+            "highest_severity": "warning",
+            "checks_present": ["walk_forward_efficiency", "sample_size"],
+        },
+    )
+    write_json(
+        report_dir / "robustness_findings.json",
+        {
+            "findings": [
+                {
+                    "check_id": "temporal_validation.embargo_violation",
+                    "severity": "warning",
+                    "details": {"status": "blocked"},
+                }
+            ]
+        },
+    )
+    (report_dir / "walk_forward_efficiency.csv").write_text("run_id,status\nrun_a,weak\n", encoding="utf-8")
+    write_json(
+        report_dir / "sample_size_validation.json",
+        {
+            "checks": [
+                {"check_id": "sample_size.minimum_total_samples", "status": "pass"},
+                {"check_id": "sample_size.minimum_total_trades", "status": "warning"},
+            ]
+        },
+    )
+    (report_dir / "sensitivity_summary.csv").write_text("run_id,status\nrun_a,fragile\n", encoding="utf-8")
+    write_json(
+        report_dir / "multiple_testing_summary.json",
+        {"families": [{"family_id": "f1", "status": "high_risk"}]},
+    )
+    write_json(report_dir / "leakage_validation.json", {"overall_status": "blocked"})
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    record = next(item for item in records if item.record_family == "robustness_bundle")
+
+    assert record.run_type == "robustness_bundle"
+    assert record.robustness_status == "needs_review"
+    assert record.wfe_status == "weak"
+    assert record.sample_size_status == "warning"
+    assert record.trade_count_status == "warning"
+    assert record.sensitivity_status == "fragile"
+    assert record.fragility_status == "fragile"
+    assert record.multiple_testing_status == "high_risk"
+    assert record.temporal_validation_status == "blocked"
+    assert all(not Path(path).is_absolute() for path in record.source_files)
+    assert all("\\" not in path and not path.startswith("file://") for path in record.source_files)
+    artifacts = build_artifact_records(record, repo_root=tmp_path)
+    assert artifacts
+    assert all(not Path(artifact.path).is_absolute() for artifact in artifacts)
+    assert all("\\" not in artifact.path and not artifact.path.startswith("file://") for artifact in artifacts)
+
+
+def test_indexes_governance_bundle_without_mutating_sources(tmp_path):
+    report_dir = tmp_path / "promotion_governance" / "promotion_governance_demo"
+    report_dir.mkdir(parents=True)
+    write_json(
+        report_dir / "promotion_governance_summary.json",
+        {"row_count": 1, "review_status_counts": {"needs_review": 1}},
+    )
+    write_json(report_dir / "consistency_validation.json", {"status": "pass", "finding_count": 0})
+    write_json(report_dir / "manifest.json", {"run_type": "promotion_governance", "validation_status": "pass"})
+    matrix = report_dir / "promotion_outcome_matrix.csv"
+    matrix.write_text("workflow_type,run_id,review_status\nstrategy,run_a,needs_review\n", encoding="utf-8")
+    before = {
+        path.relative_to(tmp_path).as_posix(): path.read_bytes()
+        for path in sorted(tmp_path.rglob("*"))
+        if path.is_file()
+    }
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+
+    after = {
+        path.relative_to(tmp_path).as_posix(): path.read_bytes()
+        for path in sorted(tmp_path.rglob("*"))
+        if path.is_file()
+    }
+    record = next(item for item in records if item.record_family == "governance_bundle")
+    assert before == after
+    assert record.governance_status == "pass"
+    assert record.promotion_review_status == "needs_review"
+
+
+def test_indexes_milestone_validation_bundle_and_sparse_evidence(tmp_path):
+    bundle = tmp_path / "qa" / "milestone_validation_bundle"
+    bundle.mkdir(parents=True)
+    write_json(
+        bundle / "summary.json",
+        {
+            "run_type": "milestone_validation_bundle",
+            "status": "passed",
+            "checks": {"docs_path_lint": {"status": "passed"}},
+        },
+    )
+    write_json(bundle / "_SUCCESS.json", {"status": "completed"})
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    record = next(item for item in records if item.record_family == "milestone_validation_bundle")
+
+    assert record.validation_readiness_present is True
+    assert record.release_validation_present is False
+    assert record.robustness_status is None
+    assert record.governance_status == "passed"
+
+
+def test_indexes_release_validation_artifact_if_present(tmp_path):
+    release_dir = tmp_path / "release_validation" / "m34_release_validation"
+    release_dir.mkdir(parents=True)
+    write_json(
+        release_dir / "release_validation.json",
+        {"release_id": "m34", "status": "pass", "finding_count": 0},
+    )
+
+    records = build_catalog(tmp_path, repo_root=tmp_path)
+    record = next(item for item in records if item.record_family == "release_validation_artifact")
+
+    assert record.release_validation_present is True
+    assert record.governance_status == "pass"
+
+
+def test_empty_and_sparse_evidence_roots_are_deterministic(tmp_path):
+    (tmp_path / "robustness").mkdir(parents=True)
+    sparse = tmp_path / "robustness" / "sparse_report"
+    sparse.mkdir()
+    write_json(sparse / "robustness_summary.json", {"report_id": "sparse_report"})
+
+    first = [record.to_dict() for record in build_catalog(tmp_path, repo_root=tmp_path)]
+    second = [record.to_dict() for record in build_catalog(tmp_path, repo_root=tmp_path)]
+
+    assert first == second
+    assert len(first) == 1
+    assert first[0]["record_family"] == "robustness_bundle"
+    assert first[0]["wfe_status"] is None

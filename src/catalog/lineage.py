@@ -8,6 +8,7 @@ repair, register, or execute any workflow.
 from __future__ import annotations
 
 from collections.abc import Iterable, Mapping
+import csv
 import hashlib
 import json
 from pathlib import Path
@@ -21,6 +22,31 @@ _COMPARISON_FIELDS = ("member_run_ids", "comparison_members", "run_ids", "inputs
 _BENCHMARK_FIELDS = ("member_run_ids", "child_run_ids", "scenario_run_ids", "run_ids")
 _VALIDATION_FIELDS = ("referenced_run_ids", "validation_target_run_ids", "run_ids")
 _PIPELINE_FIELDS = ("wrapped_run_id", "child_run_id", "stage_run_ids")
+_EVIDENCE_RUN_FIELDS = (
+    "source_run_ids",
+    "source_run_id",
+    "source_run_references",
+    "referenced_run_ids",
+    "validation_target_run_ids",
+    "validated_run_ids",
+    "run_ids",
+)
+_EVIDENCE_ARTIFACT_FIELDS = (
+    "source_artifacts",
+    "source_artifact_refs",
+    "source_artifact_references",
+    "upstream_artifacts",
+)
+_RELEASE_VALIDATION_BUNDLE_FIELDS = (
+    "source_validation_bundle_run_ids",
+    "source_validation_bundle_run_id",
+    "validation_bundle_run_ids",
+    "validation_bundle_run_id",
+    "milestone_validation_bundle_run_ids",
+    "milestone_validation_bundle_run_id",
+)
+_CAMPAIGN_EVIDENCE_FIELDS = ("campaign_id", "campaign_run_id", "source_campaign_id")
+_SCENARIO_EVIDENCE_FIELDS = ("scenario_id", "scenario_run_id", "source_scenario_id")
 _CAMPAIGN_PARENT_RUN_FIELDS = ("campaign_parent_run_id", "parent_run_id")
 _CAMPAIGN_PARENT_CATALOG_FIELDS = ("campaign_parent_catalog_id", "parent_catalog_id")
 _SCENARIO_PARENT_RUN_FIELDS = ("scenario_parent_run_id", "parent_scenario_run_id")
@@ -30,8 +56,16 @@ _JSON_SOURCE_FILENAMES = {
     "scenario_catalog.json",
     "manifest.json",
     "summary.json",
+    "robustness_summary.json",
+    "promotion_governance_summary.json",
+    "consistency_validation.json",
+    "release_validation.json",
+    "release_validation_summary.json",
     "deterministic_rerun.json",
     "cross_layer_validation_report.json",
+}
+_CSV_SOURCE_FILENAMES = {
+    "promotion_outcome_matrix.csv",
 }
 
 
@@ -108,6 +142,7 @@ def lineage_from_record(
             edges.extend(_pipeline_edges(record, run_lookup, contexts))
         edges.extend(_campaign_child_edges(record, run_lookup, catalog_lookup, contexts))
         edges.extend(_scenario_child_edges(record, run_lookup, catalog_lookup, contexts))
+        edges.extend(_evidence_edges(record, run_lookup, catalog_lookup, contexts))
         if resolved_repo_root is not None:
             edges.extend(_manifest_artifact_edges(record, repo_root=resolved_repo_root))
 
@@ -322,6 +357,156 @@ def _scenario_child_edges(
     return edges
 
 
+def _evidence_edges(
+    record: CatalogRecord,
+    run_lookup: Mapping[str, CatalogRecord],
+    catalog_lookup: Mapping[str, CatalogRecord],
+    contexts: list[tuple[str, str | None, Mapping[str, Any]]],
+) -> list[LineageEdge]:
+    edge_type = _evidence_edge_type(record)
+    if edge_type is None:
+        return []
+
+    edges: list[LineageEdge] = []
+    seen_references: set[tuple[str, str, str | None, str]] = set()
+    for source_name, source_path, payload in contexts:
+        for field in _EVIDENCE_RUN_FIELDS:
+            for run_id in _extract_run_ids(payload.get(field)):
+                source = run_lookup.get(run_id)
+                if source is None or source.catalog_id == record.catalog_id:
+                    continue
+                key = (edge_type, source.catalog_id, source_path, field)
+                if key in seen_references:
+                    continue
+                seen_references.add(key)
+                edges.append(
+                    make_lineage_edge(
+                        edge_type=edge_type,
+                        source=source,
+                        target=record,
+                        relationship_source=_field_source(source_name, field),
+                        relationship_path=source_path,
+                        metadata={"referenced_run_id": run_id},
+                    )
+                )
+
+        for field in _EVIDENCE_ARTIFACT_FIELDS:
+            for artifact_ref in _extract_artifact_references(payload.get(field)):
+                source = _resolve_artifact_reference(artifact_ref, run_lookup)
+                if source is None or source.catalog_id == record.catalog_id:
+                    continue
+                ref_text = _artifact_reference_text(artifact_ref)
+                key = (edge_type, source.catalog_id, source_path, field)
+                if key in seen_references:
+                    continue
+                seen_references.add(key)
+                edges.append(
+                    make_lineage_edge(
+                        edge_type=edge_type,
+                        source=source,
+                        target=record,
+                        relationship_source=_field_source(source_name, field),
+                        relationship_path=source_path,
+                        metadata={"artifact_reference": ref_text},
+                    )
+                )
+
+        edges.extend(
+            _release_validation_bundle_edges(
+                record,
+                run_lookup,
+                source_name=source_name,
+                source_path=source_path,
+                payload=payload,
+            )
+        )
+        edges.extend(
+            _campaign_scenario_evidence_edges(
+                record,
+                run_lookup,
+                catalog_lookup,
+                source_name=source_name,
+                source_path=source_path,
+                payload=payload,
+            )
+        )
+    return edges
+
+
+def _release_validation_bundle_edges(
+    record: CatalogRecord,
+    run_lookup: Mapping[str, CatalogRecord],
+    *,
+    source_name: str,
+    source_path: str | None,
+    payload: Mapping[str, Any],
+) -> list[LineageEdge]:
+    if _record_family(record) != "release_validation_artifact":
+        return []
+    edges: list[LineageEdge] = []
+    for field in _RELEASE_VALIDATION_BUNDLE_FIELDS:
+        for run_id in _extract_run_ids(payload.get(field)):
+            source = run_lookup.get(run_id)
+            if source is None or source.catalog_id == record.catalog_id:
+                continue
+            edges.append(
+                make_lineage_edge(
+                    edge_type="validation_bundle_to_release_validation",
+                    source=source,
+                    target=record,
+                    relationship_source=_field_source(source_name, field),
+                    relationship_path=source_path,
+                    metadata={"referenced_run_id": run_id},
+                )
+            )
+    return edges
+
+
+def _campaign_scenario_evidence_edges(
+    record: CatalogRecord,
+    run_lookup: Mapping[str, CatalogRecord],
+    catalog_lookup: Mapping[str, CatalogRecord],
+    *,
+    source_name: str,
+    source_path: str | None,
+    payload: Mapping[str, Any],
+) -> list[LineageEdge]:
+    if _evidence_edge_type(record) is None:
+        return []
+    edges: list[LineageEdge] = []
+    for field in _CAMPAIGN_EVIDENCE_FIELDS:
+        for referenced in _extract_string_values(payload.get(field)):
+            source = _resolve_campaign_or_scenario_reference(referenced, run_lookup, catalog_lookup)
+            if source is None or source.catalog_id == record.catalog_id:
+                continue
+            edges.append(
+                make_lineage_edge(
+                    edge_type="campaign_to_evidence_bundle",
+                    source=source,
+                    target=record,
+                    relationship_source=_field_source(source_name, field),
+                    relationship_path=source_path,
+                    metadata={"referenced_campaign": referenced},
+                )
+            )
+    for field in _SCENARIO_EVIDENCE_FIELDS:
+        for referenced in _extract_string_values(payload.get(field)):
+            source = _resolve_campaign_or_scenario_reference(referenced, run_lookup, catalog_lookup)
+            if source is None or source.catalog_id == record.catalog_id:
+                continue
+            edges.append(
+                make_lineage_edge(
+                    edge_type="scenario_to_evidence_bundle",
+                    source=source,
+                    target=record,
+                    relationship_source=_field_source(source_name, field),
+                    relationship_path=source_path,
+                    metadata={"referenced_scenario": referenced},
+                )
+            )
+    return edges
+
+
 def _resolve_parent_records(
     payload: Mapping[str, Any],
     *,
@@ -403,11 +588,14 @@ def _relationship_contexts(
             candidate_paths.add(record.source_manifest_path)
         for rel_path in sorted(candidate_paths):
             path = repo_root / rel_path
-            if path.name not in _JSON_SOURCE_FILENAMES:
-                continue
-            payload = load_json_file(path)
-            if payload is not None:
-                contexts.append((path.name, rel_path, payload))
+            if path.name in _JSON_SOURCE_FILENAMES:
+                payload = load_json_file(path)
+                if payload is not None:
+                    contexts.append((path.name, rel_path, payload))
+            elif path.name in _CSV_SOURCE_FILENAMES:
+                rows = _load_csv_rows(path)
+                if rows:
+                    contexts.append((path.name, rel_path, {"rows": rows, "run_ids": _row_run_ids(rows)}))
     return contexts
 
 
@@ -438,6 +626,136 @@ def _extract_run_ids(value: Any) -> list[str]:
         for item in value:
             values.extend(_extract_run_ids(item))
     return sorted(set(run_id for run_id in (_string_or_none(v) for v in values) if run_id))
+
+
+def _extract_string_values(value: Any) -> list[str]:
+    values: list[str] = []
+    if isinstance(value, str):
+        values.append(value)
+    elif isinstance(value, Mapping):
+        for key in (
+            "run_id",
+            "catalog_id",
+            "campaign_id",
+            "scenario_id",
+            "campaign_run_id",
+            "scenario_run_id",
+        ):
+            item = _string_or_none(value.get(key))
+            if item:
+                values.append(item)
+    elif isinstance(value, Iterable) and not isinstance(value, bytes):
+        for item in value:
+            values.extend(_extract_string_values(item))
+    return sorted(set(item for item in (_string_or_none(value) for value in values) if item))
+
+
+def _extract_artifact_references(value: Any) -> list[Any]:
+    references: list[Any] = []
+    if isinstance(value, str):
+        references.append(value)
+    elif isinstance(value, Mapping):
+        references.append(value)
+        for key in ("artifacts", "files", "source_artifacts", "upstream_artifacts"):
+            references.extend(_extract_artifact_references(value.get(key)))
+    elif isinstance(value, Iterable) and not isinstance(value, bytes):
+        for item in value:
+            references.extend(_extract_artifact_references(item))
+    return references
+
+
+def _resolve_artifact_reference(
+    artifact_ref: Any,
+    run_lookup: Mapping[str, CatalogRecord],
+) -> CatalogRecord | None:
+    for run_id in _extract_run_ids(artifact_ref):
+        source = run_lookup.get(run_id)
+        if source is not None:
+            return source
+    path = _artifact_reference_path(artifact_ref)
+    if path is None:
+        return None
+    normalized_path = path.strip().replace("\\", "/")
+    for source in run_lookup.values():
+        root = source.artifact_root.rstrip("/")
+        if normalized_path == root or normalized_path.startswith(f"{root}/"):
+            return source
+    return None
+
+
+def _artifact_reference_path(artifact_ref: Any) -> str | None:
+    if isinstance(artifact_ref, str):
+        return artifact_ref
+    if isinstance(artifact_ref, Mapping):
+        for key in ("path", "relative_path", "artifact_path", "source_artifact_path"):
+            value = _string_or_none(artifact_ref.get(key))
+            if value:
+                return value
+    return None
+
+
+def _artifact_reference_text(artifact_ref: Any) -> str:
+    path = _artifact_reference_path(artifact_ref)
+    if path:
+        return path.replace("\\", "/")
+    if isinstance(artifact_ref, Mapping):
+        return json.dumps(_json_like(artifact_ref), sort_keys=True)
+    return str(artifact_ref)
+
+
+def _resolve_campaign_or_scenario_reference(
+    reference: str,
+    run_lookup: Mapping[str, CatalogRecord],
+    catalog_lookup: Mapping[str, CatalogRecord],
+) -> CatalogRecord | None:
+    if reference in run_lookup:
+        return run_lookup[reference]
+    if reference in catalog_lookup:
+        return catalog_lookup[reference]
+    for record in run_lookup.values():
+        if record.campaign_id == reference or record.scenario_id == reference:
+            return record
+    return None
+
+
+def _load_csv_rows(path: Path) -> list[dict[str, str]]:
+    try:
+        with path.open("r", encoding="utf-8", newline="") as handle:
+            return [dict(row) for row in csv.DictReader(handle)]
+    except OSError:
+        return []
+
+
+def _row_run_ids(rows: Iterable[Mapping[str, Any]]) -> list[str]:
+    run_ids: list[str] = []
+    for row in rows:
+        run_id = _string_or_none(row.get("run_id"))
+        if run_id:
+            run_ids.append(run_id)
+    return sorted(set(run_ids))
+
+
+def _record_family(record: CatalogRecord) -> str | None:
+    return record.record_family or (
+        record.run_type
+        if record.run_type
+        in {
+            "robustness_bundle",
+            "governance_bundle",
+            "milestone_validation_bundle",
+            "release_validation_artifact",
+        }
+        else None
+    )
+
+
+def _evidence_edge_type(record: CatalogRecord) -> str | None:
+    return {
+        "robustness_bundle": "run_to_robustness_evidence",
+        "governance_bundle": "run_to_governance_evidence",
+        "milestone_validation_bundle": "run_to_validation_bundle",
+        "release_validation_artifact": "run_to_release_validation",
+    }.get(_record_family(record) or "")
 
 
 def _make_edge_id(

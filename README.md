@@ -254,6 +254,31 @@ Start with:
 * [docs/m34_release_validation_checklist.md](docs/m34_release_validation_checklist.md)
 * [docs/examples/robustness_report_example.py](docs/examples/robustness_report_example.py)
 
+### Milestone 35: Artifact Lineage, Discovery, and Robustness-Aware Research Catalog
+
+Milestone 35 extends the existing M29 catalog, query, lineage, and validation
+architecture after M34 statistical robustness work. M34 robustness bundles, M32
+governance bundles, milestone validation bundles, and release-validation
+artifacts are discoverable, traceable, and reviewable as first-class read-only
+catalog evidence.
+
+M35 keeps source artifacts as the source of truth. It does not create a second
+registry, database, server, persistent cache, search backend, graph database, or
+promotion policy layer, and it does not mutate governance or promotion decision
+artifacts.
+
+Start with:
+
+* [docs/m35_evidence_catalog_foundation.md](docs/m35_evidence_catalog_foundation.md)
+* [docs/catalog_indexer.md](docs/catalog_indexer.md)
+* [docs/catalog_query.md](docs/catalog_query.md)
+* [docs/catalog_lineage.md](docs/catalog_lineage.md)
+* [docs/catalog_evidence_explorer.md](docs/catalog_evidence_explorer.md)
+* [docs/catalog_notebook_ergonomics.md](docs/catalog_notebook_ergonomics.md)
+* [docs/m35_evidence_discovery_validation.md](docs/m35_evidence_discovery_validation.md)
+* [docs/m35_release_notes.md](docs/m35_release_notes.md)
+* [docs/m35_release_validation_checklist.md](docs/m35_release_validation_checklist.md)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

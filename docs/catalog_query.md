@@ -10,6 +10,10 @@ queries.
 The query layer is read-only. It does not write files, create a cache, update a
 registry, repair artifacts, or execute research workflows.
 
+For the M35 evidence catalog overview and release-readiness docs, see
+[`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
+and [`docs/m35_release_notes.md`](m35_release_notes.md).
+
 ## Python API
 
 ```python
@@ -40,6 +44,30 @@ filtered = filter_catalog_records(
 summary = summarize_catalog(filtered)
 ```
 
+M35 evidence fields are regular catalog filters. They search the read-only
+fields indexed from existing robustness, governance, milestone-validation, and
+release-validation artifacts:
+
+```python
+robustness_reviews = query_catalog(
+    records,
+    CatalogQuery(
+        record_family="robustness_bundle",
+        robustness_status="needs_review",
+        wfe_status="weak",
+    ),
+)
+
+governance_passes = filter_catalog_records(
+    records,
+    record_family="governance_bundle",
+    governance_status="pass",
+)
+
+validation_bundles = filter_catalog_records(records, validation_readiness_present=True)
+release_evidence = filter_catalog_records(records, release_validation_present=True)
+```
+
 Serialization helpers:
 
 ```python
@@ -58,6 +86,10 @@ python -m src.cli.query_catalog --run-type strategy --status completed
 python -m src.cli.query_catalog --strategy-name momentum_v1
 python -m src.cli.query_catalog --portfolio-name risk_parity
 python -m src.cli.query_catalog --min-metric sharpe_ratio 1.0
+python -m src.cli.query_catalog --record-family robustness_bundle --robustness-status needs_review --wfe-status weak
+python -m src.cli.query_catalog --record-family governance_bundle --governance-status pass
+python -m src.cli.query_catalog --validation-readiness-present true
+python -m src.cli.query_catalog --release-validation-present true
 python -m src.cli.query_catalog --include-templates
 python -m src.cli.query_catalog --summary
 ```
@@ -82,13 +114,42 @@ Supported filters include:
 - `--regime-method`
 - `--campaign-id`
 - `--scenario-id`
+- `--record-family`
+- `--robustness-status`
+- `--wfe-status`
+- `--sample-size-status`
+- `--trade-count-status`
+- `--sensitivity-status`
+- `--fragility-status`
+- `--multiple-testing-status`
+- `--temporal-validation-status`
+- `--governance-status`
+- `--promotion-review-status`
+- `--review-status`
+- `--promotion-status`
+- `--validation-readiness-present true|false`
+- `--release-validation-present true|false`
 - `--min-metric NAME VALUE`
 - `--max-metric NAME VALUE`
 - `--metric-equals NAME VALUE`
 - `--start-ts`
 - `--end-ts`
 
-Name, ID, run type, and status filters are exact string matches.
+Name, ID, run type, status, evidence status, review status, and promotion
+status filters are exact string matches.
+
+`validation_bundle_present` is accepted by the Python API as an alias for
+`validation_readiness_present`; the CLI equivalent is
+`--validation-bundle-present`. `release_readiness_present` is accepted as an
+alias for `release_validation_present`; the CLI equivalent is
+`--release-readiness-present`. Alias filters resolve to the implemented Issue
+#394 fields and do not add duplicate storage semantics.
+
+Boolean presence filters match `true` or `false` explicitly. Missing optional
+evidence status fields are safe: they do not crash queries, and they only match
+if a record actually has the exact requested value. A strategy record with no
+robustness evidence, for example, will not match `--robustness-status
+needs_review`.
 
 Metric filters read scalar values from `record.metrics_summary`. Records missing
 the requested metric are excluded from metric-filtered results.
@@ -179,6 +240,11 @@ pd.DataFrame(records_to_rows(downstream))
 These notebook examples use the same read-only query APIs as the CLI. They do
 not execute strategies, portfolios, campaigns, validations, or notebooks.
 
+For a rendered local review surface over query results and evidence lineage,
+see [`docs/catalog_evidence_explorer.md`](catalog_evidence_explorer.md).
+For notebook-friendly wrappers over the same APIs, see
+[`docs/catalog_notebook_ergonomics.md`](catalog_notebook_ergonomics.md).
+
 ## Read-Only Guarantees
 
 The query API and CLI only call:
@@ -189,6 +255,10 @@ The query API and CLI only call:
 
 They do not write, append, delete, move, lock, register, cache, or execute
 anything.
+
+Evidence filters are discovery aids. They make persisted research evidence
+searchable; they do not replay promotion gates, enforce governance policy, or
+change recorded promotion decisions.
 
 ## Limitations and Non-Goals
 

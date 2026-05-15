@@ -123,6 +123,19 @@ class CatalogRecord:
     qa_status: str | None
     review_status: str | None
     promotion_status: str | None
+    record_family: str | None = None
+    robustness_status: str | None = None
+    wfe_status: str | None = None
+    sample_size_status: str | None = None
+    trade_count_status: str | None = None
+    sensitivity_status: str | None = None
+    fragility_status: str | None = None
+    multiple_testing_status: str | None = None
+    temporal_validation_status: str | None = None
+    governance_status: str | None = None
+    promotion_review_status: str | None = None
+    validation_readiness_present: bool = False
+    release_validation_present: bool = False
     tags: list[str] = field(default_factory=list)
     source_files: list[str] = field(default_factory=list)
     metadata: dict[str, Any] = field(default_factory=dict)
@@ -161,6 +174,19 @@ class CatalogRecord:
             "qa_status": self.qa_status,
             "review_status": self.review_status,
             "promotion_status": self.promotion_status,
+            "record_family": self.record_family,
+            "robustness_status": self.robustness_status,
+            "wfe_status": self.wfe_status,
+            "sample_size_status": self.sample_size_status,
+            "trade_count_status": self.trade_count_status,
+            "sensitivity_status": self.sensitivity_status,
+            "fragility_status": self.fragility_status,
+            "multiple_testing_status": self.multiple_testing_status,
+            "temporal_validation_status": self.temporal_validation_status,
+            "governance_status": self.governance_status,
+            "promotion_review_status": self.promotion_review_status,
+            "validation_readiness_present": self.validation_readiness_present,
+            "release_validation_present": self.release_validation_present,
             "tags": list(self.tags),
             "source_files": list(self.source_files),
             "metadata": dict(self.metadata),

@@ -10,8 +10,27 @@ Usage::
 """
 
 from src.catalog.indexer import build_artifact_records, build_catalog, build_catalog_record
+from src.catalog.explorer import (
+    build_evidence_explorer_view,
+    render_evidence_json,
+    render_evidence_markdown,
+    render_evidence_table,
+)
 from src.catalog.lineage import build_catalog_lookup, build_lineage_edges, build_run_lookup
 from src.catalog.models import ArtifactRecord, CatalogRecord, CatalogValidationStatus, LineageEdge
+from src.catalog.notebook import (
+    build_notebook_evidence_view,
+    evidence_for_run,
+    evidence_lineage_rows,
+    find_governance_evidence,
+    find_release_evidence,
+    find_robustness_evidence,
+    find_validation_evidence,
+    render_notebook_json,
+    render_notebook_markdown,
+    render_notebook_table,
+    summarize_evidence_for_run,
+)
 from src.catalog.query import (
     CatalogQuery,
     filter_catalog_records,
@@ -33,12 +52,20 @@ from src.catalog.validation import (
 
 __all__ = [
     "build_catalog",
+    "build_evidence_explorer_view",
     "build_artifact_records",
     "build_catalog_record",
     "build_lineage_edges",
     "build_run_lookup",
     "build_catalog_lookup",
     "CatalogQuery",
+    "build_notebook_evidence_view",
+    "evidence_for_run",
+    "evidence_lineage_rows",
+    "find_governance_evidence",
+    "find_release_evidence",
+    "find_robustness_evidence",
+    "find_validation_evidence",
     "query_catalog",
     "filter_catalog_records",
     "summarize_catalog",
@@ -47,6 +74,13 @@ __all__ = [
     "get_downstream_records",
     "records_to_dicts",
     "records_to_rows",
+    "render_evidence_json",
+    "render_evidence_markdown",
+    "render_evidence_table",
+    "render_notebook_json",
+    "render_notebook_markdown",
+    "render_notebook_table",
+    "summarize_evidence_for_run",
     "CatalogRecord",
     "ArtifactRecord",
     "LineageEdge",

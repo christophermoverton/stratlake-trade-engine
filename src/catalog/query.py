@@ -25,6 +25,23 @@ class CatalogQuery:
     regime_method: str | None = None
     campaign_id: str | None = None
     scenario_id: str | None = None
+    record_family: str | None = None
+    robustness_status: str | None = None
+    wfe_status: str | None = None
+    sample_size_status: str | None = None
+    trade_count_status: str | None = None
+    sensitivity_status: str | None = None
+    fragility_status: str | None = None
+    multiple_testing_status: str | None = None
+    temporal_validation_status: str | None = None
+    governance_status: str | None = None
+    promotion_review_status: str | None = None
+    review_status: str | None = None
+    promotion_status: str | None = None
+    validation_readiness_present: bool | None = None
+    release_validation_present: bool | None = None
+    validation_bundle_present: bool | None = None
+    release_readiness_present: bool | None = None
     min_metric: tuple[str, float] | None = None
     max_metric: tuple[str, float] | None = None
     metric_equals: tuple[str, float] | None = None
@@ -51,6 +68,23 @@ def query_catalog(
         regime_method=q.regime_method,
         campaign_id=q.campaign_id,
         scenario_id=q.scenario_id,
+        record_family=q.record_family,
+        robustness_status=q.robustness_status,
+        wfe_status=q.wfe_status,
+        sample_size_status=q.sample_size_status,
+        trade_count_status=q.trade_count_status,
+        sensitivity_status=q.sensitivity_status,
+        fragility_status=q.fragility_status,
+        multiple_testing_status=q.multiple_testing_status,
+        temporal_validation_status=q.temporal_validation_status,
+        governance_status=q.governance_status,
+        promotion_review_status=q.promotion_review_status,
+        review_status=q.review_status,
+        promotion_status=q.promotion_status,
+        validation_readiness_present=q.validation_readiness_present,
+        release_validation_present=q.release_validation_present,
+        validation_bundle_present=q.validation_bundle_present,
+        release_readiness_present=q.release_readiness_present,
         min_metric=q.min_metric,
         max_metric=q.max_metric,
         metric_equals=q.metric_equals,
@@ -73,6 +107,23 @@ def filter_catalog_records(
     regime_method: str | None = None,
     campaign_id: str | None = None,
     scenario_id: str | None = None,
+    record_family: str | None = None,
+    robustness_status: str | None = None,
+    wfe_status: str | None = None,
+    sample_size_status: str | None = None,
+    trade_count_status: str | None = None,
+    sensitivity_status: str | None = None,
+    fragility_status: str | None = None,
+    multiple_testing_status: str | None = None,
+    temporal_validation_status: str | None = None,
+    governance_status: str | None = None,
+    promotion_review_status: str | None = None,
+    review_status: str | None = None,
+    promotion_status: str | None = None,
+    validation_readiness_present: bool | None = None,
+    release_validation_present: bool | None = None,
+    validation_bundle_present: bool | None = None,
+    release_readiness_present: bool | None = None,
     min_metric: tuple[str, float] | None = None,
     max_metric: tuple[str, float] | None = None,
     metric_equals: tuple[str, float] | None = None,
@@ -88,6 +139,18 @@ def filter_catalog_records(
     """
     run_type_set = set(run_types) if run_types is not None else None
     status_set = set(statuses) if statuses is not None else None
+    resolved_validation_readiness_present = _coalesce_bool_filter(
+        validation_readiness_present,
+        validation_bundle_present,
+        alias="validation_bundle_present",
+        canonical="validation_readiness_present",
+    )
+    resolved_release_validation_present = _coalesce_bool_filter(
+        release_validation_present,
+        release_readiness_present,
+        alias="release_readiness_present",
+        canonical="release_validation_present",
+    )
     results: list[CatalogRecord] = []
 
     for record in records:
@@ -112,6 +175,42 @@ def filter_catalog_records(
         if campaign_id is not None and record.campaign_id != campaign_id:
             continue
         if scenario_id is not None and record.scenario_id != scenario_id:
+            continue
+        if record_family is not None and record.record_family != record_family:
+            continue
+        if robustness_status is not None and record.robustness_status != robustness_status:
+            continue
+        if wfe_status is not None and record.wfe_status != wfe_status:
+            continue
+        if sample_size_status is not None and record.sample_size_status != sample_size_status:
+            continue
+        if trade_count_status is not None and record.trade_count_status != trade_count_status:
+            continue
+        if sensitivity_status is not None and record.sensitivity_status != sensitivity_status:
+            continue
+        if fragility_status is not None and record.fragility_status != fragility_status:
+            continue
+        if multiple_testing_status is not None and record.multiple_testing_status != multiple_testing_status:
+            continue
+        if temporal_validation_status is not None and record.temporal_validation_status != temporal_validation_status:
+            continue
+        if governance_status is not None and record.governance_status != governance_status:
+            continue
+        if promotion_review_status is not None and record.promotion_review_status != promotion_review_status:
+            continue
+        if review_status is not None and record.review_status != review_status:
+            continue
+        if promotion_status is not None and record.promotion_status != promotion_status:
+            continue
+        if (
+            resolved_validation_readiness_present is not None
+            and record.validation_readiness_present is not resolved_validation_readiness_present
+        ):
+            continue
+        if (
+            resolved_release_validation_present is not None
+            and record.release_validation_present is not resolved_release_validation_present
+        ):
             continue
         if start_ts is not None and (record.start_ts is None or record.start_ts < start_ts):
             continue
@@ -224,9 +323,34 @@ def records_to_rows(records: Iterable[CatalogRecord]) -> list[dict[str, object]]
                 "end_ts": record.end_ts,
                 "review_status": record.review_status,
                 "promotion_status": record.promotion_status,
+                "record_family": record.record_family,
+                "robustness_status": record.robustness_status,
+                "wfe_status": record.wfe_status,
+                "sample_size_status": record.sample_size_status,
+                "trade_count_status": record.trade_count_status,
+                "sensitivity_status": record.sensitivity_status,
+                "fragility_status": record.fragility_status,
+                "multiple_testing_status": record.multiple_testing_status,
+                "temporal_validation_status": record.temporal_validation_status,
+                "governance_status": record.governance_status,
+                "promotion_review_status": record.promotion_review_status,
+                "validation_readiness_present": record.validation_readiness_present,
+                "release_validation_present": record.release_validation_present,
             }
         )
     return rows
+
+
+def _coalesce_bool_filter(
+    canonical_value: bool | None,
+    alias_value: bool | None,
+    *,
+    alias: str,
+    canonical: str,
+) -> bool | None:
+    if canonical_value is not None and alias_value is not None and canonical_value != alias_value:
+        raise ValueError(f"{alias} conflicts with {canonical}")
+    return canonical_value if canonical_value is not None else alias_value
 
 
 def _metric_at_least(record: CatalogRecord, name: str, value: float) -> bool:

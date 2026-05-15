@@ -32,6 +32,19 @@ _TABLE_COLUMNS = (
     "end_ts",
     "review_status",
     "promotion_status",
+    "record_family",
+    "robustness_status",
+    "wfe_status",
+    "sample_size_status",
+    "trade_count_status",
+    "sensitivity_status",
+    "fragility_status",
+    "multiple_testing_status",
+    "temporal_validation_status",
+    "governance_status",
+    "promotion_review_status",
+    "validation_readiness_present",
+    "release_validation_present",
 )
 
 
@@ -50,6 +63,43 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--regime-method", help="Exact regime method filter.")
     parser.add_argument("--campaign-id", help="Exact campaign id filter.")
     parser.add_argument("--scenario-id", help="Exact scenario id filter.")
+    parser.add_argument("--record-family", help="Exact M35 evidence record-family filter.")
+    parser.add_argument("--robustness-status", help="Exact robustness_status filter.")
+    parser.add_argument("--wfe-status", help="Exact wfe_status filter.")
+    parser.add_argument("--sample-size-status", help="Exact sample_size_status filter.")
+    parser.add_argument("--trade-count-status", help="Exact trade_count_status filter.")
+    parser.add_argument("--sensitivity-status", help="Exact sensitivity_status filter.")
+    parser.add_argument("--fragility-status", help="Exact fragility_status filter.")
+    parser.add_argument("--multiple-testing-status", help="Exact multiple_testing_status filter.")
+    parser.add_argument("--temporal-validation-status", help="Exact temporal_validation_status filter.")
+    parser.add_argument("--governance-status", help="Exact governance_status filter.")
+    parser.add_argument("--promotion-review-status", help="Exact promotion_review_status filter.")
+    parser.add_argument("--review-status", help="Exact review_status filter.")
+    parser.add_argument("--promotion-status", help="Exact promotion_status filter.")
+    parser.add_argument(
+        "--validation-readiness-present",
+        type=_bool_arg,
+        metavar="true|false",
+        help="Filter by validation_readiness_present.",
+    )
+    parser.add_argument(
+        "--validation-bundle-present",
+        type=_bool_arg,
+        metavar="true|false",
+        help="Alias for --validation-readiness-present.",
+    )
+    parser.add_argument(
+        "--release-validation-present",
+        type=_bool_arg,
+        metavar="true|false",
+        help="Filter by release_validation_present.",
+    )
+    parser.add_argument(
+        "--release-readiness-present",
+        type=_bool_arg,
+        metavar="true|false",
+        help="Alias for --release-validation-present.",
+    )
     parser.add_argument("--min-metric", nargs=2, metavar=("NAME", "VALUE"), help="Metric lower-bound filter.")
     parser.add_argument("--max-metric", nargs=2, metavar=("NAME", "VALUE"), help="Metric upper-bound filter.")
     parser.add_argument("--metric-equals", nargs=2, metavar=("NAME", "VALUE"), help="Metric equality filter.")
@@ -92,6 +142,23 @@ def run_cli(argv: Sequence[str] | None = None) -> list[dict[str, object]] | dict
         regime_method=args.regime_method,
         campaign_id=args.campaign_id,
         scenario_id=args.scenario_id,
+        record_family=args.record_family,
+        robustness_status=args.robustness_status,
+        wfe_status=args.wfe_status,
+        sample_size_status=args.sample_size_status,
+        trade_count_status=args.trade_count_status,
+        sensitivity_status=args.sensitivity_status,
+        fragility_status=args.fragility_status,
+        multiple_testing_status=args.multiple_testing_status,
+        temporal_validation_status=args.temporal_validation_status,
+        governance_status=args.governance_status,
+        promotion_review_status=args.promotion_review_status,
+        review_status=args.review_status,
+        promotion_status=args.promotion_status,
+        validation_readiness_present=args.validation_readiness_present,
+        release_validation_present=args.release_validation_present,
+        validation_bundle_present=args.validation_bundle_present,
+        release_readiness_present=args.release_readiness_present,
         min_metric=_metric_arg(args.min_metric),
         max_metric=_metric_arg(args.max_metric),
         metric_equals=_metric_arg(args.metric_equals),
@@ -141,6 +208,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     except CatalogCliError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
     return 0
 
 
@@ -156,6 +226,15 @@ def _metric_arg(raw: Sequence[str] | None) -> tuple[str, float] | None:
         return name, float(value)
     except ValueError as exc:
         raise CatalogCliError(f"Metric value must be numeric: {value}") from exc
+
+
+def _bool_arg(raw: str) -> bool:
+    value = raw.strip().lower()
+    if value in {"1", "true", "yes", "y"}:
+        return True
+    if value in {"0", "false", "no", "n"}:
+        return False
+    raise argparse.ArgumentTypeError(f"Expected true or false, got: {raw}")
 
 
 def _find_record(records: Sequence[CatalogRecord], identifier: str) -> CatalogRecord | None:

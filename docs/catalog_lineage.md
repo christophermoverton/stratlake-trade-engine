@@ -8,6 +8,10 @@ checkpoints, scenario catalogs, and validation summaries.
 It does not write, modify, delete, repair, lock, register, or execute anything.
 There is no lineage database, cache, export, CLI, dashboard, or notebook surface.
 
+For the full M35 evidence catalog overview and release-readiness docs, see
+[`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
+and [`docs/m35_release_notes.md`](m35_release_notes.md).
+
 ## Public API
 
 ```python
@@ -35,6 +39,13 @@ from src.catalog import build_catalog_lookup, build_run_lookup
 | `manifest_declares_artifact` | run catalog record -> declared artifact | `manifest.json` entries with `declared_in_manifest=True` |
 | `validation_references_run` | referenced run -> validation record | `referenced_run_ids`, `validation_target_run_ids`, `run_ids` |
 | `pipeline_wraps_execution` | pipeline run -> wrapped execution run | `wrapped_run_id`, `child_run_id`, `stage_run_ids` |
+| `run_to_robustness_evidence` | source run -> robustness evidence bundle | explicit robustness `source_run_ids`, source-run references, or source-artifact references |
+| `run_to_governance_evidence` | source run -> governance evidence bundle | explicit governance source run metadata or `promotion_outcome_matrix.csv` rows |
+| `run_to_validation_bundle` | source run -> milestone validation bundle | explicit validation source/target run metadata |
+| `run_to_release_validation` | source run -> release-validation artifact | explicit release-validation source run metadata |
+| `validation_bundle_to_release_validation` | validation bundle -> release-validation artifact | explicit release metadata naming validation bundle run IDs |
+| `campaign_to_evidence_bundle` | campaign record -> evidence bundle | explicit campaign run/catalog/campaign ID references |
+| `scenario_to_evidence_bundle` | scenario record -> evidence bundle | explicit scenario run/catalog/scenario ID references |
 
 `campaign_child` and `scenario_child` are intentionally distinct. Generic
 campaign parent metadata such as `parent_run_id`, `parent_catalog_id`, or a
@@ -51,6 +62,35 @@ needed later, should use a distinct edge type such as
 represented by `ArtifactRecord`, not `CatalogRecord`. Artifact identity is stored
 in edge metadata: `artifact_id`, `artifact_path`, `artifact_type`, and
 `relative_path`.
+
+## M35 Evidence Lineage
+
+M35 evidence lineage is derived only from existing catalog records and source
+artifacts already indexed by M29/M35:
+
+- robustness summaries such as `robustness_summary.json`
+- governance bundles such as `promotion_governance_summary.json`,
+  `consistency_validation.json`, `manifest.json`, and
+  `promotion_outcome_matrix.csv`
+- milestone validation bundle `summary.json` and manifest metadata
+- release-validation JSON artifacts
+
+Supported source metadata fields include `source_run_ids`, `source_run_id`,
+`source_run_references`, `referenced_run_ids`, `validation_target_run_ids`,
+`validated_run_ids`, `run_ids`, `source_artifacts`, `source_artifact_refs`,
+`source_artifact_references`, `upstream_artifacts`, campaign/scenario reference
+fields, and release-validation bundle fields such as
+`validation_bundle_run_id` or `validation_bundle_run_ids`.
+
+Source-artifact references may resolve to a catalog record when the referenced
+path is inside that record's artifact root. Paths are normalized as portable
+POSIX-style strings in edge metadata.
+
+Unsupported inferred edges are intentionally omitted. The lineage layer does not
+link records from name similarity, aggregate counts, status values, report IDs,
+or release IDs alone. For example, a `robustness_report_demo` record is not
+linked to `demo` unless a supported source field or artifact path explicitly
+references that run.
 
 ## Determinism
 
@@ -77,13 +117,25 @@ guess parent records, fabricate orphan edges, or infer relationships from path
 similarity. If a referenced run ID or catalog ID cannot be found in the supplied
 catalog records, no edge is emitted.
 
+This behavior also applies to M35 evidence references. Missing source run IDs,
+source artifact paths that do not resolve to a supplied catalog record, and
+release-validation references to absent validation bundles do not fail lineage
+extraction.
+
 ## Limitations
 
 - The layer only derives relationships from explicit metadata fields or existing
   JSON artifacts.
 - It does not persist, query, visualize, or export lineage graphs.
+- It does not add a graph database, graph cache, or canonical lineage store.
 - It does not introduce new registry, manifest, marker, or checkpoint schemas.
 - It does not execute strategies, portfolios, campaigns, benchmark packs,
   validations, notebooks, or pipeline wrappers.
 - Scenario hierarchy is emitted only where explicit scenario-parent metadata is
   present.
+- Governance evidence remains read-only review context; lineage edges do not
+  replay promotion gates, enforce governance policy, or mutate promotion
+  decisions.
+
+For a CLI-first local renderer over catalog records and evidence lineage, see
+[`docs/catalog_evidence_explorer.md`](catalog_evidence_explorer.md).

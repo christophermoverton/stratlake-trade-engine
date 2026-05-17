@@ -88,9 +88,13 @@ def resolve_canonical_record(
             warnings.append(f"non_portable_source_path:{normalized}")
             continue
         absolute_path = (resolved_repo / normalized).resolve()
-        if not _is_within_repo(absolute_path, resolved_repo):
+        if not _is_within_root(absolute_path, resolved_repo):
             missing_sources.append(normalized)
             warnings.append(f"source_path_outside_repo:{normalized}")
+            continue
+        if not _is_within_root(absolute_path, resolved_artifacts):
+            missing_sources.append(normalized)
+            warnings.append(f"source_path_outside_artifacts_root:{normalized}")
             continue
         if not absolute_path.exists() or not absolute_path.is_file():
             missing_sources.append(normalized)
@@ -256,9 +260,9 @@ def _resolution_load_source(envelope: Mapping[str, Any] | None) -> dict[str, Any
     return build_load_source(loaded_from="direct_scan", requested_mode="direct", resolved_mode="direct")
 
 
-def _is_within_repo(path: Path, repo_root: Path) -> bool:
+def _is_within_root(path: Path, root: Path) -> bool:
     try:
-        path.relative_to(repo_root)
+        path.relative_to(root)
         return True
     except ValueError:
         return False

@@ -85,12 +85,13 @@ discovery, search, filtering, and display. Decision-sensitive consumers should
 call resolver APIs such as `resolve_canonical_record(...)` first. The resolver
 reopens the record's declared canonical registries, manifests, markers,
 summaries, and source files, validates their portable repository-relative paths,
-and computes a deterministic fingerprint over the reopened sources.
+requires reopened files to remain under `artifacts_root`, and computes a
+deterministic fingerprint over the reopened sources.
 
 Resolver results are read-only and report `resolved`, `partial`, or `unresolved`
-status. Missing or non-portable source files fail safely with warnings. The
-resolver does not make indexes, exports, or views canonical; it is the explicit
-bridge back to canonical artifacts.
+status. Missing, non-portable, or repo-relative files outside `artifacts_root`
+fail safely with warnings. The resolver does not make indexes, exports, or views
+canonical; it is the explicit bridge back to canonical artifacts.
 
 ## Updated Derived Surfaces
 

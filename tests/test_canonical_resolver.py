@@ -74,6 +74,30 @@ def test_missing_and_non_portable_sources_fail_safely(tmp_path: Path) -> None:
     assert "non_portable_source_path:../outside.json" in resolved.warnings
 
 
+def test_repo_relative_source_outside_artifacts_root_is_not_reopened(tmp_path: Path) -> None:
+    artifacts_root = tmp_path / "artifacts"
+    build_catalog_scale_tree(artifacts_root)
+    (tmp_path / "pyproject.toml").write_text("[project]\nname = 'outside'\n", encoding="utf-8")
+    record = next(
+        record
+        for record in build_catalog(artifacts_root, repo_root=tmp_path)
+        if record.run_id == "strategy_000"
+    )
+    with_non_artifact_source = replace(record, source_files=[*record.source_files, "pyproject.toml"])
+
+    resolved = resolve_canonical_record(
+        with_non_artifact_source,
+        artifacts_root=artifacts_root,
+        repo_root=tmp_path,
+    )
+
+    assert resolved.resolution_status == "partial"
+    assert "pyproject.toml" in resolved.missing_sources
+    assert "source_path_outside_artifacts_root:pyproject.toml" in resolved.warnings
+    assert "pyproject.toml" not in {source.path for source in resolved.resolved_sources}
+    assert {source.kind for source in resolved.resolved_sources} >= {"registry", "manifest", "marker"}
+
+
 def test_resolver_is_read_only_deterministic_and_does_not_require_index(tmp_path: Path) -> None:
     build_catalog_scale_tree(tmp_path)
     before = snapshot_tree(tmp_path)

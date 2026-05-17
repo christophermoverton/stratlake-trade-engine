@@ -93,6 +93,24 @@ status. Missing, non-portable, or repo-relative files outside `artifacts_root`
 fail safely with warnings. The resolver does not make indexes, exports, or views
 canonical; it is the explicit bridge back to canonical artifacts.
 
+## Architecture Guardrails
+
+Derived indexes may support discovery, query acceleration, validation, local
+lineage export, evidence views, and notebook/workflow read helpers. They must
+not become decision authority for artifact writers, registry writers, promotion
+or governance decisions, release readiness, milestone validation decisions, or
+canonical catalog construction.
+
+Direct scans remain canonical and are the default load mode. Derived outputs are
+disposable and rebuildable: creating, deleting, or rebuilding `_derived`
+artifacts must not change canonical catalog identity or mutate canonical source
+files. Consequential consumers must cross back to canonical artifacts through
+resolver-first APIs before acting.
+
+Architecture tests enforce these boundaries by rejecting forbidden imports from
+decision-authority modules and by proving `_derived` namespace exclusion plus
+derived-index disposability against fixture trees.
+
 ## Updated Derived Surfaces
 
 - derived SQLite index metadata: `derived_class: sqlite_read_model`

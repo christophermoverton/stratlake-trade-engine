@@ -22,6 +22,9 @@ from direct scan or a validated derived index.
 Lineage exports remain display/interchange views only; decision-sensitive
 consumers should resolve the underlying catalog records back to canonical source
 files under `artifacts_root` with the resolver APIs before relying on them.
+M37 architecture guardrails forbid lineage exports and other derived views from
+entering writer, promotion, governance-decision, release-decision, or canonical
+catalog construction paths.
 
 For the full M35 evidence catalog overview and release-readiness docs, see
 [`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)

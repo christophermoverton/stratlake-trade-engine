@@ -153,6 +153,13 @@ declared canonical registry, manifest, marker, and source files. Resolver
 results are deterministic, read-only, and fail safely when source files are
 missing, non-portable, or outside the resolved artifacts root.
 
+M37 architecture guardrails keep that boundary executable. Derived indexes may
+accelerate reads and validation, but they are forbidden as authority inputs for
+writers, registries, promotion/governance decisions, release readiness, or
+canonical catalog construction. Tests verify `_derived` is excluded from direct
+scans and that deleting or rebuilding derived indexes preserves canonical
+catalog identity and source files.
+
 ### `catalog_id`
 
 ```

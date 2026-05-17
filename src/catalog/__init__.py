@@ -81,6 +81,13 @@ from src.catalog.query import (
     related_records,
     summarize_catalog,
 )
+from src.catalog.resolver import (
+    CanonicalRecordResolution,
+    ResolvedSource,
+    resolve_canonical_record,
+    resolve_canonical_record_by_id,
+    resolve_canonical_sources,
+)
 from src.catalog.validation import (
     CatalogValidationIssue,
     CatalogValidationReport,
@@ -158,6 +165,11 @@ __all__ = [
     "derive_view_load_source",
     "LOAD_SOURCE_SCHEMA_VERSION",
     "DEFAULT_DERIVED_INDEX_PATH",
+    "CanonicalRecordResolution",
+    "ResolvedSource",
+    "resolve_canonical_record",
+    "resolve_canonical_record_by_id",
+    "resolve_canonical_sources",
     "validate_catalog",
     "validate_record",
     "validate_artifact_records",

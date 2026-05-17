@@ -19,6 +19,9 @@ New lineage outputs should be written under `artifacts/_derived/lineage/` when a
 file is requested. Their `load_source` metadata records that they are derived
 lineage exports and, for workflow-generated exports, whether input records came
 from direct scan or a validated derived index.
+Lineage exports remain display/interchange views only; decision-sensitive
+consumers should resolve the underlying catalog records back to canonical source
+files with the resolver APIs before relying on them.
 
 For the full M35 evidence catalog overview and release-readiness docs, see
 [`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)

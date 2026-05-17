@@ -147,6 +147,12 @@ validated index reads and shows how `auto` mode resolved. Its `index_path` field
 is portable repository-relative metadata and rejects absolute, URI-like,
 `file://`, and parent-traversal paths.
 
+Index-backed records are suitable for discovery and filtering. Before
+decision-sensitive use, call `resolve_canonical_record(...)` to reopen the
+declared canonical registry, manifest, marker, and source files. Resolver
+results are deterministic, read-only, and fail safely when source files are
+missing or non-portable.
+
 ### `catalog_id`
 
 ```

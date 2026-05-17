@@ -78,6 +78,20 @@ can expose compatibility status, no-envelope payloads are labeled
 Direct artifact scanning remains unchanged and remains the canonical catalog load
 path.
 
+## Resolver-First Access
+
+Catalog queries, derived indexes, exports, and evidence views are safe for
+discovery, search, filtering, and display. Decision-sensitive consumers should
+call resolver APIs such as `resolve_canonical_record(...)` first. The resolver
+reopens the record's declared canonical registries, manifests, markers,
+summaries, and source files, validates their portable repository-relative paths,
+and computes a deterministic fingerprint over the reopened sources.
+
+Resolver results are read-only and report `resolved`, `partial`, or `unresolved`
+status. Missing or non-portable source files fail safely with warnings. The
+resolver does not make indexes, exports, or views canonical; it is the explicit
+bridge back to canonical artifacts.
+
 ## Updated Derived Surfaces
 
 - derived SQLite index metadata: `derived_class: sqlite_read_model`

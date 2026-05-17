@@ -15,6 +15,10 @@ consumers should reopen the canonical manifests and registries before relying on
 an exported view. Legacy M36 export payloads without the envelope remain valid
 and are reported as `legacy_no_envelope`. Workflow lineage helpers delegate to
 the same exporter and therefore keep `derived_class: lineage_export`.
+New lineage outputs should be written under `artifacts/_derived/lineage/` when a
+file is requested. Their `load_source` metadata records that they are derived
+lineage exports and, for workflow-generated exports, whether input records came
+from direct scan or a validated derived index.
 
 For the full M35 evidence catalog overview and release-readiness docs, see
 [`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)

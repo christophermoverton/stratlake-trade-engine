@@ -19,11 +19,19 @@ from src.catalog.canonicality import (
     portable_path,
 )
 from src.catalog.derived_index import (
+    DEFAULT_DERIVED_INDEX_PATH,
     DerivedIndexError,
     DerivedIndexValidation,
     build_derived_index,
     load_catalog_records,
+    load_catalog_records_with_source,
     validate_derived_index,
+)
+from src.catalog.load_source import (
+    LOAD_SOURCE_SCHEMA_VERSION,
+    CatalogLoadResult,
+    build_load_source,
+    derive_view_load_source,
 )
 from src.catalog.explorer import (
     build_evidence_explorer_view,
@@ -94,6 +102,7 @@ __all__ = [
     "build_artifact_records",
     "build_catalog_record",
     "load_catalog_records",
+    "load_catalog_records_with_source",
     "validate_derived_index",
     "build_lineage_edges",
     "export_lineage",
@@ -143,6 +152,11 @@ __all__ = [
     "CatalogValidationReport",
     "DerivedIndexError",
     "DerivedIndexValidation",
+    "CatalogLoadResult",
+    "build_load_source",
+    "derive_view_load_source",
+    "LOAD_SOURCE_SCHEMA_VERSION",
+    "DEFAULT_DERIVED_INDEX_PATH",
     "validate_catalog",
     "validate_record",
     "validate_artifact_records",

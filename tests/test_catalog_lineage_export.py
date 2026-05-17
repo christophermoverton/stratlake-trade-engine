@@ -118,6 +118,13 @@ def test_empty_and_sparse_exports_are_safe(tmp_path: Path) -> None:
             "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
         },
         "canonicality_status": "canonicality_v1",
+        "load_source": {
+            "schema_version": "load_source.v1",
+            "loaded_from": "lineage_export",
+            "canonical_source": "artifacts",
+            "non_authoritative": True,
+            "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+        },
     }
 
     sparse_path = tmp_path / "robustness" / "orphan" / "robustness_summary.json"

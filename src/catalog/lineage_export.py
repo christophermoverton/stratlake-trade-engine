@@ -24,6 +24,7 @@ from src.catalog.canonicality import (
     canonicality_status,
 )
 from src.catalog.models import CatalogRecord, LineageEdge
+from src.catalog.load_source import build_load_source
 
 LINEAGE_EXPORT_SCHEMA_VERSION = 1
 LINEAGE_EXPORTER_VERSION = "m36_issue406_v1"
@@ -40,6 +41,7 @@ def export_lineage(
     *,
     format: LineageExportFormat = "openlineage",
     selected_run_id: str | None = None,
+    load_source: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Export explicit catalog lineage using one supported JSON format."""
 
@@ -59,6 +61,7 @@ def export_lineage(
             fingerprint_payload=[record.to_dict() for record in record_list],
         )
     )
+    payload["load_source"] = load_source or build_load_source(loaded_from="lineage_export")
     validate_lineage_export(payload)
     return payload
 

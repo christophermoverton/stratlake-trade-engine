@@ -15,6 +15,7 @@ from typing import Any
 
 from src.catalog.canonicality import build_canonicality_envelope, canonical_authority_paths
 from src.catalog.lineage import build_lineage_edges
+from src.catalog.load_source import build_load_source
 from src.catalog.models import CatalogRecord, LineageEdge
 from src.catalog.query import CatalogQuery, query_catalog, records_to_rows
 
@@ -127,6 +128,7 @@ def build_evidence_explorer_view(
             fingerprint_payload=[record.to_dict() for record in all_records],
         )
     )
+    view["load_source"] = build_load_source(loaded_from="evidence_view")
     return view
 
 
@@ -141,6 +143,8 @@ def render_evidence_markdown(view: dict[str, Any]) -> str:
 
     lines = [
         "# M35 Catalog Evidence Explorer",
+        "",
+        "Derived view: validated read model, not canonical artifact state. Reopen canonical manifests/registries for decision-sensitive use.",
         "",
         f"- Schema Version: {view.get('schema_version')}",
         f"- Total Matching Records: {view.get('total_matching_records', 0)}",

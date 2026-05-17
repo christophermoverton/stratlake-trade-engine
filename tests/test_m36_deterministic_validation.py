@@ -256,7 +256,7 @@ def test_cli_api_parity_and_release_hardening_assumptions(tmp_path: Path, capsys
         selected_run_id="strategy_000",
     )
 
-    assert [row["run_id"] for row in cli_query] == ["release_000", "release_001"]
+    assert [row["run_id"] for row in cli_query["records"]] == ["release_000", "release_001"]
     assert cli_export == api_export
     assert cli_view == api_view
     assert export_path.read_text(encoding="utf-8").endswith("\n")

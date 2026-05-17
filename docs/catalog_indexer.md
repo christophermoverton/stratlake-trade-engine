@@ -138,6 +138,13 @@ Legacy M36 indexes without the envelope remain readable and are surfaced with a
 `legacy_no_envelope` compatibility status rather than being promoted to
 authority.
 
+New M37 index builds default to
+`artifacts/_derived/catalog_index/catalog_index.sqlite`. Explicit legacy M36
+paths such as `artifacts/catalog_index/catalog_index.sqlite` are still accepted,
+but `_derived` is reserved for disposable read models and is never scanned as a
+canonical artifact family. Load-source metadata distinguishes direct scans from
+validated index reads and shows how `auto` mode resolved.
+
 ### `catalog_id`
 
 ```

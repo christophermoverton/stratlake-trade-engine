@@ -50,6 +50,24 @@ forbidden from write-back, and stale if the canonical source changes.
 Decision-sensitive consumers should reopen canonical manifests and registries
 before making release, governance, promotion, or other authoritative decisions.
 
+## Derived Namespace And Load Source
+
+New M37 derived files should live under `artifacts/_derived/`, such as:
+
+- `artifacts/_derived/catalog_index/catalog_index.sqlite`
+- `artifacts/_derived/lineage/`
+- `artifacts/_derived/evidence/`
+
+This namespace is for disposable, rebuildable read models only. Direct scans
+remain canonical and ignore `_derived` as a canonical artifact family. Explicit
+legacy M36 paths remain supported when supplied by callers.
+
+Derived JSON surfaces now also expose `load_source` metadata. It states whether
+a view came from a direct scan, a validated derived index, a lineage export, or
+an evidence view, and records `requested_mode`, `resolved_mode`,
+`index_validated`, `canonical_source`, and the decision-sensitive resolver hint
+where those fields apply.
+
 ## Backward Compatibility
 
 Existing M36 derived artifacts without envelopes remain readable. Where a reader

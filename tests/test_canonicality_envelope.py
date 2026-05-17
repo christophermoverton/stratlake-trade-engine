@@ -4,6 +4,8 @@ import json
 from pathlib import Path
 import sqlite3
 
+import pytest
+
 from src.catalog import (
     build_canonicality_envelope,
     build_catalog,
@@ -47,6 +49,48 @@ def test_canonicality_envelope_is_deterministic_portable_and_sorted() -> None:
     assert envelope["write_back_forbidden"] is True
     assert envelope["stale_if_source_changes"] is True
     assert "\\" not in json.dumps(first, sort_keys=True)
+
+
+@pytest.mark.parametrize(
+    "path",
+    [
+        r"C:\Users\christopher\artifact.json",
+        "/tmp/artifact.json",
+        "file:///tmp/artifact.json",
+        "https://example.com/artifact.json",
+        "s3://bucket/artifact.json",
+        "../outside/manifest.json",
+    ],
+)
+def test_canonicality_envelope_rejects_non_portable_authority_paths(path: str) -> None:
+    with pytest.raises(
+        ValueError,
+        match="Canonicality authority paths must be portable repository-relative paths",
+    ):
+        build_canonicality_envelope(derived_class="lineage_export", authority_paths=[path])
+
+    with pytest.raises(
+        ValueError,
+        match="Canonicality authority paths must be portable repository-relative paths",
+    ):
+        build_canonicality_envelope(derived_class="lineage_export", authority_root=path)
+
+
+def test_canonicality_envelope_accepts_and_normalizes_valid_relative_paths() -> None:
+    payload = build_canonicality_envelope(
+        derived_class="lineage_export",
+        authority_paths=[
+            "./artifacts/alpha/manifest.json",
+            r"artifacts\zeta\manifest.json",
+            "artifacts/strategies/run_001/manifest.json",
+        ],
+    )
+
+    assert payload["canonicality"]["authority_paths"] == [
+        "artifacts/alpha/manifest.json",
+        "artifacts/strategies/run_001/manifest.json",
+        "artifacts/zeta/manifest.json",
+    ]
 
 
 def test_derived_index_metadata_includes_envelope_and_legacy_index_remains_readable(tmp_path: Path) -> None:

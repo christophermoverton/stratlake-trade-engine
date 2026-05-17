@@ -13,7 +13,8 @@ payloads. OpenLineage-style and PROV-style exports are local JSON views over
 canonical artifacts, never canonical artifacts themselves. Decision-sensitive
 consumers should reopen the canonical manifests and registries before relying on
 an exported view. Legacy M36 export payloads without the envelope remain valid
-and are reported as `legacy_no_envelope`.
+and are reported as `legacy_no_envelope`. Workflow lineage helpers delegate to
+the same exporter and therefore keep `derived_class: lineage_export`.
 
 For the full M35 evidence catalog overview and release-readiness docs, see
 [`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)

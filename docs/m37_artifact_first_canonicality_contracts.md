@@ -27,7 +27,8 @@ Newly generated M37 derived evidence surfaces carry a deterministic top-level
 ```
 
 The envelope is deterministic: sorted keys, stable ordering, POSIX-style
-repository-relative paths, no absolute paths, and no machine-local metadata.
+repository-relative paths, no absolute paths, no URI-like paths, no parent
+traversal, and no machine-local metadata.
 
 ## Authority Boundary
 
@@ -62,8 +63,11 @@ path.
 - derived SQLite index metadata: `derived_class: sqlite_read_model`
 - OpenLineage-style root payloads: `derived_class: lineage_export`
 - PROV-style root payloads: `derived_class: lineage_export`
-- shared workflow lineage outputs: `derived_class: workflow_view`
+- shared workflow lineage outputs inherit `derived_class: lineage_export`
 - shared workflow evidence views: `derived_class: evidence_view`
+
+`workflow_view` is reserved for a future wrapper-level derived payload if one is
+explicitly introduced.
 
 ## Non-Goals
 

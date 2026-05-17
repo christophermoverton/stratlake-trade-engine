@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from pathlib import Path
+from pathlib import PurePosixPath
 from typing import Any, Iterable, Literal
 
 from src.catalog.models import CatalogRecord
@@ -25,11 +26,18 @@ def build_canonicality_envelope(
     """Build one portable, deterministic non-authoritative derived envelope."""
 
     normalized_root = portable_path(authority_root)
-    normalized_paths = sorted({portable_path(path) for path in authority_paths if portable_path(path)})
+    _validate_portable_authority_path(normalized_root)
+    normalized_paths: set[str] = set()
+    for path in authority_paths:
+        normalized_path = portable_path(path)
+        if normalized_path:
+            _validate_portable_authority_path(normalized_path)
+            normalized_paths.add(normalized_path)
+    sorted_paths = sorted(normalized_paths)
     fingerprint = authority_fingerprint or _stable_fingerprint(
         {
             "authority_root": normalized_root,
-            "authority_paths": normalized_paths,
+            "authority_paths": sorted_paths,
             "payload": fingerprint_payload,
         }
     )
@@ -38,7 +46,7 @@ def build_canonicality_envelope(
             "schema_version": CANONICALITY_SCHEMA_VERSION,
             "authority_kind": "artifact_tree",
             "authority_root": normalized_root,
-            "authority_paths": normalized_paths,
+            "authority_paths": sorted_paths,
             "authority_fingerprint": fingerprint,
             "derived_class": derived_class,
             "rebuildable": True,
@@ -84,6 +92,25 @@ def portable_path(path: str | Path) -> str:
     while text.startswith("./"):
         text = text[2:]
     return text
+
+
+def _validate_portable_authority_path(path: str) -> None:
+    """Reject authority paths that are not portable repository-relative text."""
+
+    parts = PurePosixPath(path).parts
+    first_part = parts[0] if parts else ""
+    invalid = (
+        not path
+        or "\\" in path
+        or path.startswith("/")
+        or "://" in path
+        or any(part == ".." for part in parts)
+        or (len(first_part) == 2 and first_part[1] == ":")
+    )
+    if invalid:
+        raise ValueError(
+            "Canonicality authority paths must be portable repository-relative paths."
+        )
 
 
 def _stable_fingerprint(payload: Any) -> str:

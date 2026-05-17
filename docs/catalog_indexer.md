@@ -123,6 +123,8 @@ New derived index metadata includes:
 
 - `schema_version: canonicality.v1`
 - the canonical artifact-tree root and portable source paths
+- repository-relative path validation that rejects absolute, URI-like, and
+  parent-traversal authority paths
 - a deterministic source fingerprint
 - `derived_class: sqlite_read_model`
 - `rebuildable: true`

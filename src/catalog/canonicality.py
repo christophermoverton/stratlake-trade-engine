@@ -26,12 +26,12 @@ def build_canonicality_envelope(
     """Build one portable, deterministic non-authoritative derived envelope."""
 
     normalized_root = portable_path(authority_root)
-    _validate_portable_authority_path(normalized_root)
+    validate_portable_repository_path(normalized_root)
     normalized_paths: set[str] = set()
     for path in authority_paths:
         normalized_path = portable_path(path)
         if normalized_path:
-            _validate_portable_authority_path(normalized_path)
+            validate_portable_repository_path(normalized_path)
             normalized_paths.add(normalized_path)
     sorted_paths = sorted(normalized_paths)
     fingerprint = authority_fingerprint or _stable_fingerprint(
@@ -94,8 +94,8 @@ def portable_path(path: str | Path) -> str:
     return text
 
 
-def _validate_portable_authority_path(path: str) -> None:
-    """Reject authority paths that are not portable repository-relative text."""
+def validate_portable_repository_path(path: str) -> None:
+    """Reject paths that are not portable repository-relative text."""
 
     parts = PurePosixPath(path).parts
     first_part = parts[0] if parts else ""
@@ -109,7 +109,7 @@ def _validate_portable_authority_path(path: str) -> None:
     )
     if invalid:
         raise ValueError(
-            "Canonicality authority paths must be portable repository-relative paths."
+            "Paths must be portable repository-relative paths."
         )
 
 

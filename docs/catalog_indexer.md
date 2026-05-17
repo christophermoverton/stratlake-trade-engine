@@ -143,7 +143,9 @@ New M37 index builds default to
 paths such as `artifacts/catalog_index/catalog_index.sqlite` are still accepted,
 but `_derived` is reserved for disposable read models and is never scanned as a
 canonical artifact family. Load-source metadata distinguishes direct scans from
-validated index reads and shows how `auto` mode resolved.
+validated index reads and shows how `auto` mode resolved. Its `index_path` field
+is portable repository-relative metadata and rejects absolute, URI-like,
+`file://`, and parent-traversal paths.
 
 ### `catalog_id`
 

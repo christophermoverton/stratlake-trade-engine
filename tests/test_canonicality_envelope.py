@@ -65,13 +65,13 @@ def test_canonicality_envelope_is_deterministic_portable_and_sorted() -> None:
 def test_canonicality_envelope_rejects_non_portable_authority_paths(path: str) -> None:
     with pytest.raises(
         ValueError,
-        match="Canonicality authority paths must be portable repository-relative paths",
+        match="Paths must be portable repository-relative paths",
     ):
         build_canonicality_envelope(derived_class="lineage_export", authority_paths=[path])
 
     with pytest.raises(
         ValueError,
-        match="Canonicality authority paths must be portable repository-relative paths",
+        match="Paths must be portable repository-relative paths",
     ):
         build_canonicality_envelope(derived_class="lineage_export", authority_root=path)
 

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Literal
 
-from src.catalog.canonicality import RESOLVER_HINT, portable_path
+from src.catalog.canonicality import RESOLVER_HINT, portable_path, validate_portable_repository_path
 
 LOAD_SOURCE_SCHEMA_VERSION = "load_source.v1"
 LoadedFrom = Literal[
@@ -49,7 +49,9 @@ def build_load_source(
     if resolved_mode is not None:
         payload["resolved_mode"] = resolved_mode
     if index_path is not None:
-        payload["index_path"] = portable_path(index_path)
+        normalized_index_path = portable_path(index_path)
+        validate_portable_repository_path(normalized_index_path)
+        payload["index_path"] = normalized_index_path
     if index_validated is not None:
         payload["index_validated"] = index_validated
     return payload

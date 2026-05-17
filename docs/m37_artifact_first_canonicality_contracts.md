@@ -66,7 +66,9 @@ Derived JSON surfaces now also expose `load_source` metadata. It states whether
 a view came from a direct scan, a validated derived index, a lineage export, or
 an evidence view, and records `requested_mode`, `resolved_mode`,
 `index_validated`, `canonical_source`, and the decision-sensitive resolver hint
-where those fields apply.
+where those fields apply. `load_source.index_path` is portable
+repository-relative metadata; absolute, URI-like, `file://`, and
+parent-traversal paths are rejected.
 
 ## Backward Compatibility
 

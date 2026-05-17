@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
+import pytest
+
 from src.catalog import (
     DEFAULT_DERIVED_INDEX_PATH,
     build_catalog,
     build_derived_index,
     build_evidence_view_for_workflow,
     build_lineage_export_for_workflow,
+    build_load_source,
     load_catalog_records_with_source,
 )
 from src.cli.catalog_index import run_cli as run_catalog_index_cli
@@ -26,6 +29,42 @@ def test_default_derived_index_path_uses_m37_namespace(tmp_path: Path, capsys) -
     assert DEFAULT_DERIVED_INDEX_PATH == "artifacts/_derived/catalog_index/catalog_index.sqlite"
     assert (tmp_path / DEFAULT_DERIVED_INDEX_PATH).exists()
     assert payload["canonicality"]["authority_root"] == "artifacts"
+
+
+@pytest.mark.parametrize(
+    "index_path",
+    [
+        r"C:\Users\christopher\catalog_index.sqlite",
+        "/tmp/catalog_index.sqlite",
+        "file:///tmp/catalog_index.sqlite",
+        "https://example.com/catalog_index.sqlite",
+        "s3://bucket/catalog_index.sqlite",
+        "../outside/catalog_index.sqlite",
+    ],
+)
+def test_build_load_source_rejects_non_portable_index_paths(index_path: str) -> None:
+    with pytest.raises(ValueError, match="Paths must be portable repository-relative paths"):
+        build_load_source(loaded_from="derived_index", index_path=index_path)
+
+
+@pytest.mark.parametrize(
+    ("index_path", "expected"),
+    [
+        (
+            "./artifacts/_derived/catalog_index/catalog_index.sqlite",
+            "artifacts/_derived/catalog_index/catalog_index.sqlite",
+        ),
+        (
+            r"artifacts\_derived\catalog_index\catalog_index.sqlite",
+            "artifacts/_derived/catalog_index/catalog_index.sqlite",
+        ),
+        ("catalog_index/catalog_index.sqlite", "catalog_index/catalog_index.sqlite"),
+    ],
+)
+def test_build_load_source_normalizes_valid_relative_index_paths(index_path: str, expected: str) -> None:
+    payload = build_load_source(loaded_from="derived_index", index_path=index_path)
+
+    assert payload["index_path"] == expected
 
 
 def test_explicit_legacy_index_path_remains_usable(tmp_path: Path) -> None:

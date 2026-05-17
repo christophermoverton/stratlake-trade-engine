@@ -17,6 +17,7 @@ from src.catalog.canonicality import (
     canonical_authority_paths,
     canonicality_status,
     portable_path,
+    validate_portable_repository_path,
 )
 from src.catalog.derived_index import (
     DEFAULT_DERIVED_INDEX_PATH,
@@ -164,6 +165,7 @@ __all__ = [
     "canonical_authority_paths",
     "canonicality_status",
     "portable_path",
+    "validate_portable_repository_path",
     "CANONICALITY_SCHEMA_VERSION",
     "RESOLVER_HINT",
 ]

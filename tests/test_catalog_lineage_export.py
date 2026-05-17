@@ -92,7 +92,8 @@ def test_direct_and_index_loaded_exports_match(tmp_path: Path) -> None:
 
 
 def test_empty_and_sparse_exports_are_safe(tmp_path: Path) -> None:
-    assert export_lineage_openlineage([], []) == {
+    payload = export_lineage_openlineage([], [])
+    assert payload == {
         "schema_version": 1,
         "format": "openlineage",
         "exporter_version": "m36_issue406_v1",
@@ -103,6 +104,20 @@ def test_empty_and_sparse_exports_are_safe(tmp_path: Path) -> None:
         "edge_count": 0,
         "nodes": [],
         "relationships": [],
+        "canonicality": {
+            "schema_version": "canonicality.v1",
+            "authority_kind": "artifact_tree",
+            "authority_root": "artifacts",
+            "authority_paths": [],
+            "authority_fingerprint": payload["canonicality"]["authority_fingerprint"],
+            "derived_class": "lineage_export",
+            "rebuildable": True,
+            "non_authoritative": True,
+            "write_back_forbidden": True,
+            "stale_if_source_changes": True,
+            "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+        },
+        "canonicality_status": "canonicality_v1",
     }
 
     sparse_path = tmp_path / "robustness" / "orphan" / "robustness_summary.json"

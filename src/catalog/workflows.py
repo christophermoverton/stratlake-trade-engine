@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
+from src.catalog.canonicality import build_canonicality_envelope, canonical_authority_paths
 from src.catalog.derived_index import IndexMode, load_catalog_records
 from src.catalog.explorer import build_evidence_explorer_view
 from src.catalog.lineage import build_lineage_edges
@@ -92,7 +93,7 @@ def build_evidence_view_for_workflow(
         index_path=index_path,
         index_mode=index_mode,
     )
-    return build_evidence_explorer_view(
+    view = build_evidence_explorer_view(
         records,
         query=query,
         selected_run_id=selected_run_id,
@@ -101,3 +102,14 @@ def build_evidence_view_for_workflow(
         repo_root=resolved_repo,
         limit=limit,
     )
+    view.update(
+        build_canonicality_envelope(
+            derived_class="evidence_view",
+            authority_root=resolved_artifacts.relative_to(resolved_repo).as_posix()
+            if resolved_artifacts.is_relative_to(resolved_repo)
+            else resolved_artifacts.name,
+            authority_paths=canonical_authority_paths(records),
+            fingerprint_payload=[record.to_dict() for record in records],
+        )
+    )
+    return view

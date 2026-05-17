@@ -1,0 +1,77 @@
+# M37 Artifact-First Canonicality Contracts
+
+Milestone principle: every derived surface must identify, defer to, and be
+invalidated by its canonical source.
+
+## Canonicality Envelope v1
+
+Newly generated M37 derived evidence surfaces carry a deterministic top-level
+`canonicality` object:
+
+```json
+{
+  "canonicality": {
+    "schema_version": "canonicality.v1",
+    "authority_kind": "artifact_tree",
+    "authority_root": "artifacts",
+    "authority_paths": [],
+    "authority_fingerprint": "<sha256>",
+    "derived_class": "sqlite_read_model|lineage_export|evidence_view|workflow_view",
+    "rebuildable": true,
+    "non_authoritative": true,
+    "write_back_forbidden": true,
+    "stale_if_source_changes": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use"
+  }
+}
+```
+
+The envelope is deterministic: sorted keys, stable ordering, POSIX-style
+repository-relative paths, no absolute paths, and no machine-local metadata.
+
+## Authority Boundary
+
+Canonical artifacts remain the source of truth:
+
+- artifact trees
+- manifests
+- registries
+- markers
+- summaries
+- validation bundles
+- governance artifacts
+
+Derived indexes are disposable read models. OpenLineage-style and PROV-style
+lineage exports are local JSON views. Evidence/explorer/workflow helper outputs
+are local read views. All derived outputs are non-authoritative, rebuildable,
+forbidden from write-back, and stale if the canonical source changes.
+
+Decision-sensitive consumers should reopen canonical manifests and registries
+before making release, governance, promotion, or other authoritative decisions.
+
+## Backward Compatibility
+
+Existing M36 derived artifacts without envelopes remain readable. Where a reader
+can expose compatibility status, no-envelope payloads are labeled
+`legacy_no_envelope`; envelope-bearing payloads are labeled `canonicality_v1`.
+Direct artifact scanning remains unchanged and remains the canonical catalog load
+path.
+
+## Updated Derived Surfaces
+
+- derived SQLite index metadata: `derived_class: sqlite_read_model`
+- OpenLineage-style root payloads: `derived_class: lineage_export`
+- PROV-style root payloads: `derived_class: lineage_export`
+- shared workflow lineage outputs: `derived_class: workflow_view`
+- shared workflow evidence views: `derived_class: evidence_view`
+
+## Non-Goals
+
+- no second registry
+- no graph store
+- no remote metadata service
+- no dashboard or web server
+- no inferred lineage edges
+- no mutation of source artifacts
+- no change to promotion or governance decisions
+- no rewrite of the M36 catalog/index/export architecture

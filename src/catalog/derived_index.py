@@ -12,6 +12,11 @@ import sqlite3
 import tempfile
 from typing import Any, Literal
 
+from src.catalog.canonicality import (
+    build_canonicality_envelope,
+    canonical_authority_paths,
+    canonicality_status,
+)
 from src.catalog.indexer import build_catalog
 from src.catalog.models import CatalogRecord, CatalogValidationStatus
 
@@ -88,6 +93,7 @@ def validate_derived_index(
         raise DerivedIndexError(f"Derived catalog index is unreadable; rebuild required: {path}") from exc
 
     _validate_metadata(metadata, resolved_artifacts=resolved_artifacts, resolved_repo=resolved_repo)
+    metadata = {**metadata, "canonicality_status": canonicality_status(metadata)}
     _validate_internal_counts(metadata, records)
     if check_source_fingerprint:
         current_records = build_catalog(resolved_artifacts, repo_root=resolved_repo)
@@ -133,7 +139,8 @@ def _build_metadata(
     resolved_artifacts: Path,
     resolved_repo: Path,
 ) -> dict[str, Any]:
-    return {
+    source_fingerprint = _records_fingerprint(records)
+    metadata = {
         "schema_version": DERIVED_INDEX_SCHEMA_VERSION,
         "index_kind": INDEX_KIND,
         "source_artifact_root": _portable_path(resolved_artifacts, resolved_repo),
@@ -141,12 +148,22 @@ def _build_metadata(
         "record_count": len(records),
         "record_family_counts": _family_counts(records),
         "created_at_utc": None,
-        "source_fingerprint": _records_fingerprint(records),
+        "source_fingerprint": source_fingerprint,
         "catalog_record_schema_version": CATALOG_RECORD_SCHEMA_VERSION,
         "builder_version": BUILDER_VERSION,
         "is_derived": True,
         "canonical_source": "artifacts",
     }
+    metadata.update(
+        build_canonicality_envelope(
+            derived_class="sqlite_read_model",
+            authority_root=_portable_path(resolved_artifacts, resolved_repo),
+            authority_paths=canonical_authority_paths(records),
+            authority_fingerprint=source_fingerprint,
+        )
+    )
+    metadata["canonicality_status"] = canonicality_status(metadata)
+    return metadata
 
 
 def _write_index(path: Path, metadata: dict[str, Any], records: list[CatalogRecord]) -> None:

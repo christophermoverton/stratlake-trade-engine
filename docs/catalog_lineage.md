@@ -8,6 +8,13 @@ checkpoints, scenario catalogs, and validation summaries.
 It does not write, modify, delete, repair, lock, register, or execute anything.
 There is no lineage database, cache, export, CLI, dashboard, or notebook surface.
 
+M37 lineage exports add Canonicality Envelope v1 to newly generated root
+payloads. OpenLineage-style and PROV-style exports are local JSON views over
+canonical artifacts, never canonical artifacts themselves. Decision-sensitive
+consumers should reopen the canonical manifests and registries before relying on
+an exported view. Legacy M36 export payloads without the envelope remain valid
+and are reported as `legacy_no_envelope`.
+
 For the full M35 evidence catalog overview and release-readiness docs, see
 [`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
 and [`docs/m35_release_notes.md`](m35_release_notes.md).

@@ -10,6 +10,14 @@ Usage::
 """
 
 from src.catalog.indexer import build_artifact_records, build_catalog, build_catalog_record
+from src.catalog.canonicality import (
+    CANONICALITY_SCHEMA_VERSION,
+    RESOLVER_HINT,
+    build_canonicality_envelope,
+    canonical_authority_paths,
+    canonicality_status,
+    portable_path,
+)
 from src.catalog.derived_index import (
     DerivedIndexError,
     DerivedIndexValidation,
@@ -80,6 +88,7 @@ from src.catalog.workflows import (
 
 __all__ = [
     "build_catalog",
+    "build_canonicality_envelope",
     "build_derived_index",
     "build_evidence_explorer_view",
     "build_artifact_records",
@@ -138,4 +147,9 @@ __all__ = [
     "validate_record",
     "validate_artifact_records",
     "validate_lineage_export",
+    "canonical_authority_paths",
+    "canonicality_status",
+    "portable_path",
+    "CANONICALITY_SCHEMA_VERSION",
+    "RESOLVER_HINT",
 ]

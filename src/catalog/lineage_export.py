@@ -18,6 +18,11 @@ import json
 from pathlib import PurePosixPath
 from typing import Any, Literal
 
+from src.catalog.canonicality import (
+    build_canonicality_envelope,
+    canonical_authority_paths,
+    canonicality_status,
+)
 from src.catalog.models import CatalogRecord, LineageEdge
 
 LINEAGE_EXPORT_SCHEMA_VERSION = 1
@@ -38,13 +43,22 @@ def export_lineage(
 ) -> dict[str, Any]:
     """Export explicit catalog lineage using one supported JSON format."""
 
-    graph = _build_export_graph(records, edges, selected_run_id=selected_run_id)
+    record_list = list(records)
+    edge_list = list(edges)
+    graph = _build_export_graph(record_list, edge_list, selected_run_id=selected_run_id)
     if format == "openlineage":
         payload = _render_openlineage(graph)
     elif format == "prov":
         payload = _render_prov(graph)
     else:
         raise LineageExportError(f"Unsupported lineage export format: {format}")
+    payload.update(
+        build_canonicality_envelope(
+            derived_class="lineage_export",
+            authority_paths=canonical_authority_paths(record_list),
+            fingerprint_payload=[record.to_dict() for record in record_list],
+        )
+    )
     validate_lineage_export(payload)
     return payload
 
@@ -125,6 +139,15 @@ def validate_lineage_export(payload: dict[str, Any]) -> None:
         raise LineageExportError("Lineage export contains a non-portable path.")
     if _contains_absolute_path(payload):
         raise LineageExportError("Lineage export contains an absolute path.")
+    canonicality = payload.get("canonicality")
+    if canonicality is not None:
+        if not isinstance(canonicality, dict):
+            raise LineageExportError("Lineage export canonicality envelope must be an object.")
+        if canonicality.get("non_authoritative") is not True:
+            raise LineageExportError("Lineage export canonicality must remain non-authoritative.")
+        if canonicality.get("write_back_forbidden") is not True:
+            raise LineageExportError("Lineage export canonicality must forbid write-back.")
+    payload["canonicality_status"] = canonicality_status(payload)
 
 
 def _build_export_graph(

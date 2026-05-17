@@ -112,6 +112,30 @@ If multiple markers exist simultaneously (e.g., after a crash during cleanup),
 
 ## Deterministic Output Contract
 
+## Canonicality Envelope v1
+
+M37 adds a deterministic `canonicality` envelope to newly generated derived
+catalog surfaces. Canonical artifacts remain the source of truth: registries,
+manifests, markers, summaries, validation bundles, and governance artifacts are
+authoritative; the SQLite index is a disposable read model only.
+
+New derived index metadata includes:
+
+- `schema_version: canonicality.v1`
+- the canonical artifact-tree root and portable source paths
+- a deterministic source fingerprint
+- `derived_class: sqlite_read_model`
+- `rebuildable: true`
+- `non_authoritative: true`
+- `write_back_forbidden: true`
+- `stale_if_source_changes: true`
+- resolver guidance to reopen canonical manifests/registries before
+  decision-sensitive use
+
+Legacy M36 indexes without the envelope remain readable and are surfaced with a
+`legacy_no_envelope` compatibility status rather than being promoted to
+authority.
+
 ### `catalog_id`
 
 ```

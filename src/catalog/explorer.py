@@ -13,6 +13,7 @@ from collections.abc import Iterable
 from pathlib import Path
 from typing import Any
 
+from src.catalog.canonicality import build_canonicality_envelope, canonical_authority_paths
 from src.catalog.lineage import build_lineage_edges
 from src.catalog.models import CatalogRecord, LineageEdge
 from src.catalog.query import CatalogQuery, query_catalog, records_to_rows
@@ -109,7 +110,7 @@ def build_evidence_explorer_view(
 
     catalog_rows = [_select_columns(row, CATALOG_COLUMNS) for row in records_to_rows(selected_records)]
     evidence_rows = [_select_columns(row, EVIDENCE_COLUMNS) for row in records_to_rows(selected_records)]
-    return {
+    view = {
         "schema_version": EXPLORER_SCHEMA_VERSION,
         "title": "M35 Catalog Evidence Explorer",
         "total_matching_records": len(selected_records),
@@ -119,6 +120,14 @@ def build_evidence_explorer_view(
         "evidence_summary": _evidence_summary(selected_records),
         "lineage_edges": lineage_rows,
     }
+    view.update(
+        build_canonicality_envelope(
+            derived_class="evidence_view",
+            authority_paths=canonical_authority_paths(all_records),
+            fingerprint_payload=[record.to_dict() for record in all_records],
+        )
+    )
+    return view
 
 
 def render_evidence_json(view: dict[str, Any]) -> str:

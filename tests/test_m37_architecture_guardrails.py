@@ -15,6 +15,33 @@ FORBIDDEN_DERIVED_IMPORT_PREFIXES = (
     "src.catalog.explorer",
     "src.catalog.workflows",
 )
+FORBIDDEN_CATALOG_FACADE_SYMBOLS = frozenset(
+    {
+        "DEFAULT_DERIVED_INDEX_PATH",
+        "build_derived_index",
+        "validate_derived_index",
+        "load_catalog_records_with_source",
+        "export_lineage",
+        "validate_lineage_export",
+        "build_evidence_explorer_view",
+        "render_evidence_json",
+        "render_evidence_markdown",
+        "render_evidence_table",
+        "build_lineage_export_for_workflow",
+        "build_evidence_view_for_workflow",
+        "build_load_source",
+        "derive_view_load_source",
+    }
+)
+ALLOWED_RESOLVER_FACADE_SYMBOLS = frozenset(
+    {
+        "CanonicalRecordResolution",
+        "ResolvedSource",
+        "resolve_canonical_record",
+        "resolve_canonical_sources",
+        "resolve_canonical_record_by_id",
+    }
+)
 DECISION_AUTHORITY_PATHS = (
     "src/research/experiment_tracker.py",
     "src/research/registry.py",
@@ -35,9 +62,11 @@ def test_decision_authority_modules_do_not_import_derived_read_models() -> None:
     offenders: list[str] = []
     for relative_path in DECISION_AUTHORITY_PATHS:
         path = REPO_ROOT / relative_path
-        for imported_module in _imports_for(path):
-            if imported_module.startswith(FORBIDDEN_DERIVED_IMPORT_PREFIXES):
+        for imported_module, imported_symbol in _forbidden_derived_imports_for(path):
+            if imported_symbol is None:
                 offenders.append(f"{relative_path}: {imported_module}")
+            else:
+                offenders.append(f"{relative_path}: {imported_module}.{imported_symbol}")
 
     assert offenders == [], (
         "Decision-authority modules must reopen canonical artifacts through resolver-first APIs, "
@@ -48,6 +77,34 @@ def test_decision_authority_modules_do_not_import_derived_read_models() -> None:
 
 def test_resolver_imports_remain_allowed_for_decision_authority_paths() -> None:
     assert "src.catalog.resolver" not in FORBIDDEN_DERIVED_IMPORT_PREFIXES
+    assert ALLOWED_RESOLVER_FACADE_SYMBOLS.isdisjoint(FORBIDDEN_CATALOG_FACADE_SYMBOLS)
+
+
+def test_facade_imports_of_derived_helpers_are_detected() -> None:
+    assert _forbidden_derived_imports_from_source("from src.catalog import build_derived_index") == [
+        ("src.catalog", "build_derived_index")
+    ]
+    assert _forbidden_derived_imports_from_source("from src.catalog import export_lineage") == [
+        ("src.catalog", "export_lineage")
+    ]
+    assert _forbidden_derived_imports_from_source(
+        "from src.catalog import build_evidence_explorer_view"
+    ) == [("src.catalog", "build_evidence_explorer_view")]
+
+
+def test_resolver_facade_imports_are_allowed() -> None:
+    assert _forbidden_derived_imports_from_source(
+        "from src.catalog import resolve_canonical_record"
+    ) == []
+
+
+def test_direct_derived_module_imports_are_still_detected() -> None:
+    assert _forbidden_derived_imports_from_source(
+        "from src.catalog.derived_index import build_derived_index"
+    ) == [("src.catalog.derived_index", None)]
+    assert _forbidden_derived_imports_from_source("import src.catalog.derived_index") == [
+        ("src.catalog.derived_index", None)
+    ]
 
 
 def test_derived_namespace_is_excluded_from_canonical_scans(tmp_path: Path) -> None:
@@ -98,14 +155,34 @@ def test_rebuilding_derived_index_does_not_mutate_canonical_sources(tmp_path: Pa
     assert canonical_after_second == before
 
 
-def _imports_for(path: Path) -> list[str]:
-    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
-    imports: list[str] = []
+def _forbidden_derived_imports_for(path: Path) -> list[tuple[str, str | None]]:
+    return _forbidden_derived_imports_from_tree(
+        ast.parse(path.read_text(encoding="utf-8"), filename=str(path))
+    )
+
+
+def _forbidden_derived_imports_from_source(source: str) -> list[tuple[str, str | None]]:
+    return _forbidden_derived_imports_from_tree(ast.parse(source))
+
+
+def _forbidden_derived_imports_from_tree(tree: ast.AST) -> list[tuple[str, str | None]]:
+    imports: list[tuple[str, str | None]] = []
     for node in ast.walk(tree):
         if isinstance(node, ast.Import):
-            imports.extend(alias.name for alias in node.names)
+            imports.extend(
+                (alias.name, None)
+                for alias in node.names
+                if alias.name.startswith(FORBIDDEN_DERIVED_IMPORT_PREFIXES)
+            )
         elif isinstance(node, ast.ImportFrom) and node.module is not None:
-            imports.append(node.module)
+            if node.module.startswith(FORBIDDEN_DERIVED_IMPORT_PREFIXES):
+                imports.append((node.module, None))
+            elif node.module == "src.catalog":
+                imports.extend(
+                    (node.module, alias.name)
+                    for alias in node.names
+                    if alias.name in FORBIDDEN_CATALOG_FACADE_SYMBOLS
+                )
     return imports
 
 

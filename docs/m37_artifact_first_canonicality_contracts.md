@@ -107,9 +107,10 @@ artifacts must not change canonical catalog identity or mutate canonical source
 files. Consequential consumers must cross back to canonical artifacts through
 resolver-first APIs before acting.
 
-Architecture tests enforce these boundaries by rejecting forbidden imports from
-decision-authority modules and by proving `_derived` namespace exclusion plus
-derived-index disposability against fixture trees.
+Architecture tests enforce these boundaries by rejecting forbidden direct-module
+imports and public-facade imports from `src.catalog` in decision-authority
+modules, and by proving `_derived` namespace exclusion plus derived-index
+disposability against fixture trees.
 
 ## Updated Derived Surfaces
 

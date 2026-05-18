@@ -90,9 +90,11 @@ from src.catalog.resolver import (
 )
 from src.catalog.review_pack import (
     DEFAULT_REVIEW_PACK_ROOT,
+    EvidenceReviewError,
     OPTIONAL_REVIEW_PACK_FILES,
     REQUIRED_REVIEW_PACK_FILES,
     REVIEW_PACK_SCHEMA_VERSION,
+    build_evidence_review_for_workflow,
     build_review_pack_metadata,
     review_pack_root,
 )
@@ -179,9 +181,11 @@ __all__ = [
     "resolve_canonical_record_by_id",
     "resolve_canonical_sources",
     "DEFAULT_REVIEW_PACK_ROOT",
+    "EvidenceReviewError",
     "OPTIONAL_REVIEW_PACK_FILES",
     "REQUIRED_REVIEW_PACK_FILES",
     "REVIEW_PACK_SCHEMA_VERSION",
+    "build_evidence_review_for_workflow",
     "build_review_pack_metadata",
     "review_pack_root",
     "validate_catalog",

@@ -57,6 +57,12 @@ Later M38 issues may add builder-side population rules, richer diagnostics, pack
 writing, CLI behavior, and rendering details, but those concerns are
 intentionally outside this issue.
 
+`build_evidence_review_for_workflow(...)` is the Python-first integration
+surface for notebook and pipeline callers that need the pure selected-run model
+before any pack writing or report rendering exists. It reuses workflow loading,
+selected-run one-hop lineage export behavior, and resolver-first canonical
+reopening while returning JSON-safe data only.
+
 ## Canonicality And Load Source
 
 Review-pack machine-readable outputs must carry:

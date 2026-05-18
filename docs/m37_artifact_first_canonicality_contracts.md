@@ -112,6 +112,12 @@ imports and public-facade imports from `src.catalog` in decision-authority
 modules, and by proving `_derived` namespace exclusion plus derived-index
 disposability against fixture trees.
 
+Focused deterministic coverage lives in
+`tests/test_m37_deterministic_validation.py`; it validates the integrated M37
+stack across repeated runs, direct/index/auto parity, resolver fingerprints,
+portable metadata, disposable derived outputs, and legacy no-envelope
+compatibility.
+
 ## Updated Derived Surfaces
 
 - derived SQLite index metadata: `derived_class: sqlite_read_model`

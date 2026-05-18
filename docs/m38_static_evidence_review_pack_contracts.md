@@ -88,6 +88,49 @@ files; it is not a second registry. `artifact_inventory.csv` and
 `evidence_index.json` support review navigation only and never replace canonical
 manifests, registries, markers, lineage exports, or governance evidence.
 
+## Usage
+
+Python remains the primary integration surface:
+
+```python
+from src.catalog import build_evidence_review_for_workflow, write_evidence_review_pack
+
+model = build_evidence_review_for_workflow(
+    "artifacts",
+    selected_run_id="strategy_001",
+)
+result = write_evidence_review_pack(model)
+```
+
+Build from the CLI:
+
+```powershell
+python -m src.cli.build_evidence_review build --artifacts-root artifacts --selected-run-id strategy_001
+```
+
+Validate an existing pack:
+
+```powershell
+python -m src.cli.build_evidence_review validate --review-id review_abc123
+```
+
+The build command defaults to direct canonical scans and also accepts
+`--index-mode index` or `--index-mode auto` with `--index-path` when callers
+want the optional derived index path. Subject selection accepts
+`--selected-run-id` and `--selected-catalog-id`; `--review-id` can pin an
+explicit pack ID, otherwise the builder computes one deterministically from the
+request. `--include-html` adds the optional static self-contained `report.html`.
+
+The CI-safe synthetic example is:
+
+```powershell
+python docs/examples/m38_static_evidence_review_pack_example.py
+```
+
+It writes only under
+`docs/examples/output/m38_static_evidence_review_pack_example/` and requires no
+network, credentials, live market data, or external services.
+
 Diagnostic statuses are:
 
 - `PASS`: the conservative check succeeded

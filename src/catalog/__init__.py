@@ -98,6 +98,7 @@ from src.catalog.review_pack import (
     build_evidence_review_for_workflow,
     build_review_pack_metadata,
     review_pack_root,
+    validate_evidence_review_pack,
     write_evidence_review_pack,
 )
 from src.catalog.validation import (
@@ -191,6 +192,7 @@ __all__ = [
     "build_evidence_review_for_workflow",
     "build_review_pack_metadata",
     "review_pack_root",
+    "validate_evidence_review_pack",
     "write_evidence_review_pack",
     "validate_catalog",
     "validate_record",

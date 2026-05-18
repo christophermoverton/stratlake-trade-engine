@@ -7,6 +7,7 @@ from collections.abc import Mapping, Sequence
 import csv
 import hashlib
 from io import StringIO
+import json
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Literal
@@ -31,6 +32,7 @@ from src.catalog.models import CatalogRecord
 from src.catalog.query import records_to_dicts, related_records
 from src.catalog.resolver import resolve_canonical_record, resolve_canonical_sources
 from src.catalog.workflows import resolve_workflow_roots
+from src.contracts import validate_json
 
 REVIEW_PACK_SCHEMA_VERSION = "review_pack.v1"
 DEFAULT_REVIEW_PACK_ROOT = "artifacts/_derived/evidence_review"
@@ -195,6 +197,84 @@ def write_evidence_review_pack(
             "generated_files": generated_files,
             "manifest": manifest,
             "validation": validation,
+        }
+    )
+
+
+def validate_evidence_review_pack(
+    pack_root: str | Path,
+    *,
+    repo_root: str | Path | None = None,
+    strict: bool = False,
+) -> dict[str, Any]:
+    """Validate one existing static review pack without mutating it."""
+
+    resolved_repo = Path(repo_root).resolve() if repo_root is not None else Path.cwd().resolve()
+    normalized_root = render_portable_path(pack_root, roots=(resolved_repo,))
+    validate_portable_repository_path(normalized_root)
+    path = (resolved_repo / normalized_root).resolve()
+    expected_prefix = (resolved_repo / DEFAULT_REVIEW_PACK_ROOT).resolve()
+    if not path.is_relative_to(expected_prefix):
+        raise EvidenceReviewError("Review pack root must remain under artifacts/_derived/evidence_review.")
+    if not path.exists() or not path.is_dir():
+        raise EvidenceReviewError("Review pack root does not exist.")
+
+    missing_files = sorted(filename for filename in REQUIRED_REVIEW_PACK_FILES if not (path / filename).exists())
+    invalid_files: list[str] = []
+    schemas = {
+        "manifest.json": "review_pack_manifest.schema.json",
+        "review_request.json": "review_pack_review_request.schema.json",
+        "review_summary.json": "review_pack_review_summary.schema.json",
+        "catalog_health_diagnostics.json": "review_pack_catalog_health_diagnostics.schema.json",
+        "resolver_resolution.json": "review_pack_resolver_resolution.schema.json",
+        "evidence_index.json": "review_pack_evidence_index.schema.json",
+        "validation.json": "review_pack_validation.schema.json",
+    }
+    contract_root = Path(__file__).resolve().parents[2] / "contracts"
+    payloads: dict[str, Any] = {}
+    for filename, schema_name in schemas.items():
+        file_path = path / filename
+        if not file_path.exists():
+            continue
+        try:
+            payload = json.loads(file_path.read_text(encoding="utf-8"))
+            validate_json(payload, contract_root / schema_name)
+        except (OSError, json.JSONDecodeError, ValueError):
+            invalid_files.append(filename)
+            continue
+        payloads[filename] = payload
+
+    portability_findings = _pack_portability_findings(path, resolved_repo)
+    manifest = payloads.get("manifest.json") if isinstance(payloads.get("manifest.json"), Mapping) else {}
+    digest_mismatches = _manifest_digest_mismatches(path, manifest)
+    validation_payload = (
+        payloads.get("validation.json") if isinstance(payloads.get("validation.json"), Mapping) else {}
+    )
+    diagnostics = (
+        payloads.get("catalog_health_diagnostics.json")
+        if isinstance(payloads.get("catalog_health_diagnostics.json"), Mapping)
+        else {}
+    )
+    validation_status = str(validation_payload.get("status") or "fail")
+    if missing_files or invalid_files or portability_findings or digest_mismatches:
+        status = "fail"
+    elif validation_status == "fail":
+        status = "fail"
+    elif strict and validation_status == "warn":
+        status = "fail"
+    else:
+        status = validation_status if validation_status in {"pass", "warn"} else "fail"
+    return _json_safe(
+        {
+            "review_id": manifest.get("review_id") if isinstance(manifest, Mapping) else None,
+            "pack_root": normalized_root,
+            "status": status,
+            "validation_status": validation_status,
+            "diagnostics_overall_status": diagnostics.get("summary", {}).get("overall_status"),
+            "missing_files": missing_files,
+            "invalid_files": sorted(invalid_files),
+            "portability_findings": portability_findings,
+            "digest_mismatches": digest_mismatches,
         }
     )
 
@@ -419,6 +499,31 @@ def _review_pack_output_ref(
             f"Review packs must be written under the deterministic derived namespace: {expected_root}"
         )
     return normalized
+
+
+def _pack_portability_findings(pack_root: Path, repo_root: Path) -> list[str]:
+    findings: list[str] = []
+    for path in sorted(pack_root.iterdir()):
+        if path.suffix not in {".json", ".csv", ".md", ".html"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        relative = render_portable_path(path, roots=(repo_root,))
+        for token in ("\\", "file://", "../"):
+            if token in text:
+                findings.append(f"{relative}:{token}")
+    return findings
+
+
+def _manifest_digest_mismatches(pack_root: Path, manifest: Mapping[str, Any]) -> list[str]:
+    digests = manifest.get("file_digests")
+    if not isinstance(digests, Mapping):
+        return ["manifest.json:file_digests"]
+    mismatches: list[str] = []
+    for filename, expected in sorted(digests.items()):
+        file_path = pack_root / str(filename)
+        if not file_path.exists() or _sha256(file_path) != expected:
+            mismatches.append(str(filename))
+    return mismatches
 
 
 def _prepare_review_pack_output_dir(output_dir: Path, repo_root: Path, *, overwrite: bool) -> None:

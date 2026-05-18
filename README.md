@@ -396,15 +396,24 @@ Start with:
 
 ### Milestone 38: Static Evidence Review Packs and Catalog Health Diagnostics
 
-Milestone 38 begins with derived static evidence review-pack contracts under
-`artifacts/_derived/evidence_review/<review_id>/`. Review packs are inspection
-artifacts only: rebuildable, non-authoritative, write-back-forbidden, and still
-bound to canonical artifacts through M37 canonicality envelopes,
-`load_source.v1`, and resolver-first reopening.
+Milestone 38 adds derived static evidence review packs under
+`artifacts/_derived/evidence_review/<review_id>/` plus advisory catalog-health
+diagnostics. Review packs are inspection artifacts only: rebuildable,
+non-authoritative, write-back-forbidden, and still bound to canonical artifacts
+through M37 canonicality envelopes, `load_source.v1`, and resolver-first
+reopening.
+
+Python usage is primary, with a thin CLI wrapper for automation:
+
+```powershell
+python -m src.cli.build_evidence_review build --artifacts-root artifacts --selected-run-id strategy_001
+python -m src.cli.build_evidence_review validate --review-id review_abc123
+```
 
 Start with:
 
 * [docs/m38_static_evidence_review_pack_contracts.md](docs/m38_static_evidence_review_pack_contracts.md)
+* [docs/examples/m38_static_evidence_review_pack_example.py](docs/examples/m38_static_evidence_review_pack_example.py)
 
 ### Milestone 27: Market Simulation Stress Testing Case Study
 

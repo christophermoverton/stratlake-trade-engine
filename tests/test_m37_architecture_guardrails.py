@@ -36,6 +36,7 @@ FORBIDDEN_CATALOG_FACADE_SYMBOLS = frozenset(
         "build_catalog_health_diagnostics",
         "build_evidence_review_for_workflow",
         "review_pack_root",
+        "validate_evidence_review_pack",
         "write_evidence_review_pack",
     }
 )

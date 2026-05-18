@@ -78,6 +78,16 @@ def test_review_pack_schema_contracts_accept_minimal_payloads() -> None:
         "review_pack_catalog_health_diagnostics.schema.json": {
             "schema_version": "catalog_health_diagnostics.v1",
             "review_id": "review_001",
+            "summary": {
+                "overall_status": "PASS",
+                "finding_count": 0,
+                "counts_by_status": {"PASS": 0, "WARN": 0, "FAIL": 0, "NA": 0},
+                "counts_by_category": {},
+                "counts_by_scope": {},
+                "selected_catalog_id": None,
+                "selected_run_id": None,
+            },
+            "findings": [],
             "warnings": [],
             **metadata,
         },

@@ -3,11 +3,40 @@
   "title": "Evidence Review Pack Catalog Health Diagnostics",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schema_version", "review_id", "warnings", "canonicality", "load_source"],
+  "required": ["schema_version", "review_id", "summary", "findings", "warnings", "canonicality", "load_source"],
   "properties": {
     "schema_version": { "const": "catalog_health_diagnostics.v1" },
     "review_id": { "type": "string", "minLength": 1 },
-    "warnings": { "type": "array", "items": { "type": "object" } },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "overall_status",
+        "finding_count",
+        "counts_by_status",
+        "counts_by_category",
+        "counts_by_scope",
+        "selected_catalog_id",
+        "selected_run_id"
+      ],
+      "properties": {
+        "overall_status": { "type": "string", "enum": ["PASS", "WARN", "FAIL"] },
+        "finding_count": { "type": "integer", "minimum": 0 },
+        "counts_by_status": { "type": "object" },
+        "counts_by_category": { "type": "object" },
+        "counts_by_scope": { "type": "object" },
+        "selected_catalog_id": { "type": ["string", "null"] },
+        "selected_run_id": { "type": ["string", "null"] }
+      }
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    },
     "canonicality": { "$ref": "#/$defs/canonicality" },
     "load_source": { "$ref": "#/$defs/loadSource" }
   },
@@ -31,6 +60,34 @@
         "loaded_from": { "const": "review_pack" },
         "canonical_source": { "const": "artifacts" },
         "non_authoritative": { "const": true }
+      }
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "finding_id",
+        "check_id",
+        "severity",
+        "status",
+        "scope",
+        "category",
+        "message",
+        "paths"
+      ],
+      "properties": {
+        "finding_id": { "type": "string", "minLength": 1 },
+        "check_id": { "type": "string", "minLength": 1 },
+        "severity": { "type": "string", "enum": ["PASS", "WARN", "FAIL", "NA"] },
+        "status": { "type": "string", "enum": ["PASS", "WARN", "FAIL", "NA"] },
+        "scope": { "type": "string", "minLength": 1 },
+        "category": { "type": "string", "minLength": 1 },
+        "message": { "type": "string", "minLength": 1 },
+        "paths": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "remediation": { "type": "string", "minLength": 1 }
       }
     }
   }

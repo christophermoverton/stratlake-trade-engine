@@ -63,6 +63,24 @@ before any pack writing or report rendering exists. It reuses workflow loading,
 selected-run one-hop lineage export behavior, and resolver-first canonical
 reopening while returning JSON-safe data only.
 
+`build_catalog_health_diagnostics(...)` adds advisory review context on top of
+that model. Diagnostics are still derived, non-authoritative evidence: they
+summarize selected-record resolution, metadata integrity, path hygiene, explicit
+lineage coverage, and available governance or release-validation evidence, but
+they do not mutate artifacts or change governance or promotion decisions.
+
+Diagnostic statuses are:
+
+- `PASS`: the conservative check succeeded
+- `WARN`: advisory review concern
+- `FAIL`: review evidence is incomplete or unsafe for inspection
+- `NA`: the check does not apply to the current subject
+
+Current diagnostic categories include selection, resolver, canonicality,
+load-source metadata, path portability, derived namespace, lineage, catalog
+validation, governance, and release validation. A `FAIL` finding means the
+review context is weak; it is not itself a governance or promotion outcome.
+
 ## Canonicality And Load Source
 
 Review-pack machine-readable outputs must carry:

@@ -40,6 +40,7 @@ def test_builds_selected_run_review_model_from_direct_scan(tmp_path: Path) -> No
     assert "portfolio_000" in model["lineage_summary"]["related_run_ids"]
     assert model["canonicality"]["derived_class"] == "review_pack"
     assert model["load_source"]["loaded_from"] == "review_pack"
+    assert model["catalog_health_diagnostics"]["schema_version"] == "catalog_health_diagnostics.v1"
 
 
 def test_builds_selected_catalog_id_review_model(tmp_path: Path) -> None:

@@ -181,8 +181,10 @@ def build_evidence_review_for_workflow(
             },
             "selected_record": selected.to_dict(),
             "related_records": records_to_dicts(related),
-            "resolver_resolution": selected_resolution.to_dict(),
-            "related_resolver_resolutions": [resolution.to_dict() for resolution in related_resolutions],
+            "resolver_resolution": _resolution_summary(selected_resolution),
+            "related_resolver_resolutions": [
+                _resolution_summary(resolution) for resolution in related_resolutions
+            ],
             "canonical_sources": list(selected_resolution.source_paths),
             "source_fingerprints": source_fingerprints,
             "warning_summary": {
@@ -300,6 +302,29 @@ def _select_subject(
     if len(matches) > 1:
         raise EvidenceReviewError("Selected catalog record is ambiguous.")
     return matches[0]
+
+
+def _resolution_summary(resolution: Any) -> dict[str, Any]:
+    """Return portable resolver review metadata without embedding raw source payloads."""
+
+    return {
+        "record": resolution.record.to_dict(),
+        "source_paths": list(resolution.source_paths),
+        "resolved_sources": [
+            {
+                "path": source.path,
+                "kind": source.kind,
+                "fingerprint": source.fingerprint,
+            }
+            for source in resolution.resolved_sources
+        ],
+        "missing_sources": list(resolution.missing_sources),
+        "source_fingerprint": resolution.source_fingerprint,
+        "resolution_status": resolution.resolution_status,
+        "canonicality_status": resolution.canonicality_status,
+        "load_source": dict(resolution.load_source),
+        "warnings": list(resolution.warnings),
+    }
 
 
 def _record_payload(record: CatalogRecord | Mapping[str, Any] | None) -> dict[str, Any] | None:

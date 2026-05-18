@@ -197,6 +197,11 @@ def test_builder_is_json_safe_portable_and_side_effect_free(tmp_path: Path) -> N
     assert "\\" not in serialized
     assert "file://" not in serialized
     assert str(tmp_path) not in serialized
+    assert tmp_path.as_posix() not in serialized
+    assert all(
+        "content" not in source
+        for source in model["resolver_resolution"]["resolved_sources"]
+    )
     assert not (tmp_path / "artifacts" / "_derived" / "evidence_review").exists()
     assert snapshot_tree(tmp_path) == before
 

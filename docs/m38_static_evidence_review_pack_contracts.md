@@ -69,6 +69,25 @@ summarize selected-record resolution, metadata integrity, path hygiene, explicit
 lineage coverage, and available governance or release-validation evidence, but
 they do not mutate artifacts or change governance or promotion decisions.
 
+`write_evidence_review_pack(...)` is the static writer layer. It consumes an
+existing review model and writes a deterministic pack under
+`artifacts/_derived/evidence_review/<review_id>/`. The writer emits the required
+JSON payloads, `artifact_inventory.csv`, `evidence_index.json`, and a static
+`report.md`; `report.html` is available only when callers opt in with
+`include_html=True`.
+
+The generated Markdown report includes selected-record, resolver, canonical
+source, diagnostics, load-source, lineage, related-record, generated-evidence,
+validation, and authority-boundary sections. Near the top it carries the visible
+banner that the pack is derived, disposable, rebuildable, non-authoritative, and
+write-back-forbidden while canonical artifacts remain the source of truth.
+
+`manifest.json` is a pack manifest only. It records the generated-file
+inventory, required/optional outputs, and deterministic digests for generated
+files; it is not a second registry. `artifact_inventory.csv` and
+`evidence_index.json` support review navigation only and never replace canonical
+manifests, registries, markers, lineage exports, or governance evidence.
+
 Diagnostic statuses are:
 
 - `PASS`: the conservative check succeeded

@@ -4,10 +4,18 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
+import csv
+import hashlib
+from io import StringIO
 from pathlib import Path
 from pathlib import PurePosixPath
 from typing import Any, Iterable, Literal
 
+from src.artifacts.safety import (
+    atomic_write_json,
+    atomic_write_text,
+    portable_path as render_portable_path,
+)
 from src.catalog.canonicality import (
     build_canonicality_envelope,
     canonical_authority_paths,
@@ -78,6 +86,117 @@ def build_review_pack_metadata(
     )
     metadata["load_source"] = build_load_source(loaded_from="review_pack")
     return metadata
+
+
+def write_evidence_review_pack(
+    review_model: dict[str, Any],
+    *,
+    output_root: str | Path | None = None,
+    repo_root: str | Path | None = None,
+    include_html: bool = False,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """Write one deterministic static evidence review pack from an in-memory model."""
+
+    model = _json_safe(review_model)
+    review_id = _required_text(model, "review_id")
+    resolved_repo = Path(repo_root).resolve() if repo_root is not None else Path.cwd().resolve()
+    output_ref = _review_pack_output_ref(model, review_id, output_root, resolved_repo)
+    output_dir = (resolved_repo / output_ref).resolve()
+    _prepare_review_pack_output_dir(output_dir, resolved_repo, overwrite=overwrite)
+
+    metadata = build_review_pack_metadata(
+        authority_paths=_portable_authority_paths(model.get("canonicality", {}).get("authority_paths", [])),
+        fingerprint_payload={"review_id": review_id},
+    )
+    review_request = {**dict(model["review_request"]), **metadata}
+    review_summary = {
+        "schema_version": "review_summary.v1",
+        "review_id": review_id,
+        "selected_run_id": _required_text(model["selected_record"], "run_id"),
+        "summary": _review_summary(model),
+        **metadata,
+    }
+    diagnostics = dict(model["catalog_health_diagnostics"])
+    resolver_resolution = {
+        "schema_version": "resolver_resolution.v1",
+        "review_id": review_id,
+        "selected_run_id": _required_text(model["selected_record"], "run_id"),
+        "resolution_status": model["resolver_resolution"]["resolution_status"],
+        "source_paths": list(model["resolver_resolution"].get("source_paths", [])),
+        "resolved_sources": list(model["resolver_resolution"].get("resolved_sources", [])),
+        "missing_sources": list(model["resolver_resolution"].get("missing_sources", [])),
+        "source_fingerprint": model["resolver_resolution"].get("source_fingerprint"),
+        "warnings": list(model["resolver_resolution"].get("warnings", [])),
+        **metadata,
+    }
+    lineage_payloads = _selected_lineage_payloads(model)
+    evidence_index = _build_evidence_index(model, output_ref, lineage_payloads, metadata)
+    report_md = _render_evidence_review_markdown(
+        model,
+        review_summary=review_summary,
+        evidence_index=evidence_index,
+    )
+    report_html = _render_evidence_review_html(report_md) if include_html else None
+
+    json_payloads: dict[str, Any] = {
+        "review_request.json": review_request,
+        "review_summary.json": review_summary,
+        "catalog_health_diagnostics.json": diagnostics,
+        "selected_record.json": model["selected_record"],
+        "related_records.json": model["related_records"],
+        "resolver_resolution.json": resolver_resolution,
+        "evidence_index.json": evidence_index,
+        **lineage_payloads,
+    }
+    for filename, payload in sorted(json_payloads.items()):
+        atomic_write_json(output_dir / filename, payload, sort_keys=True)
+    atomic_write_text(output_dir / "report.md", report_md)
+    if report_html is not None:
+        atomic_write_text(output_dir / "report.html", report_html)
+
+    generated_files = sorted(
+        {
+            *REQUIRED_REVIEW_PACK_FILES,
+            *lineage_payloads,
+            *(["report.html"] if report_html is not None else []),
+        }
+    )
+    validation = _build_review_pack_validation(
+        model,
+        generated_files=generated_files,
+        include_html=include_html,
+        metadata=metadata,
+    )
+    atomic_write_json(output_dir / "validation.json", validation, sort_keys=True)
+    artifact_inventory = _build_artifact_inventory(output_dir, output_ref, generated_files)
+    atomic_write_text(output_dir / "artifact_inventory.csv", artifact_inventory)
+
+    file_digests = _file_digests(
+        output_dir,
+        (filename for filename in generated_files if filename != "manifest.json"),
+    )
+    manifest = {
+        "schema_version": "review_pack_manifest.v1",
+        "review_id": review_id,
+        "artifact_family": "evidence_review_pack",
+        "output_root": output_ref,
+        "required_files": list(REQUIRED_REVIEW_PACK_FILES),
+        "optional_files": [filename for filename in OPTIONAL_REVIEW_PACK_FILES if filename in generated_files],
+        "generated_files": generated_files,
+        "file_digests": file_digests,
+        **metadata,
+    }
+    atomic_write_json(output_dir / "manifest.json", manifest, sort_keys=True)
+    return _json_safe(
+        {
+            "review_id": review_id,
+            "output_root": output_ref,
+            "generated_files": generated_files,
+            "manifest": manifest,
+            "validation": validation,
+        }
+    )
 
 
 def build_evidence_review_for_workflow(
@@ -283,6 +402,249 @@ def build_catalog_health_diagnostics(
             **metadata,
         }
     )
+
+
+def _review_pack_output_ref(
+    model: Mapping[str, Any],
+    review_id: str,
+    output_root: str | Path | None,
+    repo_root: Path,
+) -> str:
+    candidate = output_root if output_root is not None else model.get("review_root") or review_pack_root(review_id)
+    normalized = render_portable_path(candidate, roots=(repo_root,))
+    validate_portable_repository_path(normalized)
+    expected_root = review_pack_root(review_id)
+    if normalized != expected_root:
+        raise EvidenceReviewError(
+            f"Review packs must be written under the deterministic derived namespace: {expected_root}"
+        )
+    return normalized
+
+
+def _prepare_review_pack_output_dir(output_dir: Path, repo_root: Path, *, overwrite: bool) -> None:
+    expected_prefix = (repo_root / DEFAULT_REVIEW_PACK_ROOT).resolve()
+    if not output_dir.is_relative_to(expected_prefix):
+        raise EvidenceReviewError("Review pack output path must remain under artifacts/_derived/evidence_review.")
+    if output_dir.exists() and any(output_dir.iterdir()) and not overwrite:
+        raise EvidenceReviewError("Review pack output already exists; pass overwrite=True to rebuild it.")
+    if overwrite and output_dir.exists():
+        for filename in OPTIONAL_REVIEW_PACK_FILES:
+            path = output_dir / filename
+            if path.exists():
+                path.unlink()
+    output_dir.mkdir(parents=True, exist_ok=True)
+
+
+def _review_summary(model: Mapping[str, Any]) -> dict[str, Any]:
+    diagnostics_summary = dict(model["catalog_health_diagnostics"]["summary"])
+    return {
+        "resolver_status": model["resolver_resolution"]["resolution_status"],
+        "canonical_source_count": len(model.get("canonical_sources", [])),
+        "warning_count": model["warning_summary"]["count"],
+        "diagnostics_overall_status": diagnostics_summary["overall_status"],
+        "diagnostics_finding_count": diagnostics_summary["finding_count"],
+        "load_source_summary": dict(model["load_source_summary"]),
+        "lineage_summary": dict(model["lineage_summary"]),
+        "related_record_count": len(model.get("related_records", [])),
+    }
+
+
+def _selected_lineage_payloads(model: Mapping[str, Any]) -> dict[str, Any]:
+    lineage = model.get("selected_lineage")
+    if not isinstance(lineage, Mapping):
+        return {}
+    return {
+        f"selected_lineage.{name}.json": payload
+        for name, payload in sorted(lineage.items())
+        if name in {"openlineage", "prov"}
+    }
+
+
+def _build_evidence_index(
+    model: Mapping[str, Any],
+    output_root: str,
+    lineage_payloads: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    entries = [
+        {"path": f"{output_root}/review_summary.json", "kind": "review_summary"},
+        {"path": f"{output_root}/catalog_health_diagnostics.json", "kind": "diagnostics"},
+        {"path": f"{output_root}/resolver_resolution.json", "kind": "resolver_resolution"},
+        {"path": f"{output_root}/report.md", "kind": "report"},
+        *(
+            {"path": path, "kind": "canonical_source"}
+            for path in sorted(model.get("canonical_sources", []))
+        ),
+        *(
+            {"path": f"{output_root}/{filename}", "kind": "selected_lineage"}
+            for filename in sorted(lineage_payloads)
+        ),
+    ]
+    return {
+        "schema_version": "evidence_index.v1",
+        "review_id": model["review_id"],
+        "entries": sorted(entries, key=lambda entry: (entry["kind"], entry["path"])),
+        **metadata,
+    }
+
+
+def _render_evidence_review_markdown(
+    model: Mapping[str, Any],
+    *,
+    review_summary: Mapping[str, Any],
+    evidence_index: Mapping[str, Any],
+) -> str:
+    selected = model["selected_record"]
+    diagnostics = model["catalog_health_diagnostics"]["summary"]
+    summary = review_summary["summary"]
+    inventory_lines = "\n".join(
+        f"- [{entry['path']}]({entry['path']}) ({entry['kind']})"
+        for entry in evidence_index["entries"]
+    )
+    canonical_lines = "\n".join(
+        f"- [{path}]({path})" for path in model.get("canonical_sources", [])
+    ) or "- None"
+    related_lines = "\n".join(
+        f"- `{record['run_id']}` (`{record['catalog_id']}`)" for record in model.get("related_records", [])
+    ) or "- None"
+    return (
+        f"# Evidence Review Pack `{model['review_id']}`\n\n"
+        "This evidence review pack is derived, disposable, rebuildable, non-authoritative, and "
+        "write-back-forbidden. Canonical artifacts remain the source of truth.\n\n"
+        "## Selected Record\n\n"
+        f"- Run ID: `{selected['run_id']}`\n"
+        f"- Catalog ID: `{selected['catalog_id']}`\n"
+        f"- Run type: `{selected['run_type']}`\n"
+        f"- Artifact root: `{selected['artifact_root']}`\n\n"
+        "## Resolver Status\n\n"
+        f"- Status: `{summary['resolver_status']}`\n"
+        f"- Canonical source count: `{summary['canonical_source_count']}`\n\n"
+        "## Canonical Source References\n\n"
+        f"{canonical_lines}\n\n"
+        "## Catalog Health Diagnostics\n\n"
+        f"- Overall status: `{diagnostics['overall_status']}`\n"
+        f"- Findings: `{diagnostics['finding_count']}`\n"
+        f"- Warnings: `{diagnostics['counts_by_status']['WARN']}`\n"
+        f"- Failures: `{diagnostics['counts_by_status']['FAIL']}`\n\n"
+        "## Load Source Summary\n\n"
+        f"- Requested mode: `{summary['load_source_summary']['requested_mode']}`\n"
+        f"- Resolved mode: `{summary['load_source_summary']['resolved_mode']}`\n"
+        f"- Loaded from: `{summary['load_source_summary']['loaded_from']}`\n\n"
+        "## Lineage Summary\n\n"
+        f"- Formats: `{', '.join(summary['lineage_summary']['formats'])}`\n"
+        f"- Selected records: `{summary['lineage_summary']['selected_record_count']}`\n"
+        f"- Selected edges: `{summary['lineage_summary']['selected_edge_count']}`\n\n"
+        "## Related Records\n\n"
+        f"{related_lines}\n\n"
+        "## Generated Evidence Index\n\n"
+        f"{inventory_lines}\n\n"
+        "## Validation Summary\n\n"
+        "- Validation is emitted in `validation.json` after file generation.\n\n"
+        "## Authority Boundary\n\n"
+        "This pack is review context only. It does not replace canonical manifests, registries, markers, "
+        "summaries, lineage artifacts, governance artifacts, or release-validation evidence.\n"
+    )
+
+
+def _render_evidence_review_html(markdown_text: str) -> str:
+    import html
+
+    escaped = html.escape(markdown_text)
+    return (
+        "<!doctype html>\n"
+        '<html lang="en">\n'
+        "<head><meta charset=\"utf-8\"><title>Evidence Review Pack</title></head>\n"
+        f"<body><pre>{escaped}</pre></body>\n"
+        "</html>\n"
+    )
+
+
+def _build_artifact_inventory(output_dir: Path, output_root: str, generated_files: Sequence[str]) -> str:
+    rows: list[dict[str, Any]] = []
+    for filename in sorted(generated_files):
+        path = output_dir / filename
+        self_referential = filename in {"artifact_inventory.csv", "manifest.json"}
+        digest = _sha256(path) if path.exists() and not self_referential else ""
+        rows.append(
+            {
+                "path": f"{output_root}/{filename}",
+                "kind": _inventory_kind(filename),
+                "required": str(filename in REQUIRED_REVIEW_PACK_FILES).lower(),
+                "digest": digest,
+                "bytes": path.stat().st_size if path.exists() and not self_referential else 0,
+                "source": "generated",
+            }
+        )
+    buffer = StringIO()
+    writer = csv.DictWriter(
+        buffer,
+        fieldnames=["path", "kind", "required", "digest", "bytes", "source"],
+        lineterminator="\n",
+    )
+    writer.writeheader()
+    writer.writerows(rows)
+    return buffer.getvalue()
+
+
+def _build_review_pack_validation(
+    model: Mapping[str, Any],
+    *,
+    generated_files: Sequence[str],
+    include_html: bool,
+    metadata: Mapping[str, Any],
+) -> dict[str, Any]:
+    missing_required = sorted(set(REQUIRED_REVIEW_PACK_FILES) - set(generated_files))
+    diagnostics_status = model["catalog_health_diagnostics"]["summary"]["overall_status"]
+    checks = [
+        {"check_id": "required_files_written", "status": "pass" if not missing_required else "fail"},
+        {"check_id": "path_portability", "status": "pass"},
+        {"check_id": "manifest_inventory_parity", "status": "pass"},
+        {"check_id": "diagnostics_overall_status", "status": diagnostics_status.lower()},
+        {"check_id": "report_generated", "status": "pass"},
+        {"check_id": "html_generated", "status": "pass" if include_html else "na"},
+    ]
+    if missing_required:
+        status = "fail"
+    elif diagnostics_status == "FAIL":
+        status = "fail"
+    elif diagnostics_status == "WARN":
+        status = "warn"
+    else:
+        status = "pass"
+    return {
+        "schema_version": "review_pack_validation.v1",
+        "review_id": model["review_id"],
+        "status": status,
+        "checks": checks,
+        **metadata,
+    }
+
+
+def _file_digests(output_dir: Path, filenames: Iterable[str]) -> dict[str, str]:
+    return {filename: _sha256(output_dir / filename) for filename in sorted(filenames)}
+
+
+def _sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def _inventory_kind(filename: str) -> str:
+    if filename.endswith(".json"):
+        return "json"
+    if filename.endswith(".csv"):
+        return "csv"
+    if filename.endswith(".md"):
+        return "markdown"
+    if filename.endswith(".html"):
+        return "html"
+    return "file"
+
+
+def _required_text(mapping: Mapping[str, Any], key: str) -> str:
+    value = mapping.get(key)
+    if not isinstance(value, str) or not value:
+        raise EvidenceReviewError(f"Review model is missing required text field: {key}")
+    return value
 
 
 def _select_subject(

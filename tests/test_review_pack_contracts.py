@@ -60,6 +60,8 @@ def test_review_pack_schema_contracts_accept_minimal_payloads() -> None:
             "output_root": review_pack_root("review_001"),
             "required_files": list(REQUIRED_REVIEW_PACK_FILES),
             "optional_files": list(OPTIONAL_REVIEW_PACK_FILES),
+            "generated_files": list(REQUIRED_REVIEW_PACK_FILES),
+            "file_digests": {"report.md": "a" * 64},
             **metadata,
         },
         "review_pack_review_request.schema.json": {
@@ -134,6 +136,8 @@ def test_review_pack_manifest_rejects_non_portable_paths() -> None:
         "output_root": r"artifacts\_derived\evidence_review\review_001",
         "required_files": list(REQUIRED_REVIEW_PACK_FILES),
         "optional_files": list(OPTIONAL_REVIEW_PACK_FILES),
+        "generated_files": list(REQUIRED_REVIEW_PACK_FILES),
+        "file_digests": {"report.md": "a" * 64},
         **metadata,
     }
 

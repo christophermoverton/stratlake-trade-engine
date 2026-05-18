@@ -9,10 +9,43 @@
     "review_id": { "type": "string", "minLength": 1 },
     "selected_run_id": { "type": "string", "minLength": 1 },
     "resolution_status": { "type": "string", "enum": ["resolved", "partial", "unresolved"] },
+    "source_paths": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/repositoryRelativePath" }
+    },
+    "resolved_sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["path", "kind", "fingerprint"],
+        "properties": {
+          "path": { "$ref": "#/$defs/repositoryRelativePath" },
+          "kind": { "type": "string", "minLength": 1 },
+          "fingerprint": { "type": "string", "pattern": "^[a-f0-9]{64}$" }
+        }
+      }
+    },
+    "missing_sources": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/repositoryRelativePath" }
+    },
+    "source_fingerprint": {
+      "type": ["string", "null"],
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
     "canonicality": { "$ref": "#/$defs/canonicality" },
     "load_source": { "$ref": "#/$defs/loadSource" }
   },
   "$defs": {
+    "repositoryRelativePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*://)(?!.*(^|/)\\.\\.(/|$)).+"
+    },
     "canonicality": {
       "type": "object",
       "required": ["schema_version", "derived_class", "non_authoritative", "write_back_forbidden", "rebuildable"],

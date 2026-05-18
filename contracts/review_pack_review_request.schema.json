@@ -8,6 +8,10 @@
     "schema_version": { "const": "review_request.v1" },
     "review_id": { "type": "string", "minLength": 1 },
     "selected_run_id": { "type": "string", "minLength": 1 },
+    "selected_catalog_id": { "type": ["string", "null"] },
+    "index_mode": { "type": "string", "enum": ["direct", "index", "auto"] },
+    "resolve_related": { "type": "boolean" },
+    "lineage_format": { "type": "string", "enum": ["openlineage", "prov", "both"] },
     "canonicality": { "$ref": "#/$defs/canonicality" },
     "load_source": { "$ref": "#/$defs/loadSource" }
   },

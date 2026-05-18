@@ -68,6 +68,7 @@ def run_m37_artifact_first_evidence_contracts_example() -> dict[str, Any]:
             "resolver_source_paths": resolution.source_paths,
             "resolver_source_fingerprint": resolution.source_fingerprint,
         }
+        _assert_portable_output(payload, temp_root=repo_root)
         gc.collect()
         return payload
 
@@ -108,6 +109,16 @@ def _write_jsonl(path: Path, payloads: list[dict[str, Any]]) -> None:
         "".join(json.dumps(payload, sort_keys=True) + "\n" for payload in payloads),
         encoding="utf-8",
     )
+
+
+def _assert_portable_output(payload: dict[str, Any], *, temp_root: Path) -> None:
+    serialized = json.dumps(payload, sort_keys=True)
+    assert str(temp_root) not in serialized
+    assert "file://" not in serialized
+    assert "\\" not in serialized
+    assert "C:/" not in serialized
+    assert "../" not in serialized
+    assert '": "/' not in serialized
 
 
 if __name__ == "__main__":

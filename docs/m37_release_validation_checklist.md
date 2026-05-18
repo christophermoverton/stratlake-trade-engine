@@ -115,8 +115,9 @@ Run the compact M37 example:
 
 The script builds a temporary synthetic artifact tree, writes a disposable
 derived index under `artifacts/_derived/`, exposes `load_source` metadata,
-renders a lineage export, and resolves canonical source files without touching
-repository artifacts.
+renders a lineage export, resolves canonical source files without touching
+repository artifacts, and asserts that the rendered payload stays portable and
+repository-relative.
 
 ## Release Notes
 

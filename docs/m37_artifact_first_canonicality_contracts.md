@@ -1,7 +1,13 @@
-# M37 Artifact-First Canonicality Contracts
+# M37 - Artifact-First Evidence Hardening and Canonicality Contracts
 
 Milestone principle: every derived surface must identify, defer to, and be
 invalidated by its canonical source.
+
+M37 hardens the existing M36 evidence stack without changing the repository's
+source-of-truth model. Canonicality means authority remains with source
+artifacts already written by the research system; derived indexes, exports, and
+views must name that authority, remain rebuildable, and route consequential
+consumers back to canonical files before any decision-sensitive use.
 
 ## Canonicality Envelope v1
 
@@ -117,6 +123,14 @@ Focused deterministic coverage lives in
 stack across repeated runs, direct/index/auto parity, resolver fingerprints,
 portable metadata, disposable derived outputs, and legacy no-envelope
 compatibility.
+
+## Release Validation
+
+Release-facing validation for the combined M37 stack is documented in
+`docs/m37_release_validation_checklist.md`. It combines the focused M37 test
+slice, M36 regressions, CLI regressions, docs/path lint, package build, and the
+full milestone validation bundle so the artifact-first contract is checked as
+one system rather than as isolated features.
 
 ## Updated Derived Surfaces
 

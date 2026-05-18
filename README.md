@@ -372,6 +372,28 @@ Start with:
 * [docs/m36_release_notes.md](docs/m36_release_notes.md)
 * [docs/m36_release_validation_checklist.md](docs/m36_release_validation_checklist.md)
 
+### Milestone 37: Artifact-First Evidence Hardening and Canonicality Contracts
+
+Milestone 37 hardens the M36 evidence stack without changing the source of
+truth. Newly generated derived outputs identify canonical artifacts through
+Canonicality Envelope v1, expose `load_source.v1` metadata, default to the
+disposable `artifacts/_derived/` namespace, and route consequential consumers
+through resolver-first APIs before they rely on canonical source files.
+
+M37 keeps the same architecture boundary: direct scan remains canonical and the
+default, derived indexes stay disposable read models, lineage exports remain
+local JSON views, and evidence/explorer/workflow outputs remain
+non-authoritative.
+
+Start with:
+
+* [docs/m37_artifact_first_canonicality_contracts.md](docs/m37_artifact_first_canonicality_contracts.md)
+* [docs/m37_release_notes.md](docs/m37_release_notes.md)
+* [docs/m37_release_validation_checklist.md](docs/m37_release_validation_checklist.md)
+* [docs/catalog_indexer.md](docs/catalog_indexer.md)
+* [docs/catalog_lineage.md](docs/catalog_lineage.md)
+* [docs/examples/m37_artifact_first_evidence_contracts_example.py](docs/examples/m37_artifact_first_evidence_contracts_example.py)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing
@@ -1694,6 +1716,9 @@ Start here:
 * [docs/m35_release_validation_checklist.md](docs/m35_release_validation_checklist.md)
 * [docs/m36_release_notes.md](docs/m36_release_notes.md)
 * [docs/m36_release_validation_checklist.md](docs/m36_release_validation_checklist.md)
+* [docs/m37_artifact_first_canonicality_contracts.md](docs/m37_artifact_first_canonicality_contracts.md)
+* [docs/m37_release_notes.md](docs/m37_release_notes.md)
+* [docs/m37_release_validation_checklist.md](docs/m37_release_validation_checklist.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
@@ -1735,6 +1760,7 @@ Examples:
 * [docs/examples/m27_market_simulation_case_study.md](docs/examples/m27_market_simulation_case_study.md)
 * [docs/examples/m27_market_simulation_case_study_report.md](docs/examples/m27_market_simulation_case_study_report.md)
 * [docs/examples/robustness_report_example.py](docs/examples/robustness_report_example.py)
+* [docs/examples/m37_artifact_first_evidence_contracts_example.py](docs/examples/m37_artifact_first_evidence_contracts_example.py)
 * [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)

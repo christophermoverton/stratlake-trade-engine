@@ -7,8 +7,6 @@ from typing import Sequence
 
 from src.catalog import (
     CatalogQuery,
-    build_catalog,
-    build_evidence_explorer_view,
     build_evidence_view_for_workflow,
     render_evidence_json,
     render_evidence_markdown,
@@ -68,33 +66,17 @@ def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
         validation_readiness_present=args.validation_readiness_present,
         release_validation_present=args.release_validation_present,
     )
-    if args.index_mode == "direct":
-        repo_root = Path(args.repo_root)
-        artifacts_root = Path(args.artifacts_root)
-        if not artifacts_root.is_absolute():
-            artifacts_root = repo_root / artifacts_root
-        records = build_catalog(artifacts_root, repo_root=repo_root)
-        view = build_evidence_explorer_view(
-            records,
-            query=query,
-            selected_run_id=args.run_id,
-            selected_catalog_id=args.catalog_id,
-            include_lineage=args.include_lineage,
-            repo_root=repo_root,
-            limit=args.limit,
-        )
-    else:
-        view = build_evidence_view_for_workflow(
-            args.artifacts_root,
-            repo_root=args.repo_root,
-            index_path=args.index,
-            index_mode=args.index_mode,
-            query=query,
-            selected_run_id=args.run_id,
-            selected_catalog_id=args.catalog_id,
-            include_lineage=args.include_lineage,
-            limit=args.limit,
-        )
+    view = build_evidence_view_for_workflow(
+        args.artifacts_root,
+        repo_root=args.repo_root,
+        index_path=args.index,
+        index_mode=args.index_mode,
+        query=query,
+        selected_run_id=args.run_id,
+        selected_catalog_id=args.catalog_id,
+        include_lineage=args.include_lineage,
+        limit=args.limit,
+    )
     rendered = _render(view, args.format)
     if args.output:
         output_path = Path(args.output)

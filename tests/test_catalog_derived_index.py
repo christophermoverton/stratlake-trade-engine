@@ -175,7 +175,7 @@ def test_catalog_index_and_query_cli_support_index_workflow(tmp_path: Path, caps
 
     assert build_payload["record_count"] == 48
     assert validate_payload["valid"] is True
-    assert [row["run_id"] for row in query_payload] == ["release_000", "release_001"]
+    assert [row["run_id"] for row in query_payload["records"]] == ["release_000", "release_001"]
 
 
 def _query_ids(records: list) -> dict[str, list[str | None]]:

@@ -10,12 +10,29 @@ Usage::
 """
 
 from src.catalog.indexer import build_artifact_records, build_catalog, build_catalog_record
+from src.catalog.canonicality import (
+    CANONICALITY_SCHEMA_VERSION,
+    RESOLVER_HINT,
+    build_canonicality_envelope,
+    canonical_authority_paths,
+    canonicality_status,
+    portable_path,
+    validate_portable_repository_path,
+)
 from src.catalog.derived_index import (
+    DEFAULT_DERIVED_INDEX_PATH,
     DerivedIndexError,
     DerivedIndexValidation,
     build_derived_index,
     load_catalog_records,
+    load_catalog_records_with_source,
     validate_derived_index,
+)
+from src.catalog.load_source import (
+    LOAD_SOURCE_SCHEMA_VERSION,
+    CatalogLoadResult,
+    build_load_source,
+    derive_view_load_source,
 )
 from src.catalog.explorer import (
     build_evidence_explorer_view,
@@ -64,6 +81,13 @@ from src.catalog.query import (
     related_records,
     summarize_catalog,
 )
+from src.catalog.resolver import (
+    CanonicalRecordResolution,
+    ResolvedSource,
+    resolve_canonical_record,
+    resolve_canonical_record_by_id,
+    resolve_canonical_sources,
+)
 from src.catalog.validation import (
     CatalogValidationIssue,
     CatalogValidationReport,
@@ -80,11 +104,13 @@ from src.catalog.workflows import (
 
 __all__ = [
     "build_catalog",
+    "build_canonicality_envelope",
     "build_derived_index",
     "build_evidence_explorer_view",
     "build_artifact_records",
     "build_catalog_record",
     "load_catalog_records",
+    "load_catalog_records_with_source",
     "validate_derived_index",
     "build_lineage_edges",
     "export_lineage",
@@ -134,8 +160,24 @@ __all__ = [
     "CatalogValidationReport",
     "DerivedIndexError",
     "DerivedIndexValidation",
+    "CatalogLoadResult",
+    "build_load_source",
+    "derive_view_load_source",
+    "LOAD_SOURCE_SCHEMA_VERSION",
+    "DEFAULT_DERIVED_INDEX_PATH",
+    "CanonicalRecordResolution",
+    "ResolvedSource",
+    "resolve_canonical_record",
+    "resolve_canonical_record_by_id",
+    "resolve_canonical_sources",
     "validate_catalog",
     "validate_record",
     "validate_artifact_records",
     "validate_lineage_export",
+    "canonical_authority_paths",
+    "canonicality_status",
+    "portable_path",
+    "validate_portable_repository_path",
+    "CANONICALITY_SCHEMA_VERSION",
+    "RESOLVER_HINT",
 ]

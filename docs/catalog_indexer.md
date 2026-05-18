@@ -112,6 +112,54 @@ If multiple markers exist simultaneously (e.g., after a crash during cleanup),
 
 ## Deterministic Output Contract
 
+## Canonicality Envelope v1
+
+M37 adds a deterministic `canonicality` envelope to newly generated derived
+catalog surfaces. Canonical artifacts remain the source of truth: registries,
+manifests, markers, summaries, validation bundles, and governance artifacts are
+authoritative; the SQLite index is a disposable read model only.
+
+New derived index metadata includes:
+
+- `schema_version: canonicality.v1`
+- the canonical artifact-tree root and portable source paths
+- repository-relative path validation that rejects absolute, URI-like, and
+  parent-traversal authority paths
+- a deterministic source fingerprint
+- `derived_class: sqlite_read_model`
+- `rebuildable: true`
+- `non_authoritative: true`
+- `write_back_forbidden: true`
+- `stale_if_source_changes: true`
+- resolver guidance to reopen canonical manifests/registries before
+  decision-sensitive use
+
+Legacy M36 indexes without the envelope remain readable and are surfaced with a
+`legacy_no_envelope` compatibility status rather than being promoted to
+authority.
+
+New M37 index builds default to
+`artifacts/_derived/catalog_index/catalog_index.sqlite`. Explicit legacy M36
+paths such as `artifacts/catalog_index/catalog_index.sqlite` are still accepted,
+but `_derived` is reserved for disposable read models and is never scanned as a
+canonical artifact family. Load-source metadata distinguishes direct scans from
+validated index reads and shows how `auto` mode resolved. Its `index_path` field
+is portable repository-relative metadata and rejects absolute, URI-like,
+`file://`, and parent-traversal paths.
+
+Index-backed records are suitable for discovery and filtering. Before
+decision-sensitive use, call `resolve_canonical_record(...)` to reopen the
+declared canonical registry, manifest, marker, and source files. Resolver
+results are deterministic, read-only, and fail safely when source files are
+missing, non-portable, or outside the resolved artifacts root.
+
+M37 architecture guardrails keep that boundary executable. Derived indexes may
+accelerate reads and validation, but they are forbidden as authority inputs for
+writers, registries, promotion/governance decisions, release readiness, or
+canonical catalog construction. Tests verify `_derived` is excluded from direct
+scans and that deleting or rebuilding derived indexes preserves canonical
+catalog identity and source files.
+
 ### `catalog_id`
 
 ```

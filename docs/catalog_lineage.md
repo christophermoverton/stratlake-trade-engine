@@ -8,6 +8,24 @@ checkpoints, scenario catalogs, and validation summaries.
 It does not write, modify, delete, repair, lock, register, or execute anything.
 There is no lineage database, cache, export, CLI, dashboard, or notebook surface.
 
+M37 lineage exports add Canonicality Envelope v1 to newly generated root
+payloads. OpenLineage-style and PROV-style exports are local JSON views over
+canonical artifacts, never canonical artifacts themselves. Decision-sensitive
+consumers should reopen the canonical manifests and registries before relying on
+an exported view. Legacy M36 export payloads without the envelope remain valid
+and are reported as `legacy_no_envelope`. Workflow lineage helpers delegate to
+the same exporter and therefore keep `derived_class: lineage_export`.
+New lineage outputs should be written under `artifacts/_derived/lineage/` when a
+file is requested. Their `load_source` metadata records that they are derived
+lineage exports and, for workflow-generated exports, whether input records came
+from direct scan or a validated derived index.
+Lineage exports remain display/interchange views only; decision-sensitive
+consumers should resolve the underlying catalog records back to canonical source
+files under `artifacts_root` with the resolver APIs before relying on them.
+M37 architecture guardrails forbid lineage exports and other derived views from
+entering writer, promotion, governance-decision, release-decision, or canonical
+catalog construction paths.
+
 For the full M35 evidence catalog overview and release-readiness docs, see
 [`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
 and [`docs/m35_release_notes.md`](m35_release_notes.md).

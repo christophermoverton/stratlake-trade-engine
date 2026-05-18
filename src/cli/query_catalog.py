@@ -8,8 +8,7 @@ from typing import Sequence
 
 from src.catalog import (
     CatalogQuery,
-    build_catalog,
-    load_catalog_records,
+    load_catalog_records_with_source,
     query_catalog,
     records_to_dicts,
     records_to_rows,
@@ -175,15 +174,13 @@ def run_cli(argv: Sequence[str] | None = None) -> list[dict[str, object]] | dict
         include_templates=args.include_templates,
         include_unknown=not args.exclude_unknown,
     )
-    if args.index_mode == "direct":
-        all_records = build_catalog(artifacts_root, repo_root=repo_root)
-    else:
-        all_records = load_catalog_records(
-            artifacts_root,
-            repo_root=repo_root,
-            index_path=args.index,
-            mode=args.index_mode,
-        )
+    load_result = load_catalog_records_with_source(
+        artifacts_root,
+        repo_root=repo_root,
+        index_path=args.index,
+        mode=args.index_mode,
+    )
+    all_records = load_result.records
     records = query_catalog(all_records, query)
 
     if args.related:
@@ -199,7 +196,7 @@ def run_cli(argv: Sequence[str] | None = None) -> list[dict[str, object]] | dict
         )
 
     if args.summary:
-        payload = summarize_catalog(records)
+        payload = {"load_source": load_result.load_source, "summary": summarize_catalog(records)}
         _print_json(payload)
         return payload
 
@@ -209,7 +206,7 @@ def run_cli(argv: Sequence[str] | None = None) -> list[dict[str, object]] | dict
         records = records[: args.limit]
 
     if args.format == "json":
-        payload = records_to_dicts(records)
+        payload = {"load_source": load_result.load_source, "records": records_to_dicts(records)}
         _print_json(payload)
         return payload
 

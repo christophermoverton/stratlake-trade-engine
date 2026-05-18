@@ -6,7 +6,12 @@ import sys
 from pathlib import Path
 from typing import Sequence
 
-from src.catalog import DerivedIndexError, build_derived_index, validate_derived_index
+from src.catalog import (
+    DEFAULT_DERIVED_INDEX_PATH,
+    DerivedIndexError,
+    build_derived_index,
+    validate_derived_index,
+)
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -16,7 +21,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     build = subparsers.add_parser("build", help="Build a disposable derived catalog index.")
     build.add_argument("--artifacts-root", default="artifacts")
     build.add_argument("--repo-root", default=".")
-    build.add_argument("--output", required=True)
+    build.add_argument("--output", default=DEFAULT_DERIVED_INDEX_PATH)
 
     validate = subparsers.add_parser("validate", help="Validate a derived catalog index.")
     validate.add_argument("--index", required=True)
@@ -32,7 +37,10 @@ def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
     if not artifacts_root.is_absolute():
         artifacts_root = repo_root / artifacts_root
     if args.command == "build":
-        payload = build_derived_index(artifacts_root, args.output, repo_root=repo_root)
+        output_path = Path(args.output)
+        if not output_path.is_absolute():
+            output_path = repo_root / output_path
+        payload = build_derived_index(artifacts_root, output_path, repo_root=repo_root)
     else:
         validation = validate_derived_index(args.index, artifacts_root=artifacts_root, repo_root=repo_root)
         payload = {"valid": True, **validation.metadata}

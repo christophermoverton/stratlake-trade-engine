@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 import src.cli.query_catalog as query_catalog_cli
+from src.catalog.load_source import CatalogLoadResult, build_load_source
 from src.catalog.models import CatalogRecord, CatalogValidationStatus
 
 
@@ -121,7 +122,8 @@ def test_cli_json_output_for_run_type_filter(tmp_path: Path, capsys) -> None:
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert [record["run_id"] for record in payload] == ["strategy_1"]
+    assert payload["load_source"]["resolved_mode"] == "direct"
+    assert [record["run_id"] for record in payload["records"]] == ["strategy_1"]
 
 
 def test_cli_table_output_smoke(tmp_path: Path, capsys) -> None:
@@ -145,8 +147,9 @@ def test_cli_summary_output(tmp_path: Path, capsys) -> None:
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["total_count"] == 2
-    assert payload["by_run_type"] == {"portfolio": 1, "strategy": 1}
+    assert payload["load_source"]["resolved_mode"] == "direct"
+    assert payload["summary"]["total_count"] == 2
+    assert payload["summary"]["by_run_type"] == {"portfolio": 1, "strategy": 1}
 
 
 def test_cli_metric_filter(tmp_path: Path, capsys) -> None:
@@ -169,7 +172,7 @@ def test_cli_metric_filter(tmp_path: Path, capsys) -> None:
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert [record["run_id"] for record in payload] == ["strategy_high"]
+    assert [record["run_id"] for record in payload["records"]] == ["strategy_high"]
 
 
 def test_cli_filters_robustness_evidence_json_matches_api_fields(tmp_path: Path, capsys) -> None:
@@ -195,10 +198,10 @@ def test_cli_filters_robustness_evidence_json_matches_api_fields(tmp_path: Path,
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert [record["run_type"] for record in payload] == ["robustness_bundle"]
-    assert payload[0]["record_family"] == "robustness_bundle"
-    assert payload[0]["robustness_status"] == "needs_review"
-    assert payload[0]["wfe_status"] == "weak"
+    assert [record["run_type"] for record in payload["records"]] == ["robustness_bundle"]
+    assert payload["records"][0]["record_family"] == "robustness_bundle"
+    assert payload["records"][0]["robustness_status"] == "needs_review"
+    assert payload["records"][0]["wfe_status"] == "weak"
 
 
 def test_cli_filters_governance_and_presence_aliases(tmp_path: Path, capsys) -> None:
@@ -251,9 +254,9 @@ def test_cli_filters_governance_and_presence_aliases(tmp_path: Path, capsys) -> 
     assert governance_code == 0
     assert validation_code == 0
     assert release_code == 0
-    assert [record["record_family"] for record in governance_payload] == ["governance_bundle"]
-    assert [record["validation_readiness_present"] for record in validation_payload] == [True]
-    assert [record["release_validation_present"] for record in release_payload] == [True]
+    assert [record["record_family"] for record in governance_payload["records"]] == ["governance_bundle"]
+    assert [record["validation_readiness_present"] for record in validation_payload["records"]] == [True]
+    assert [record["release_validation_present"] for record in release_payload["records"]] == [True]
 
 
 def test_cli_table_includes_evidence_columns(tmp_path: Path, capsys) -> None:
@@ -282,8 +285,8 @@ def test_cli_include_templates(tmp_path: Path, capsys) -> None:
 
     assert default_code == 0
     assert include_code == 0
-    assert [record["run_type"] for record in default_payload] == ["strategy"]
-    assert sorted(record["run_type"] for record in include_payload) == ["portfolio_template", "strategy"]
+    assert [record["run_type"] for record in default_payload["records"]] == ["strategy"]
+    assert sorted(record["run_type"] for record in include_payload["records"]) == ["portfolio_template", "strategy"]
 
 
 def test_cli_related_upstream_downstream(tmp_path: Path, capsys) -> None:
@@ -325,8 +328,8 @@ def test_cli_related_upstream_downstream(tmp_path: Path, capsys) -> None:
 
     assert upstream_code == 0
     assert downstream_code == 0
-    assert [record["run_id"] for record in upstream_payload] == ["strategy_1"]
-    assert [record["run_id"] for record in downstream_payload] == ["portfolio_1"]
+    assert [record["run_id"] for record in upstream_payload["records"]] == ["strategy_1"]
+    assert [record["run_id"] for record in downstream_payload["records"]] == ["portfolio_1"]
 
 
 def test_cli_invalid_related_target_returns_nonzero_cleanly(tmp_path: Path, capsys) -> None:
@@ -362,9 +365,9 @@ def test_cli_related_summary_summarizes_related_result_set(tmp_path: Path, capsy
 
     assert code == 0
     payload = json.loads(capsys.readouterr().out)
-    assert payload["total_count"] == 2
-    assert payload["by_run_type"] == {"strategy": 2}
-    assert "portfolio" not in payload["by_run_type"]
+    assert payload["summary"]["total_count"] == 2
+    assert payload["summary"]["by_run_type"] == {"strategy": 2}
+    assert "portfolio" not in payload["summary"]["by_run_type"]
 
 
 def test_cli_builds_catalog_once_for_related(monkeypatch, capsys) -> None:
@@ -374,20 +377,32 @@ def test_cli_builds_catalog_once_for_related(monkeypatch, capsys) -> None:
     ]
     calls = 0
 
-    def fake_build_catalog(*args, **kwargs):
+    def fake_load_catalog_records_with_source(*args, **kwargs):
         nonlocal calls
         calls += 1
-        return records
+        return CatalogLoadResult(
+            records=records,
+            load_source=build_load_source(
+                loaded_from="direct_scan",
+                requested_mode="direct",
+                resolved_mode="direct",
+                index_validated=False,
+            ),
+        )
 
-    monkeypatch.setattr(query_catalog_cli, "build_catalog", fake_build_catalog)
+    monkeypatch.setattr(
+        query_catalog_cli,
+        "load_catalog_records_with_source",
+        fake_load_catalog_records_with_source,
+    )
 
     code = query_catalog_cli.main(["--related", "portfolio_1", "--direction", "upstream", "--summary"])
 
     assert code == 0
     assert calls == 1
     payload = json.loads(capsys.readouterr().out)
-    assert payload["total_count"] == 1
-    assert payload["by_run_type"] == {"strategy": 1}
+    assert payload["summary"]["total_count"] == 1
+    assert payload["summary"]["by_run_type"] == {"strategy": 1}
 
 
 def _record(

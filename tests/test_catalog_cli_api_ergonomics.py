@@ -118,7 +118,8 @@ def test_cli_build_validate_query_export_and_explore_share_modes(
 
     assert build_payload["record_count"] == 48
     assert validate_payload["valid"] is True
-    assert [row["run_id"] for row in query_payload] == ["release_000", "release_001"]
+    assert [row["run_id"] for row in query_payload["records"]] == ["release_000", "release_001"]
+    assert query_payload["load_source"]["resolved_mode"] == "index"
     assert export_payload["selected_run_id"] == "strategy_000"
     assert explorer_payload["total_matching_records"] >= 1
     assert export_path.read_text(encoding="utf-8").endswith("\n")

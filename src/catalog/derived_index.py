@@ -12,7 +12,13 @@ import sqlite3
 import tempfile
 from typing import Any, Literal
 
+from src.catalog.canonicality import (
+    build_canonicality_envelope,
+    canonical_authority_paths,
+    canonicality_status,
+)
 from src.catalog.indexer import build_catalog
+from src.catalog.load_source import CatalogLoadResult, build_load_source
 from src.catalog.models import CatalogRecord, CatalogValidationStatus
 
 DERIVED_INDEX_SCHEMA_VERSION = 1
@@ -20,6 +26,7 @@ CATALOG_RECORD_SCHEMA_VERSION = 1
 INDEX_KIND = "catalog_derived_index"
 BUILDER_VERSION = "m36_issue405_v1"
 IndexMode = Literal["direct", "index", "auto"]
+DEFAULT_DERIVED_INDEX_PATH = "artifacts/_derived/catalog_index/catalog_index.sqlite"
 
 
 class DerivedIndexError(ValueError):
@@ -88,6 +95,7 @@ def validate_derived_index(
         raise DerivedIndexError(f"Derived catalog index is unreadable; rebuild required: {path}") from exc
 
     _validate_metadata(metadata, resolved_artifacts=resolved_artifacts, resolved_repo=resolved_repo)
+    metadata = {**metadata, "canonicality_status": canonicality_status(metadata)}
     _validate_internal_counts(metadata, records)
     if check_source_fingerprint:
         current_records = build_catalog(resolved_artifacts, repo_root=resolved_repo)
@@ -127,13 +135,79 @@ def load_catalog_records(
     ).records
 
 
+def load_catalog_records_with_source(
+    artifacts_root: str | Path,
+    *,
+    repo_root: str | Path | None = None,
+    index_path: str | Path | None = None,
+    mode: IndexMode = "direct",
+) -> CatalogLoadResult:
+    """Load catalog records and expose how the source was resolved."""
+
+    resolved_artifacts = Path(artifacts_root)
+    resolved_repo = Path(repo_root) if repo_root is not None else None
+    portable_index_path = _portable_index_path(index_path, resolved_repo)
+    if mode == "direct":
+        return CatalogLoadResult(
+            records=build_catalog(resolved_artifacts, repo_root=resolved_repo),
+            load_source=build_load_source(
+                loaded_from="direct_scan",
+                requested_mode="direct",
+                resolved_mode="direct",
+                index_validated=False,
+            ),
+        )
+    if mode not in {"index", "auto"}:
+        raise ValueError("mode must be 'direct', 'index', or 'auto'")
+    if index_path is None:
+        if mode == "index":
+            raise DerivedIndexError("Index mode requires an explicit index path.")
+        return CatalogLoadResult(
+            records=build_catalog(resolved_artifacts, repo_root=resolved_repo),
+            load_source=build_load_source(
+                loaded_from="direct_scan",
+                requested_mode="auto",
+                resolved_mode="direct",
+                index_validated=False,
+            ),
+        )
+    path = Path(index_path)
+    if not path.exists() and mode == "auto":
+        return CatalogLoadResult(
+            records=build_catalog(resolved_artifacts, repo_root=resolved_repo),
+            load_source=build_load_source(
+                loaded_from="direct_scan",
+                requested_mode="auto",
+                resolved_mode="direct",
+                index_path=portable_index_path,
+                index_validated=False,
+            ),
+        )
+    validation = validate_derived_index(
+        path,
+        artifacts_root=resolved_artifacts,
+        repo_root=resolved_repo,
+    )
+    return CatalogLoadResult(
+        records=validation.records,
+        load_source=build_load_source(
+            loaded_from="derived_index",
+            requested_mode=mode,
+            resolved_mode="index",
+            index_path=portable_index_path,
+            index_validated=True,
+        ),
+    )
+
+
 def _build_metadata(
     records: list[CatalogRecord],
     *,
     resolved_artifacts: Path,
     resolved_repo: Path,
 ) -> dict[str, Any]:
-    return {
+    source_fingerprint = _records_fingerprint(records)
+    metadata = {
         "schema_version": DERIVED_INDEX_SCHEMA_VERSION,
         "index_kind": INDEX_KIND,
         "source_artifact_root": _portable_path(resolved_artifacts, resolved_repo),
@@ -141,12 +215,22 @@ def _build_metadata(
         "record_count": len(records),
         "record_family_counts": _family_counts(records),
         "created_at_utc": None,
-        "source_fingerprint": _records_fingerprint(records),
+        "source_fingerprint": source_fingerprint,
         "catalog_record_schema_version": CATALOG_RECORD_SCHEMA_VERSION,
         "builder_version": BUILDER_VERSION,
         "is_derived": True,
         "canonical_source": "artifacts",
     }
+    metadata.update(
+        build_canonicality_envelope(
+            derived_class="sqlite_read_model",
+            authority_root=_portable_path(resolved_artifacts, resolved_repo),
+            authority_paths=canonical_authority_paths(records),
+            authority_fingerprint=source_fingerprint,
+        )
+    )
+    metadata["canonicality_status"] = canonicality_status(metadata)
+    return metadata
 
 
 def _write_index(path: Path, metadata: dict[str, Any], records: list[CatalogRecord]) -> None:
@@ -274,3 +358,15 @@ def _portable_path(path: Path, repo_root: Path) -> str:
         return path.relative_to(repo_root).as_posix()
     except ValueError:
         return path.name
+
+
+def _portable_index_path(index_path: str | Path | None, repo_root: Path | None) -> str | None:
+    if index_path is None:
+        return None
+    path = Path(index_path)
+    if repo_root is not None:
+        try:
+            return path.resolve().relative_to(repo_root.resolve()).as_posix()
+        except ValueError:
+            pass
+    return path.name

@@ -104,7 +104,12 @@ def _records() -> list[CatalogRecord]:
 
 def test_cli_json_output_matches_python_rendering(monkeypatch, capsys) -> None:
     records = _records()
-    monkeypatch.setattr(explorer_cli, "build_catalog", lambda *args, **kwargs: records)
+    expected_view = build_evidence_explorer_view(
+        records,
+        query=CatalogQuery(record_family="robustness_bundle", robustness_status="needs_review"),
+        repo_root=".",
+    )
+    monkeypatch.setattr(explorer_cli, "build_evidence_view_for_workflow", lambda *args, **kwargs: expected_view)
 
     code = explorer_cli.main(
         [
@@ -116,18 +121,16 @@ def test_cli_json_output_matches_python_rendering(monkeypatch, capsys) -> None:
             "json",
         ]
     )
-    expected_view = build_evidence_explorer_view(
-        records,
-        query=CatalogQuery(record_family="robustness_bundle", robustness_status="needs_review"),
-        repo_root=".",
-    )
-
     assert code == 0
     assert capsys.readouterr().out == render_evidence_json(expected_view)
 
 
 def test_cli_markdown_selected_run_includes_lineage(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(explorer_cli, "build_catalog", lambda *args, **kwargs: _records())
+    monkeypatch.setattr(
+        explorer_cli,
+        "build_evidence_view_for_workflow",
+        lambda *args, **kwargs: build_evidence_explorer_view(_records(), selected_run_id="strategy_a", repo_root="."),
+    )
 
     code = explorer_cli.main(["--run-id", "strategy_a", "--format", "markdown"])
 
@@ -139,7 +142,13 @@ def test_cli_markdown_selected_run_includes_lineage(monkeypatch, capsys) -> None
 
 
 def test_cli_table_output(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(explorer_cli, "build_catalog", lambda *args, **kwargs: _records())
+    monkeypatch.setattr(
+        explorer_cli,
+        "build_evidence_view_for_workflow",
+        lambda *args, **kwargs: build_evidence_explorer_view(
+            _records(), query=CatalogQuery(governance_status="pass"), repo_root="."
+        ),
+    )
 
     code = explorer_cli.main(["--governance-status", "pass", "--format", "table"])
 
@@ -150,7 +159,11 @@ def test_cli_table_output(monkeypatch, capsys) -> None:
 
 
 def test_cli_output_writes_derived_review_file(monkeypatch, tmp_path, capsys) -> None:
-    monkeypatch.setattr(explorer_cli, "build_catalog", lambda *args, **kwargs: _records())
+    monkeypatch.setattr(
+        explorer_cli,
+        "build_evidence_view_for_workflow",
+        lambda *args, **kwargs: build_evidence_explorer_view(_records(), selected_run_id="strategy_a", repo_root="."),
+    )
     output_path = tmp_path / "derived" / "evidence.md"
 
     code = explorer_cli.main(["--run-id", "strategy_a", "--output", str(output_path)])
@@ -163,7 +176,13 @@ def test_cli_output_writes_derived_review_file(monkeypatch, tmp_path, capsys) ->
 
 
 def test_cli_empty_result_json(monkeypatch, capsys) -> None:
-    monkeypatch.setattr(explorer_cli, "build_catalog", lambda *args, **kwargs: _records())
+    monkeypatch.setattr(
+        explorer_cli,
+        "build_evidence_view_for_workflow",
+        lambda *args, **kwargs: build_evidence_explorer_view(
+            _records(), query=CatalogQuery(record_family="missing"), repo_root="."
+        ),
+    )
 
     code = explorer_cli.main(["--record-family", "missing", "--format", "json"])
 

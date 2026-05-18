@@ -5,10 +5,12 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from src.catalog.derived_index import IndexMode, load_catalog_records
+from src.catalog.canonicality import build_canonicality_envelope, canonical_authority_paths
+from src.catalog.derived_index import IndexMode, load_catalog_records_with_source
 from src.catalog.explorer import build_evidence_explorer_view
 from src.catalog.lineage import build_lineage_edges
 from src.catalog.lineage_export import LineageExportFormat, export_lineage
+from src.catalog.load_source import derive_view_load_source
 from src.catalog.models import CatalogRecord
 from src.catalog.query import CatalogQuery
 
@@ -37,12 +39,12 @@ def load_catalog_for_workflow(
     """Load records for shared direct/index/auto workflow use."""
 
     resolved_artifacts, resolved_repo = resolve_workflow_roots(artifacts_root, repo_root=repo_root)
-    return load_catalog_records(
+    return load_catalog_records_with_source(
         resolved_artifacts,
         repo_root=resolved_repo,
         index_path=index_path,
         mode=index_mode,
-    )
+    ).records
 
 
 def build_lineage_export_for_workflow(
@@ -57,17 +59,18 @@ def build_lineage_export_for_workflow(
     """Build a deterministic lineage export through shared catalog APIs."""
 
     resolved_artifacts, resolved_repo = resolve_workflow_roots(artifacts_root, repo_root=repo_root)
-    records = load_catalog_for_workflow(
+    load_result = load_catalog_records_with_source(
         resolved_artifacts,
         repo_root=resolved_repo,
         index_path=index_path,
-        index_mode=index_mode,
+        mode=index_mode,
     )
     return export_lineage(
-        records,
-        build_lineage_edges(records, repo_root=resolved_repo),
+        load_result.records,
+        build_lineage_edges(load_result.records, repo_root=resolved_repo),
         format=export_format,
         selected_run_id=selected_run_id,
+        load_source=derive_view_load_source(load_result.load_source, loaded_from="lineage_export"),
     )
 
 
@@ -86,14 +89,14 @@ def build_evidence_view_for_workflow(
     """Build the shared evidence explorer view from one catalog load path."""
 
     resolved_artifacts, resolved_repo = resolve_workflow_roots(artifacts_root, repo_root=repo_root)
-    records = load_catalog_for_workflow(
+    load_result = load_catalog_records_with_source(
         resolved_artifacts,
         repo_root=resolved_repo,
         index_path=index_path,
-        index_mode=index_mode,
+        mode=index_mode,
     )
-    return build_evidence_explorer_view(
-        records,
+    view = build_evidence_explorer_view(
+        load_result.records,
         query=query,
         selected_run_id=selected_run_id,
         selected_catalog_id=selected_catalog_id,
@@ -101,3 +104,15 @@ def build_evidence_view_for_workflow(
         repo_root=resolved_repo,
         limit=limit,
     )
+    view.update(
+        build_canonicality_envelope(
+            derived_class="evidence_view",
+            authority_root=resolved_artifacts.relative_to(resolved_repo).as_posix()
+            if resolved_artifacts.is_relative_to(resolved_repo)
+            else resolved_artifacts.name,
+            authority_paths=canonical_authority_paths(load_result.records),
+            fingerprint_payload=[record.to_dict() for record in load_result.records],
+        )
+    )
+    view["load_source"] = derive_view_load_source(load_result.load_source, loaded_from="evidence_view")
+    return view

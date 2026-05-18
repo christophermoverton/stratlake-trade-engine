@@ -13,6 +13,7 @@ FORBIDDEN_DERIVED_IMPORT_PREFIXES = (
     "src.catalog.derived_index",
     "src.catalog.lineage_export",
     "src.catalog.explorer",
+    "src.catalog.review_pack",
     "src.catalog.workflows",
 )
 FORBIDDEN_CATALOG_FACADE_SYMBOLS = frozenset(
@@ -31,6 +32,8 @@ FORBIDDEN_CATALOG_FACADE_SYMBOLS = frozenset(
         "build_evidence_view_for_workflow",
         "build_load_source",
         "derive_view_load_source",
+        "build_review_pack_metadata",
+        "review_pack_root",
     }
 )
 ALLOWED_RESOLVER_FACADE_SYMBOLS = frozenset(

@@ -1,0 +1,57 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence Review Pack Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "review_id", "artifact_family", "output_root", "required_files", "optional_files", "canonicality", "load_source"],
+  "properties": {
+    "schema_version": { "const": "review_pack_manifest.v1" },
+    "review_id": { "type": "string", "minLength": 1 },
+    "artifact_family": { "const": "evidence_review_pack" },
+    "output_root": { "$ref": "#/$defs/repositoryRelativePath" },
+    "required_files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fileName" },
+      "minItems": 1,
+      "uniqueItems": true
+    },
+    "optional_files": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/fileName" },
+      "uniqueItems": true
+    },
+    "canonicality": { "$ref": "#/$defs/canonicality" },
+    "load_source": { "$ref": "#/$defs/loadSource" }
+  },
+  "$defs": {
+    "repositoryRelativePath": {
+      "type": "string",
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*\\\\)(?!.*://)(?!.*(^|/)\\.\\.(/|$)).+"
+    },
+    "fileName": {
+      "type": "string",
+      "pattern": "^[^/\\\\]+$"
+    },
+    "canonicality": {
+      "type": "object",
+      "required": ["schema_version", "derived_class", "non_authoritative", "write_back_forbidden", "rebuildable"],
+      "properties": {
+        "schema_version": { "const": "canonicality.v1" },
+        "derived_class": { "const": "review_pack" },
+        "non_authoritative": { "const": true },
+        "write_back_forbidden": { "const": true },
+        "rebuildable": { "const": true }
+      }
+    },
+    "loadSource": {
+      "type": "object",
+      "required": ["schema_version", "loaded_from", "canonical_source", "non_authoritative"],
+      "properties": {
+        "schema_version": { "const": "load_source.v1" },
+        "loaded_from": { "const": "review_pack" },
+        "canonical_source": { "const": "artifacts" },
+        "non_authoritative": { "const": true }
+      }
+    }
+  }
+}

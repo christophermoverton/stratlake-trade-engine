@@ -12,7 +12,13 @@ from src.catalog.models import CatalogRecord
 
 CANONICALITY_SCHEMA_VERSION = "canonicality.v1"
 RESOLVER_HINT = "reopen canonical manifests/registries before decision-sensitive use"
-DerivedClass = Literal["sqlite_read_model", "lineage_export", "evidence_view", "workflow_view"]
+DerivedClass = Literal[
+    "sqlite_read_model",
+    "lineage_export",
+    "evidence_view",
+    "workflow_view",
+    "review_pack",
+]
 
 
 def build_canonicality_envelope(

@@ -394,6 +394,18 @@ Start with:
 * [docs/catalog_lineage.md](docs/catalog_lineage.md)
 * [docs/examples/m37_artifact_first_evidence_contracts_example.py](docs/examples/m37_artifact_first_evidence_contracts_example.py)
 
+### Milestone 38: Static Evidence Review Packs and Catalog Health Diagnostics
+
+Milestone 38 begins with derived static evidence review-pack contracts under
+`artifacts/_derived/evidence_review/<review_id>/`. Review packs are inspection
+artifacts only: rebuildable, non-authoritative, write-back-forbidden, and still
+bound to canonical artifacts through M37 canonicality envelopes,
+`load_source.v1`, and resolver-first reopening.
+
+Start with:
+
+* [docs/m38_static_evidence_review_pack_contracts.md](docs/m38_static_evidence_review_pack_contracts.md)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

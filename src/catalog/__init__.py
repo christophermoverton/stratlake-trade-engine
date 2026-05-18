@@ -88,6 +88,14 @@ from src.catalog.resolver import (
     resolve_canonical_record_by_id,
     resolve_canonical_sources,
 )
+from src.catalog.review_pack import (
+    DEFAULT_REVIEW_PACK_ROOT,
+    OPTIONAL_REVIEW_PACK_FILES,
+    REQUIRED_REVIEW_PACK_FILES,
+    REVIEW_PACK_SCHEMA_VERSION,
+    build_review_pack_metadata,
+    review_pack_root,
+)
 from src.catalog.validation import (
     CatalogValidationIssue,
     CatalogValidationReport,
@@ -170,6 +178,12 @@ __all__ = [
     "resolve_canonical_record",
     "resolve_canonical_record_by_id",
     "resolve_canonical_sources",
+    "DEFAULT_REVIEW_PACK_ROOT",
+    "OPTIONAL_REVIEW_PACK_FILES",
+    "REQUIRED_REVIEW_PACK_FILES",
+    "REVIEW_PACK_SCHEMA_VERSION",
+    "build_review_pack_metadata",
+    "review_pack_root",
     "validate_catalog",
     "validate_record",
     "validate_artifact_records",

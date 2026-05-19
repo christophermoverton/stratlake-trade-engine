@@ -35,6 +35,26 @@ not silently override environment variables or CLI flags. Environment variables
 remain the existing bridge for `Settings.load()`, and CLI flags remain the final
 per-run override layer.
 
+M39.2 adds a Python resolver for this model:
+
+```python
+from src.config.resolution import resolve_runtime_profile_config
+
+result = resolve_runtime_profile_config(
+    "ci",
+    environment={"ARTIFACTS_ROOT": "artifacts/ci_run"},
+    cli_overrides={
+        "runtime": {"execution": {"transaction_cost_bps": 5.0}},
+    },
+)
+```
+
+The resolver accepts either a supported profile name, an explicit profile path,
+or no profile. It does not call `load_dotenv()`, execute workflows, scan
+artifacts, create outputs, or mutate canonical config files. To include real
+environment variables, pass an explicit environment mapping from the calling
+context.
+
 ## Profile Shape
 
 Required top-level fields:
@@ -137,6 +157,46 @@ The starter examples use explicit `settings`, `workflow_configs`, `runtime`,
 `review`, and `boundaries` values so contributors can see the contract without
 reading implementation code.
 
+## Resolution Provenance
+
+`resolve_runtime_profile_config(...)` returns a `ConfigResolutionResult` with:
+
+* `config`: the effective resolved settings, workflow config references,
+  runtime config, review config, and boundaries.
+* `provenance`: one `ConfigProvenanceEntry` per resolved field.
+* `profile`: the selected profile name and path, when a profile was used.
+* `precedence`: the ordered source layers.
+
+Each provenance entry records the winning value, source, and source detail:
+
+```json
+{
+  "settings.artifacts_root": {
+    "value": "artifacts/ci",
+    "source": "profile",
+    "source_detail": "configs/profiles/ci.yml"
+  }
+}
+```
+
+Supported provenance sources are:
+
+* `default`
+* `profile`
+* `environment`
+* `cli_override`
+
+Environment provenance records the environment variable name, such as
+`ARTIFACTS_ROOT`. CLI-style provenance records the override section, such as
+`cli_overrides.runtime`. Some normalized runtime values are derived by the
+existing runtime resolver from explicit higher-precedence inputs; those entries
+keep the winning source and include the resolver in `source_detail`.
+
+The result supports deterministic serialization through `to_dict()`,
+`to_json_dict()`, and `to_json()`. Serialized resolved config and provenance are
+explanatory audit views only. They do not become authoritative over canonical
+artifacts, checked-in workflow configs, or persisted run artifacts.
+
 ## Relationship To Existing Configuration
 
 `Settings.load()` continues to read `.env`, real environment variables, and
@@ -155,3 +215,6 @@ Existing runtime modules remain the execution source of truth:
 Workflow config files under `configs/` remain canonical inputs for the workflows
 that consume them. Profiles only point at those files or declare context-level
 overrides; they do not become authoritative over artifacts or workflow configs.
+
+The M39.2 resolver composes those existing contracts for inspection and
+reproducibility. Workflow APIs continue to own execution behavior.

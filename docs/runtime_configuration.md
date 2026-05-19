@@ -30,6 +30,8 @@ defaults < profile config < environment variables < CLI flags
 Runtime profiles are documented in [runtime_profiles.md](runtime_profiles.md).
 They define a non-secret context layer for local, CI, notebook, and pipeline
 usage without replacing canonical workflow configs or persisted artifacts.
+The shared Python resolver in `src/config/resolution.py` applies that model and
+records per-field provenance for inspection.
 
 More specifically:
 

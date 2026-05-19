@@ -10,15 +10,16 @@ execution and validation rules, and writes reproducible artifacts.
 This guide walks through the current repository workflow:
 
 1. set up the environment
-2. point the repo at curated data
-3. build or verify features
-4. run a strategy
-5. run the Milestone 11.5 alpha-to-portfolio example
-6. run the Milestone 12 alpha-evaluation example
-7. run the Milestone 13 review-and-promotion example
-8. run from notebooks or Python scripts
-9. run a strict strategy
-10. build a portfolio from saved runs
+2. run the CI-safe first-run profile checks
+3. point the repo at curated data
+4. build or verify features
+5. run a strategy
+6. run the Milestone 11.5 alpha-to-portfolio example
+7. run the Milestone 12 alpha-evaluation example
+8. run the Milestone 13 review-and-promotion example
+9. run from notebooks or Python scripts
+10. run a strict strategy
+11. build a portfolio from saved runs
 
 For deeper detail, continue with:
 
@@ -43,6 +44,20 @@ Important environment settings:
 * `FEATURES_ROOT`
 * `ARTIFACTS_ROOT`
 * `DUCKDB_PATH`
+
+Runtime profiles provide non-secret starter contexts for local, CI, notebook,
+and pipeline workflows. See [runtime_profiles.md](runtime_profiles.md) and the
+examples in [../configs/profiles](../configs/profiles).
+
+From a clean checkout, the CI-safe first-run flow does not require live market
+data, credentials, network access, or external services:
+
+```powershell
+python -m src.cli.validate_config --profile ci
+python -m src.cli.stratlake_doctor --profile ci
+python -m src.cli.explain_config --profile ci --workflow strategy
+python docs/examples/m39_first_run_configuration_profile_example.py
+```
 
 Typical local values:
 
@@ -93,6 +108,45 @@ cp .env.example .env
 ```
 
 Edit `.env` so `MARKETLAKE_ROOT` points to the curated market-data root.
+
+## CI-Safe First Run
+
+M39 ships starter profiles for `local`, `ci`, `notebook`, and `pipeline`
+contexts. The `ci` profile is the safest first command path because it uses
+repository-relative paths, `:memory:` storage, checked-in config references, and
+explicit boundaries that keep network access, credentials, and live market data
+disabled.
+
+The first-run example writes deterministic advisory reports under
+`docs/examples/output/m39_first_run_configuration_profile_example/`:
+
+* `config_validation.json`
+* `environment_doctor.json`
+* `strategy_explain.json`
+* `synthetic_first_run_probe.json`
+* `summary.json`
+
+These files are generated, disposable, and non-authoritative. They prove setup
+readiness and pre-execution explainability; they do not run backtests, build
+features, construct portfolios, generate evidence packs, or mutate canonical
+artifacts. The default output directory is ignored so maintainers do not commit
+local first-run reports by accident.
+
+Notebook users can call the same APIs directly:
+
+```python
+from src.config.doctor import run_environment_doctor
+from src.config.explain import build_runtime_explain_report
+from src.config.resolution import resolve_runtime_profile_config
+
+resolved = resolve_runtime_profile_config("ci").to_json_dict()
+doctor = run_environment_doctor("ci").to_json_dict()
+explain = build_runtime_explain_report("ci", workflow="strategy").to_json_dict()
+```
+
+Pipeline users can run validation, doctor, and explain as preflight steps.
+Treat reports as advisory and disposable, and fail the pipeline only on explicit
+validation or doctor failures.
 
 ## Build or Verify Features
 

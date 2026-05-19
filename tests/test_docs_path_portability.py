@@ -26,6 +26,26 @@ def test_repo_guarded_surfaces_have_no_absolute_path_leakage() -> None:
     report = lint_guarded_surfaces(REPO_ROOT)
     assert report["status"] == "passed", _render_findings(report)
     assert report["finding_count"] == 0
+    assert "docs/examples/output/**" in report["ignored_surfaces"]
+
+
+def test_docs_path_lint_ignores_generated_example_outputs(tmp_path: Path) -> None:
+    generated_dir = tmp_path / "docs" / "examples" / "output" / "m39_first_run"
+    generated_dir.mkdir(parents=True, exist_ok=True)
+    (generated_dir / "generated_report.md").write_text(
+        "Generated local report path: C:/Users/example/generated/report.json\n",
+        encoding="utf-8",
+    )
+
+    docs_dir = tmp_path / "docs"
+    docs_dir.mkdir(exist_ok=True)
+    (docs_dir / "safe.md").write_text("Portable path: artifacts/_derived/report.json\n", encoding="utf-8")
+
+    report = lint_guarded_surfaces(tmp_path, guarded_surfaces=("docs/**/*.md",))
+
+    assert report["status"] == "passed"
+    assert report["finding_count"] == 0
+    assert "docs/examples/output/**" in report["ignored_surfaces"]
 
 
 def _render_findings(report: dict[str, object]) -> str:

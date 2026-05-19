@@ -21,6 +21,30 @@ Resolution is deterministic:
 repository defaults < config < CLI
 ```
 
+For the broader M39 profile contract, the intended configuration precedence is:
+
+```text
+defaults < profile config < environment variables < CLI flags
+```
+
+Runtime profiles are documented in [runtime_profiles.md](runtime_profiles.md).
+They define a non-secret context layer for local, CI, notebook, and pipeline
+usage without replacing canonical workflow configs or persisted artifacts.
+The shared Python resolver in `src/config/resolution.py` applies that model and
+records per-field provenance for inspection.
+Use `python -m src.cli.validate_config --profile ci` for a CI-safe validation
+surface around the same resolver.
+Use `python -m src.cli.stratlake_doctor --profile ci` for advisory local/CI
+readiness checks without running workflows or requiring live data.
+Use `python -m src.cli.explain_config --profile ci --workflow strategy` to
+inspect resolved config, provenance, paths, assumptions, and boundaries before
+execution.
+Use `python docs/examples/m39_first_run_configuration_profile_example.py` for a
+CI-safe first-run bundle that writes validation, doctor, explain, and synthetic
+readiness reports without requiring live data or executing workflows. Its
+default `docs/examples/output/m39_first_run_configuration_profile_example/`
+directory is generated, disposable, advisory, and ignored by default.
+
 More specifically:
 
 1. execution defaults load from [../configs/execution.yml](../configs/execution.yml)
@@ -184,6 +208,7 @@ If any of those are enabled in config, resolved strict mode is on with
 
 ## Related Docs
 
+* [runtime_profiles.md](runtime_profiles.md)
 * [execution_model.md](execution_model.md)
 * [strict_mode.md](strict_mode.md)
 * [research_validity_framework.md](research_validity_framework.md)

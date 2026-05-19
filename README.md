@@ -417,6 +417,42 @@ Start with:
 * [docs/m38_release_validation_checklist.md](docs/m38_release_validation_checklist.md)
 * [docs/examples/m38_static_evidence_review_pack_example.py](docs/examples/m38_static_evidence_review_pack_example.py)
 
+### Milestone 39: Configuration Profiles and Environment Readiness
+
+Milestone 39 adds non-secret runtime profiles, deterministic config resolution
+with provenance, thin validation and readiness CLIs, runtime explain helpers,
+and a CI-safe first-run onboarding example. The stack helps contributors inspect
+what StratLake would use before execution without requiring live market data,
+credentials, network access, or external services.
+
+Clean-checkout first run:
+
+```powershell
+python -m src.cli.validate_config --profile ci
+python -m src.cli.stratlake_doctor --profile ci
+python -m src.cli.explain_config --profile ci --workflow strategy
+python docs/examples/m39_first_run_configuration_profile_example.py
+```
+
+M39 preserves the artifact-first boundary: canonical artifacts remain the
+source of truth, direct scan remains available and canonical, and generated
+validation, doctor, explain, and first-run reports remain advisory,
+disposable, and non-authoritative.
+
+M39 branch:
+`feature/m39-configuration-profiles-environment-readiness`
+
+Candidate release tag:
+`v0.39.0-configuration-profiles-environment-readiness`
+
+Start with:
+
+* [docs/runtime_profiles.md](docs/runtime_profiles.md)
+* [docs/runtime_configuration.md](docs/runtime_configuration.md)
+* [docs/m39_release_notes.md](docs/m39_release_notes.md)
+* [docs/m39_release_validation_checklist.md](docs/m39_release_validation_checklist.md)
+* [docs/examples/m39_first_run_configuration_profile_example.py](docs/examples/m39_first_run_configuration_profile_example.py)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing
@@ -1742,6 +1778,11 @@ Start here:
 * [docs/m37_artifact_first_canonicality_contracts.md](docs/m37_artifact_first_canonicality_contracts.md)
 * [docs/m37_release_notes.md](docs/m37_release_notes.md)
 * [docs/m37_release_validation_checklist.md](docs/m37_release_validation_checklist.md)
+* [docs/m38_release_notes.md](docs/m38_release_notes.md)
+* [docs/m38_release_validation_checklist.md](docs/m38_release_validation_checklist.md)
+* [docs/m39_release_notes.md](docs/m39_release_notes.md)
+* [docs/m39_release_validation_checklist.md](docs/m39_release_validation_checklist.md)
+* [docs/runtime_profiles.md](docs/runtime_profiles.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)
 * [docs/milestone_26_merge_readiness.md](docs/milestone_26_merge_readiness.md)
@@ -1784,6 +1825,7 @@ Examples:
 * [docs/examples/m27_market_simulation_case_study_report.md](docs/examples/m27_market_simulation_case_study_report.md)
 * [docs/examples/robustness_report_example.py](docs/examples/robustness_report_example.py)
 * [docs/examples/m37_artifact_first_evidence_contracts_example.py](docs/examples/m37_artifact_first_evidence_contracts_example.py)
+* [docs/examples/m39_first_run_configuration_profile_example.py](docs/examples/m39_first_run_configuration_profile_example.py)
 * [docs/examples/pipelines/regime_ensemble_showcase/README.md](docs/examples/pipelines/regime_ensemble_showcase/README.md)
 * [docs/ml_cross_sectional_xgb_2026_q1.md](docs/ml_cross_sectional_xgb_2026_q1.md)
 * [docs/backfilled_2026_q1_research_workflow.md](docs/backfilled_2026_q1_research_workflow.md)

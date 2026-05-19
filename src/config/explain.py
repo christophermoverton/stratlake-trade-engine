@@ -215,7 +215,7 @@ def _expected_artifact_roots(artifacts_root: Any) -> dict[str, Any]:
         "portfolio": f"{root}/portfolios",
         "pipeline": f"{root}/pipelines",
         "campaign": f"{root}/research_campaigns",
-        "evidence_review": f"{root}/evidence_review",
+        "evidence_review": "artifacts/_derived/evidence_review",
     }
 
 

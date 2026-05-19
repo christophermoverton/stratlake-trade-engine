@@ -330,6 +330,9 @@ Explain reports include:
 * workflow assumptions for the selected subject
 * explicit safety flags showing no workflow execution and no canonical mutation
 
+Evidence-review expected roots follow the M38 derived-output convention:
+`artifacts/_derived/evidence_review`. They are not canonical artifact roots.
+
 The CLI prints deterministic JSON to stdout unless `--output` is provided. With
 `--output`, it writes stable sorted JSON to the requested path and prints a
 short status summary to stderr. Reports are advisory, derived/disposable, and

@@ -40,6 +40,10 @@ def test_runtime_explain_api_succeeds_for_ci_profile() -> None:
     assert payload["safety"]["requires_live_market_data"] is False
     assert payload["path_summary"]["artifacts_root"] == "artifacts/ci"
     assert payload["path_summary"]["expected_artifact_roots"]["strategy"] == "artifacts/ci/strategies"
+    assert (
+        payload["path_summary"]["expected_artifact_roots"]["evidence_review"]
+        == "artifacts/_derived/evidence_review"
+    )
 
 
 def test_runtime_explain_cli_succeeds_for_ci_profile(capsys: pytest.CaptureFixture[str]) -> None:

@@ -206,3 +206,8 @@ parity, contract validation, portability, no canonical mutation, review-pack
 deletion safety, direct/index/auto identity parity, stale-index failure behavior,
 and the architecture guardrails that keep review-pack utilities out of
 decision-authority paths.
+
+Release readiness for M38 is tracked in:
+
+- `docs/m38_release_notes.md`
+- `docs/m38_release_validation_checklist.md`

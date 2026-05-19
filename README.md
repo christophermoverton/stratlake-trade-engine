@@ -413,6 +413,8 @@ python -m src.cli.build_evidence_review validate --review-id review_abc123
 Start with:
 
 * [docs/m38_static_evidence_review_pack_contracts.md](docs/m38_static_evidence_review_pack_contracts.md)
+* [docs/m38_release_notes.md](docs/m38_release_notes.md)
+* [docs/m38_release_validation_checklist.md](docs/m38_release_validation_checklist.md)
 * [docs/examples/m38_static_evidence_review_pack_example.py](docs/examples/m38_static_evidence_review_pack_example.py)
 
 ### Milestone 27: Market Simulation Stress Testing Case Study

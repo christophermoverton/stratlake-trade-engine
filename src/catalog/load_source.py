@@ -15,6 +15,7 @@ LoadedFrom = Literal[
     "lineage_export",
     "evidence_view",
     "workflow_view",
+    "review_pack",
 ]
 ResolvedMode = Literal["direct", "index"]
 

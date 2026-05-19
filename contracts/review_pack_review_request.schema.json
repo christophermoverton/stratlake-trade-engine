@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Evidence Review Pack Review Request",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "review_id", "selected_run_id", "canonicality", "load_source"],
+  "properties": {
+    "schema_version": { "const": "review_request.v1" },
+    "review_id": { "type": "string", "minLength": 1 },
+    "selected_run_id": { "type": "string", "minLength": 1 },
+    "selected_catalog_id": { "type": ["string", "null"] },
+    "index_mode": { "type": "string", "enum": ["direct", "index", "auto"] },
+    "resolve_related": { "type": "boolean" },
+    "lineage_format": { "type": "string", "enum": ["openlineage", "prov", "both"] },
+    "canonicality": { "$ref": "#/$defs/canonicality" },
+    "load_source": { "$ref": "#/$defs/loadSource" }
+  },
+  "$defs": {
+    "canonicality": {
+      "type": "object",
+      "required": ["schema_version", "derived_class", "non_authoritative", "write_back_forbidden", "rebuildable"],
+      "properties": {
+        "schema_version": { "const": "canonicality.v1" },
+        "derived_class": { "const": "review_pack" },
+        "non_authoritative": { "const": true },
+        "write_back_forbidden": { "const": true },
+        "rebuildable": { "const": true }
+      }
+    },
+    "loadSource": {
+      "type": "object",
+      "required": ["schema_version", "loaded_from", "canonical_source", "non_authoritative"],
+      "properties": {
+        "schema_version": { "const": "load_source.v1" },
+        "loaded_from": { "const": "review_pack" },
+        "canonical_source": { "const": "artifacts" },
+        "non_authoritative": { "const": true }
+      }
+    }
+  }
+}

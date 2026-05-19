@@ -22,7 +22,7 @@ Newly generated M37 derived evidence surfaces carry a deterministic top-level
     "authority_root": "artifacts",
     "authority_paths": [],
     "authority_fingerprint": "<sha256>",
-    "derived_class": "sqlite_read_model|lineage_export|evidence_view|workflow_view",
+    "derived_class": "sqlite_read_model|lineage_export|evidence_view|workflow_view|review_pack",
     "rebuildable": true,
     "non_authoritative": true,
     "write_back_forbidden": true,
@@ -139,6 +139,7 @@ one system rather than as isolated features.
 - PROV-style root payloads: `derived_class: lineage_export`
 - shared workflow lineage outputs inherit `derived_class: lineage_export`
 - shared workflow evidence views: `derived_class: evidence_view`
+- M38 static evidence review-pack outputs: `derived_class: review_pack`
 
 `workflow_view` is reserved for a future wrapper-level derived payload if one is
 explicitly introduced.

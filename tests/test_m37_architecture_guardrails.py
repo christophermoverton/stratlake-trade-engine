@@ -13,7 +13,9 @@ FORBIDDEN_DERIVED_IMPORT_PREFIXES = (
     "src.catalog.derived_index",
     "src.catalog.lineage_export",
     "src.catalog.explorer",
+    "src.catalog.review_pack",
     "src.catalog.workflows",
+    "src.cli.build_evidence_review",
 )
 FORBIDDEN_CATALOG_FACADE_SYMBOLS = frozenset(
     {
@@ -31,6 +33,12 @@ FORBIDDEN_CATALOG_FACADE_SYMBOLS = frozenset(
         "build_evidence_view_for_workflow",
         "build_load_source",
         "derive_view_load_source",
+        "build_review_pack_metadata",
+        "build_catalog_health_diagnostics",
+        "build_evidence_review_for_workflow",
+        "review_pack_root",
+        "validate_evidence_review_pack",
+        "write_evidence_review_pack",
     }
 )
 ALLOWED_RESOLVER_FACADE_SYMBOLS = frozenset(

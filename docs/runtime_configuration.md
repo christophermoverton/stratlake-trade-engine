@@ -21,6 +21,16 @@ Resolution is deterministic:
 repository defaults < config < CLI
 ```
 
+For the broader M39 profile contract, the intended configuration precedence is:
+
+```text
+defaults < profile config < environment variables < CLI flags
+```
+
+Runtime profiles are documented in [runtime_profiles.md](runtime_profiles.md).
+They define a non-secret context layer for local, CI, notebook, and pipeline
+usage without replacing canonical workflow configs or persisted artifacts.
+
 More specifically:
 
 1. execution defaults load from [../configs/execution.yml](../configs/execution.yml)
@@ -184,6 +194,7 @@ If any of those are enabled in config, resolved strict mode is on with
 
 ## Related Docs
 
+* [runtime_profiles.md](runtime_profiles.md)
 * [execution_model.md](execution_model.md)
 * [strict_mode.md](strict_mode.md)
 * [research_validity_framework.md](research_validity_framework.md)

@@ -1,0 +1,34 @@
+schema_version: 1
+profile: pipeline
+description: Pipeline profile for orchestrated repository workflows.
+use_case: Reproducible pipeline, benchmark-pack, and campaign entrypoints.
+settings:
+  marketlake_root: data/curated
+  features_root: data
+  artifacts_root: artifacts/pipelines
+  duckdb_path: ":memory:"
+  log_level: INFO
+  default_timezone: UTC
+workflow_configs:
+  config_dir: configs
+  execution_config: configs/execution.yml
+  sanity_config: configs/sanity.yml
+  review_config: configs/review.yml
+  pipeline_config: configs/test_pipeline.yml
+  benchmark_pack_config: configs/benchmark_packs/m22_scale_repro.yml
+  research_campaign_config: configs/research_campaign.yml
+runtime:
+  execution:
+    enabled: false
+  strict_mode:
+    enabled: true
+review:
+  output:
+    emit_plots: false
+boundaries:
+  direct_scan: true
+  derived_outputs_authoritative: false
+  mutates_canonical_artifacts: false
+  requires_network: false
+  requires_credentials: false
+  requires_live_market_data: false

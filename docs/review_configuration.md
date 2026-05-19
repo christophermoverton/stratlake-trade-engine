@@ -147,3 +147,9 @@ This config doc is intentionally focused on the contract itself. For practical
 guidance on where the review layer fits in the pipeline, how to read
 `leaderboard.csv`, and how to interpret review-level promotion results, see
 [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md).
+
+Runtime profiles may include a `review` section with the same contract described
+here. Profiles remain non-authoritative context files; in the intended M39
+precedence model, completed review artifacts persist the effective resolved
+review config after defaults, profile context, environment-driven settings, and
+CLI overrides are applied.

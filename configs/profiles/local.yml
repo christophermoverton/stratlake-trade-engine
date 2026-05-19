@@ -1,0 +1,31 @@
+schema_version: 1
+profile: local
+description: Local development profile with repository-relative writable roots.
+use_case: Interactive CLI development and repeatable local research runs.
+settings:
+  marketlake_root: data/curated
+  features_root: data
+  artifacts_root: artifacts
+  duckdb_path: ":memory:"
+  log_level: INFO
+  default_timezone: UTC
+workflow_configs:
+  config_dir: configs
+  execution_config: configs/execution.yml
+  sanity_config: configs/sanity.yml
+  review_config: configs/review.yml
+runtime:
+  execution:
+    enabled: false
+  strict_mode:
+    enabled: false
+review:
+  output:
+    emit_plots: true
+boundaries:
+  direct_scan: true
+  derived_outputs_authoritative: false
+  mutates_canonical_artifacts: false
+  requires_network: false
+  requires_credentials: false
+  requires_live_market_data: false

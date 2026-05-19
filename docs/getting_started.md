@@ -44,6 +44,10 @@ Important environment settings:
 * `ARTIFACTS_ROOT`
 * `DUCKDB_PATH`
 
+Runtime profiles provide non-secret starter contexts for local, CI, notebook,
+and pipeline workflows. See [runtime_profiles.md](runtime_profiles.md) and the
+examples in [../configs/profiles](../configs/profiles).
+
 Typical local values:
 
 ```text

@@ -230,6 +230,60 @@ The CLI does not load `.env`, run workflows, check live data availability, read
 market data, call external services, require credentials, or mutate canonical
 artifacts.
 
+## Environment Doctor
+
+M39.4 adds an advisory readiness checker that layers environment-oriented checks
+on top of profile validation and config resolution:
+
+```powershell
+python -m src.cli.stratlake_doctor --profile local
+```
+
+Supported forms:
+
+```powershell
+python -m src.cli.stratlake_doctor --profile ci
+python -m src.cli.stratlake_doctor --profile notebook
+python -m src.cli.stratlake_doctor --profile pipeline
+python -m src.cli.stratlake_doctor --profile-path configs/profiles/ci.yml
+python -m src.cli.stratlake_doctor --profile ci --output artifacts/_derived/environment_readiness/ci_doctor.json
+```
+
+The doctor checks:
+
+* Python runtime version
+* importability of core local M39 modules
+* selected profile loading and config resolution
+* artifact-first boundaries, including direct scan and non-authoritative derived outputs
+* portable repository-relative path fields
+* checked-in workflow config references
+* optional roots such as `features_root` and `marketlake_root`
+* whether the artifact root target or nearest existing parent appears writable
+* whether an explicit output path follows the `_derived` recommendation
+
+Finding statuses:
+
+* `pass`: readiness check succeeded
+* `warning`: something may need attention, but the doctor remains CI-safe
+* `fail`: validation failed and the command exits nonzero
+* `skipped`: check is not applicable, commonly because optional data does not exist
+
+Warnings and skipped checks do not fail the command. Missing feature or
+marketlake data is reported as skipped or warning unless the profile itself says
+live data is required. The starter profiles explicitly do not require network
+access, credentials, external services, or live market data.
+
+The doctor prints deterministic JSON to stdout unless `--output` is provided.
+With `--output`, it writes stable sorted JSON to the requested path and prints a
+short status summary to stderr. Reports are advisory, disposable,
+non-authoritative, and should be kept under
+`artifacts/_derived/environment_readiness/` or another generated-output
+location.
+
+The doctor does not load `.env`, run backtests, build features, run portfolios,
+run campaigns, inspect secrets, validate live data availability, call external
+services, or mutate canonical artifacts.
+
 ## Relationship To Existing Configuration
 
 `Settings.load()` continues to read `.env`, real environment variables, and

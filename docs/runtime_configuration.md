@@ -34,6 +34,8 @@ The shared Python resolver in `src/config/resolution.py` applies that model and
 records per-field provenance for inspection.
 Use `python -m src.cli.validate_config --profile ci` for a CI-safe validation
 surface around the same resolver.
+Use `python -m src.cli.stratlake_doctor --profile ci` for advisory local/CI
+readiness checks without running workflows or requiring live data.
 
 More specifically:
 

@@ -54,6 +54,12 @@ Validate a profile and its resolved configuration without running workflows:
 python -m src.cli.validate_config --profile ci
 ```
 
+Run the advisory environment doctor:
+
+```powershell
+python -m src.cli.stratlake_doctor --profile local
+```
+
 Typical local values:
 
 ```text

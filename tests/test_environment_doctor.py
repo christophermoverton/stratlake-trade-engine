@@ -7,7 +7,7 @@ import pytest
 import yaml
 
 from src.cli.stratlake_doctor import main, run_cli
-from src.config.doctor import run_environment_doctor, write_environment_doctor_report
+from src.config.doctor import CHECK_CATEGORIES, run_environment_doctor, write_environment_doctor_report
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -31,6 +31,7 @@ def test_environment_doctor_api_passes_for_ci_profile() -> None:
     assert payload["resolved_config"]["boundaries"]["requires_live_market_data"] is False
     assert payload["finding_counts"]["fail"] == 0
     assert _check(payload, "profile_resolves")["status"] == "pass"
+    assert _check(payload, "profile_resolves")["category"] == "profile"
 
 
 def test_environment_doctor_cli_passes_for_ci_profile(capsys: pytest.CaptureFixture[str]) -> None:
@@ -118,6 +119,35 @@ def test_environment_doctor_output_is_deterministic() -> None:
 
     assert first == second
     assert json.loads(first) == run_environment_doctor("ci").to_json_dict()
+
+
+def test_environment_doctor_checks_follow_readiness_flow_order() -> None:
+    payload = run_environment_doctor("ci").to_json_dict()
+    checks = payload["checks"]
+    categories = [check["category"] for check in checks]
+    category_positions = [CHECK_CATEGORIES.index(category) for category in categories]
+
+    assert category_positions == sorted(category_positions)
+    assert categories[0] == "runtime"
+    assert "imports" in categories
+    assert categories.index("profile") > categories.index("imports")
+    assert categories.index("boundaries") > categories.index("profile")
+    assert categories.index("paths") > categories.index("boundaries")
+    assert categories.index("workflow_configs") > categories.index("paths")
+    assert categories.index("data_roots") > categories.index("workflow_configs")
+    assert categories[-1] == "outputs"
+
+    for left, right in zip(checks, checks[1:]):
+        if left["category"] == right["category"]:
+            assert left["name"] <= right["name"]
+
+
+def test_environment_doctor_category_order_preserves_finding_counts() -> None:
+    payload = run_environment_doctor("ci").to_json_dict()
+    checks = payload["checks"]
+
+    for status, count in payload["finding_counts"].items():
+        assert count == sum(1 for check in checks if check["status"] == status)
 
 
 def test_environment_doctor_writes_output_only_when_requested(

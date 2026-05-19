@@ -17,6 +17,17 @@ from src.config.resolution import (
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 CHECK_STATUSES = ("pass", "warning", "fail", "skipped")
+CHECK_CATEGORIES = (
+    "runtime",
+    "imports",
+    "profile",
+    "boundaries",
+    "paths",
+    "workflow_configs",
+    "data_roots",
+    "outputs",
+)
+_CATEGORY_ORDER = {category: index for index, category in enumerate(CHECK_CATEGORIES)}
 
 
 @dataclass(frozen=True)
@@ -24,10 +35,12 @@ class DoctorCheck:
     name: str
     status: str
     message: str
+    category: str
     details: dict[str, Any] | None = None
 
     def to_dict(self) -> dict[str, Any]:
         payload: dict[str, Any] = {
+            "category": self.category,
             "name": self.name,
             "status": self.status,
             "message": self.message,
@@ -111,6 +124,7 @@ def run_environment_doctor(
         checks.append(
             DoctorCheck(
                 name="profile_resolves",
+                category="profile",
                 status="pass",
                 message="Runtime profile and resolved configuration loaded successfully.",
             )
@@ -119,6 +133,7 @@ def run_environment_doctor(
         checks.append(
             DoctorCheck(
                 name="profile_resolves",
+                category="profile",
                 status="fail",
                 message=_safe_message(str(exc), profile_path),
             )
@@ -126,6 +141,7 @@ def run_environment_doctor(
         checks.append(
             DoctorCheck(
                 name="readiness_checks",
+                category="profile",
                 status="skipped",
                 message="Configuration-dependent readiness checks were skipped because profile resolution failed.",
             )
@@ -173,7 +189,7 @@ def _build_report(
     return EnvironmentDoctorReport(
         status=status,
         profile=profile,
-        checks=tuple(sorted(checks, key=lambda check: check.name)),
+        checks=tuple(sorted(checks, key=_check_sort_key)),
         resolved_config=None if resolved_payload is None else resolved_payload["config"],
         artifact_boundaries=None if resolved_payload is None else resolved_payload["artifact_boundaries"],
         output_path=None if output_path is None else _display_path(output_path),
@@ -185,6 +201,7 @@ def _python_runtime_check() -> DoctorCheck:
     status = "pass" if (major, minor) >= (3, 10) else "fail"
     return DoctorCheck(
         name="python_runtime",
+        category="runtime",
         status=status,
         message=f"Python runtime is {major}.{minor}.{micro}.",
         details={
@@ -206,6 +223,7 @@ def _importability_checks() -> list[DoctorCheck]:
         checks.append(
             DoctorCheck(
                 name=f"module_importable:{module_name}",
+                category="imports",
                 status="pass" if spec is not None else "fail",
                 message=(
                     f"Module {module_name} is importable."
@@ -233,6 +251,7 @@ def _boundary_checks(result: ConfigResolutionResult) -> list[DoctorCheck]:
         checks.append(
             DoctorCheck(
                 name=f"boundary:{key}",
+                category="boundaries",
                 status="pass" if actual is expected else "fail",
                 message=(
                     f"Boundary {key} is {actual}."
@@ -263,6 +282,7 @@ def _path_portability_checks(result: ConfigResolutionResult) -> list[DoctorCheck
             checks.append(
                 DoctorCheck(
                     name=f"path_portable:{field}",
+                    category="paths",
                     status="skipped",
                     message=f"Path field {field} is not filesystem-backed in this profile.",
                 )
@@ -274,6 +294,7 @@ def _path_portability_checks(result: ConfigResolutionResult) -> list[DoctorCheck
             checks.append(
                 DoctorCheck(
                     name=f"path_portable:{field}",
+                    category="paths",
                     status="fail",
                     message=str(exc),
                 )
@@ -282,6 +303,7 @@ def _path_portability_checks(result: ConfigResolutionResult) -> list[DoctorCheck
             checks.append(
                 DoctorCheck(
                     name=f"path_portable:{field}",
+                    category="paths",
                     status="pass",
                     message=f"Path field {field} is portable and repository-relative.",
                 )
@@ -305,6 +327,7 @@ def _workflow_config_checks(result: ConfigResolutionResult, repo_root: Path) -> 
         checks.append(
             DoctorCheck(
                 name=f"workflow_config_exists:{key}",
+                category="workflow_configs",
                 status=status,
                 message=message,
                 details={"path": str(value)},
@@ -346,6 +369,7 @@ def _optional_read_root_check(
     if value is None:
         return DoctorCheck(
             name=f"optional_root:{name}",
+            category="data_roots",
             status="skipped",
             message=f"{name} is not configured.",
         )
@@ -353,6 +377,7 @@ def _optional_read_root_check(
     if not path.exists():
         return DoctorCheck(
             name=f"optional_root:{name}",
+            category="data_roots",
             status=missing_status,
             message=missing_message,
             details={"path": str(value)},
@@ -360,12 +385,14 @@ def _optional_read_root_check(
     if path.is_dir():
         return DoctorCheck(
             name=f"optional_root:{name}",
+            category="data_roots",
             status="pass",
             message=f"{name} exists and is a directory.",
             details={"path": str(value)},
         )
     return DoctorCheck(
         name=f"optional_root:{name}",
+        category="data_roots",
         status="warning",
         message=f"{name} exists but is not a directory.",
         details={"path": str(value)},
@@ -376,6 +403,7 @@ def _writable_root_check(value: Any, repo_root: Path) -> DoctorCheck:
     if value is None:
         return DoctorCheck(
             name="artifacts_root_writable",
+            category="data_roots",
             status="skipped",
             message="artifacts_root is not configured.",
         )
@@ -385,6 +413,7 @@ def _writable_root_check(value: Any, repo_root: Path) -> DoctorCheck:
     if target is None:
         return DoctorCheck(
             name="artifacts_root_writable",
+            category="data_roots",
             status="warning",
             message="No existing parent was found for artifacts_root; no directories were created.",
             details={"path": relative},
@@ -392,6 +421,7 @@ def _writable_root_check(value: Any, repo_root: Path) -> DoctorCheck:
     writable = target.is_dir() and _is_writable_directory(target)
     return DoctorCheck(
         name="artifacts_root_writable",
+        category="data_roots",
         status="pass" if writable else "warning",
         message=(
             "artifacts_root target or nearest existing parent appears writable."
@@ -409,6 +439,7 @@ def _output_path_check(output_path: str | Path | None) -> DoctorCheck:
     if output_path is None:
         return DoctorCheck(
             name="output_path_recommendation",
+            category="outputs",
             status="skipped",
             message="No output path was requested; the doctor will not write a report by default.",
         )
@@ -418,6 +449,7 @@ def _output_path_check(output_path: str | Path | None) -> DoctorCheck:
     except ValueError:
         return DoctorCheck(
             name="output_path_recommendation",
+            category="outputs",
             status="warning",
             message="Output path is not repository-relative; report path is sanitized.",
             details={"path": display},
@@ -425,6 +457,7 @@ def _output_path_check(output_path: str | Path | None) -> DoctorCheck:
     status = "pass" if "/_derived/" in f"/{normalized}" else "warning"
     return DoctorCheck(
         name="output_path_recommendation",
+        category="outputs",
         status=status,
         message=(
             "Output path is under a derived-output location."
@@ -459,6 +492,10 @@ def _safe_message(message: str, profile_path: str | Path | None) -> str:
     if not candidate.is_absolute():
         return message
     return message.replace(str(candidate), _display_path(candidate))
+
+
+def _check_sort_key(check: DoctorCheck) -> tuple[int, str, str]:
+    return (_CATEGORY_ORDER.get(check.category, len(_CATEGORY_ORDER)), check.category, check.name)
 
 
 def _validate_portable_path(value: str) -> str:

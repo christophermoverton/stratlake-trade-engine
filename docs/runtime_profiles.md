@@ -261,6 +261,11 @@ The doctor checks:
 * whether the artifact root target or nearest existing parent appears writable
 * whether an explicit output path follows the `_derived` recommendation
 
+Checks are grouped in deterministic readiness-flow categories: `runtime`,
+`imports`, `profile`, `boundaries`, `paths`, `workflow_configs`, `data_roots`,
+and `outputs`. Reports preserve that order for human scanning and stable CI
+diffs.
+
 Finding statuses:
 
 * `pass`: readiness check succeeded

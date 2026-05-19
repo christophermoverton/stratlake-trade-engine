@@ -129,7 +129,8 @@ The first-run example writes deterministic advisory reports under
 These files are generated, disposable, and non-authoritative. They prove setup
 readiness and pre-execution explainability; they do not run backtests, build
 features, construct portfolios, generate evidence packs, or mutate canonical
-artifacts.
+artifacts. The default output directory is ignored so maintainers do not commit
+local first-run reports by accident.
 
 Notebook users can call the same APIs directly:
 

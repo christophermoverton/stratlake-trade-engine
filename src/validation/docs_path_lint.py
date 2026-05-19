@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
+import fnmatch
 from pathlib import Path
 import re
 from typing import Any, Sequence
@@ -18,6 +19,9 @@ DEFAULT_GUARDED_SURFACES: tuple[str, ...] = (
     "docs/examples/**/*.md",
     "docs/examples/**/*.py",
     "examples/**/*.py",
+)
+DEFAULT_IGNORED_GUARDED_SURFACES: tuple[str, ...] = (
+    "docs/examples/output/**",
 )
 
 _WINDOWS_ABSOLUTE_PATH = re.compile(
@@ -49,10 +53,12 @@ class PathLintFinding:
 def lint_guarded_surfaces(
     repo_root: str | Path,
     guarded_surfaces: Sequence[str] | None = None,
+    ignored_surfaces: Sequence[str] | None = None,
 ) -> dict[str, Any]:
     root = Path(repo_root).resolve()
     surfaces = tuple(guarded_surfaces or DEFAULT_GUARDED_SURFACES)
-    files = _resolve_guarded_files(root, surfaces)
+    ignored = tuple(ignored_surfaces or DEFAULT_IGNORED_GUARDED_SURFACES)
+    files = _resolve_guarded_files(root, surfaces, ignored)
     findings: list[PathLintFinding] = []
     for file_path in files:
         findings.extend(_lint_file(file_path=file_path, repo_root=root))
@@ -62,6 +68,7 @@ def lint_guarded_surfaces(
         "schema_version": 1,
         "status": "passed" if not findings else "failed",
         "guarded_surfaces": list(surfaces),
+        "ignored_surfaces": list(ignored),
         "guarded_file_count": len(files),
         "finding_count": len(findings),
         "findings": [finding.to_dict() for finding in findings],
@@ -73,13 +80,22 @@ def write_docs_path_lint_report(report: dict[str, Any], output_path: str | Path)
     return atomic_write_json(output_path, report, sort_keys=True)
 
 
-def _resolve_guarded_files(repo_root: Path, guarded_surfaces: Sequence[str]) -> list[Path]:
+def _resolve_guarded_files(
+    repo_root: Path,
+    guarded_surfaces: Sequence[str],
+    ignored_surfaces: Sequence[str],
+) -> list[Path]:
     files: set[Path] = set()
     for pattern in guarded_surfaces:
         for candidate in repo_root.glob(pattern):
-            if candidate.is_file():
+            if candidate.is_file() and not _matches_any_surface(candidate, repo_root, ignored_surfaces):
                 files.add(candidate)
     return sorted(files)
+
+
+def _matches_any_surface(candidate: Path, repo_root: Path, surfaces: Sequence[str]) -> bool:
+    relative = candidate.relative_to(repo_root).as_posix()
+    return any(fnmatch.fnmatchcase(relative, pattern) for pattern in surfaces)
 
 
 def _lint_file(*, file_path: Path, repo_root: Path) -> list[PathLintFinding]:

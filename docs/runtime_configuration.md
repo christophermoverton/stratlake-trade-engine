@@ -41,7 +41,9 @@ inspect resolved config, provenance, paths, assumptions, and boundaries before
 execution.
 Use `python docs/examples/m39_first_run_configuration_profile_example.py` for a
 CI-safe first-run bundle that writes validation, doctor, explain, and synthetic
-readiness reports without requiring live data or executing workflows.
+readiness reports without requiring live data or executing workflows. Its
+default `docs/examples/output/m39_first_run_configuration_profile_example/`
+directory is generated, disposable, advisory, and ignored by default.
 
 More specifically:
 

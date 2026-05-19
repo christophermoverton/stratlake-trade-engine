@@ -57,6 +57,7 @@ def test_m39_first_run_example_outputs_are_deterministic_and_portable(tmp_path: 
     assert "file://" not in serialized
     assert "C:/" not in serialized
     assert "\\\\" not in serialized
+    assert "../" not in serialized
 
 
 def test_m39_first_run_reports_remain_advisory_and_non_authoritative(tmp_path: Path) -> None:

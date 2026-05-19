@@ -40,7 +40,9 @@ The example writes deterministic generated reports under
 `docs/examples/output/m39_first_run_configuration_profile_example/`. Those
 reports are advisory, disposable, and non-authoritative. They do not require
 live market data, credentials, network access, or external services, and they do
-not execute workflow engines or mutate canonical artifacts.
+not execute workflow engines or mutate canonical artifacts. The directory is
+generated example output and is ignored by default; do not commit those reports
+unless intentionally changing the repository's tracked example-output policy.
 
 Notebook users can import the Python APIs directly instead of shelling out.
 Pipeline users can run validation, doctor, and explain as preflight checks and

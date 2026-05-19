@@ -39,6 +39,9 @@ readiness checks without running workflows or requiring live data.
 Use `python -m src.cli.explain_config --profile ci --workflow strategy` to
 inspect resolved config, provenance, paths, assumptions, and boundaries before
 execution.
+Use `python docs/examples/m39_first_run_configuration_profile_example.py` for a
+CI-safe first-run bundle that writes validation, doctor, explain, and synthetic
+readiness reports without requiring live data or executing workflows.
 
 More specifically:
 

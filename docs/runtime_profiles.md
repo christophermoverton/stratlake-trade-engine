@@ -13,6 +13,39 @@ Derived outputs stay disposable and non-authoritative.
 
 Starter profiles live under [../configs/profiles](../configs/profiles).
 
+## Starter Templates And First Run
+
+The starter templates are checked-in, non-secret profile files:
+
+* `configs/profiles/local.yml`
+* `configs/profiles/ci.yml`
+* `configs/profiles/notebook.yml`
+* `configs/profiles/pipeline.yml`
+
+They use repository-relative paths, `:memory:` DuckDB storage, checked-in
+workflow config references, and explicit artifact-first boundaries. They must
+not contain credentials, tokens, machine-local absolute paths, file URIs, or
+secret-like fields.
+
+For a clean checkout, use the `ci` profile first:
+
+```powershell
+python -m src.cli.validate_config --profile ci
+python -m src.cli.stratlake_doctor --profile ci
+python -m src.cli.explain_config --profile ci --workflow strategy
+python docs/examples/m39_first_run_configuration_profile_example.py
+```
+
+The example writes deterministic generated reports under
+`docs/examples/output/m39_first_run_configuration_profile_example/`. Those
+reports are advisory, disposable, and non-authoritative. They do not require
+live market data, credentials, network access, or external services, and they do
+not execute workflow engines or mutate canonical artifacts.
+
+Notebook users can import the Python APIs directly instead of shelling out.
+Pipeline users can run validation, doctor, and explain as preflight checks and
+fail only on explicit validation or doctor failures.
+
 ## Supported Profiles
 
 | Profile | Intended use |

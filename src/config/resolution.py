@@ -650,7 +650,7 @@ def _source_detail(path: Path) -> str:
     try:
         return resolved.relative_to(REPO_ROOT).as_posix()
     except ValueError:
-        return path.as_posix()
+        return f"<external>/{path.name}"
 
 
 def _canonicalize(value: Any) -> Any:

@@ -197,6 +197,39 @@ The result supports deterministic serialization through `to_dict()`,
 explanatory audit views only. They do not become authoritative over canonical
 artifacts, checked-in workflow configs, or persisted run artifacts.
 
+## Validation CLI
+
+M39.3 adds a thin CLI wrapper around the same profile and resolution APIs:
+
+```powershell
+python -m src.cli.validate_config --profile ci
+```
+
+Other supported forms:
+
+```powershell
+python -m src.cli.validate_config --profile local
+python -m src.cli.validate_config --profile notebook
+python -m src.cli.validate_config --profile pipeline
+python -m src.cli.validate_config --profile-path configs/profiles/ci.yml
+python -m src.cli.validate_config --profile ci --output artifacts/_derived/config_validation/ci_validation.json
+```
+
+Exit codes:
+
+* `0`: profile and resolved config are valid
+* nonzero: profile loading, profile validation, or config resolution failed
+
+The CLI prints deterministic JSON to stdout unless `--output` is provided. When
+an output path is provided, it writes sorted, stable JSON there and prints a
+short status summary to stderr. Validation reports are advisory,
+non-authoritative, and disposable; keep them under `_derived` or another
+generated-output location.
+
+The CLI does not load `.env`, run workflows, check live data availability, read
+market data, call external services, require credentials, or mutate canonical
+artifacts.
+
 ## Relationship To Existing Configuration
 
 `Settings.load()` continues to read `.env`, real environment variables, and

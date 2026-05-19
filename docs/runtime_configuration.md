@@ -32,6 +32,8 @@ They define a non-secret context layer for local, CI, notebook, and pipeline
 usage without replacing canonical workflow configs or persisted artifacts.
 The shared Python resolver in `src/config/resolution.py` applies that model and
 records per-field provenance for inspection.
+Use `python -m src.cli.validate_config --profile ci` for a CI-safe validation
+surface around the same resolver.
 
 More specifically:
 

@@ -48,6 +48,12 @@ Runtime profiles provide non-secret starter contexts for local, CI, notebook,
 and pipeline workflows. See [runtime_profiles.md](runtime_profiles.md) and the
 examples in [../configs/profiles](../configs/profiles).
 
+Validate a profile and its resolved configuration without running workflows:
+
+```powershell
+python -m src.cli.validate_config --profile ci
+```
+
 Typical local values:
 
 ```text

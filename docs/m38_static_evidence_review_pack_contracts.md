@@ -175,3 +175,34 @@ Review packs may organize evidence for inspection. They must never:
 Direct scan remains canonical and default. The `_derived` namespace remains
 excluded from canonical catalog construction, and deleting or rebuilding review
 packs must not change canonical identity.
+
+## Focused M38 Validation
+
+Run the focused review-pack validation slice before merging M38 evidence-review
+changes:
+
+```powershell
+ruff check src\catalog\review_pack.py src\cli\build_evidence_review.py src\catalog\__init__.py tests\test_m38_deterministic_validation.py tests\test_evidence_review_cli.py tests\test_evidence_review_pack_writer.py tests\test_evidence_review_builder.py tests\test_catalog_health_diagnostics.py tests\test_review_pack_contracts.py tests\test_m37_architecture_guardrails.py docs\examples\m38_static_evidence_review_pack_example.py
+```
+
+```powershell
+pytest tests\test_m38_deterministic_validation.py tests\test_evidence_review_cli.py tests\test_evidence_review_pack_writer.py tests\test_evidence_review_builder.py tests\test_catalog_health_diagnostics.py tests\test_review_pack_contracts.py tests\test_canonical_resolver.py tests\test_catalog_lineage_export.py tests\test_catalog_derived_index.py tests\test_derived_namespace_and_load_source.py tests\test_m37_architecture_guardrails.py tests\test_portable_paths.py tests\test_docs_path_portability.py -q
+```
+
+Smoke the CI-safe example:
+
+```powershell
+python docs/examples/m38_static_evidence_review_pack_example.py
+```
+
+For milestone-level confidence, run the milestone validation bundle:
+
+```powershell
+python -m src.cli.run_milestone_validation --bundle-dir artifacts/qa/m38_validation_bundle --include-full-pytest
+```
+
+This slice protects deterministic model generation, pack writing, CLI/API
+parity, contract validation, portability, no canonical mutation, review-pack
+deletion safety, direct/index/auto identity parity, stale-index failure behavior,
+and the architecture guardrails that keep review-pack utilities out of
+decision-authority paths.

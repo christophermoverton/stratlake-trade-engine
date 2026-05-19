@@ -15,6 +15,7 @@ FORBIDDEN_DERIVED_IMPORT_PREFIXES = (
     "src.catalog.explorer",
     "src.catalog.review_pack",
     "src.catalog.workflows",
+    "src.cli.build_evidence_review",
 )
 FORBIDDEN_CATALOG_FACADE_SYMBOLS = frozenset(
     {

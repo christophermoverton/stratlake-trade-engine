@@ -60,6 +60,12 @@ Run the advisory environment doctor:
 python -m src.cli.stratlake_doctor --profile local
 ```
 
+Explain resolved configuration before running a workflow:
+
+```powershell
+python -m src.cli.explain_config --profile local --workflow strategy
+```
+
 Typical local values:
 
 ```text

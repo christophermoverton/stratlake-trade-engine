@@ -289,6 +289,59 @@ The doctor does not load `.env`, run backtests, build features, run portfolios,
 run campaigns, inspect secrets, validate live data availability, call external
 services, or mutate canonical artifacts.
 
+## Dry-Run And Explain
+
+M39.5 adds deterministic explain helpers for inspecting what StratLake would use
+before a workflow executes:
+
+```python
+from src.config.explain import build_runtime_explain_report
+
+report = build_runtime_explain_report("ci", workflow="strategy")
+payload = report.to_json_dict()
+```
+
+The dedicated CLI is:
+
+```powershell
+python -m src.cli.explain_config --profile ci --workflow strategy
+```
+
+Supported forms:
+
+```powershell
+python -m src.cli.explain_config --profile local
+python -m src.cli.explain_config --profile-path configs/profiles/ci.yml
+python -m src.cli.explain_config --profile ci --workflow portfolio
+python -m src.cli.explain_config --profile ci --workflow strategy --output artifacts/_derived/config_explain/ci_strategy_explain.json
+```
+
+Supported workflow subjects are `generic`, `strategy`, `alpha`, `portfolio`,
+`pipeline`, `campaign`, and `evidence_review`. The selected subject only changes
+the assumptions included in the report; it does not invoke that workflow.
+
+Explain reports include:
+
+* selected profile metadata and source
+* resolved settings, workflow configs, runtime config, review config, and boundaries
+* full provenance plus source-count summary
+* highest-precedence source used
+* key path summary and expected artifact-root locations
+* workflow assumptions for the selected subject
+* explicit safety flags showing no workflow execution and no canonical mutation
+
+The CLI prints deterministic JSON to stdout unless `--output` is provided. With
+`--output`, it writes stable sorted JSON to the requested path and prints a
+short status summary to stderr. Reports are advisory, derived/disposable, and
+non-authoritative; keep written reports under
+`artifacts/_derived/config_explain/` or another generated-output location.
+
+Explain helpers do not load `.env`, run backtests, train alpha models, build
+portfolios, run pipeline stages, run research campaigns, generate evidence
+review packs, require live data, require credentials, call external services, or
+mutate canonical artifacts. They are notebook-friendly and pipeline-friendly
+inspection tools for resolved configuration context.
+
 ## Relationship To Existing Configuration
 
 `Settings.load()` continues to read `.env`, real environment variables, and

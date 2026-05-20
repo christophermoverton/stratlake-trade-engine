@@ -109,3 +109,46 @@ M40.1 is contract-only. It does not:
 * reconstruct total returns;
 * model dividend reinvestment;
 * mutate strategy, alpha, portfolio, or backtest behavior.
+
+## Local Dividend Importer
+
+M40.2 adds a deterministic local-artifact importer in
+`src/corporate_actions/dividend_importer.py`. It reads upstream
+`dividends.parquet` and `metadata.json` files from the companion ingestion
+project's local output, maps fields through the
+`corporate_actions.dividends.v1` contract, validates the normalized rows, and
+writes a curated event dataset under:
+
+```text
+data/curated/events/dividends/symbol=<SYMBOL>/year=<YYYY>/part-0.parquet
+```
+
+Import windows use half-open event-date semantics:
+
+```text
+start <= ex_date < end
+```
+
+The importer trims string fields, uppercases `symbol`, normalizes date fields to
+`YYYY-MM-DD`, preserves nullable amount/date fields, serializes object-like
+`raw_payload` values deterministically, and sorts output rows by:
+
+```text
+symbol
+ex_date
+event_type
+process_date
+source_event_id
+source
+```
+
+Strict mode rejects invalid contract rows and duplicate primary-key rows.
+Advisory mode reports invalid rows, reports duplicate primary-key row counts,
+drops invalid rows, and keeps the first deterministic duplicate occurrence for
+the curated output. Full QA and provenance artifacts are deferred to later M40
+issues.
+
+The importer is local-file only. It does not import the upstream package, shell
+out to upstream CLIs, call Alpaca, read credentials, use network access, adjust
+OHLCV bars, create adjusted price datasets, reconstruct total returns, or
+register catalog evidence.

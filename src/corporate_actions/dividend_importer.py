@@ -186,6 +186,27 @@ def write_dividend_event_dataset(events: pd.DataFrame, output_root: str | Path) 
     return tuple(sorted(partitions))
 
 
+def load_dividend_events(dataset_root: str | Path) -> pd.DataFrame:
+    """
+    Load a curated dividend event dataset from its partitioned dataset root.
+
+    Dividend event datasets use Hive-style partition directories
+    ``symbol=<SYMBOL>/year=<YYYY>/``. Downstream consumers should read from the
+    dataset root so pandas/pyarrow reconstructs partition columns.
+    """
+
+    root = Path(dataset_root)
+    if not root.exists():
+        raise DividendImportError(f"dividend event dataset root does not exist: {root}.")
+    if not root.is_dir():
+        raise DividendImportError(f"dividend event dataset root must be a directory: {root}.")
+
+    frame = pd.read_parquet(root)
+    if frame.empty:
+        return frame
+    return _sort_loaded_dividend_events(frame)
+
+
 def import_dividend_events(
     *,
     source_data_path: str | Path,
@@ -924,3 +945,10 @@ def _sort_dividend_events(events: pd.DataFrame) -> pd.DataFrame:
     if events.empty:
         return events.copy()
     return events.sort_values(list(DIVIDEND_SORT_COLUMNS), kind="mergesort").reset_index(drop=True)
+
+
+def _sort_loaded_dividend_events(events: pd.DataFrame) -> pd.DataFrame:
+    sort_columns = [column for column in DIVIDEND_SORT_COLUMNS if column in events.columns]
+    if "year" in events.columns:
+        sort_columns.append("year")
+    return events.sort_values(sort_columns, kind="mergesort").reset_index(drop=True)

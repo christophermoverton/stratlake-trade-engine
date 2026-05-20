@@ -88,3 +88,6 @@ docs/examples/output/m27_market_simulation_case_study/source_simulation_artifact
 
 # Generated first-run onboarding reports
 docs/examples/output/m39_first_run_configuration_profile_example/
+
+# Generated M40 dividend evidence example outputs
+docs/examples/output/m40_dividend_events/

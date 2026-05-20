@@ -244,3 +244,41 @@ source artifacts. Catalog validation can warn about missing dividend import
 artifacts or non-portable metadata paths, but those warnings do not alter
 promotion, governance, strategy, alpha, portfolio, backtest, OHLCV, or adjusted
 price behavior.
+
+## API, CLI, and Examples
+
+The public Python API is the primary M40 entry point:
+
+```python
+from src.corporate_actions import import_dividend_events, load_dividend_events
+```
+
+`load_dividend_events(dataset_root)` reads from the partitioned dataset root so
+Hive-style `symbol=<SYMBOL>/year=<YYYY>/` partition columns are reconstructed.
+Individual partition files are not the supported downstream access pattern and
+may not contain `symbol` as a physical file column.
+
+The CLI is a thin wrapper around the same Python API:
+
+```bash
+python -m src.cli.import_corporate_actions_dividends \
+  --source-data docs/examples/output/m40_dividend_events/fixtures/corporate_actions/dividends.parquet \
+  --source-metadata docs/examples/output/m40_dividend_events/fixtures/corporate_actions/metadata.json \
+  --output-root docs/examples/output/m40_dividend_events/data \
+  --artifact-root docs/examples/output/m40_dividend_events/artifacts \
+  --start 2024-01-01 \
+  --end 2025-01-01 \
+  --strict
+```
+
+CI-safe examples live in:
+
+```text
+docs/examples/m40_dividend_evidence_import_example.py
+docs/examples/m40_dividend_pipeline_step_example.py
+```
+
+Both examples generate tiny synthetic local fixtures and write only under the
+ignored `docs/examples/output/m40_dividend_events/` directory. They do not use
+live market data, credentials, network access, adjusted prices, total-return
+features, or dividend reinvestment logic.

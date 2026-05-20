@@ -372,14 +372,14 @@ def _build_import_config(
     strict: bool,
 ) -> dict[str, Any]:
     return {
-        "artifact_root": portable_path(artifact_root, roots=(Path.cwd(),)),
+        "artifact_root": _portable_import_path(artifact_root, artifact_root=artifact_root),
         "event_evidence_policy": "dividend events are explicit event evidence, not adjusted price data",
         "fallback_key_behavior": "deferred_inactive",
-        "output_root": portable_path(output_root, roots=(Path.cwd(),)),
+        "output_root": _portable_import_path(output_root, artifact_root=artifact_root),
         "schema_name": DIVIDEND_SCHEMA_NAME,
         "schema_version": DIVIDEND_SCHEMA_VERSION,
-        "source_data_path": portable_path(source_data_path, roots=(Path.cwd(),)),
-        "source_metadata_path": portable_path(source_metadata_path, roots=(Path.cwd(),)),
+        "source_data_path": _portable_import_path(source_data_path, artifact_root=artifact_root),
+        "source_metadata_path": _portable_import_path(source_metadata_path, artifact_root=artifact_root),
         "strict": strict,
         "window": {
             "end": end,
@@ -420,11 +420,11 @@ def _build_import_result(
     symbols = tuple(sorted(valid_events["symbol"].dropna().astype("string").unique().tolist()))
     return DividendImportResult(
         run_id=run_id,
-        source_data_path=portable_path(source_data, roots=(Path.cwd(),)),
-        source_metadata_path=portable_path(source_metadata, roots=(Path.cwd(),)),
-        output_root=portable_path(output, roots=(Path.cwd(),)),
-        artifact_root=portable_path(artifacts, roots=(Path.cwd(),)),
-        artifact_path=portable_path(artifact_path, roots=(Path.cwd(),)),
+        source_data_path=_portable_import_path(source_data, artifact_root=artifacts),
+        source_metadata_path=_portable_import_path(source_metadata, artifact_root=artifacts),
+        output_root=_portable_import_path(output, artifact_root=artifacts),
+        artifact_root=_portable_import_path(artifacts, artifact_root=artifacts),
+        artifact_path=_portable_import_path(artifact_path, artifact_root=artifacts),
         start=start_date,
         end=end_date,
         input_row_count=int(len(upstream)),
@@ -473,6 +473,7 @@ def _write_dividend_import_artifacts(
         metadata=metadata,
         source_data=source_data,
         source_metadata=source_metadata,
+        artifact_root=artifact_path.parent,
         source_dataset_fingerprint=source_dataset_fingerprint,
         import_config_fingerprint=import_config_fingerprint,
     )
@@ -569,6 +570,7 @@ def _build_source_provenance(
     metadata: dict[str, Any],
     source_data: Path,
     source_metadata: Path,
+    artifact_root: Path,
     source_dataset_fingerprint: str,
     import_config_fingerprint: str,
 ) -> dict[str, Any]:
@@ -581,9 +583,9 @@ def _build_source_provenance(
         "path_policy": "repository-relative POSIX paths only; no absolute local paths",
         "schema_name": DIVIDEND_SCHEMA_NAME,
         "schema_version": DIVIDEND_SCHEMA_VERSION,
-        "source_data_path": portable_path(source_data, roots=(Path.cwd(),)),
+        "source_data_path": _portable_import_path(source_data, artifact_root=artifact_root),
         "source_dataset_fingerprint": source_dataset_fingerprint,
-        "source_metadata_path": portable_path(source_metadata, roots=(Path.cwd(),)),
+        "source_metadata_path": _portable_import_path(source_metadata, artifact_root=artifact_root),
         "source_vendor": source_vendor,
         "upstream_metadata": _safe_metadata(metadata),
         "upstream_package_name": _metadata_string(metadata, "upstream_package_name")
@@ -806,6 +808,19 @@ def _resolve_local_file(path: str | Path, *, label: str) -> Path:
     if not resolved.is_file():
         raise DividendImportError(f"{label} path must be a file: {raw!r}.")
     return resolved
+
+
+def _portable_import_path(path: str | Path, *, artifact_root: Path) -> str:
+    return portable_path(path, roots=(Path.cwd(), *_import_portable_roots(artifact_root)))
+
+
+def _import_portable_roots(artifact_root: Path) -> tuple[Path, ...]:
+    resolved = artifact_root.resolve()
+    roots: list[Path] = []
+    if resolved.name == "corporate_actions" and resolved.parent.name == "artifacts":
+        roots.append(resolved.parent.parent)
+    roots.append(resolved.parent)
+    return tuple(roots)
 
 
 def _normalize_string_series(series: pd.Series, *, uppercase: bool = False) -> pd.Series:

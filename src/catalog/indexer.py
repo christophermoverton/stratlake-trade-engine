@@ -85,6 +85,7 @@ _KNOWN_FAMILIES: tuple[str, ...] = (
     "promotion_governance",
     "milestone_validation",
     "release_validation",
+    "corporate_actions",
 )
 
 # Registry paths relative to artifacts_root
@@ -136,6 +137,7 @@ _EVIDENCE_RECORD_FAMILIES: frozenset[str] = frozenset(
         "governance_bundle",
         "milestone_validation_bundle",
         "release_validation_artifact",
+        "corporate_action_event_dataset",
     }
 )
 
@@ -711,6 +713,7 @@ def _infer_run_type(
         "promotion_governance": "governance_bundle",
         "milestone_validation": "milestone_validation_bundle",
         "release_validation": "release_validation_artifact",
+        "corporate_actions": "corporate_action_event_dataset",
         "registry": "portfolio_template",
     }
     if parent_name in _FAMILY_TO_RUN_TYPE:
@@ -754,6 +757,8 @@ def _extract_evidence_metadata(
         )
     elif record_family == "release_validation_artifact":
         _merge_evidence(evidence, _extract_release_validation_evidence(artifact_root, repo_root=repo_root))
+    elif record_family == "corporate_action_event_dataset":
+        _merge_evidence(evidence, _extract_dividend_event_evidence(artifact_root, repo_root=repo_root))
 
     return evidence
 
@@ -791,6 +796,14 @@ def _infer_record_family(
         or (artifact_root / "release_validation_summary.json").exists()
     ):
         return "release_validation_artifact"
+    if (
+        run_type == "corporate_action_event_dataset"
+        or manifest_artifact_type in {"corporate_action_event_import", "corporate_action_event_dataset"}
+        or _str_or_none(manifest.get("evidence_type")) == "dividend_events"
+        or (artifact_root / "source_provenance.json").exists()
+        and (artifact_root / "schema_contract.json").exists()
+    ):
+        return "corporate_action_event_dataset"
     return None
 
 
@@ -908,6 +921,99 @@ def _extract_release_validation_evidence(artifact_root: Path, *, repo_root: Path
         "metadata": {
             "release_id": payload.get("release_id"),
             "finding_count": payload.get("finding_count"),
+        },
+    }
+
+
+def _extract_dividend_event_evidence(artifact_root: Path, *, repo_root: Path) -> dict[str, Any]:
+    manifest = load_json_file(artifact_root / "manifest.json") or {}
+    summary = load_json_file(artifact_root / "summary.json") or {}
+    qa = load_json_file(artifact_root / "qa_summary.json") or {}
+    provenance = load_json_file(artifact_root / "source_provenance.json") or {}
+    schema = load_json_file(artifact_root / "schema_contract.json") or {}
+    import_config = load_json_file(artifact_root / "import_config.json") or {}
+    import_result = summary.get("import_result") if isinstance(summary.get("import_result"), dict) else {}
+
+    schema_name = _str_or_none(
+        schema.get("schema_name")
+        or manifest.get("schema_name")
+        or summary.get("schema_name")
+        or provenance.get("schema_name")
+        or import_config.get("schema_name")
+    )
+    contract_schema_version = _str_or_none(
+        schema.get("schema_version")
+        or manifest.get("schema_version")
+        or summary.get("schema_version")
+        or provenance.get("schema_version")
+        or import_config.get("schema_version")
+    )
+    canonical_dataset_root = _str_or_none(
+        manifest.get("canonical_dataset_root")
+        or import_result.get("output_root")
+        or import_config.get("output_root")
+    )
+
+    return {
+        "_source_files": _existing_relative_files(
+            artifact_root,
+            repo_root,
+            [
+                "manifest.json",
+                "summary.json",
+                "qa_summary.json",
+                "schema_contract.json",
+                "source_provenance.json",
+                "duplicate_events.csv",
+                "invalid_events.csv",
+                "import_config.json",
+            ],
+        ),
+        "metadata": {
+            "artifact_type": "corporate_action_event_dataset",
+            "canonical_dataset_root": canonical_dataset_root,
+            "canonicality": "canonical_import_artifact",
+            "contract_schema_version": contract_schema_version,
+            "credentials_used": provenance.get("credentials_used"),
+            "duplicate_event_count": qa.get("duplicate_event_count"),
+            "event_domain": "dividends",
+            "event_evidence_policy": _str_or_none(
+                manifest.get("event_evidence_policy")
+                or summary.get("event_evidence_policy")
+                or qa.get("event_evidence_policy")
+            ),
+            "evidence_type": "dividend_events",
+            "fallback_key_behavior": _str_or_none(
+                manifest.get("fallback_key_behavior")
+                or summary.get("fallback_key_behavior")
+                or qa.get("fallback_key_behavior")
+                or provenance.get("fallback_key_behavior")
+            ),
+            "import_config_fingerprint": provenance.get("import_config_fingerprint"),
+            "invalid_event_count": qa.get("invalid_event_count"),
+            "live_network_used": provenance.get("live_network_used"),
+            "qa_summary_path": _relative_posix(artifact_root / "qa_summary.json", repo_root)
+            if (artifact_root / "qa_summary.json").exists()
+            else None,
+            "schema_contract_path": _relative_posix(artifact_root / "schema_contract.json", repo_root)
+            if (artifact_root / "schema_contract.json").exists()
+            else None,
+            "schema_name": schema_name,
+            "schema_version": schema_name,
+            "source_dataset_fingerprint": provenance.get("source_dataset_fingerprint"),
+            "source_domain": "corporate_actions",
+            "source_provenance_path": _relative_posix(artifact_root / "source_provenance.json", repo_root)
+            if (artifact_root / "source_provenance.json").exists()
+            else None,
+            "source_vendor": provenance.get("source_vendor"),
+            "summary_path": _relative_posix(artifact_root / "summary.json", repo_root)
+            if (artifact_root / "summary.json").exists()
+            else None,
+            "upstream_package_name": provenance.get("upstream_package_name"),
+            "upstream_package_version": provenance.get("upstream_package_version"),
+            "upstream_project": provenance.get("upstream_project"),
+            "upstream_source_repository": provenance.get("upstream_source_repository"),
+            "written_row_count": qa.get("written_row_count"),
         },
     }
 
@@ -1273,6 +1379,12 @@ def _make_artifact_id(catalog_id: str, relative_path: str) -> str:
 def _extract_manifest_paths(manifest_data: dict[str, Any]) -> set[str]:
     """Extract relative file paths declared in a manifest."""
     paths: set[str] = set()
+    artifact_files = manifest_data.get("artifact_files")
+    if isinstance(artifact_files, list):
+        for item in artifact_files:
+            if isinstance(item, str):
+                paths.add(item.lstrip("/"))
+
     for key in ("artifacts", "files", "outputs", "inputs"):
         val = manifest_data.get(key)
         if isinstance(val, list):

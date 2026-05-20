@@ -203,3 +203,44 @@ Fallback-key operationalization remains inactive for M40. `source_event_id`
 stays required for imported records. Fallback-key definitions remain documented
 future compatibility and should become active only through an explicit later
 issue if a supported upstream source lacks event IDs.
+
+## Catalog Discovery
+
+M40.4 makes dividend import artifacts discoverable through the existing
+read-only catalog direct scan. Dividend imports are not registered in a separate
+corporate-actions registry, and catalog records are not authoritative. The
+canonical sources remain the curated dividend event dataset and the import
+artifact bundle.
+
+Catalog records for dividend imports use the evidence family:
+
+```text
+record_family: corporate_action_event_dataset
+run_type: corporate_action_event_dataset
+artifact_type: corporate_action_event_dataset
+evidence_type: dividend_events
+source_domain: corporate_actions
+event_domain: dividends
+schema_version: corporate_actions.dividends.v1
+canonicality: canonical_import_artifact
+```
+
+The catalog evidence metadata points to the canonical dataset root and import
+artifacts:
+
+```text
+data/curated/events/dividends/
+artifacts/corporate_actions/<run_id>/manifest.json
+artifacts/corporate_actions/<run_id>/qa_summary.json
+artifacts/corporate_actions/<run_id>/schema_contract.json
+artifacts/corporate_actions/<run_id>/source_provenance.json
+artifacts/corporate_actions/<run_id>/summary.json
+```
+
+Catalog query helpers can filter dividend evidence by `artifact_type`,
+`evidence_type`, `source_domain`, `event_domain`, and `schema_version`. Derived
+catalog/query/review surfaces remain disposable read models over direct-scan
+source artifacts. Catalog validation can warn about missing dividend import
+artifacts or non-portable metadata paths, but those warnings do not alter
+promotion, governance, strategy, alpha, portfolio, backtest, OHLCV, or adjusted
+price behavior.

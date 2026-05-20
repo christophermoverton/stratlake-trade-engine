@@ -42,6 +42,11 @@ class CatalogQuery:
     release_validation_present: bool | None = None
     validation_bundle_present: bool | None = None
     release_readiness_present: bool | None = None
+    artifact_type: str | None = None
+    evidence_type: str | None = None
+    source_domain: str | None = None
+    event_domain: str | None = None
+    schema_version: str | None = None
     min_metric: tuple[str, float] | None = None
     max_metric: tuple[str, float] | None = None
     metric_equals: tuple[str, float] | None = None
@@ -85,6 +90,11 @@ def query_catalog(
         release_validation_present=q.release_validation_present,
         validation_bundle_present=q.validation_bundle_present,
         release_readiness_present=q.release_readiness_present,
+        artifact_type=q.artifact_type,
+        evidence_type=q.evidence_type,
+        source_domain=q.source_domain,
+        event_domain=q.event_domain,
+        schema_version=q.schema_version,
         min_metric=q.min_metric,
         max_metric=q.max_metric,
         metric_equals=q.metric_equals,
@@ -124,6 +134,11 @@ def filter_catalog_records(
     release_validation_present: bool | None = None,
     validation_bundle_present: bool | None = None,
     release_readiness_present: bool | None = None,
+    artifact_type: str | None = None,
+    evidence_type: str | None = None,
+    source_domain: str | None = None,
+    event_domain: str | None = None,
+    schema_version: str | None = None,
     min_metric: tuple[str, float] | None = None,
     max_metric: tuple[str, float] | None = None,
     metric_equals: tuple[str, float] | None = None,
@@ -211,6 +226,16 @@ def filter_catalog_records(
             resolved_release_validation_present is not None
             and record.release_validation_present is not resolved_release_validation_present
         ):
+            continue
+        if artifact_type is not None and _evidence_value(record, "artifact_type") != artifact_type:
+            continue
+        if evidence_type is not None and _evidence_value(record, "evidence_type") != evidence_type:
+            continue
+        if source_domain is not None and _evidence_value(record, "source_domain") != source_domain:
+            continue
+        if event_domain is not None and _evidence_value(record, "event_domain") != event_domain:
+            continue
+        if schema_version is not None and _evidence_value(record, "schema_version") != schema_version:
             continue
         if start_ts is not None and (record.start_ts is None or record.start_ts < start_ts):
             continue
@@ -336,6 +361,11 @@ def records_to_rows(records: Iterable[CatalogRecord]) -> list[dict[str, object]]
                 "promotion_review_status": record.promotion_review_status,
                 "validation_readiness_present": record.validation_readiness_present,
                 "release_validation_present": record.release_validation_present,
+                "artifact_type": _evidence_value(record, "artifact_type"),
+                "evidence_type": _evidence_value(record, "evidence_type"),
+                "source_domain": _evidence_value(record, "source_domain"),
+                "event_domain": _evidence_value(record, "event_domain"),
+                "schema_version": _evidence_value(record, "schema_version"),
             }
         )
     return rows
@@ -374,6 +404,17 @@ def _metric_value(record: CatalogRecord, name: str) -> float | None:
     if isinstance(value, bool) or not isinstance(value, (int, float)):
         return None
     return float(value)
+
+
+def _evidence_value(record: CatalogRecord, name: str) -> str | None:
+    evidence = record.metadata.get("evidence") if isinstance(record.metadata, dict) else None
+    if not isinstance(evidence, dict):
+        return None
+    value = evidence.get(name)
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
 
 
 def _sort_records(records: Iterable[CatalogRecord]) -> list[CatalogRecord]:

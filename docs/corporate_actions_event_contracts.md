@@ -152,3 +152,54 @@ The importer is local-file only. It does not import the upstream package, shell
 out to upstream CLIs, call Alpaca, read credentials, use network access, adjust
 OHLCV bars, create adjusted price datasets, reconstruct total returns, or
 register catalog evidence.
+
+## Import Artifacts
+
+M40.3 adds a deterministic import artifact bundle for each dividend import run.
+By default artifacts are written under:
+
+```text
+artifacts/corporate_actions/<run_id>/
+```
+
+The importer writes:
+
+```text
+manifest.json
+summary.json
+qa_summary.json
+schema_contract.json
+source_provenance.json
+duplicate_events.csv
+invalid_events.csv
+import_config.json
+```
+
+JSON artifacts use sorted-key deterministic formatting. CSV artifacts use
+deterministic row ordering. Persisted paths are portable POSIX-style relative
+references and must not contain absolute local roots, credentials, tokens, or
+machine-local usernames.
+
+`qa_summary.json` reports import counts, duplicate and invalid row counts,
+required-column checks, invalid event type counts, date parseability counts,
+required-null counts, negative amount counts, missing cash-dividend currency
+counts, rows outside the half-open import window, strict mode, QA status, and
+the advisory duplicate policy. In advisory mode duplicate primary-key rows are
+reported in `duplicate_events.csv` and the curated dataset keeps the first
+deterministic occurrence. Invalid rows are reported in `invalid_events.csv` and
+excluded from advisory-mode output.
+
+`source_provenance.json` records local source-file fingerprints, upstream
+package/source metadata when supplied, the schema name/version, import-config
+fingerprint, path policy, and explicit `live_network_used: false` and
+`credentials_used: false` flags. Provenance preserves source context for audit;
+it does not create a second source of truth for upstream records.
+
+`schema_contract.json` is the deterministic
+`corporate_actions.dividends.v1` contract representation from
+`src/corporate_actions/dividend_contract.py`.
+
+Fallback-key operationalization remains inactive for M40. `source_event_id`
+stays required for imported records. Fallback-key definitions remain documented
+future compatibility and should become active only through an explicit later
+issue if a supported upstream source lacks event IDs.

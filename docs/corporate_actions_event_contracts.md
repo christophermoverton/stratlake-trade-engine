@@ -282,3 +282,19 @@ Both examples generate tiny synthetic local fixtures and write only under the
 ignored `docs/examples/output/m40_dividend_events/` directory. They do not use
 live market data, credentials, network access, adjusted prices, total-return
 features, or dividend reinvestment logic.
+
+## Cross-Repo Smoke Workflow
+
+M40.7 documents an optional manual smoke workflow for the companion
+`fintech-market-ingestion` repository handoff:
+
+```text
+docs/m40_cross_repo_q1_dividend_smoke_workflow.md
+```
+
+That workflow keeps upstream live ingestion outside StratLake. StratLake
+consumes only explicit local `dividends.parquet` and `metadata.json` artifacts,
+then writes the existing curated dividend event dataset and deterministic import
+artifacts. The helper
+`docs/examples/m40_cross_repo_q1_dividend_smoke_workflow.py` validates only the
+StratLake side with explicit paths and is tested with synthetic fixtures.

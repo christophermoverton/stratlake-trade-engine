@@ -5,8 +5,11 @@ from dataclasses import dataclass
 import hashlib
 import json
 from pathlib import Path
+import shutil
+import tempfile
 from typing import Any
 from urllib.parse import urlparse
+from uuid import uuid4
 
 import pandas as pd
 
@@ -151,12 +154,11 @@ def filter_dividend_events_by_ex_date(
 
 
 def write_dividend_event_dataset(events: pd.DataFrame, output_root: str | Path) -> tuple[str, ...]:
-    """Write deterministic symbol/year partitioned dividend event Parquet output."""
+    """Write deterministic symbol/year partitioned evidence snapshot Parquet output."""
 
     root = Path(output_root)
-    root.mkdir(parents=True, exist_ok=True)
-    if events.empty:
-        return ()
+    root_parent = root.parent
+    root_parent.mkdir(parents=True, exist_ok=True)
 
     required_for_write = set(DIVIDEND_REQUIRED_FIELDS + DIVIDEND_REQUIRED_NULLABLE_FIELDS + ("year",))
     missing = sorted(required_for_write - set(events.columns))
@@ -166,22 +168,51 @@ def write_dividend_event_dataset(events: pd.DataFrame, output_root: str | Path) 
 
     ordered = _sort_dividend_events(events)
     partitions: list[str] = []
-    for (symbol, year), partition in ordered.groupby(["symbol", "year"], sort=True):
-        partition_path = root / f"symbol={symbol}" / f"year={year}"
-        partition_path.mkdir(parents=True, exist_ok=True)
-        for existing in sorted(partition_path.glob("part-*.parquet")):
-            existing.unlink()
+    temp_root = Path(tempfile.mkdtemp(prefix=f".{root.name}-snapshot-", dir=root_parent))
+    backup_root: Path | None = None
+    try:
+        if not ordered.empty:
+            for (symbol, year), partition in ordered.groupby(["symbol", "year"], sort=True):
+                partition_path = temp_root / f"symbol={symbol}" / f"year={year}"
+                partition_path.mkdir(parents=True, exist_ok=True)
 
-        output_columns = [
-            column
-            for column in DIVIDEND_REQUIRED_FIELDS + DIVIDEND_REQUIRED_NULLABLE_FIELDS
-            if column != "symbol"
-        ]
-        partition.loc[:, output_columns].reset_index(drop=True).to_parquet(
-            partition_path / "part-0.parquet",
-            index=False,
-        )
-        partitions.append(portable_path(partition_path, roots=(Path.cwd(), root)))
+                output_columns = [
+                    column
+                    for column in DIVIDEND_REQUIRED_FIELDS + DIVIDEND_REQUIRED_NULLABLE_FIELDS
+                    if column != "symbol"
+                ]
+                partition.loc[:, output_columns].reset_index(drop=True).to_parquet(
+                    partition_path / "part-0.parquet",
+                    index=False,
+                )
+                partitions.append(portable_path(partition_path, roots=(Path.cwd(), temp_root, root)))
+
+            loaded = load_dividend_events(temp_root)
+            expected = ordered.reset_index(drop=True)
+            actual = loaded.loc[:, expected.columns].copy()
+            actual["symbol"] = actual["symbol"].astype(str)
+            actual["year"] = actual["year"].astype(str)
+            actual = _sort_dividend_events(actual).reset_index(drop=True)
+            if actual.to_json(orient="records", date_format="iso") != expected.to_json(
+                orient="records",
+                date_format="iso",
+            ):
+                raise DividendImportError("temporary dividend snapshot validation failed before replace.")
+
+        if root.exists():
+            backup_root = root_parent / f".{root.name}-backup-{uuid4().hex}"
+            root.replace(backup_root)
+        temp_root.replace(root)
+        temp_root = root
+    except Exception:
+        if backup_root is not None and backup_root.exists() and not root.exists():
+            backup_root.replace(root)
+        raise
+    finally:
+        if temp_root.exists() and temp_root != root:
+            shutil.rmtree(temp_root, ignore_errors=True)
+        if backup_root is not None and backup_root.exists():
+            shutil.rmtree(backup_root, ignore_errors=True)
 
     return tuple(sorted(partitions))
 

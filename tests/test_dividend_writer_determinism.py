@@ -8,6 +8,7 @@ import pandas as pd
 import pandas.testing as pdt
 
 from src.corporate_actions.dividend_importer import (
+    load_dividend_events,
     import_dividend_events,
     normalize_upstream_dividend_events,
     write_dividend_event_dataset,
@@ -111,6 +112,36 @@ def test_import_dividend_events_rerun_produces_equivalent_output_and_metadata(tm
     assert first.to_dict() == second.to_dict()
     assert first_digest == second_digest
     pdt.assert_frame_equal(first_frame, second_frame)
+
+
+def test_write_dividend_event_dataset_replaces_previous_snapshot(tmp_path: Path) -> None:
+    output_root = tmp_path / "events" / "dividends"
+
+    wider = normalize_upstream_dividend_events(pd.DataFrame(_rows()))
+    write_dividend_event_dataset(wider, output_root)
+
+    narrower = wider.loc[
+        (wider["symbol"] == "AAPL") & (wider["year"] == "2024"),
+        :,
+    ].reset_index(drop=True)
+    write_dividend_event_dataset(narrower, output_root)
+
+    loaded = load_dividend_events(output_root)
+    loaded_normalized = loaded.assign(
+        symbol=loaded["symbol"].astype(str),
+        year=loaded["year"].astype(str),
+    ).reset_index(drop=True)
+    expected = narrower.loc[:, loaded_normalized.columns].assign(
+        symbol=narrower["symbol"].astype(str),
+        year=narrower["year"].astype(str),
+    ).reset_index(drop=True)
+    pdt.assert_frame_equal(loaded_normalized, expected, check_dtype=False)
+    assert not (output_root / "symbol=MSFT").exists()
+
+    first_digest = _logical_dataset_digest(output_root)
+    write_dividend_event_dataset(narrower, output_root)
+    second_digest = _logical_dataset_digest(output_root)
+    assert first_digest == second_digest
 
 
 def _logical_dataset_digest(root: Path) -> str:

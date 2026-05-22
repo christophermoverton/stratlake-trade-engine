@@ -9,7 +9,7 @@ M40 branch:
 `feature/m40-corporate-actions-dividend-evidence`
 
 Candidate milestone release tag:
-`v0.40.0-corporate-actions-dividend-evidence`
+`v0.40.0-corporate-actions-dividend-event-evidence`
 
 ## Milestone Principle
 
@@ -184,5 +184,5 @@ After merge:
 * confirm no generated machine-specific files were committed
 * confirm the release tag candidate is still appropriate
 * create the release tag:
-  `v0.40.0-corporate-actions-dividend-evidence`
+  `v0.40.0-corporate-actions-dividend-event-evidence`
 * prepare GitHub Release notes from [M40 Release Notes](m40_release_notes.md)

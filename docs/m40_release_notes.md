@@ -6,7 +6,7 @@ M40 branch:
 `feature/m40-corporate-actions-dividend-evidence`
 
 Candidate milestone release tag:
-`v0.40.0-corporate-actions-dividend-evidence`
+`v0.40.0-corporate-actions-dividend-event-evidence`
 
 ## Milestone Principle
 
@@ -146,7 +146,7 @@ Title:
 `M40 - Corporate Actions Dividend Evidence`
 
 Tag:
-`v0.40.0-corporate-actions-dividend-evidence`
+`v0.40.0-corporate-actions-dividend-event-evidence`
 
 Branch:
 `feature/m40-corporate-actions-dividend-evidence`

@@ -969,7 +969,8 @@ def _validate_or_filter_invalid_events(events: pd.DataFrame, *, strict: bool) ->
     try:
         validate_dividend_event_schema(events.drop(columns=["year"], errors="ignore"))
     except DividendContractError:
-        pass
+        if strict:
+            raise
     else:
         return events.copy(), 0
 

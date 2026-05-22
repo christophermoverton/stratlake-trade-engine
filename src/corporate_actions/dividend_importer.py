@@ -338,7 +338,12 @@ def import_dividend_events(
             invalid_events=invalid_events,
             strict=strict,
         )
-        validate_dividend_event_schema(filtered.drop(columns=["year"], errors="ignore"))
+        try:
+            validate_dividend_event_schema(filtered.drop(columns=["year"], errors="ignore"))
+        except DividendContractError as exc:
+            raise DividendImportError(
+                "dividend import contains invalid rows that violate the dividend event schema."
+            ) from exc
 
     duplicate_event_count = _duplicate_event_count(valid_events)
     if duplicate_event_count:

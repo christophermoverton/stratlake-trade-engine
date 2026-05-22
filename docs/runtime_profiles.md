@@ -11,6 +11,13 @@ Profiles are not a second source of truth. Canonical artifacts, checked-in
 workflow configs, and the resolved runtime contracts remain authoritative.
 Derived outputs stay disposable and non-authoritative.
 
+M40 corporate-actions dividend evidence follows the same runtime boundary:
+local upstream dividend files are explicit inputs, curated dividend events and
+import artifacts are explicit outputs, and runtime profiles do not imply live
+ingestion, credentials, hidden OHLCV adjustment, adjusted-price reconstruction,
+or automatic mutation of strategy, alpha, portfolio, promotion, or backtest
+results.
+
 Starter profiles live under [../configs/profiles](../configs/profiles).
 
 ## Starter Templates And First Run

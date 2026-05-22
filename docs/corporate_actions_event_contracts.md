@@ -98,17 +98,16 @@ follows:
 
 ## Non-Goals
 
-M40.1 is contract-only. It does not:
+The contract is the StratLake-facing event surface. It does not:
 
 * call Alpaca or any external service;
 * read live credentials;
-* implement the dividend importer;
-* write import artifacts, QA summaries, provenance files, or catalog records;
 * adjust OHLCV bars;
 * create adjusted price datasets;
 * reconstruct total returns;
 * model dividend reinvestment;
-* mutate strategy, alpha, portfolio, or backtest behavior.
+* mutate strategy, alpha, portfolio, promotion, or backtest behavior;
+* make provenance metadata a second source of truth.
 
 ## Local Dividend Importer
 
@@ -142,16 +141,15 @@ source_event_id
 source
 ```
 
-Strict mode rejects invalid contract rows and duplicate primary-key rows.
-Advisory mode reports invalid rows, reports duplicate primary-key row counts,
-drops invalid rows, and keeps the first deterministic duplicate occurrence for
-the curated output. Full QA and provenance artifacts are deferred to later M40
-issues.
+Strict mode rejects invalid contract rows and duplicate primary-key rows after
+writing the import artifact bundle. Advisory mode reports invalid rows, reports
+duplicate primary-key row counts, drops invalid rows, and keeps the first
+deterministic duplicate occurrence for the curated output.
 
 The importer is local-file only. It does not import the upstream package, shell
 out to upstream CLIs, call Alpaca, read credentials, use network access, adjust
 OHLCV bars, create adjusted price datasets, reconstruct total returns, or
-register catalog evidence.
+mutate strategy, alpha, portfolio, promotion, or backtest results.
 
 ## Import Artifacts
 
@@ -198,6 +196,10 @@ it does not create a second source of truth for upstream records.
 `schema_contract.json` is the deterministic
 `corporate_actions.dividends.v1` contract representation from
 `src/corporate_actions/dividend_contract.py`.
+
+For the release-facing architecture, workflow, provenance, QA, catalog, and
+non-goal overview, see
+[`docs/corporate_actions_dividend_evidence.md`](corporate_actions_dividend_evidence.md).
 
 Fallback-key operationalization remains inactive for M40. `source_event_id`
 stays required for imported records. Fallback-key definitions remain documented

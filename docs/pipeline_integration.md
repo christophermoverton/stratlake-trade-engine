@@ -48,6 +48,53 @@ Prefer the Python API when the scheduler task wants an `ExecutionResult` with
 named artifact paths. Prefer the CLI when process exit behavior, stdout/stderr,
 or shell-friendly automation is the main contract.
 
+## Corporate-Actions Dividend Evidence Step
+
+M40 dividend evidence can be used in pipeline-style workflows as an explicit
+local-file import step. It should remain a thin call into
+`src.corporate_actions.import_dividend_events` or the matching CLI wrapper; it
+should not be hidden inside strategy, alpha, portfolio, or backtest execution.
+
+Python pattern:
+
+```python
+from src.corporate_actions import import_dividend_events
+
+
+def import_dividend_evidence_step() -> dict[str, object]:
+    result = import_dividend_events(
+        source_data_path="data/external/corporate_actions/dividends/dividends.parquet",
+        source_metadata_path="data/external/corporate_actions/dividends/metadata.json",
+        output_root="data/curated/events/dividends",
+        artifact_root="artifacts/corporate_actions",
+        start="2024-01-01",
+        end="2025-01-01",
+        strict=True,
+    )
+    return result.to_dict()
+```
+
+CLI pattern:
+
+```bash
+python -m src.cli.import_corporate_actions_dividends \
+  --source-data data/external/corporate_actions/dividends/dividends.parquet \
+  --source-metadata data/external/corporate_actions/dividends/metadata.json \
+  --output-root data/curated/events/dividends \
+  --artifact-root artifacts/corporate_actions \
+  --start 2024-01-01 \
+  --end 2025-01-01 \
+  --strict
+```
+
+This step consumes local upstream artifacts only. It does not call live APIs,
+require credentials, adjust price bars, reconstruct adjusted prices, model
+dividend reinvestment, or alter downstream research outputs. Generated import
+artifacts are evidence context for review and catalog discovery.
+
+See [Corporate Actions Dividend Evidence](corporate_actions_dividend_evidence.md)
+and `docs/examples/m40_dividend_pipeline_step_example.py`.
+
 ## Artifact Safety and Idempotency
 
 External orchestrators should follow

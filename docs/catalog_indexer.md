@@ -42,6 +42,7 @@ The indexer scans the following directory families under `artifacts/`:
 | `promotion_governance/<report_id>/` | `governance_bundle` |
 | `milestone_validation/<bundle_id>/` | `milestone_validation_bundle` |
 | `release_validation/<release_id>/` | `release_validation_artifact` |
+| `corporate_actions/<run_id>/` | `corporate_action_event_dataset` |
 | `benchmark_pack_*/<run_id>/` | `benchmark_pack` |
 
 A directory is treated as an artifact root if it contains at least one of:
@@ -223,6 +224,40 @@ cache, search backend, policy simulation layer, or governance enforcement path.
 See
 [`docs/m35_evidence_catalog_foundation.md`](m35_evidence_catalog_foundation.md)
 for the source-of-truth mapping and missing-evidence semantics.
+
+## M40 Dividend Event Evidence
+
+M40 adds read-only discovery for local corporate-actions dividend import
+artifacts under `artifacts/corporate_actions/<run_id>/`. These records are
+discovered by direct scan; there is no separate corporate-actions registry and
+no write-back path from the catalog.
+
+Dividend records use:
+
+| Field | Value |
+| --- | --- |
+| `record_family` | `corporate_action_event_dataset` |
+| `run_type` | `corporate_action_event_dataset` |
+| `artifact_type` | `corporate_action_event_dataset` |
+| `evidence_type` | `dividend_events` |
+| `source_domain` | `corporate_actions` |
+| `event_domain` | `dividends` |
+| `schema_version` | `corporate_actions.dividends.v1` |
+| `canonicality` | `canonical_import_artifact` |
+
+The catalog metadata points back to the canonical curated dataset root and the
+import artifact bundle, including `manifest.json`, `summary.json`,
+`qa_summary.json`, `schema_contract.json`, and `source_provenance.json`.
+Catalog records are discovery views only. The curated dividend event dataset
+and import artifact bundle remain the source of truth.
+
+Dividend evidence remains separate from OHLCV bars, adjusted prices, strategy
+outputs, alpha outputs, portfolio outputs, promotion decisions, and backtest
+returns. Direct scan remains available and canonical; derived catalog indexes
+remain disposable, rebuildable, and non-authoritative.
+
+See [Corporate Actions Dividend Evidence](corporate_actions_dividend_evidence.md)
+and [Corporate Actions Event Contracts](corporate_actions_event_contracts.md).
 
 ### Warning Codes
 

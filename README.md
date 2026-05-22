@@ -491,7 +491,7 @@ M40 branch:
 `feature/m40-corporate-actions-dividend-evidence`
 
 Candidate release tag:
-`v0.40.0-corporate-actions-dividend-evidence`
+`v0.40.0-corporate-actions-dividend-event-evidence`
 
 Validation summary:
 

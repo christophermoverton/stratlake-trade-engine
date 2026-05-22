@@ -282,6 +282,45 @@ their report status is not passed. The Python APIs return structured
 `raw_result` so notebooks can inspect failures before deciding whether to
 raise.
 
+### Corporate-Actions Dividend Evidence
+
+M40 dividend evidence uses the public `src.corporate_actions` API rather than
+the `src.execution` workflow wrapper layer. That keeps dividend imports
+explicit and separate from strategy, alpha, portfolio, and backtest execution.
+
+```python
+from src.corporate_actions import import_dividend_events, load_dividend_events
+
+result = import_dividend_events(
+    source_data_path="data/external/corporate_actions/dividends/dividends.parquet",
+    source_metadata_path="data/external/corporate_actions/dividends/metadata.json",
+    output_root="data/curated/events/dividends",
+    artifact_root="artifacts/corporate_actions",
+    start="2024-01-01",
+    end="2025-01-01",
+    strict=True,
+)
+
+events = load_dividend_events("data/curated/events/dividends")
+result.to_dict()
+```
+
+For notebook review, load the curated dataset from the dataset root and inspect
+catalog evidence explicitly:
+
+```python
+from src.catalog import CatalogQuery, build_catalog, query_catalog
+
+records = build_catalog("artifacts", repo_root=".")
+dividend_records = query_catalog(records, CatalogQuery(evidence_type="dividend_events"))
+```
+
+These calls consume local files only. They do not call Alpaca, require
+credentials, adjust OHLCV bars, reconstruct adjusted prices, reinvest
+dividends, or mutate strategy, alpha, portfolio, promotion, or backtest
+outputs. See
+[Corporate Actions Dividend Evidence](corporate_actions_dividend_evidence.md).
+
 ### Benchmark Packs
 
 Benchmark-pack execution is available from Python:

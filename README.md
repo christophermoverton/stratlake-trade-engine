@@ -453,6 +453,69 @@ Start with:
 * [docs/m39_release_validation_checklist.md](docs/m39_release_validation_checklist.md)
 * [docs/examples/m39_first_run_configuration_profile_example.py](docs/examples/m39_first_run_configuration_profile_example.py)
 
+### Milestone 40: Corporate Actions Dividend Evidence
+
+Milestone 40 adds deterministic corporate-actions dividend evidence as explicit
+local artifacts. StratLake consumes upstream `dividends.parquet` and
+`metadata.json` files, maps them into the
+`corporate_actions.dividends.v1` contract, writes curated partitioned dividend
+event data, writes import QA/provenance artifacts, and exposes the evidence
+through the existing read-only catalog.
+
+CLI import:
+
+```bash
+python -m src.cli.import_corporate_actions_dividends \
+  --source-data data/external/corporate_actions/dividends/dividends.parquet \
+  --source-metadata data/external/corporate_actions/dividends/metadata.json \
+  --output-root data/curated/events/dividends \
+  --artifact-root artifacts/corporate_actions \
+  --start 2024-01-01 \
+  --end 2025-01-01 \
+  --strict
+```
+
+Python usage:
+
+```python
+from src.corporate_actions import import_dividend_events, load_dividend_events
+```
+
+M40 preserves the artifact-first boundary: dividend events are evidence, not
+hidden OHLCV adjustments, adjusted prices, dividend reinvestment, or automatic
+changes to strategy, alpha, portfolio, promotion, or backtest outputs.
+StratLake M40 requires no live market data, credentials, network access, or
+external services.
+
+M40 branch:
+`feature/m40-corporate-actions-dividend-evidence`
+
+Candidate release tag:
+`v0.40.0-corporate-actions-dividend-evidence`
+
+Validation summary:
+
+```bash
+python -m ruff check src tests docs/examples
+pytest tests/test_dividend_event_contract.py tests/test_dividend_event_schema_validation.py tests/test_dividend_importer.py tests/test_dividend_import_artifacts.py tests/test_dividend_catalog_registration.py tests/test_catalog_direct_scan_dividend_evidence.py tests/test_dividend_evidence_classification.py tests/test_dividend_api_cli_parity.py tests/test_dividend_cli_smoke.py tests/test_dividend_duplicate_detection.py tests/test_dividend_path_portability.py tests/test_dividend_qa_summary.py tests/test_dividend_source_provenance.py tests/test_dividend_writer_determinism.py tests/test_dividend_example_smoke.py tests/test_m40_cross_repo_dividend_smoke_workflow.py
+python -m src.cli.run_docs_path_lint
+python -m build
+```
+
+Start with:
+
+* [docs/corporate_actions_dividend_evidence.md](docs/corporate_actions_dividend_evidence.md)
+* [docs/corporate_actions_event_contracts.md](docs/corporate_actions_event_contracts.md)
+* [docs/m40_cross_repo_q1_dividend_smoke_workflow.md](docs/m40_cross_repo_q1_dividend_smoke_workflow.md)
+* [docs/catalog_indexer.md](docs/catalog_indexer.md)
+* [docs/catalog_evidence_explorer.md](docs/catalog_evidence_explorer.md)
+* [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
+* [docs/pipeline_integration.md](docs/pipeline_integration.md)
+* [docs/m40_release_notes.md](docs/m40_release_notes.md)
+* [docs/m40_release_validation_checklist.md](docs/m40_release_validation_checklist.md)
+* [docs/examples/m40_dividend_evidence_import_example.py](docs/examples/m40_dividend_evidence_import_example.py)
+* [docs/examples/m40_dividend_pipeline_step_example.py](docs/examples/m40_dividend_pipeline_step_example.py)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing
@@ -1782,6 +1845,10 @@ Start here:
 * [docs/m38_release_validation_checklist.md](docs/m38_release_validation_checklist.md)
 * [docs/m39_release_notes.md](docs/m39_release_notes.md)
 * [docs/m39_release_validation_checklist.md](docs/m39_release_validation_checklist.md)
+* [docs/corporate_actions_dividend_evidence.md](docs/corporate_actions_dividend_evidence.md)
+* [docs/corporate_actions_event_contracts.md](docs/corporate_actions_event_contracts.md)
+* [docs/m40_release_notes.md](docs/m40_release_notes.md)
+* [docs/m40_release_validation_checklist.md](docs/m40_release_validation_checklist.md)
 * [docs/runtime_profiles.md](docs/runtime_profiles.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)

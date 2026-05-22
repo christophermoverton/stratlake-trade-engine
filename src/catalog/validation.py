@@ -45,6 +45,9 @@ _COMMON_JSON_FILENAMES = frozenset(
         "consistency_validation.json",
         "release_validation.json",
         "release_validation_summary.json",
+        "import_config.json",
+        "schema_contract.json",
+        "source_provenance.json",
     }
 )
 _INTERNAL_UNDECLARED_FILENAMES = frozenset(
@@ -70,6 +73,11 @@ _INTERNAL_UNDECLARED_FILENAMES = frozenset(
         "consistency_validation.json",
         "release_validation.json",
         "release_validation_summary.json",
+        "import_config.json",
+        "schema_contract.json",
+        "source_provenance.json",
+        "duplicate_events.csv",
+        "invalid_events.csv",
     }
 )
 
@@ -222,6 +230,7 @@ def _validate_record_with_artifacts(
     _validate_markers(record, artifact_root, root, issues)
     _validate_status_fields(record, issues)
     _validate_common_json(record, artifact_root, root, issues)
+    _validate_dividend_evidence_artifacts(record, artifact_root, root, issues)
 
     issues.extend(
         validate_artifact_records(record, artifacts, repo_root=root, include_info=True)
@@ -454,6 +463,55 @@ def _is_valid_json(path: Path) -> bool:
     except (OSError, json.JSONDecodeError, ValueError):
         return False
     return True
+
+
+def _validate_dividend_evidence_artifacts(
+    record: CatalogRecord,
+    artifact_root: Path,
+    repo_root: Path,
+    issues: list[CatalogValidationIssue],
+) -> None:
+    if record.record_family != "corporate_action_event_dataset":
+        return
+
+    required_files = (
+        "manifest.json",
+        "summary.json",
+        "qa_summary.json",
+        "schema_contract.json",
+        "source_provenance.json",
+        "import_config.json",
+    )
+    for filename in required_files:
+        path = artifact_root / filename
+        if not path.exists():
+            issues.append(
+                _issue(
+                    WARNING,
+                    "dividend_evidence_required_artifact_missing",
+                    record,
+                    _display_path(path, repo_root),
+                    "Dividend evidence catalog record is missing a required import artifact.",
+                    {"filename": filename},
+                )
+            )
+
+    evidence = record.metadata.get("evidence") if isinstance(record.metadata, dict) else None
+    if not isinstance(evidence, dict):
+        return
+    for key in ("canonical_dataset_root", "schema_contract_path", "source_provenance_path", "summary_path"):
+        value = evidence.get(key)
+        if isinstance(value, str) and ("\\" in value or Path(value).is_absolute() or value.startswith("file://")):
+            issues.append(
+                _issue(
+                    WARNING,
+                    "dividend_evidence_non_portable_path",
+                    record,
+                    value,
+                    "Dividend evidence metadata should use repository-relative POSIX paths.",
+                    {"field": key},
+                )
+            )
 
 
 def _issue(

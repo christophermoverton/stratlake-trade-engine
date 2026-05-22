@@ -105,6 +105,9 @@ The explorer includes these catalog and evidence fields where present:
 
 - `run_id`, `run_type`, `status`, `record_family`, `artifact_root`
 - `review_status`, `promotion_status`
+- dividend event facets such as `artifact_type`, `evidence_type`,
+  `source_domain`, `event_domain`, `schema_version`, `canonical_dataset_root`,
+  `event_evidence_policy`, and `source_provenance_path`
 - `robustness_status`, `wfe_status`, `sample_size_status`,
   `trade_count_status`, `sensitivity_status`, `fragility_status`,
   `multiple_testing_status`, `temporal_validation_status`
@@ -119,6 +122,38 @@ relationship path, and compact metadata derived from existing lineage edges.
 Empty filters render explicit messages such as `No matching records.` and `No
 evidence lineage found.` Sparse records with missing optional evidence fields
 render blank cells instead of failing.
+
+## M40 Dividend Evidence
+
+M40 dividend imports appear in the explorer as
+`corporate_action_event_dataset` records with `evidence_type: dividend_events`,
+`source_domain: corporate_actions`, and `event_domain: dividends`.
+
+Example filter:
+
+```powershell
+python -m src.cli.explore_catalog_evidence `
+  --record-family corporate_action_event_dataset `
+  --format markdown
+```
+
+Python equivalent:
+
+```python
+from src.catalog import CatalogQuery, build_catalog, build_evidence_explorer_view
+
+records = build_catalog("artifacts", repo_root=".")
+view = build_evidence_explorer_view(
+    records,
+    query=CatalogQuery(evidence_type="dividend_events"),
+    repo_root=".",
+)
+```
+
+The explorer only reviews existing import artifacts and catalog metadata. It
+does not import upstream dividend files, call live APIs, adjust OHLCV bars,
+reconstruct adjusted prices, or mutate strategy, alpha, portfolio, promotion,
+or backtest results.
 
 ## Determinism And Portability
 

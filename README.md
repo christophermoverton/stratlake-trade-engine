@@ -226,7 +226,9 @@ docs/path lint, and `python -m build` before creating the GitHub Release with
 the repository-managed `GITHUB_TOKEN`. Local `gh auth` is not required for
 release publication. The workflow attaches deterministic release notes and the
 docs/path lint report to the GitHub Release, uploads package build outputs as
-workflow artifacts only, and does not publish to PyPI/TestPyPI.
+workflow artifacts only, and does not publish to PyPI/TestPyPI. An optional
+wheel install smoke test can be enabled by setting the repository variable
+`STRATLAKE_RUN_WHEEL_INSTALL_SMOKE=1` for release runs.
 
 ### Milestone 34: Statistical Robustness And Overfitting Guardrails
 

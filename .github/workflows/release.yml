@@ -22,6 +22,8 @@ jobs:
   release:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
+    env:
+      STRATLAKE_RUN_WHEEL_INSTALL_SMOKE: ${{ vars.STRATLAKE_RUN_WHEEL_INSTALL_SMOKE }}
     steps:
       - name: Checkout code
         uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
@@ -58,6 +60,10 @@ jobs:
 
       - name: Build wheel and source distribution
         run: python -m build
+
+      - name: Optional wheel install smoke test
+        if: ${{ env.STRATLAKE_RUN_WHEEL_INSTALL_SMOKE == '1' }}
+        run: STRATLAKE_RUN_WHEEL_INSTALL_SMOKE=1 python -m pytest tests/test_wheel_install_smoke.py -q
 
       - name: Render deterministic release notes
         shell: bash

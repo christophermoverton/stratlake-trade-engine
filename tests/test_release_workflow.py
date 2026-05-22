@@ -58,6 +58,18 @@ def test_release_workflow_validates_before_publication() -> None:
         assert text.index(command) < release_step
 
 
+def test_release_workflow_supports_optional_wheel_install_smoke_toggle() -> None:
+    text = RELEASE_WORKFLOW.read_text(encoding="utf-8")
+
+    assert "STRATLAKE_RUN_WHEEL_INSTALL_SMOKE" in text
+    assert "Optional wheel install smoke test" in text
+    assert "env.STRATLAKE_RUN_WHEEL_INSTALL_SMOKE == '1'" in text
+    assert "tests/test_wheel_install_smoke.py" in text
+
+    release_step = text.index("Create GitHub Release")
+    assert text.index("Optional wheel install smoke test") < release_step
+
+
 def test_release_workflow_uses_deterministic_release_notes_and_github_token() -> None:
     text = RELEASE_WORKFLOW.read_text(encoding="utf-8")
 

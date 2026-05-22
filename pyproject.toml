@@ -11,11 +11,6 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = { text = "MIT" }  # only if MIT is actually correct
 
-[project.urls]
-Homepage = "https://github.com/christophermoverton/stratlake-trade-engine"
-Repository = "https://github.com/christophermoverton/stratlake-trade-engine"
-Issues = "https://github.com/christophermoverton/stratlake-trade-engine/issues"
-
 dependencies = [
     "pandas",
     "matplotlib",
@@ -29,6 +24,11 @@ dependencies = [
     "xgboost",
     "lightgbm",
 ]
+
+[project.urls]
+Homepage = "https://github.com/christophermoverton/stratlake-trade-engine"
+Repository = "https://github.com/christophermoverton/stratlake-trade-engine"
+Issues = "https://github.com/christophermoverton/stratlake-trade-engine/issues"
 
 [project.optional-dependencies]
 dev = [

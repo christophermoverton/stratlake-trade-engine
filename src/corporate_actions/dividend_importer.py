@@ -657,15 +657,70 @@ def _missing_upstream_columns(upstream: pd.DataFrame, fields: tuple[str, ...]) -
 
 
 def _invalid_events(events: pd.DataFrame) -> pd.DataFrame:
+    if events.empty:
+        return _csv_frame([])
+
+    contract_events = events.drop(columns=["year"], errors="ignore")
+    issues_by_index: dict[Any, list[str]] = {}
+
+    def append_issue(row_index: Any, issue: str) -> None:
+        if not issue:
+            return
+        row_issues = issues_by_index.setdefault(row_index, [])
+        if issue not in row_issues:
+            row_issues.append(issue)
+
+    missing_required_columns = tuple(
+        field for field in DIVIDEND_REQUIRED_FIELDS if field not in contract_events.columns
+    )
+    if missing_required_columns:
+        missing_columns_issue = "Missing required columns: " + ", ".join(missing_required_columns)
+        for row_index in contract_events.index:
+            append_issue(row_index, missing_columns_issue)
+
+    if "event_type" in contract_events.columns:
+        event_type = contract_events["event_type"]
+        invalid_event_type_mask = event_type.notna() & ~event_type.isin(DIVIDEND_SUPPORTED_EVENT_TYPES)
+        for row_index, value in event_type.loc[invalid_event_type_mask].items():
+            append_issue(row_index, f"Unsupported event_type: {value}")
+
+    date_columns = [column for column in contract_events.columns if column.endswith("_date")]
+    for column in date_columns:
+        values = contract_events[column]
+        non_empty_mask = values.notna() & values.astype("string").str.strip().ne("")
+        invalid_date_mask = non_empty_mask & pd.to_datetime(values, errors="coerce").isna()
+        for row_index, value in values.loc[invalid_date_mask].items():
+            append_issue(row_index, f"Unparseable {column}: {value}")
+
+    present_required_non_nullable = [
+        field
+        for field in DIVIDEND_REQUIRED_FIELDS
+        if field in contract_events.columns and field not in DIVIDEND_REQUIRED_NULLABLE_FIELDS
+    ]
+    if present_required_non_nullable:
+        null_required = contract_events[present_required_non_nullable].isna()
+        null_required_mask = null_required.any(axis=1)
+        for row_index in contract_events.index[null_required_mask]:
+            missing_fields = [field for field in present_required_non_nullable if bool(null_required.at[row_index, field])]
+            append_issue(row_index, "Null required values: " + ", ".join(missing_fields))
+
+    if not issues_by_index:
+        return _csv_frame([])
+
     rows: list[dict[str, Any]] = []
-    for index, row in events.iterrows():
-        row_frame = pd.DataFrame([row.drop(labels=["year"], errors="ignore")])
-        issues = _row_issues(row_frame)
-        if issues:
-            payload = _jsonable_row(row)
-            payload["issue"] = "; ".join(issues)
-            payload["source_row_index"] = int(index) if isinstance(index, int) else str(index)
-            rows.append(payload)
+    invalid_rows = contract_events.loc[list(issues_by_index.keys())]
+    for index, row in invalid_rows.iterrows():
+        row_frame = pd.DataFrame([row])
+        issues = list(issues_by_index.get(index, []))
+        for schema_issue in _row_issues(row_frame):
+            if schema_issue not in issues:
+                issues.append(schema_issue)
+        if not issues:
+            continue
+        payload = _jsonable_row(events.loc[index])
+        payload["issue"] = "; ".join(issues)
+        payload["source_row_index"] = int(index) if isinstance(index, int) else str(index)
+        rows.append(payload)
     return _csv_frame(rows)
 
 

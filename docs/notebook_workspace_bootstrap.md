@@ -61,6 +61,7 @@ the local workspace files are user-owned and mutable.
 The package now provides stable installed entry points for common workflows:
 
 - `stratlake-init-notebook`
+- `stratlake-build-features`
 - `stratlake-run-strategy`
 - `stratlake-run-alpha`
 - `stratlake-run-alpha-evaluation`
@@ -86,6 +87,7 @@ Python module invocations remain compatible, for example:
 
 ```powershell
 python -m src.cli.run_strategy --strategy momentum_v1
+python -m cli.build_features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --tickers configs/tickers_50.txt
 ```
 
 ## Package Versus Workspace Boundaries

@@ -159,6 +159,17 @@ If features are missing or stale, build them:
 python -m cli.build_features --timeframe 1D --start 2022-01-01 --end 2024-01-01 --tickers configs/tickers_50.txt
 ```
 
+Installed package environments can use the packaged console script:
+
+```powershell
+stratlake-build-features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --tickers configs/tickers_50.txt --marketlake-root data/curated
+```
+
+Feature builds resolve the curated MarketLake root in this order:
+`--marketlake-root`, then `MARKETLAKE_ROOT`, then `configs/paths.yml`.
+The override is local to the feature-build run and does not edit `.env` or
+`configs/paths.yml`.
+
 Notes:
 
 * `--start` is inclusive
@@ -313,6 +324,38 @@ such as `output_keys()`, `output_path(...)`, `load_manifest()`,
 Use notebooks for exploration, inspection, comparative analysis, and interactive
 review. Use the CLI for operational runs, automation, CI, milestone validation,
 and release-oriented workflows where process exit behavior matters.
+
+Feature building is also importable for notebook cells that want the same thin
+CLI behavior without shelling out. Environment-driven notebook setup:
+
+```python
+import os
+
+os.environ["MARKETLAKE_ROOT"] = "data/curated"
+
+from cli.build_features import run_cli
+
+summary_path = run_cli([
+    "--timeframe", "1D",
+    "--start", "2025-01-01",
+    "--end", "2025-02-01",
+    "--tickers", "configs/tickers_50.txt",
+])
+```
+
+Cell-local root override:
+
+```python
+from cli.build_features import run_cli
+
+summary_path = run_cli([
+    "--timeframe", "1D",
+    "--start", "2025-01-01",
+    "--end", "2025-02-01",
+    "--tickers", "configs/tickers_50.txt",
+    "--marketlake-root", "data/curated",
+])
+```
 
 See:
 

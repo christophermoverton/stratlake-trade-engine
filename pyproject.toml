@@ -39,6 +39,7 @@ dev = [
 
 [project.scripts]
 stratlake-init-notebook = "src.cli.init_notebook_workspace:main"
+stratlake-build-features = "cli.build_features:main"
 stratlake-run-strategy = "src.cli.run_strategy:main"
 stratlake-run-alpha = "src.cli.run_alpha:main"
 stratlake-run-alpha-evaluation = "src.cli.run_alpha_evaluation:main"

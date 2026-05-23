@@ -140,6 +140,8 @@ Current workflow action inventory:
 | `actions/checkout` | GitHub-maintained | `34e114876b0b11c390a56381ad16ebd13914f8d5` | `v4` |
 | `actions/setup-python` | GitHub-maintained | `a26af69be951a213d495a4c3e4e4022e16d87065` | `v5` |
 | `actions/upload-artifact` | GitHub-maintained | `ea165f8d65b6e75b540449e92b4886f43607fa02` | `v4` |
+| `actions/download-artifact` | GitHub-maintained | `d3f86a106a0bac45b974a628896c90dbdf5c8093` | `v4` |
+| `pypa/gh-action-pypi-publish` | Third-party | `cef221092ed1bacb1cc03d23a2d87d1d172e277b` | `release/v1` |
 | `softprops/action-gh-release` | Third-party | `3bb12739c298aeb8a4eeaf626c5b8d85266b0e65` | `v2` |
 
 There are no local reusable actions in the current workflow set. There are no

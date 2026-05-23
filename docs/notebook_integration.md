@@ -233,6 +233,11 @@ that run and does not mutate `.env`, `configs/paths.yml`, or global process
 configuration. The feature-run `summary.json` records the effective root and
 source under `config_resolution`.
 
+Maintenance note: keep this `--marketlake-root` / `config_resolution`
+guidance synchronized with the notebook workspace starter-template copy at
+`src/resources/notebook_workspace/docs/notebook_integration.md`, because
+`stratlake-init-notebook` copies that file into newly created workspaces.
+
 ## Examples
 
 Canonical M28 notebook-style examples live under `docs/examples/notebooks/`:

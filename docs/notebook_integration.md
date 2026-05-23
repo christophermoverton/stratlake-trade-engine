@@ -25,6 +25,24 @@ benchmark-pack, campaign, validation, regime, or stress-test behavior. They
 should remain thin cells that import StratLake APIs, pass explicit inputs, and
 inspect canonical outputs.
 
+## Local Notebook Workspace Bootstrap
+
+Use the installed bootstrap command to initialize a local notebook workspace
+under an explicit root path:
+
+```powershell
+stratlake-init-notebook --root ./stratlake-notebooks
+```
+
+This creates local `notebooks/`, `configs/`, `docs/`, `contracts/`, and
+`artifacts/` directories, copies a curated starter allowlist from repository
+`configs/` and `docs/`, and skips existing files by default. Use `--force` to
+overwrite copied starter templates only.
+
+See [`docs/notebook_workspace_bootstrap.md`](notebook_workspace_bootstrap.md)
+for command reference, installed CLI entry points, and package/workspace
+boundary guidance.
+
 ## Existing Notebook Surface
 
 The public notebook-friendly execution surface is documented in

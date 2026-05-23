@@ -32,6 +32,7 @@ operational runs.
 Start with:
 
 * [docs/notebook_integration.md](docs/notebook_integration.md)
+* [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
 * [docs/pipeline_integration.md](docs/pipeline_integration.md)
 * [docs/concurrency_and_idempotency.md](docs/concurrency_and_idempotency.md)

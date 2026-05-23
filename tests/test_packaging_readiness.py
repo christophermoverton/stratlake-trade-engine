@@ -42,7 +42,7 @@ def test_package_version_is_not_milestone_tag_formatted() -> None:
 
     # Milestone tags are repository-release identifiers (for example v0.36.0-foo),
     # while package versions stay PEP 440 distribution metadata.
-    assert not re.match(r"^v\d+\.\d+\.\d+-", declared_version)
+    assert not re.match(r"^v\d+\.\d+\.\d+(?:-|$)", declared_version)
 
 
 def test_stable_installed_import_smoke() -> None:

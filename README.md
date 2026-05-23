@@ -550,6 +550,53 @@ Start with:
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 
+### Release 0.41.0: Feature Builder Runtime Override
+
+Release 0.41.0 aligns the package metadata and release-facing docs with the
+M41 feature-builder ergonomics milestone. Feature builds now have an installed
+package command:
+
+```bash
+stratlake-build-features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --tickers configs/tickers_50.txt --marketlake-root data/curated
+```
+
+The module invocation remains supported:
+
+```bash
+python -m cli.build_features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --tickers configs/tickers_50.txt
+```
+
+`--marketlake-root` provides a visible run-local override for notebooks,
+shells, and installed package environments. The feature builder resolves the
+curated root as `--marketlake-root` > `MARKETLAKE_ROOT` >
+`configs/paths.yml`, logs the effective source, and records it in feature-run
+summary metadata under `config_resolution`. The override does not edit `.env`,
+`configs/paths.yml`, canonical artifacts, or `os.environ`.
+
+Notebook usage:
+
+```python
+from cli.build_features import run_cli
+
+summary_path = run_cli([
+    "--timeframe", "1D",
+    "--start", "2025-01-01",
+    "--end", "2025-02-01",
+    "--tickers", "configs/tickers_50.txt",
+    "--marketlake-root", "data/curated",
+])
+```
+
+Release tag:
+`v0.41.0-feature-builder-runtime-override`
+
+Start with:
+
+* [docs/m41_release_notes.md](docs/m41_release_notes.md)
+* [docs/getting_started.md](docs/getting_started.md)
+* [docs/notebook_integration.md](docs/notebook_integration.md)
+* [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing
@@ -1369,6 +1416,16 @@ upstream ingestion repository.
 ```powershell
 python -m cli.build_features --timeframe 1D --start 2022-01-01 --end 2024-01-01 --tickers configs/tickers_50.txt
 ```
+
+Installed package command with a run-local curated-data override:
+
+```powershell
+stratlake-build-features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --tickers configs/tickers_50.txt --marketlake-root data/curated
+```
+
+The override precedence is `--marketlake-root` > `MARKETLAKE_ROOT` >
+`configs/paths.yml`. Feature-run summaries record the effective source in
+`config_resolution`.
 
 ### 3. Run a strategy
 

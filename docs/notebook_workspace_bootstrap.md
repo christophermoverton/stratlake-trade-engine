@@ -41,6 +41,25 @@ Overwrite only copied starter templates:
 stratlake-init-notebook --root ./stratlake-notebooks --force
 ```
 
+Build features from an installed package with an explicit run-local
+MarketLake root:
+
+```powershell
+stratlake-build-features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --tickers configs/tickers_50.txt --marketlake-root data/curated
+```
+
+The module command remains valid:
+
+```powershell
+python -m cli.build_features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --tickers configs/tickers_50.txt
+```
+
+Feature builds resolve the curated root as `--marketlake-root` >
+`MARKETLAKE_ROOT` > `configs/paths.yml`. The override is scoped to the
+feature-build run and does not mutate `.env`, `configs/paths.yml`, canonical
+artifacts, or `os.environ`. The feature-run summary records the effective root
+and source under `config_resolution`.
+
 ## What Gets Created
 
 Directory layout under the selected root:

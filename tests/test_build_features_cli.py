@@ -426,6 +426,7 @@ def test_run_cli_marketlake_root_override_precedes_environment_and_config(
 
 
 def test_pyproject_registers_build_features_console_script() -> None:
-    pyproject_text = Path("pyproject.toml").read_text(encoding="utf-8")
+    repo_root = Path(__file__).resolve().parents[1]
+    pyproject_text = (repo_root / "pyproject.toml").read_text(encoding="utf-8")
 
     assert 'stratlake-build-features = "cli.build_features:main"' in pyproject_text

@@ -170,6 +170,11 @@ def _copy_starters(
         destination = _destination_path(workspace_root, f"{destination_folder}/{relative}")
         destination.parent.mkdir(parents=True, exist_ok=True)
 
+        if destination.exists() and not destination.is_file():
+            raise ValueError(
+                f"Starter destination exists and is not a file: {destination.as_posix()}"
+            )
+
         if destination.exists() and not force:
             skipped.append(f"{destination_folder}/{relative}")
             continue

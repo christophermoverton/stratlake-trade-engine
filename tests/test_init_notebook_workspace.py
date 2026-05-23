@@ -59,6 +59,23 @@ def test_initialize_notebook_workspace_force_overwrites_templates(tmp_path: Path
     assert "configs/features.yml" in summary["overwritten"]
 
 
+def test_initialize_notebook_workspace_raises_for_non_file_starter_destination(
+    tmp_path: Path,
+) -> None:
+    workspace_root = tmp_path / "notebook-workspace"
+    workspace_root.mkdir(parents=True, exist_ok=True)
+
+    conflicting_destination = workspace_root / "configs" / "features.yml"
+    conflicting_destination.mkdir(parents=True, exist_ok=True)
+
+    with pytest.raises(ValueError) as exc_info:
+        initialize_notebook_workspace(workspace_root)
+
+    message = str(exc_info.value)
+    assert "starter destination exists and is not a file" in message.lower()
+    assert conflicting_destination.as_posix() in message
+
+
 def test_run_cli_prints_concise_summary(tmp_path: Path, capsys) -> None:
     workspace_root = tmp_path / "notebook-workspace"
 

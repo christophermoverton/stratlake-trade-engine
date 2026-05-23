@@ -76,6 +76,23 @@ def test_initialize_notebook_workspace_raises_for_non_file_starter_destination(
     assert conflicting_destination.as_posix() in message
 
 
+def test_initialize_notebook_workspace_rejects_file_where_parent_directory_is_required(
+    tmp_path: Path,
+) -> None:
+    workspace_root = tmp_path / "notebook-workspace"
+    workspace_root.mkdir(parents=True, exist_ok=True)
+
+    conflicting_parent = workspace_root / "configs" / "profiles"
+    conflicting_parent.parent.mkdir(parents=True, exist_ok=True)
+    conflicting_parent.write_text("not-a-directory\n", encoding="utf-8")
+
+    with pytest.raises(
+        NotADirectoryError,
+        match="Expected parent directory for starter template but found non-directory path",
+    ):
+        initialize_notebook_workspace(workspace_root)
+
+
 def test_run_cli_prints_concise_summary(tmp_path: Path, capsys) -> None:
     workspace_root = tmp_path / "notebook-workspace"
 

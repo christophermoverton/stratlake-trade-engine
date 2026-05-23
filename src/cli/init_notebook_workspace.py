@@ -120,7 +120,7 @@ def initialize_notebook_workspace(root: Path, *, force: bool = False) -> dict[st
 def main(argv: Sequence[str] | None = None) -> int:
     try:
         run_cli(argv)
-    except (FileNotFoundError, RuntimeError, ValueError) as exc:
+    except (FileNotFoundError, NotADirectoryError, RuntimeError, ValueError) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 2
     return 0
@@ -168,7 +168,13 @@ def _copy_starters(
             raise FileNotFoundError(f"Starter template not found: {source_folder}/{relative}")
 
         destination = _destination_path(workspace_root, f"{destination_folder}/{relative}")
-        destination.parent.mkdir(parents=True, exist_ok=True)
+        parent = destination.parent
+        if parent.exists() and not parent.is_dir():
+            raise NotADirectoryError(
+                "Expected parent directory for starter template but found non-directory path: "
+                f"{parent.as_posix()}"
+            )
+        parent.mkdir(parents=True, exist_ok=True)
 
         if destination.exists() and not destination.is_file():
             raise ValueError(

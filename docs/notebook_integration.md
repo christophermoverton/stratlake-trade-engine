@@ -230,7 +230,8 @@ summary_path = run_cli([
 The feature builder resolves the curated root as `--marketlake-root`,
 `MARKETLAKE_ROOT`, then `configs/paths.yml`. The direct override is local to
 that run and does not mutate `.env`, `configs/paths.yml`, or global process
-configuration.
+configuration. The feature-run `summary.json` records the effective root and
+source under `config_resolution`.
 
 ## Examples
 

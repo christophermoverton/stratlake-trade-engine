@@ -168,7 +168,9 @@ stratlake-build-features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --ti
 Feature builds resolve the curated MarketLake root in this order:
 `--marketlake-root`, then `MARKETLAKE_ROOT`, then `configs/paths.yml`.
 The override is local to the feature-build run and does not edit `.env` or
-`configs/paths.yml`.
+`configs/paths.yml`, mutate canonical artifacts, or overwrite `os.environ`.
+Feature-run summaries record the effective root and source in
+`config_resolution`.
 
 Notes:
 

@@ -323,8 +323,8 @@ remain supported by `.github/workflows/milestone_validation.yml`.
 Package version and milestone release tags are intentionally separate. The
 package version in `pyproject.toml` is Python distribution metadata for editable
 installs, local wheel/sdist validation, and package import metadata. It remains
-`0.1.0` until the package distribution semantics themselves need a version
-change. Milestone release tags identify repository release snapshots and
+the value declared in `pyproject.toml` until the package distribution semantics
+themselves need a version change. Milestone release tags identify repository release snapshots and
 validation evidence, for example
 `v0.36.0-scalable-evidence-interoperability-release-hardening`; they appear in
 GitHub Release tags, release notes, and release checklists, but they do not

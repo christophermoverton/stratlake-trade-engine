@@ -132,6 +132,7 @@ layout rather than writing into a shared root from multiple notebook kernels.
 | Workflow | Notebook API | CLI Equivalent | Primary Artifacts | Notes |
 | --- | --- | --- | --- | --- |
 | Strategy execution | `src.execution.run_strategy` | `python -m src.cli.run_strategy` | `manifest.json`, `metrics.json`, `qa_summary.json`, `equity_curve.csv` | Uses the same strategy runner and returns `ExecutionResult`. |
+| Feature building | `cli.build_features.run_cli` | `python -m cli.build_features` or `stratlake-build-features` | feature run `summary.json`, feature datasets, QA rollups | Use `--marketlake-root` for a cell-local curated-data root override. |
 | Strategy comparison | `src.execution.compare_strategies` | `python -m src.cli.compare_strategies` | leaderboard CSV, summary JSON, optional comparison JSON | Compare persisted strategy outputs through the shared comparison surface. |
 | Alpha evaluation | `src.execution.run_alpha_evaluation` | `python -m src.cli.run_alpha_evaluation` | `manifest.json`, `alpha_metrics.json`, predictions, signals | Config mapping or config path resolves through CLI-equivalent helpers. |
 | Full alpha run | `src.execution.run_alpha` | `python -m src.cli.run_alpha` | evaluation artifacts, mapped signals, sleeve metrics, scaffold | Use notebooks for inspection, not for custom signal-mapping logic. |
@@ -193,6 +194,43 @@ cells.
 Keep notebook outputs deterministic and clearable. A clean notebook or
 script-backed notebook example should be runnable from a fresh Python process
 with explicit inputs.
+
+Feature-builder cells can use the same CLI-equivalent parser while returning
+the summary artifact path. Environment-driven setup:
+
+```python
+import os
+
+os.environ["MARKETLAKE_ROOT"] = "data/curated"
+
+from cli.build_features import run_cli
+
+summary_path = run_cli([
+    "--timeframe", "1D",
+    "--start", "2025-01-01",
+    "--end", "2025-02-01",
+    "--tickers", "configs/tickers_50.txt",
+])
+```
+
+For a visible cell-local override, pass `--marketlake-root` directly:
+
+```python
+from cli.build_features import run_cli
+
+summary_path = run_cli([
+    "--timeframe", "1D",
+    "--start", "2025-01-01",
+    "--end", "2025-02-01",
+    "--tickers", "configs/tickers_50.txt",
+    "--marketlake-root", "data/curated",
+])
+```
+
+The feature builder resolves the curated root as `--marketlake-root`,
+`MARKETLAKE_ROOT`, then `configs/paths.yml`. The direct override is local to
+that run and does not mutate `.env`, `configs/paths.yml`, or global process
+configuration.
 
 ## Examples
 

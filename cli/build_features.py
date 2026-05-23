@@ -3,6 +3,8 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Sequence
@@ -10,6 +12,7 @@ from typing import Any, Sequence
 import pandas as pd
 
 from src.config.settings import Settings
+from src.data.catalog import CuratedPaths
 from src.pipeline.feature_pipeline import (
     run_daily_feature_pipeline,
     run_minute_feature_pipeline,
@@ -20,13 +23,44 @@ SUPPORTED_TIMEFRAMES = ("1Min", "1D")
 NON_FEATURE_COLUMNS = {"symbol", "ts_utc", "timeframe", "date"}
 
 
+@dataclass(frozen=True)
+class FeatureBuildRuntime:
+    settings: Settings
+    marketlake_root_source: str
+
+    @property
+    def config_resolution(self) -> dict[str, dict[str, str]]:
+        return {
+            "marketlake_root": {
+                "value": str(self.settings.marketlake_root),
+                "source": self.marketlake_root_source,
+            }
+        }
+
+
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Build feature datasets from curated marketlake bars.")
     parser.add_argument("--timeframe", choices=SUPPORTED_TIMEFRAMES, required=True)
     parser.add_argument("--start", required=True, dest="start")
     parser.add_argument("--end", required=True, dest="end")
     parser.add_argument("--tickers", required=True, dest="tickers")
+    parser.add_argument(
+        "--marketlake-root",
+        type=Path,
+        help="Override the curated MarketLake root for this feature-build run.",
+    )
     return parser.parse_args(argv)
+
+
+def resolve_feature_build_runtime(args: argparse.Namespace, settings: Settings) -> FeatureBuildRuntime:
+    if args.marketlake_root is not None:
+        return FeatureBuildRuntime(
+            settings=replace(settings, marketlake_root=Path(args.marketlake_root)),
+            marketlake_root_source="cli",
+        )
+
+    source = "environment" if os.getenv("MARKETLAKE_ROOT") else "paths_config"
+    return FeatureBuildRuntime(settings=settings, marketlake_root_source=source)
 
 
 def load_tickers(tickers_file: str | Path) -> list[str]:
@@ -125,12 +159,13 @@ def build_summary(
     features: pd.DataFrame,
     marketlake_root: Path,
     input_partitions_used: Sequence[str],
+    config_resolution: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     processed_symbols = []
     if "symbol" in features.columns and not features.empty:
         processed_symbols = sorted(features["symbol"].dropna().astype(str).unique().tolist())
 
-    return {
+    summary = {
         "run_id": run_id,
         "timeframe": timeframe,
         "start": start,
@@ -143,6 +178,9 @@ def build_summary(
         "input_partitions_used": list(input_partitions_used),
         "missingness_by_feature_column": compute_missingness(features),
     }
+    if config_resolution is not None:
+        summary["config_resolution"] = config_resolution
+    return summary
 
 
 def configure_logging(log_level: str) -> None:
@@ -154,7 +192,8 @@ def configure_logging(log_level: str) -> None:
 
 def run_cli(argv: Sequence[str] | None = None) -> Path:
     args = parse_args(argv)
-    settings = Settings.load()
+    runtime = resolve_feature_build_runtime(args, Settings.load())
+    settings = runtime.settings
     configure_logging(settings.log_level)
 
     tickers = load_tickers(args.tickers)
@@ -167,7 +206,11 @@ def run_cli(argv: Sequence[str] | None = None) -> Path:
         marketlake_root=settings.marketlake_root,
     )
 
-    LOGGER.info("Resolved MARKETLAKE_ROOT=%s", settings.marketlake_root)
+    LOGGER.info(
+        "Resolved MARKETLAKE_ROOT=%s source=%s",
+        settings.marketlake_root,
+        runtime.marketlake_root_source,
+    )
     LOGGER.info("Resolved timeframe=%s", args.timeframe)
     LOGGER.info("Input partitions used=%s", input_partitions)
     LOGGER.info("Run ID=%s", run_id)
@@ -177,6 +220,7 @@ def run_cli(argv: Sequence[str] | None = None) -> Path:
         tickers,
         start_date=args.start,
         end_date=args.end,
+        paths=CuratedPaths(root=settings.marketlake_root),
         qa_artifacts_root=settings.artifacts_root / "qa" / "features",
     )
 
@@ -190,6 +234,7 @@ def run_cli(argv: Sequence[str] | None = None) -> Path:
         features=features,
         marketlake_root=settings.marketlake_root,
         input_partitions_used=input_partitions,
+        config_resolution=runtime.config_resolution,
     )
     artifact_root = settings.artifacts_root / "feature_runs" / run_id
     summary_path = write_summary(summary, artifact_root)

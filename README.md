@@ -519,6 +519,37 @@ Start with:
 * [docs/examples/m40_dividend_evidence_import_example.py](docs/examples/m40_dividend_evidence_import_example.py)
 * [docs/examples/m40_dividend_pipeline_step_example.py](docs/examples/m40_dividend_pipeline_step_example.py)
 
+### Release 0.40.1: Notebook Ergonomics Workspace Bootstrap
+
+Release 0.40.1 adds notebook-first package ergonomics for StratLake.
+Users can initialize a local notebook workspace from an installed package with:
+
+```bash
+stratlake-init-notebook --root .
+```
+
+Highlights:
+
+* Added installed CLI entry points under project scripts, including
+  `stratlake-init-notebook`, `stratlake-run-strategy`, and
+  `stratlake-build-evidence-review`
+* Added wheel-safe packaged notebook workspace starter templates copied into
+  user-owned local files
+* Added notebook workspace bootstrap documentation and examples
+* Preserved local workspace boundaries and existing `python -m src.cli...`
+  workflows
+* Kept Python package version semantics in `pyproject.toml` separate from
+  descriptive GitHub release tags
+
+Release tag:
+`v0.40.1-notebook-ergonomics-workspace-bootstrap`
+
+Start with:
+
+* [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
+* [docs/notebook_integration.md](docs/notebook_integration.md)
+* [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
+
 ### Milestone 27: Market Simulation Stress Testing Case Study
 
 The M27 case study demonstrates fixture-backed adaptive policy stress testing

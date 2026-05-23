@@ -1,0 +1,284 @@
+{
+  "canonicality": {
+    "authority_fingerprint": "99c7d1f208617acb501d4318419ee112b3622d6d1e986bfe166e6fb1d7ebc69b",
+    "authority_kind": "artifact_tree",
+    "authority_paths": [
+      "artifacts/strategies/example_strategy/_SUCCESS.json",
+      "artifacts/strategies/example_strategy/manifest.json",
+      "artifacts/strategies/example_strategy/metrics.json",
+      "artifacts/strategies/example_strategy/summary.json",
+      "artifacts/strategies/registry.jsonl"
+    ],
+    "authority_root": "artifacts",
+    "derived_class": "review_pack",
+    "non_authoritative": true,
+    "rebuildable": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+    "schema_version": "canonicality.v1",
+    "stale_if_source_changes": true,
+    "write_back_forbidden": true
+  },
+  "findings": [
+    {
+      "category": "canonicality",
+      "check_id": "canonicality_envelope",
+      "finding_id": "canonicality_envelope:review_model",
+      "message": "Canonicality Envelope v1 is present.",
+      "paths": [],
+      "scope": "review_model",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "canonicality",
+      "check_id": "canonicality_semantics",
+      "finding_id": "canonicality_semantics:review_model",
+      "message": "Review model preserves derived non-authoritative semantics.",
+      "paths": [],
+      "scope": "review_model",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "catalog_validation",
+      "check_id": "catalog_validation_selected_record",
+      "finding_id": "catalog_validation_selected_record:selected_record",
+      "message": "Selected record passed catalog validation.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "lineage",
+      "check_id": "dataset_lineage_metadata",
+      "finding_id": "dataset_lineage_metadata:selected_record",
+      "message": "Dataset lineage metadata is not present.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "NA",
+      "status": "NA"
+    },
+    {
+      "category": "derived_namespace",
+      "check_id": "derived_authority_leakage",
+      "finding_id": "derived_authority_leakage:review_model",
+      "message": "Canonical authority paths do not point into _derived.",
+      "paths": [],
+      "scope": "review_model",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "load_source",
+      "check_id": "derived_index_validation",
+      "finding_id": "derived_index_validation:review_model",
+      "message": "Derived-index validation is not applicable to direct-scan review.",
+      "paths": [],
+      "scope": "review_model",
+      "severity": "NA",
+      "status": "NA"
+    },
+    {
+      "category": "lineage",
+      "check_id": "feature_lineage_metadata",
+      "finding_id": "feature_lineage_metadata:selected_record",
+      "message": "Feature lineage metadata is not present.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "NA",
+      "status": "NA"
+    },
+    {
+      "category": "governance",
+      "check_id": "governance_evidence_presence",
+      "finding_id": "governance_evidence_presence:selected_record",
+      "message": "Governance evidence is not present for this selected record.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "NA",
+      "status": "NA"
+    },
+    {
+      "category": "load_source",
+      "check_id": "load_mode_summary",
+      "finding_id": "load_mode_summary:review_model",
+      "message": "Requested and resolved catalog load modes are recorded.",
+      "paths": [],
+      "scope": "review_model",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "load_source",
+      "check_id": "load_source_envelope",
+      "finding_id": "load_source_envelope:review_model",
+      "message": "load_source.v1 identifies a review-pack derived surface.",
+      "paths": [],
+      "scope": "review_model",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "resolver",
+      "check_id": "missing_canonical_sources",
+      "finding_id": "missing_canonical_sources:selected_record",
+      "message": "No missing canonical source paths reported.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "path_portability",
+      "check_id": "portable_paths",
+      "finding_id": "portable_paths:review_model",
+      "message": "All reviewed paths are repository-relative POSIX paths.",
+      "paths": [],
+      "scope": "review_model",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "lineage",
+      "check_id": "related_records_summary",
+      "finding_id": "related_records_summary:related_records",
+      "message": "No one-hop related records were reported.",
+      "paths": [],
+      "scope": "related_records",
+      "severity": "NA",
+      "status": "NA"
+    },
+    {
+      "category": "release_validation",
+      "check_id": "release_validation_presence",
+      "finding_id": "release_validation_presence:selected_record",
+      "message": "Release-validation evidence is not present for this selected record.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "NA",
+      "status": "NA"
+    },
+    {
+      "category": "resolver",
+      "check_id": "resolver_status",
+      "finding_id": "resolver_status:selected_record",
+      "message": "Selected record canonical sources resolved.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "resolver",
+      "check_id": "resolver_warnings",
+      "finding_id": "resolver_warnings:selected_record",
+      "message": "No resolver warnings reported.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "derived_namespace",
+      "check_id": "review_root_namespace",
+      "finding_id": "review_root_namespace:review_model",
+      "message": "Review root remains under artifacts/_derived/evidence_review/.",
+      "paths": [
+        "artifacts/_derived/evidence_review/example_review"
+      ],
+      "scope": "review_model",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "lineage",
+      "check_id": "selected_lineage_coverage",
+      "finding_id": "selected_lineage_coverage:selected_record",
+      "message": "Selected record has explicit one-hop lineage coverage.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "lineage",
+      "check_id": "selected_lineage_summary",
+      "finding_id": "selected_lineage_summary:selected_record",
+      "message": "Selected lineage summary is present.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "selection",
+      "check_id": "selected_record_found",
+      "finding_id": "selected_record_found:selected_record",
+      "message": "Selected record is present.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "selection",
+      "check_id": "selected_record_identity",
+      "finding_id": "selected_record_identity:selected_record",
+      "message": "Selected record has catalog and run identity.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    },
+    {
+      "category": "resolver",
+      "check_id": "source_fingerprint_present",
+      "finding_id": "source_fingerprint_present:selected_record",
+      "message": "Canonical source fingerprint is present.",
+      "paths": [],
+      "scope": "selected_record",
+      "severity": "PASS",
+      "status": "PASS"
+    }
+  ],
+  "load_source": {
+    "canonical_source": "artifacts",
+    "loaded_from": "review_pack",
+    "non_authoritative": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+    "schema_version": "load_source.v1"
+  },
+  "review_id": "example_review",
+  "schema_version": "catalog_health_diagnostics.v1",
+  "summary": {
+    "counts_by_category": {
+      "canonicality": 2,
+      "catalog_validation": 1,
+      "derived_namespace": 2,
+      "governance": 1,
+      "lineage": 5,
+      "load_source": 3,
+      "path_portability": 1,
+      "release_validation": 1,
+      "resolver": 4,
+      "selection": 2
+    },
+    "counts_by_scope": {
+      "related_records": 1,
+      "review_model": 8,
+      "selected_record": 13
+    },
+    "counts_by_status": {
+      "FAIL": 0,
+      "NA": 6,
+      "PASS": 16,
+      "WARN": 0
+    },
+    "finding_count": 22,
+    "overall_status": "PASS",
+    "selected_catalog_id": "e4157328be957476",
+    "selected_run_id": "example_strategy"
+  },
+  "warnings": []
+}

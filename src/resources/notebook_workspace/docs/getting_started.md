@@ -159,6 +159,19 @@ If features are missing or stale, build them:
 python -m cli.build_features --timeframe 1D --start 2022-01-01 --end 2024-01-01 --tickers configs/tickers_50.txt
 ```
 
+Installed package environments can use the packaged console script:
+
+```powershell
+stratlake-build-features --timeframe 1D --start 2025-01-01 --end 2025-02-01 --tickers configs/tickers_50.txt --marketlake-root data/curated
+```
+
+Feature builds resolve the curated MarketLake root in this order:
+`--marketlake-root`, then `MARKETLAKE_ROOT`, then `configs/paths.yml`.
+The override is local to the feature-build run and does not edit `.env` or
+`configs/paths.yml`, mutate canonical artifacts, or overwrite `os.environ`.
+Feature-run summaries record the effective root and source in
+`config_resolution`.
+
 Notes:
 
 * `--start` is inclusive

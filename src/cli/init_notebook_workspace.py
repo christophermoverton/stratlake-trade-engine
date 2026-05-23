@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import argparse
-import shutil
+from importlib import resources
 import sys
 from pathlib import Path
 from typing import Sequence
@@ -30,6 +30,7 @@ STARTER_DOCS: tuple[str, ...] = (
 )
 
 WORKSPACE_DIRS: tuple[str, ...] = ("notebooks", "configs", "docs", "contracts", "artifacts")
+NOTEBOOK_WORKSPACE_RESOURCE_PACKAGE = "src.resources.notebook_workspace"
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -61,7 +62,7 @@ def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
 
 def initialize_notebook_workspace(root: Path, *, force: bool = False) -> dict[str, object]:
     workspace_root = root.expanduser().resolve()
-    source_root = _resolve_source_root()
+    resource_root = _resolve_resource_root()
 
     before_exists = workspace_root.exists()
     workspace_root.mkdir(parents=True, exist_ok=True)
@@ -82,7 +83,7 @@ def initialize_notebook_workspace(root: Path, *, force: bool = False) -> dict[st
 
     copied_configs, overwritten_configs, skipped_configs = _copy_starters(
         workspace_root=workspace_root,
-        source_root=source_root,
+        resource_root=resource_root,
         source_folder="configs",
         destination_folder="configs",
         allowlist=STARTER_CONFIGS,
@@ -94,7 +95,7 @@ def initialize_notebook_workspace(root: Path, *, force: bool = False) -> dict[st
 
     copied_docs, overwritten_docs, skipped_docs = _copy_starters(
         workspace_root=workspace_root,
-        source_root=source_root,
+        resource_root=resource_root,
         source_folder="docs",
         destination_folder="docs",
         allowlist=STARTER_DOCS,
@@ -125,26 +126,33 @@ def main(argv: Sequence[str] | None = None) -> int:
     return 0
 
 
-def _resolve_source_root() -> Path:
-    source_root = Path(__file__).resolve().parents[2]
+def _resolve_resource_root() -> resources.abc.Traversable:
+    try:
+        resource_root = resources.files(NOTEBOOK_WORKSPACE_RESOURCE_PACKAGE)
+    except ModuleNotFoundError as exc:
+        raise RuntimeError(
+            "Notebook starter templates are unavailable in this installation. "
+            f"Missing package resources: {NOTEBOOK_WORKSPACE_RESOURCE_PACKAGE}."
+        ) from exc
+
     missing = []
-    if not (source_root / "configs").is_dir():
+    if not resource_root.joinpath("configs").is_dir():
         missing.append("configs")
-    if not (source_root / "docs").is_dir():
+    if not resource_root.joinpath("docs").is_dir():
         missing.append("docs")
     if missing:
         joined = ", ".join(missing)
         raise RuntimeError(
             "Notebook starter templates are unavailable in this installation. "
-            f"Missing source directories: {joined}."
+            f"Missing resource directories: {joined}."
         )
-    return source_root
+    return resource_root
 
 
 def _copy_starters(
     *,
     workspace_root: Path,
-    source_root: Path,
+    resource_root: resources.abc.Traversable,
     source_folder: str,
     destination_folder: str,
     allowlist: Sequence[str],
@@ -155,9 +163,9 @@ def _copy_starters(
     skipped: list[str] = []
 
     for relative in allowlist:
-        source = source_root / source_folder / relative
+        source = _resource_path(resource_root, f"{source_folder}/{relative}")
         if not source.is_file():
-            raise FileNotFoundError(f"Starter template not found: {source.as_posix()}")
+            raise FileNotFoundError(f"Starter template not found: {source_folder}/{relative}")
 
         destination = _destination_path(workspace_root, f"{destination_folder}/{relative}")
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -171,7 +179,7 @@ def _copy_starters(
         else:
             copied.append(f"{destination_folder}/{relative}")
 
-        shutil.copy2(source, destination)
+        destination.write_bytes(source.read_bytes())
 
     return copied, overwritten, skipped
 
@@ -183,6 +191,16 @@ def _destination_path(workspace_root: Path, relative: str) -> Path:
             f"Refusing to write outside workspace root: {destination.as_posix()}"
         )
     return destination
+
+
+def _resource_path(
+    resource_root: resources.abc.Traversable,
+    relative: str,
+) -> resources.abc.Traversable:
+    candidate = resource_root
+    for part in relative.split("/"):
+        candidate = candidate.joinpath(part)
+    return candidate
 
 
 def print_summary(summary: dict[str, object]) -> None:

@@ -9,6 +9,8 @@ This improves notebook-first and pip-installed workflows by removing repository-
 
 ## Install And Run
 
+Normal wheel/pip installs are supported. Starter templates are bundled as package resources.
+
 Editable install from a repository checkout:
 
 ```powershell
@@ -49,8 +51,10 @@ Directory layout under the selected root:
 - `contracts/`
 - `artifacts/`
 
-Curated starter files are copied from repository `configs/` and `docs/` into the local workspace.
+Curated starter files are copied from bundled package resources into the local workspace.
 Existing files are preserved by default.
+The bundled package-resource templates are only the source for the initial copy. After copying,
+the local workspace files are user-owned and mutable.
 
 ## Installed Commands
 
@@ -101,13 +105,14 @@ Workspace responsibilities:
 - generated local `artifacts/`
 
 The bootstrap command does not create fake run outputs and does not mutate package files.
+It never writes into site-packages.
 
 ## Troubleshooting
 
 `stratlake-init-notebook` reports missing starter templates:
 
-- Install from a repository checkout using editable mode.
-- Confirm `configs/` and `docs/` exist in the installed source tree.
+- Reinstall the package so bundled notebook workspace resources are present.
+- Validate installation with `python -m pip show stratlake-trade-engine` and reinstall from wheel if needed.
 
 Files were skipped unexpectedly:
 

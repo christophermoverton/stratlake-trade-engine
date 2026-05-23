@@ -1,0 +1,382 @@
+# Getting Started
+
+## Overview
+
+StratLake Trade Engine is a deterministic strategy and portfolio research
+workflow built on curated market data. It does not ingest raw data. Instead,
+it reads validated datasets, builds features, runs strategies, applies
+execution and validation rules, and writes reproducible artifacts.
+
+This guide walks through the current repository workflow:
+
+1. set up the environment
+2. run the CI-safe first-run profile checks
+3. point the repo at curated data
+4. build or verify features
+5. run a strategy
+6. run the Milestone 11.5 alpha-to-portfolio example
+7. run the Milestone 12 alpha-evaluation example
+8. run the Milestone 13 review-and-promotion example
+9. run from notebooks or Python scripts
+10. run a strict strategy
+11. build a portfolio from saved runs
+
+For deeper detail, continue with:
+
+* [alpha_workflow.md](alpha_workflow.md)
+* [notebook_execution_api.md](notebook_execution_api.md)
+* [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
+* [portfolio_construction_workflow.md](portfolio_construction_workflow.md)
+* [research_validity_framework.md](research_validity_framework.md)
+
+## Prerequisites
+
+Before running the CLI workflows, make sure you have:
+
+* Python 3.10 or newer
+* curated data produced by the upstream ingestion repository
+* permission to create a virtual environment and install dependencies
+* a local `.env` file with the correct paths
+
+Important environment settings:
+
+* `MARKETLAKE_ROOT`
+* `FEATURES_ROOT`
+* `ARTIFACTS_ROOT`
+* `DUCKDB_PATH`
+
+Runtime profiles provide non-secret starter contexts for local, CI, notebook,
+and pipeline workflows. See [runtime_profiles.md](runtime_profiles.md) and the
+examples in [../configs/profiles](../configs/profiles).
+
+From a clean checkout, the CI-safe first-run flow does not require live market
+data, credentials, network access, or external services:
+
+```powershell
+python -m src.cli.validate_config --profile ci
+python -m src.cli.stratlake_doctor --profile ci
+python -m src.cli.explain_config --profile ci --workflow strategy
+python docs/examples/m39_first_run_configuration_profile_example.py
+```
+
+Typical local values:
+
+```text
+MARKETLAKE_ROOT=/path/to/fintech-market-ingestion/data/curated
+FEATURES_ROOT=data
+ARTIFACTS_ROOT=artifacts
+DUCKDB_PATH=:memory:
+```
+
+## Repository Setup
+
+### 1. Create and activate a virtual environment
+
+Windows PowerShell:
+
+```powershell
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+```
+
+macOS or Linux:
+
+```bash
+python -m venv .venv
+source .venv/bin/activate
+```
+
+### 2. Install dependencies
+
+```powershell
+pip install -e .
+pip install -e ".[dev]"
+```
+
+### 3. Create `.env`
+
+Windows PowerShell:
+
+```powershell
+Copy-Item .env.example .env
+```
+
+macOS or Linux:
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` so `MARKETLAKE_ROOT` points to the curated market-data root.
+
+## CI-Safe First Run
+
+M39 ships starter profiles for `local`, `ci`, `notebook`, and `pipeline`
+contexts. The `ci` profile is the safest first command path because it uses
+repository-relative paths, `:memory:` storage, checked-in config references, and
+explicit boundaries that keep network access, credentials, and live market data
+disabled.
+
+The first-run example writes deterministic advisory reports under
+`docs/examples/output/m39_first_run_configuration_profile_example/`:
+
+* `config_validation.json`
+* `environment_doctor.json`
+* `strategy_explain.json`
+* `synthetic_first_run_probe.json`
+* `summary.json`
+
+These files are generated, disposable, and non-authoritative. They prove setup
+readiness and pre-execution explainability; they do not run backtests, build
+features, construct portfolios, generate evidence packs, or mutate canonical
+artifacts. The default output directory is ignored so maintainers do not commit
+local first-run reports by accident.
+
+Notebook users can call the same APIs directly:
+
+```python
+from src.config.doctor import run_environment_doctor
+from src.config.explain import build_runtime_explain_report
+from src.config.resolution import resolve_runtime_profile_config
+
+resolved = resolve_runtime_profile_config("ci").to_json_dict()
+doctor = run_environment_doctor("ci").to_json_dict()
+explain = build_runtime_explain_report("ci", workflow="strategy").to_json_dict()
+```
+
+Pipeline users can run validation, doctor, and explain as preflight steps.
+Treat reports as advisory and disposable, and fail the pipeline only on explicit
+validation or doctor failures.
+
+## Build or Verify Features
+
+The example strategies in [../configs/strategies.yml](../configs/strategies.yml)
+use `features_daily`, so that dataset must already exist.
+
+If features are missing or stale, build them:
+
+```powershell
+python -m cli.build_features --timeframe 1D --start 2022-01-01 --end 2024-01-01 --tickers configs/tickers_50.txt
+```
+
+Notes:
+
+* `--start` is inclusive
+* `--end` is exclusive
+* daily features need enough history for rolling lookbacks
+
+## Run a Strategy
+
+Basic run:
+
+```powershell
+python -m src.cli.run_strategy --strategy momentum_v1
+```
+
+Bounded single-run window:
+
+```powershell
+python -m src.cli.run_strategy --strategy momentum_v1 --start 2022-01-01 --end 2023-01-01
+```
+
+Walk-forward run:
+
+```powershell
+python -m src.cli.run_strategy --strategy momentum_v1 --evaluation
+```
+
+The strategy CLI prints:
+
+* `strategy`
+* `run_id`
+* `cumulative_return`
+* `sharpe_ratio`
+
+It also writes artifacts under `artifacts/strategies/<run_id>/`.
+
+## Run The Milestone 11.5 Alpha Example Workflow
+
+The repository includes an end-to-end alpha example that demonstrates model
+registration, deterministic train/predict helpers, cross-sectional inspection,
+continuous-signal backtesting, and portfolio construction.
+
+```powershell
+python docs/examples/milestone_11_5_alpha_portfolio_workflow.py
+```
+
+See:
+
+* [alpha_workflow.md](alpha_workflow.md)
+* [examples/milestone_11_5_alpha_portfolio_workflow.md](examples/milestone_11_5_alpha_portfolio_workflow.md)
+* [milestone_11_portfolio_workflow.md](milestone_11_portfolio_workflow.md)
+
+## Run The Milestone 12 Alpha-Evaluation Example
+
+Milestone 12 adds deterministic alpha evaluation before signal mapping,
+including forward-return alignment, IC and Rank IC scoring, artifact
+persistence, registry-backed tracking, and leaderboard comparison.
+
+```powershell
+python docs/examples/alpha_evaluation_end_to_end.py
+```
+
+See:
+
+* [alpha_evaluation_workflow.md](alpha_evaluation_workflow.md)
+
+## Run The Milestone 13 Review-And-Promotion Example
+
+Milestone 13 adds a small committed end-to-end review example that loads
+completed alpha, strategy, and portfolio artifacts from checked-in registries,
+then writes one deterministic review pack plus a review-level promotion
+decision.
+
+```powershell
+python docs/examples/milestone_13_review_promotion_workflow.py
+```
+
+See:
+
+* [milestone_13_research_review_workflow.md](milestone_13_research_review_workflow.md)
+* [examples/milestone_13_review_promotion_workflow.md](examples/milestone_13_review_promotion_workflow.md)
+* [review_configuration.md](review_configuration.md)
+
+## Run With Strict Mode And Execution Frictions
+
+Example strict run with deterministic execution realism:
+
+```powershell
+python -m src.cli.run_strategy --strategy momentum_v1 --strict --execution-enabled --transaction-cost-bps 5 --slippage-bps 2
+```
+
+This run:
+
+* keeps lagged execution
+* applies deterministic costs and slippage
+* turns flagged sanity issues into blocking failures
+* persists effective runtime settings with the run when it succeeds
+
+See:
+
+* [strict_mode.md](strict_mode.md)
+* [execution_model.md](execution_model.md)
+* [runtime_configuration.md](runtime_configuration.md)
+
+## Run a Portfolio
+
+The portfolio runner consumes completed strategy artifacts.
+
+Registry-backed example:
+
+```powershell
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name momentum_meanrev_equal --from-registry --timeframe 1D
+```
+
+Strict walk-forward example:
+
+```powershell
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name strict_valid_builtin_pair --from-registry --evaluation configs/evaluation.yml --timeframe 1D --strict
+```
+
+Portfolio artifacts are written under `artifacts/portfolios/<run_id>/`.
+
+To exercise operational volatility targeting from the shipped config:
+
+```powershell
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name momentum_meanrev_targeted --from-registry --timeframe 1D
+```
+
+## Run From Notebooks Or Python Scripts
+
+The same deterministic strategy, alpha, alpha-evaluation, portfolio, pipeline,
+campaign, validation, and benchmark-pack workflows are available through
+importable Python entrypoints:
+
+```python
+from src.execution import (
+    run_alpha,
+    run_alpha_evaluation,
+    run_benchmark_pack,
+    run_pipeline,
+    run_portfolio,
+    run_research_campaign,
+    run_strategy,
+)
+```
+
+These functions return `ExecutionResult` summaries with artifact paths,
+manifest paths, metrics, named outputs, and notebook-safe inspection helpers
+such as `output_keys()`, `output_path(...)`, `load_manifest()`,
+`load_metrics_json()`, `load_summary_json()`, `load_comparison_json()`, and
+`notebook_summary()`.
+
+Use notebooks for exploration, inspection, comparative analysis, and interactive
+review. Use the CLI for operational runs, automation, CI, milestone validation,
+and release-oriented workflows where process exit behavior matters.
+
+See:
+
+* [notebook_execution_api.md](notebook_execution_api.md)
+* [examples/notebook_execution_api_examples.md](examples/notebook_execution_api_examples.md)
+* [examples/notebook_execution_api_examples.py](examples/notebook_execution_api_examples.py)
+* [examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
+
+## What Gets Written
+
+### Strategy runs
+
+Common files:
+
+* `config.json`
+* `metrics.json`
+* `signal_diagnostics.json`
+* `qa_summary.json`
+* `equity_curve.csv`
+* `signals.parquet`
+* `manifest.json`
+
+### Portfolio runs
+
+Common files:
+
+* `config.json`
+* `components.json`
+* `weights.csv`
+* `portfolio_returns.csv`
+* `portfolio_equity_curve.csv`
+* `metrics.json`
+* `qa_summary.json`
+* `manifest.json`
+
+## Troubleshooting
+
+### `MARKETLAKE_ROOT` is missing or wrong
+
+Fix:
+
+* copy `.env.example` to `.env`
+* set `MARKETLAKE_ROOT` to the curated data directory
+* restart the shell if needed
+
+### `features_daily` is missing
+
+Fix:
+
+```powershell
+python -m cli.build_features --timeframe 1D --start 2022-01-01 --end 2024-01-01 --tickers configs/tickers_50.txt
+```
+
+### Strategy run fails under strict mode
+
+That usually means a sanity or validation issue that non-strict mode would have
+recorded as a warning. Review:
+
+* [strict_mode.md](strict_mode.md)
+* [research_integrity_and_qa.md](research_integrity_and_qa.md)
+
+## Next Docs
+
+* [cli_strategy_runner.md](cli_strategy_runner.md)
+* [strategy_comparison_cli.md](strategy_comparison_cli.md)
+* [portfolio_construction_workflow.md](portfolio_construction_workflow.md)
+* [research_validity_framework.md](research_validity_framework.md)

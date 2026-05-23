@@ -1,11 +1,14 @@
 from __future__ import annotations
 
 from pathlib import Path
+import pytest
 
-from src.cli.init_notebook_workspace import initialize_notebook_workspace, run_cli
-
-
-REPO_ROOT = Path(__file__).resolve().parents[1]
+from src.cli.init_notebook_workspace import (
+    _destination_path,
+    _resolve_resource_root,
+    initialize_notebook_workspace,
+    run_cli,
+)
 
 
 def test_initialize_notebook_workspace_creates_expected_layout(tmp_path: Path) -> None:
@@ -49,7 +52,9 @@ def test_initialize_notebook_workspace_force_overwrites_templates(tmp_path: Path
 
     summary = initialize_notebook_workspace(workspace_root, force=True)
 
-    source_text = (REPO_ROOT / "configs" / "features.yml").read_text(encoding="utf-8")
+    source_text = _resolve_resource_root().joinpath("configs").joinpath("features.yml").read_text(
+        encoding="utf-8"
+    )
     assert config_path.read_text(encoding="utf-8") == source_text
     assert "configs/features.yml" in summary["overwritten"]
 
@@ -62,3 +67,21 @@ def test_run_cli_prints_concise_summary(tmp_path: Path, capsys) -> None:
 
     assert "Initialized StratLake notebook workspace at:" in captured.out
     assert "Template status:" in captured.out
+
+
+def test_package_resources_are_discoverable() -> None:
+    resource_root = _resolve_resource_root()
+
+    assert resource_root.joinpath("configs").joinpath("features.yml").is_file()
+    assert resource_root.joinpath("configs").joinpath("profiles").joinpath("notebook.yml").is_file()
+    assert resource_root.joinpath("docs").joinpath("notebook_integration.md").is_file()
+    assert (
+        resource_root.joinpath("docs").joinpath("examples").joinpath("notebook_execution_api_examples.py").is_file()
+    )
+
+
+def test_destination_path_rejects_writes_outside_workspace_root(tmp_path: Path) -> None:
+    workspace_root = tmp_path.resolve()
+
+    with pytest.raises(ValueError):
+        _destination_path(workspace_root, "../outside.txt")

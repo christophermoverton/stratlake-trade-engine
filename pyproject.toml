@@ -64,6 +64,9 @@ stratlake-run-promotion-governance-report = "src.cli.run_promotion_governance_re
 where = ["."]
 include = ["src*", "cli*"]
 
+[tool.setuptools.package-data]
+"src.resources.notebook_workspace" = ["**/*"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 

@@ -64,6 +64,8 @@ Current reviewed pins:
 - `actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5`
 - `actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065`
 - `actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02`
+- `actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093`
+- `pypa/gh-action-pypi-publish@cef221092ed1bacb1cc03d23a2d87d1d172e277b`
 - `softprops/action-gh-release@3bb12739c298aeb8a4eeaf626c5b8d85266b0e65`
 
 When refreshing a pin:

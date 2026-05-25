@@ -370,9 +370,18 @@ def _drive_category_root(
 
 
 def _iter_category_files(root: Path, category: str) -> Iterable[Path]:
-    for path in sorted(root.rglob("*"), key=lambda candidate: candidate.as_posix()):
-        if not path.is_file():
-            continue
+    def _walk(current: Path) -> Iterable[Path]:
+        for child in sorted(current.iterdir(), key=lambda candidate: candidate.as_posix()):
+            if child.is_symlink():
+                continue
+            if child.is_dir():
+                yield from _walk(child)
+                continue
+            if not child.is_file():
+                continue
+            yield child
+
+    for path in _walk(root):
         relative_parts = path.relative_to(root).parts
         if _is_excluded(path.name, relative_parts):
             continue

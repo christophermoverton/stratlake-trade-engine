@@ -51,6 +51,10 @@ def test_m42_release_version_and_tag_metadata_are_consistent() -> None:
     declared_version = _declared_project_version()
     expected_version = "0.42.0"
     expected_tag = "v0.42.0-notebook-project-sessions-drive-persistence"
+    version_pattern = re.compile(
+        rf"Package/build version:\s*\n`{re.escape(expected_version)}`",
+        re.MULTILINE,
+    )
 
     assert declared_version == expected_version
     for path in (
@@ -59,7 +63,7 @@ def test_m42_release_version_and_tag_metadata_are_consistent() -> None:
         REPO_ROOT / "docs" / "m42_release_validation_checklist.md",
     ):
         text = path.read_text(encoding="utf-8")
-        assert expected_version in text
+        assert version_pattern.search(text)
         assert expected_tag in text
 
 

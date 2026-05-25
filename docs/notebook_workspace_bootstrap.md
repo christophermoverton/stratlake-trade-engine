@@ -75,6 +75,52 @@ Existing files are preserved by default.
 The bundled package-resource templates are only the source for the initial copy. After copying,
 the local workspace files are user-owned and mutable.
 
+The starter config set includes `configs/session.yml`, a user-owned template
+for notebook project-session metadata. The bootstrap command only copies this
+template; it does not create session metadata or mutate canonical artifacts.
+
+## Notebook Project Session Contract
+
+M42.1 introduces a reusable session contract under `src.session` for notebooks
+and Colab-style workflows that need explicit roots. A project session records:
+
+- `schema_version`
+- `project_name`
+- notebook current working directory
+- StratLake project root
+- config, artifact, and feature roots
+- optional external MarketLake root
+- optional Drive persistence root
+- path kind and source/provenance for each resolved path
+
+When written, session metadata lives under the selected project root:
+
+- `.stratlake/session.json`
+- `.stratlake/path_resolution.json`
+
+These files are diagnostic session metadata, not canonical artifact state. They
+do not replace manifests, summaries, metrics, inventories, or named workflow
+outputs.
+
+Project-internal paths are serialized as portable POSIX-style relative paths
+where practical, such as `configs` or `data/curated`. External absolute paths,
+such as mounted Drive paths or external MarketLake roots, remain absolute and
+are marked as external so they are not mistaken for project-owned files.
+
+Minimal library usage:
+
+```python
+from src.session import create_notebook_project_session, write_session_files
+
+session = create_notebook_project_session(
+    project_name="stratlake-demo",
+    project_root="./stratlake-notebooks",
+    marketlake_root="../fintech/data/curated",
+    drive_root="/content/drive/MyDrive/stratlake-demo",
+)
+write_session_files(session)
+```
+
 ## Installed Commands
 
 The package now provides stable installed entry points for common workflows:

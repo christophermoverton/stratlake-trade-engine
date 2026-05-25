@@ -43,6 +43,19 @@ See [`docs/notebook_workspace_bootstrap.md`](notebook_workspace_bootstrap.md)
 for command reference, installed CLI entry points, and package/workspace
 boundary guidance.
 
+## Notebook Project Sessions
+
+Notebook project sessions make root selection explicit without becoming a
+second source of truth for artifacts. The `src.session` package can create
+`.stratlake/session.json` and `.stratlake/path_resolution.json` under a selected
+project root. Those files record the notebook CWD, StratLake project root,
+`configs/`, `artifacts/`, `data/curated` feature root, optional external
+MarketLake root, optional Drive root, and path-resolution provenance.
+
+Session metadata is diagnostic state for notebook ergonomics. Canonical
+workflow state remains in manifests, summaries, metrics, inventories, and named
+artifact outputs.
+
 ## Existing Notebook Surface
 
 The public notebook-friendly execution surface is documented in

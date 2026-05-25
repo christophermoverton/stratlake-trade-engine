@@ -14,6 +14,7 @@ STARTER_CONFIGS: tuple[str, ...] = (
     "portfolios.yml",
     "candidate_selection.yml",
     "review.yml",
+    "session.yml",
     "profiles/notebook.yml",
     "pipelines/scenario_matrix_pipeline.yml",
 )

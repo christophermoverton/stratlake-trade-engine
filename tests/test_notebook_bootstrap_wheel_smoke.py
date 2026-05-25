@@ -53,9 +53,20 @@ def test_wheel_install_supports_stratlake_init_notebook(tmp_path: Path) -> None:
         assert (workspace_root / relative).is_dir()
 
     assert (workspace_root / "configs" / "features.yml").is_file()
+    assert (workspace_root / "configs" / "session.yml").is_file()
     assert (workspace_root / "configs" / "profiles" / "notebook.yml").is_file()
     assert (workspace_root / "docs" / "notebook_integration.md").is_file()
+    assert (workspace_root / "docs" / "colab_project_sessions.md").is_file()
     assert (workspace_root / "docs" / "examples" / "notebook_execution_api_examples.py").is_file()
+
+    expected_scripts = (
+        "stratlake-init-session",
+        "stratlake-session-export",
+        "stratlake-session-import",
+    )
+    suffix = ".exe" if os.name == "nt" else ""
+    for script in expected_scripts:
+        assert (_venv_scripts_dir(venv_dir) / f"{script}{suffix}").is_file()
 
 
 def _venv_python(venv_dir: Path) -> Path:

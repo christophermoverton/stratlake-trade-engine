@@ -1,0 +1,19 @@
+# StratLake notebook project-session starter config.
+#
+# This file is copied into notebook workspaces as user-owned guidance. It is not
+# read automatically by M42.1 and is not canonical artifact state.
+
+project_name: stratlake-demo
+
+paths:
+  project_root: .
+  configs_root: configs
+  artifacts_root: artifacts
+  features_root: data/curated
+  marketlake_root: data/curated
+  drive_root: null
+
+notes:
+  - Keep project-internal paths relative where practical.
+  - Use explicit absolute paths only for external mounts such as Google Drive.
+  - Session metadata belongs under .stratlake/ and does not replace artifacts.

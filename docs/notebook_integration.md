@@ -43,6 +43,91 @@ See [`docs/notebook_workspace_bootstrap.md`](notebook_workspace_bootstrap.md)
 for command reference, installed CLI entry points, and package/workspace
 boundary guidance.
 
+For a copy-friendly Colab walkthrough that keeps notebook CWD, project root,
+external MarketLake root, and mounted Drive root explicit, see
+[`docs/colab_project_sessions.md`](colab_project_sessions.md).
+
+For session-first notebooks, use `stratlake-init-session`. It delegates to the
+same notebook bootstrap initializer, then writes `.stratlake/session.json` and
+`.stratlake/path_resolution.json`:
+
+```powershell
+stratlake-init-session --root ./stratlake-notebooks --project-name stratlake-demo
+```
+
+Use `stratlake-init-notebook` when you only need the workspace layout and
+starter templates. Use `stratlake-init-session` when the notebook CWD, project
+root, MarketLake root, or optional Drive root may differ and should be recorded
+explicitly.
+
+## Notebook Project Sessions
+
+Notebook project sessions make root selection explicit without becoming a
+second source of truth for artifacts. The `src.session` package can create
+`.stratlake/session.json` and `.stratlake/path_resolution.json` under a selected
+project root. Those files record the notebook CWD, StratLake project root,
+`configs/`, `artifacts/`, `data/curated` feature root, optional external
+MarketLake root, optional Drive root, and path-resolution provenance.
+
+Session metadata is diagnostic state for notebook ergonomics. Canonical
+workflow state remains in manifests, summaries, metrics, inventories, and named
+artifact outputs.
+
+`stratlake-init-session --enable-drive-persistence --drive-root ...` records
+Drive persistence intent as metadata only. It does not perform Google Drive
+sync, import, export, backup, OAuth, or API calls.
+
+Notebook cells can consume session metadata through path helpers:
+
+```python
+from src.session import find_session_root, load_session, resolve_session_paths
+
+root = find_session_root()
+session = load_session(root)
+paths = resolve_session_paths(session)
+
+configs_root = paths["configs_root"].resolved_path
+artifacts_root = paths["artifacts_root"].resolved_path
+marketlake_root = paths["marketlake_root"].resolved_path
+```
+
+`resolve_session_paths(...)` applies explicit overrides first, then session
+metadata, then environment-variable fallbacks such as `MARKETLAKE_ROOT`, and
+then starter defaults. Any environment fallback is recorded with provenance;
+the helpers do not mutate CWD, `.env`, `os.environ`, Drive files, or canonical
+artifacts.
+
+## Filesystem Drive Persistence
+
+Mounted Drive persistence is available through explicit one-shot filesystem
+copy commands:
+
+```powershell
+stratlake-session-export --root ./stratlake-notebooks --drive-root ./mounted-drive/stratlake-demo --include-configs
+stratlake-session-import --root ./stratlake-notebooks --drive-root ./mounted-drive/stratlake-demo --include-configs
+```
+
+The Drive root is a local filesystem path. StratLake does not use Google APIs,
+OAuth, credentials, network access, background sync, or automatic backup.
+Copies are persistence snapshots and remain non-authoritative.
+
+Session metadata is included by default. Configs, contracts, docs, artifacts,
+and derived artifacts are opt-in. Feature data requires `--include-features`;
+MarketLake data requires `--include-market-data`. `.env`, obvious
+credential/secret/API-key files, notebook checkpoints, caches, bytecode, and
+temporary files are excluded by default.
+
+Use `--dry-run` to see the deterministic plan without copying files. Import
+preserves existing files unless `--force` is supplied. Non-dry-run operations
+write a manifest under `artifacts/_derived/notebook_sessions/...`.
+
+Use `--operation-id` when you want distinct historical manifests instead of
+reusing `latest`.
+
+For the M42 release scope, validation checklist, and architecture boundaries,
+see [`docs/m42_release_notes.md`](m42_release_notes.md) and
+[`docs/m42_release_validation_checklist.md`](m42_release_validation_checklist.md).
+
 ## Existing Notebook Surface
 
 The public notebook-friendly execution surface is documented in

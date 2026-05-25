@@ -20,8 +20,10 @@ def test_initialize_notebook_workspace_creates_expected_layout(tmp_path: Path) -
         assert (workspace_root / directory).is_dir()
 
     assert (workspace_root / "configs" / "features.yml").is_file()
+    assert (workspace_root / "configs" / "session.yml").is_file()
     assert (workspace_root / "configs" / "profiles" / "notebook.yml").is_file()
     assert (workspace_root / "docs" / "notebook_integration.md").is_file()
+    assert (workspace_root / "docs" / "colab_project_sessions.md").is_file()
     assert (workspace_root / "docs" / "examples" / "notebook_execution_api_examples.py").is_file()
 
     assert summary["workspace_preexisting"] is False
@@ -107,8 +109,10 @@ def test_package_resources_are_discoverable() -> None:
     resource_root = _resolve_resource_root()
 
     assert resource_root.joinpath("configs").joinpath("features.yml").is_file()
+    assert resource_root.joinpath("configs").joinpath("session.yml").is_file()
     assert resource_root.joinpath("configs").joinpath("profiles").joinpath("notebook.yml").is_file()
     assert resource_root.joinpath("docs").joinpath("notebook_integration.md").is_file()
+    assert resource_root.joinpath("docs").joinpath("colab_project_sessions.md").is_file()
     assert (
         resource_root.joinpath("docs").joinpath("examples").joinpath("notebook_execution_api_examples.py").is_file()
     )

@@ -84,6 +84,7 @@ class SessionCopyPlan:
     operation: str
     dry_run: bool
     local_root: Path
+    artifacts_root: Path
     drive_root: Path
     include_categories: tuple[str, ...]
     exclude_rules: tuple[str, ...]
@@ -94,6 +95,7 @@ class SessionCopyPlan:
             "operation": self.operation,
             "dry_run": self.dry_run,
             "local_root": self.local_root.as_posix(),
+            "artifacts_root": self.artifacts_root.as_posix(),
             "drive_root": self.drive_root.as_posix(),
             "include_categories": list(self.include_categories),
             "exclude_rules": list(self.exclude_rules),
@@ -132,6 +134,7 @@ def plan_session_copy(
     session = root if isinstance(root, NotebookProjectSession) else load_session(root)
     paths = resolve_session_paths(session)
     local_root = Path(paths["project_root"].resolved_path).resolve()
+    artifacts_root = Path(paths["artifacts_root"].resolved_path).resolve()  # type: ignore[attr-defined]
     effective_drive_root = _resolve_drive_root(drive_root, paths)
     categories = _normalize_categories(include_categories)
     items = _build_plan_items(
@@ -147,6 +150,7 @@ def plan_session_copy(
         operation=operation,
         dry_run=dry_run,
         local_root=local_root,
+        artifacts_root=artifacts_root,
         drive_root=effective_drive_root,
         include_categories=categories,
         exclude_rules=_exclude_rules(),
@@ -204,8 +208,8 @@ def write_drive_sync_manifest(
     operation_id: str = DEFAULT_OPERATION_ID,
 ) -> Path:
     plan = plan_or_result.plan if isinstance(plan_or_result, SessionCopyResult) else plan_or_result
-    manifest_path = _manifest_path(plan.local_root, plan.operation, operation_id)
-    _ensure_under_root(manifest_path, plan.local_root)
+    manifest_path = _manifest_path(plan.artifacts_root, plan.operation, operation_id)
+    _ensure_under_root(manifest_path, plan.artifacts_root)
     manifest_path.parent.mkdir(parents=True, exist_ok=True)
     manifest_path.write_text(
         json.dumps(_manifest_data(plan), indent=2, sort_keys=False) + "\n",
@@ -441,11 +445,10 @@ def _manifest_data(plan: SessionCopyPlan) -> dict[str, object]:
     }
 
 
-def _manifest_path(local_root: Path, operation: str, operation_id: str) -> Path:
+def _manifest_path(artifacts_root: Path, operation: str, operation_id: str) -> Path:
     safe_operation_id = _safe_operation_id(operation_id)
     return (
-        local_root
-        / "artifacts"
+        artifacts_root
         / "_derived"
         / "notebook_sessions"
         / f"{operation}_{safe_operation_id}"

@@ -131,6 +131,48 @@ def test_manifest_includes_deterministic_order_and_file_metadata(tmp_path: Path)
     assert manifest["authoritative"] is False
 
 
+def test_drive_manifest_uses_resolved_artifacts_root(tmp_path: Path) -> None:
+    project_root = tmp_path / "workspace"
+    custom_artifacts = tmp_path / "custom-artifacts"
+    drive_root = tmp_path / "mounted-drive"
+    session = create_notebook_project_session(
+        project_root=project_root,
+        artifacts_root=custom_artifacts,
+        drive_root=drive_root,
+    )
+    write_session_files(session)
+    _write(project_root / "configs" / "demo.yml", "demo: true\n")
+
+    result = export_session_to_drive(
+        root=project_root,
+        include_categories=("configs",),
+        operation_id="custom-artifacts",
+    )
+
+    expected_manifest = (
+        custom_artifacts
+        / "_derived"
+        / "notebook_sessions"
+        / "export_custom-artifacts"
+        / "drive_sync_manifest.json"
+    ).resolve()
+    unexpected_project_manifest = (
+        project_root
+        / "artifacts"
+        / "_derived"
+        / "notebook_sessions"
+        / "export_custom-artifacts"
+        / "drive_sync_manifest.json"
+    )
+
+    assert result.manifest_path == expected_manifest
+    assert expected_manifest.is_file()
+    assert not unexpected_project_manifest.exists()
+    manifest = json.loads(expected_manifest.read_text(encoding="utf-8"))
+    assert manifest["artifacts_root"] == custom_artifacts.resolve().as_posix()
+    assert manifest["authoritative"] is False
+
+
 def test_import_does_not_overwrite_by_default_and_force_overwrites(tmp_path: Path) -> None:
     local_root, drive_root = _make_session_roots(tmp_path)
     _write(local_root / "configs" / "alpha.yml", "local\n")

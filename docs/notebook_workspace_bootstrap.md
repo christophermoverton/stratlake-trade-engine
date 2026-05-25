@@ -206,12 +206,76 @@ paths = resolve_session_paths(
 Use `write_path_resolution_report(session, overrides=...)` to refresh
 `.stratlake/path_resolution.json` with the same deterministic path provenance.
 
+## Filesystem Drive Persistence
+
+M42.4 adds explicit filesystem import/export helpers for mounted Drive-style
+paths. The mounted Drive path is treated as a normal local filesystem path:
+there are no Google API calls, OAuth flows, credentials, network access,
+background watchers, or automatic sync.
+
+Exports and imports are persistence snapshots only. They are not canonical
+artifact state, not a remote registry, and not a second source of truth.
+
+Export selected configs and artifacts:
+
+```powershell
+stratlake-session-export `
+  --root ./stratlake-workspace `
+  --drive-root ./mounted-drive/stratlake-demo `
+  --include-configs `
+  --include-artifacts
+```
+
+Dry-run without copying files:
+
+```powershell
+stratlake-session-export `
+  --root ./stratlake-workspace `
+  --drive-root ./mounted-drive/stratlake-demo `
+  --include-configs `
+  --include-artifacts `
+  --dry-run
+```
+
+Import selected files without overwriting existing files:
+
+```powershell
+stratlake-session-import `
+  --root ./stratlake-workspace `
+  --drive-root ./mounted-drive/stratlake-demo `
+  --include-configs
+```
+
+Use `--force` to explicitly overwrite existing import destinations. Feature
+data is copied only with `--include-features`; MarketLake data is copied only
+with `--include-market-data`.
+
+Session metadata is included by default. Other categories are opt-in:
+`--include-configs`, `--include-contracts`, `--include-docs`,
+`--include-artifacts`, `--include-derived-artifacts`, `--include-features`,
+and `--include-market-data`.
+
+Default excludes prevent copying `.env`, obvious credentials/secrets/API-key
+files, notebook checkpoints, Python bytecode, caches, and temporary files.
+
+Each non-dry-run operation writes a non-authoritative manifest under:
+
+```text
+artifacts/_derived/notebook_sessions/<operation>_<operation_id>/drive_sync_manifest.json
+```
+
+The manifest records the operation, roots, included categories, exclude rules,
+source and destination paths, relative path, category, size, SHA-256 hash,
+status, and skip reason when a destination is preserved.
+
 ## Installed Commands
 
 The package now provides stable installed entry points for common workflows:
 
 - `stratlake-init-notebook`
 - `stratlake-init-session`
+- `stratlake-session-export`
+- `stratlake-session-import`
 - `stratlake-build-features`
 - `stratlake-run-strategy`
 - `stratlake-run-alpha`

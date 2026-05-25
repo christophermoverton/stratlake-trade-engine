@@ -93,6 +93,30 @@ then starter defaults. Any environment fallback is recorded with provenance;
 the helpers do not mutate CWD, `.env`, `os.environ`, Drive files, or canonical
 artifacts.
 
+## Filesystem Drive Persistence
+
+Mounted Drive persistence is available through explicit one-shot filesystem
+copy commands:
+
+```powershell
+stratlake-session-export --root ./stratlake-notebooks --drive-root ./mounted-drive/stratlake-demo --include-configs
+stratlake-session-import --root ./stratlake-notebooks --drive-root ./mounted-drive/stratlake-demo --include-configs
+```
+
+The Drive root is a local filesystem path. StratLake does not use Google APIs,
+OAuth, credentials, network access, background sync, or automatic backup.
+Copies are persistence snapshots and remain non-authoritative.
+
+Session metadata is included by default. Configs, contracts, docs, artifacts,
+and derived artifacts are opt-in. Feature data requires `--include-features`;
+MarketLake data requires `--include-market-data`. `.env`, obvious
+credential/secret/API-key files, notebook checkpoints, caches, bytecode, and
+temporary files are excluded by default.
+
+Use `--dry-run` to see the deterministic plan without copying files. Import
+preserves existing files unless `--force` is supplied. Non-dry-run operations
+write a manifest under `artifacts/_derived/notebook_sessions/...`.
+
 ## Existing Notebook Surface
 
 The public notebook-friendly execution surface is documented in

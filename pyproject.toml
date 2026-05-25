@@ -40,6 +40,8 @@ dev = [
 [project.scripts]
 stratlake-init-notebook = "src.cli.init_notebook_workspace:main"
 stratlake-init-session = "src.cli.init_session:main"
+stratlake-session-export = "src.cli.session_export:main"
+stratlake-session-import = "src.cli.session_import:main"
 stratlake-build-features = "cli.build_features:main"
 stratlake-run-strategy = "src.cli.run_strategy:main"
 stratlake-run-alpha = "src.cli.run_alpha:main"

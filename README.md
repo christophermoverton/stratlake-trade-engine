@@ -33,6 +33,7 @@ Start with:
 
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
+* [docs/colab_project_sessions.md](docs/colab_project_sessions.md)
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
 * [docs/pipeline_integration.md](docs/pipeline_integration.md)
 * [docs/concurrency_and_idempotency.md](docs/concurrency_and_idempotency.md)
@@ -594,6 +595,56 @@ Start with:
 
 * [docs/m41_release_notes.md](docs/m41_release_notes.md)
 * [docs/getting_started.md](docs/getting_started.md)
+* [docs/notebook_integration.md](docs/notebook_integration.md)
+* [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
+
+### Release 0.42.0: Notebook Project Sessions and Filesystem Drive Persistence
+
+Release 0.42.0 aligns the package metadata and release-facing docs with the
+M42 notebook project-session milestone. Notebook and Colab-style workflows can
+initialize an explicit StratLake project session, inspect resolved paths with
+provenance, and optionally export or import selected session content through a
+filesystem-only mounted Drive path.
+
+Session bootstrap:
+
+```bash
+stratlake-init-session --root ./stratlake-workspace --project-name stratlake-demo
+```
+
+Session path inspection:
+
+```python
+from src.session import load_session, resolve_session_paths
+
+session = load_session("./stratlake-workspace")
+paths = resolve_session_paths(session)
+```
+
+Filesystem-only persistence snapshots:
+
+```bash
+stratlake-session-export --root ./stratlake-workspace --drive-root ./mounted-drive/stratlake-demo --include-configs --include-artifacts
+stratlake-session-import --root ./stratlake-workspace --drive-root ./mounted-drive/stratlake-demo --include-configs
+```
+
+Drive persistence is optional and treats the Drive root as a normal mounted
+filesystem path. StratLake does not use Google APIs, OAuth, credentials,
+network access, background sync, a remote registry, or a second source of truth.
+Session files and Drive manifests are diagnostic and non-authoritative;
+canonical artifacts remain the authoritative research evidence.
+
+Package/build version:
+`0.42.0`
+
+Release tag:
+`v0.42.0-notebook-project-sessions-drive-persistence`
+
+Start with:
+
+* [docs/m42_release_notes.md](docs/m42_release_notes.md)
+* [docs/m42_release_validation_checklist.md](docs/m42_release_validation_checklist.md)
+* [docs/colab_project_sessions.md](docs/colab_project_sessions.md)
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
 

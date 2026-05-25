@@ -47,6 +47,26 @@ def test_package_version_is_not_milestone_tag_formatted() -> None:
     assert not re.match(r"^v\d+\.\d+\.\d+(?:-|$)", declared_version)
 
 
+def test_m42_release_version_and_tag_metadata_are_consistent() -> None:
+    declared_version = _declared_project_version()
+    expected_version = "0.42.0"
+    expected_tag = "v0.42.0-notebook-project-sessions-drive-persistence"
+    version_pattern = re.compile(
+        rf"Package/build version:\s*\n`{re.escape(expected_version)}`",
+        re.MULTILINE,
+    )
+
+    assert declared_version == expected_version
+    for path in (
+        REPO_ROOT / "README.md",
+        REPO_ROOT / "docs" / "m42_release_notes.md",
+        REPO_ROOT / "docs" / "m42_release_validation_checklist.md",
+    ):
+        text = path.read_text(encoding="utf-8")
+        assert version_pattern.search(text)
+        assert expected_tag in text
+
+
 def test_stable_installed_import_smoke() -> None:
     assert portable_path("docs\\manifest.json") == "docs/manifest.json"
 

@@ -4,10 +4,13 @@ Milestone title:
 `M42 - Notebook Project Sessions and Filesystem Drive Persistence`
 
 M42 branch:
-`feature/m42-notebook-project-sessions-drive-persistence`
+`release/m42-version-tag-update`
 
 Candidate milestone release tag:
 `v0.42.0-notebook-project-sessions-drive-persistence`
+
+Package/build version:
+`0.42.0`
 
 ## Milestone Principle
 
@@ -156,7 +159,7 @@ Tag:
 `v0.42.0-notebook-project-sessions-drive-persistence`
 
 Branch:
-`feature/m42-notebook-project-sessions-drive-persistence`
+`release/m42-version-tag-update`
 
 Summary:
 M42 adds deterministic notebook project sessions for StratLake workflows.

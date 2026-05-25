@@ -7,10 +7,13 @@ Milestone title:
 `M42 - Notebook Project Sessions and Filesystem Drive Persistence`
 
 M42 branch:
-`feature/m42-notebook-project-sessions-drive-persistence`
+`release/m42-version-tag-update`
 
 Candidate milestone release tag:
 `v0.42.0-notebook-project-sessions-drive-persistence`
+
+Package/build version:
+`0.42.0`
 
 ## M42 Scope Recap
 
@@ -161,6 +164,10 @@ Confirm installed entry points include:
 * `stratlake-init-session`
 * `stratlake-session-export`
 * `stratlake-session-import`
+
+Confirm package/build version metadata reports:
+
+* `0.42.0`
 
 If the build emits the existing setuptools license-table deprecation warning,
 record it as existing and non-blocking unless this branch changes packaging

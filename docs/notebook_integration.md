@@ -124,6 +124,10 @@ write a manifest under `artifacts/_derived/notebook_sessions/...`.
 Use `--operation-id` when you want distinct historical manifests instead of
 reusing `latest`.
 
+For the M42 release scope, validation checklist, and architecture boundaries,
+see [`docs/m42_release_notes.md`](m42_release_notes.md) and
+[`docs/m42_release_validation_checklist.md`](m42_release_validation_checklist.md).
+
 ## Existing Notebook Surface
 
 The public notebook-friendly execution surface is documented in

@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from importlib import metadata
+from importlib import resources
 from pathlib import Path
 import re
 import tomllib
 
+from src.cli.init_notebook_workspace import _resolve_resource_root
 from src.artifacts.safety import portable_path
 
 
@@ -47,6 +49,26 @@ def test_package_version_is_not_milestone_tag_formatted() -> None:
 
 def test_stable_installed_import_smoke() -> None:
     assert portable_path("docs\\manifest.json") == "docs/manifest.json"
+
+
+def test_m42_entry_points_are_declared() -> None:
+    scripts = _load_pyproject()["project"]["scripts"]
+
+    assert scripts["stratlake-init-session"] == "src.cli.init_session:main"
+    assert scripts["stratlake-session-export"] == "src.cli.session_export:main"
+    assert scripts["stratlake-session-import"] == "src.cli.session_import:main"
+
+
+def test_m42_notebook_workspace_resources_are_packaged() -> None:
+    resource_root = _resolve_resource_root()
+
+    assert resource_root.joinpath("configs").joinpath("session.yml").is_file()
+    assert resource_root.joinpath("docs").joinpath("notebook_integration.md").is_file()
+    assert resource_root.joinpath("docs").joinpath("colab_project_sessions.md").is_file()
+
+    package_files = resources.files("src.resources.notebook_workspace")
+    assert package_files.joinpath("configs").joinpath("session.yml").is_file()
+    assert package_files.joinpath("docs").joinpath("colab_project_sessions.md").is_file()
 
 
 def _load_pyproject() -> dict[str, object]:

@@ -275,6 +275,9 @@ status, and skip reason when a destination is preserved.
 Use `--operation-id` when you want distinct historical manifests instead of
 reusing `latest`.
 
+Release-facing validation for the full notebook-session stack is documented in
+[`docs/m42_release_validation_checklist.md`](m42_release_validation_checklist.md).
+
 ## Installed Commands
 
 The package now provides stable installed entry points for common workflows:

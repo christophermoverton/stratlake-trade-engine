@@ -21,12 +21,15 @@ class PathKind(str, Enum):
 class PathSource(str, Enum):
     CURRENT_WORKING_DIRECTORY = "current_working_directory"
     DEFAULT = "default"
+    ENVIRONMENT_VARIABLE = "environment_variable"
     EXPLICIT_ARTIFACTS_ROOT = "explicit_artifacts_root"
     EXPLICIT_CONFIGS_ROOT = "explicit_configs_root"
     EXPLICIT_DRIVE_ROOT = "explicit_drive_root"
     EXPLICIT_FEATURES_ROOT = "explicit_features_root"
     EXPLICIT_MARKETLAKE_ROOT = "explicit_marketlake_root"
+    EXPLICIT_OVERRIDE = "explicit_override"
     EXPLICIT_ROOT = "explicit_root"
+    SESSION_METADATA = "session_metadata"
 
 
 @dataclass(frozen=True)

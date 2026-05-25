@@ -9,6 +9,12 @@ from src.session.contracts import (
     create_notebook_project_session,
 )
 from src.session.io import SessionWriteResult, write_session_files
+from src.session.paths import (
+    find_session_root,
+    load_session,
+    resolve_session_paths,
+    write_path_resolution_report,
+)
 
 __all__ = [
     "NotebookProjectSession",
@@ -18,5 +24,9 @@ __all__ = [
     "ResolvedSessionPath",
     "SessionWriteResult",
     "create_notebook_project_session",
+    "find_session_root",
+    "load_session",
+    "resolve_session_paths",
+    "write_path_resolution_report",
     "write_session_files",
 ]

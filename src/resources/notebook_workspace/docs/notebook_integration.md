@@ -73,6 +73,26 @@ artifact outputs.
 Drive persistence intent as metadata only. It does not perform Google Drive
 sync, import, export, backup, OAuth, or API calls.
 
+Notebook cells can consume session metadata through path helpers:
+
+```python
+from src.session import find_session_root, load_session, resolve_session_paths
+
+root = find_session_root()
+session = load_session(root)
+paths = resolve_session_paths(session)
+
+configs_root = paths["configs_root"].resolved_path
+artifacts_root = paths["artifacts_root"].resolved_path
+marketlake_root = paths["marketlake_root"].resolved_path
+```
+
+`resolve_session_paths(...)` applies explicit overrides first, then session
+metadata, then environment-variable fallbacks such as `MARKETLAKE_ROOT`, and
+then starter defaults. Any environment fallback is recorded with provenance;
+the helpers do not mutate CWD, `.env`, `os.environ`, Drive files, or canonical
+artifacts.
+
 ## Existing Notebook Surface
 
 The public notebook-friendly execution surface is documented in

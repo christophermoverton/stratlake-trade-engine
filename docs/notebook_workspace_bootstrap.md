@@ -157,6 +157,55 @@ stratlake-init-session `
 export, copy, or back up Drive files. Drive filesystem persistence belongs to
 later M42 work.
 
+## Session-Aware Path Helpers
+
+Notebook and CLI code can find and consume the session metadata without relying
+on the active notebook CWD:
+
+```python
+from src.session import find_session_root, load_session, resolve_session_paths
+
+root = find_session_root()
+session = load_session(root)
+paths = resolve_session_paths(session)
+
+configs_root = paths["configs_root"].resolved_path
+artifacts_root = paths["artifacts_root"].resolved_path
+marketlake_root = paths["marketlake_root"].resolved_path
+```
+
+`find_session_root(start)` walks upward from `start` or `Path.cwd()` until it
+finds `.stratlake/session.json`. `load_session(root)` accepts either a project
+root or a path inside a project and validates the session schema before
+returning a structured session object.
+
+`resolve_session_paths(...)` uses deterministic precedence:
+
+1. explicit `overrides={...}`
+2. session metadata
+3. environment-variable fallbacks such as `MARKETLAKE_ROOT`, `ARTIFACTS_ROOT`,
+   and `FEATURES_ROOT`
+4. starter defaults
+
+Environment variables are only fallbacks and are recorded with
+`environment_variable` provenance when used. The helpers do not mutate CWD,
+`.env`, `os.environ`, package resources, Drive files, or canonical artifacts.
+
+Override example:
+
+```python
+paths = resolve_session_paths(
+    session,
+    overrides={
+        "marketlake_root": "/content/fintech/data/curated",
+        "artifacts_root": "artifacts/session-demo",
+    },
+)
+```
+
+Use `write_path_resolution_report(session, overrides=...)` to refresh
+`.stratlake/path_resolution.json` with the same deterministic path provenance.
+
 ## Installed Commands
 
 The package now provides stable installed entry points for common workflows:

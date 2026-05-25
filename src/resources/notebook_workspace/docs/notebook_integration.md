@@ -43,6 +43,19 @@ See [`docs/notebook_workspace_bootstrap.md`](notebook_workspace_bootstrap.md)
 for command reference, installed CLI entry points, and package/workspace
 boundary guidance.
 
+For session-first notebooks, use `stratlake-init-session`. It delegates to the
+same notebook bootstrap initializer, then writes `.stratlake/session.json` and
+`.stratlake/path_resolution.json`:
+
+```powershell
+stratlake-init-session --root ./stratlake-notebooks --project-name stratlake-demo
+```
+
+Use `stratlake-init-notebook` when you only need the workspace layout and
+starter templates. Use `stratlake-init-session` when the notebook CWD, project
+root, MarketLake root, or optional Drive root may differ and should be recorded
+explicitly.
+
 ## Notebook Project Sessions
 
 Notebook project sessions make root selection explicit without becoming a
@@ -55,6 +68,10 @@ MarketLake root, optional Drive root, and path-resolution provenance.
 Session metadata is diagnostic state for notebook ergonomics. Canonical
 workflow state remains in manifests, summaries, metrics, inventories, and named
 artifact outputs.
+
+`stratlake-init-session --enable-drive-persistence --drive-root ...` records
+Drive persistence intent as metadata only. It does not perform Google Drive
+sync, import, export, backup, OAuth, or API calls.
 
 ## Existing Notebook Surface
 

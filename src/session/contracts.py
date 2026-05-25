@@ -84,6 +84,7 @@ class NotebookProjectSession:
     features_root: ResolvedSessionPath
     marketlake_root: ResolvedSessionPath
     drive_root: ResolvedSessionPath | None = None
+    drive_persistence_enabled: bool = False
 
     def paths(self) -> dict[str, ResolvedSessionPath]:
         values = {
@@ -111,6 +112,10 @@ class NotebookProjectSession:
         }
         if self.drive_root is not None:
             data["drive_root"] = self.drive_root.to_session_dict()
+        data["drive_persistence"] = {
+            "enabled": self.drive_persistence_enabled,
+            "mode": "metadata_only",
+        }
         return data
 
     def resolution_report(self) -> PathResolutionReport:
@@ -131,6 +136,7 @@ def create_notebook_project_session(
     features_root: Path | str = DEFAULT_FEATURES_ROOT,
     marketlake_root: Path | str = DEFAULT_MARKETLAKE_ROOT,
     drive_root: Path | str | None = None,
+    drive_persistence_enabled: bool = False,
 ) -> NotebookProjectSession:
     root_input = Path(project_root).expanduser()
     resolved_project_root = root_input.resolve()
@@ -206,6 +212,7 @@ def create_notebook_project_session(
             input_path=str(marketlake_root),
         ),
         drive_root=drive_root_path,
+        drive_persistence_enabled=drive_persistence_enabled,
     )
 
 

@@ -35,6 +35,12 @@ Bootstrap a workspace at an explicit root:
 stratlake-init-notebook --root ./stratlake-notebooks
 ```
 
+Bootstrap a session-first workspace and write `.stratlake/` metadata:
+
+```powershell
+stratlake-init-session --root ./stratlake-notebooks --project-name stratlake-demo
+```
+
 Overwrite only copied starter templates:
 
 ```powershell
@@ -74,6 +80,11 @@ Curated starter files are copied from bundled package resources into the local w
 Existing files are preserved by default.
 The bundled package-resource templates are only the source for the initial copy. After copying,
 the local workspace files are user-owned and mutable.
+
+Use `stratlake-init-notebook` when you only want the workspace directories and
+starter templates. Use `stratlake-init-session` when a notebook or Colab-style
+environment also needs explicit session metadata that records the selected
+project root and path provenance.
 
 The starter config set includes `configs/session.yml`, a user-owned template
 for notebook project-session metadata. The bootstrap command only copies this
@@ -121,11 +132,37 @@ session = create_notebook_project_session(
 write_session_files(session)
 ```
 
+The installed `stratlake-init-session` command is a thin wrapper around the
+same behavior:
+
+```powershell
+stratlake-init-session `
+  --root ./stratlake-workspace `
+  --project-name stratlake-demo `
+  --marketlake-root ./fintech/data/curated
+```
+
+Optional Drive persistence metadata can be recorded for later M42 workflows:
+
+```powershell
+stratlake-init-session `
+  --root /content/stratlake `
+  --project-name stratlake-colab `
+  --marketlake-root /content/fintech/data/curated `
+  --drive-root /content/drive/MyDrive/stratlake-colab `
+  --enable-drive-persistence
+```
+
+`--enable-drive-persistence` records intent only. It does not sync, import,
+export, copy, or back up Drive files. Drive filesystem persistence belongs to
+later M42 work.
+
 ## Installed Commands
 
 The package now provides stable installed entry points for common workflows:
 
 - `stratlake-init-notebook`
+- `stratlake-init-session`
 - `stratlake-build-features`
 - `stratlake-run-strategy`
 - `stratlake-run-alpha`

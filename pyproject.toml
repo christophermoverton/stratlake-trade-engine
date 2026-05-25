@@ -39,6 +39,7 @@ dev = [
 
 [project.scripts]
 stratlake-init-notebook = "src.cli.init_notebook_workspace:main"
+stratlake-init-session = "src.cli.init_session:main"
 stratlake-build-features = "cli.build_features:main"
 stratlake-run-strategy = "src.cli.run_strategy:main"
 stratlake-run-alpha = "src.cli.run_alpha:main"
@@ -67,6 +68,9 @@ include = ["src*", "cli*"]
 
 [tool.setuptools.package-data]
 "src.resources.notebook_workspace" = ["**/*"]
+
+[tool.setuptools.exclude-package-data]
+"*" = ["__pycache__/*", "**/__pycache__/*", "*.pyc", "**/*.pyc"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

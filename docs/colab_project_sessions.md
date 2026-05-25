@@ -1,0 +1,277 @@
+# Colab Project Sessions
+
+## Purpose
+
+Use a StratLake project session in Colab or another cloud notebook when the
+notebook current working directory, StratLake project root, MarketLake root,
+and mounted Drive persistence root may all be different paths.
+
+The session makes those roots explicit without changing StratLake's
+artifact-first architecture. Session files and Drive copies are diagnostic
+notebook/session state. Canonical research evidence remains in StratLake
+artifact outputs such as manifests, metrics, summaries, inventories, and named
+workflow outputs.
+
+## Mental Model
+
+Keep these roots separate:
+
+- notebook CWD: where the notebook process happens to start
+- StratLake project root: the selected workspace for `.stratlake/`, `configs/`,
+  `artifacts/`, `docs/`, `contracts/`, and `notebooks/`
+- configs root: usually `PROJECT_ROOT / "configs"`
+- artifacts root: usually `PROJECT_ROOT / "artifacts"`
+- features root: usually `PROJECT_ROOT / "data" / "curated"` unless configured
+- external MarketLake root: a mounted or copied curated-data root outside the
+  StratLake project
+- mounted Drive persistence root: an optional local filesystem path used for
+  explicit backup/import/export snapshots
+
+Session-aware notebooks should resolve paths from the project session, not from
+the accidental notebook CWD.
+
+## Example Root Layout
+
+This Colab layout is an example, not a hard requirement:
+
+```text
+/content/stratlake
+  .stratlake/
+  configs/
+  artifacts/
+  docs/
+  notebooks/
+
+/content/fintech/data/curated
+  features_daily/
+  features_1m/
+  ...
+
+/content/drive/MyDrive/stratlake-demo
+  .stratlake/
+  configs/
+  artifacts/
+  data/
+```
+
+## Session-First Notebook Setup
+
+Install StratLake in the notebook environment. Use the package source that
+matches the work you are doing:
+
+```bash
+!python -m pip install stratlake-trade-engine
+```
+
+If you are running from a checked-out repository instead:
+
+```bash
+!python -m pip install -e .
+```
+
+Optionally mount Google Drive in Colab:
+
+```python
+from google.colab import drive
+
+drive.mount("/content/drive")
+```
+
+Define explicit roots in a notebook cell:
+
+```python
+from pathlib import Path
+
+PROJECT_ROOT = Path("/content/stratlake").resolve()
+MARKETLAKE_ROOT = Path("/content/fintech/data/curated").resolve()
+DRIVE_ROOT = Path("/content/drive/MyDrive/stratlake-demo").resolve()
+```
+
+Initialize the project session:
+
+```bash
+!stratlake-init-session \
+  --root /content/stratlake \
+  --project-name stratlake-demo \
+  --marketlake-root /content/fintech/data/curated \
+  --drive-root /content/drive/MyDrive/stratlake-demo
+```
+
+Use `stratlake-init-session` when you want workspace starter files plus
+`.stratlake/session.json` and `.stratlake/path_resolution.json`. Use
+`stratlake-init-notebook` only when you want the workspace layout and starter
+templates without session metadata.
+
+## Inspect Session Paths
+
+Load the session and resolve the important roots before running workflow cells:
+
+```python
+from src.session import load_session, resolve_session_paths
+
+session = load_session(PROJECT_ROOT)
+paths = resolve_session_paths(session)
+
+configs_root = paths["configs_root"].resolved_path
+artifacts_root = paths["artifacts_root"].resolved_path
+features_root = paths["features_root"].resolved_path
+marketlake_root = paths["marketlake_root"].resolved_path
+drive_root = paths["drive_root"].resolved_path
+```
+
+Each resolved path includes the serialized path, resolved absolute path, path
+kind, source/provenance, input value when relevant, and base path when relevant.
+The helpers do not mutate CWD, `.env`, `os.environ`, Drive files, or canonical
+artifacts.
+
+Resolution precedence is deterministic:
+
+1. explicit API/CLI overrides
+2. session metadata
+3. recorded environment-variable fallbacks
+4. starter defaults
+
+## Build Features With Explicit MarketLake Root
+
+Create or upload a ticker file under the project root:
+
+```python
+(PROJECT_ROOT / "configs" / "tickers_demo.txt").write_text("AAPL\nMSFT\n", encoding="utf-8")
+```
+
+Run the feature builder with an explicit MarketLake root so the notebook CWD is
+irrelevant:
+
+```bash
+!stratlake-build-features \
+  --timeframe 1D \
+  --start 2025-01-01 \
+  --end 2025-02-01 \
+  --tickers /content/stratlake/configs/tickers_demo.txt \
+  --marketlake-root /content/fintech/data/curated
+```
+
+The feature-run summary records the effective MarketLake root and its source
+under `config_resolution`.
+
+## Run Workflows From Session Configs
+
+Use explicit config paths from the project root. For example:
+
+```bash
+!stratlake-run-strategy \
+  --strategies-config /content/stratlake/configs/strategies.yml \
+  --strategy momentum_v1 \
+  --start 2025-01-01 \
+  --end 2025-02-01 \
+  --evaluation /content/stratlake/configs/evaluation.yml
+```
+
+Use notebooks to run established StratLake APIs or CLI-equivalent commands and
+inspect canonical outputs. Do not move strategy logic, validation decisions, or
+artifact schemas into notebook cells.
+
+## Export Snapshots To Mounted Drive
+
+Drive persistence is optional. The Drive root is treated as a mounted
+filesystem path. StratLake's persistence adapter uses no Google API, OAuth,
+credentials, or network access.
+
+Drive copies are explicit backup/import/export snapshots only. They are not
+canonical artifact state, a remote registry, or a second source of truth.
+
+Dry-run first:
+
+```bash
+!stratlake-session-export \
+  --root /content/stratlake \
+  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --include-configs \
+  --include-artifacts \
+  --dry-run
+```
+
+Export configs, artifacts, and feature data:
+
+```bash
+!stratlake-session-export \
+  --root /content/stratlake \
+  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --include-configs \
+  --include-artifacts \
+  --include-features
+```
+
+Feature data requires `--include-features`. Market data requires
+`--include-market-data`. Neither is included by broad config, docs, or artifact
+flags.
+
+Use `--operation-id` when you want distinct historical manifests instead of
+reusing `latest`:
+
+```bash
+!stratlake-session-export \
+  --root /content/stratlake \
+  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --include-configs \
+  --include-artifacts \
+  --operation-id colab-run-001
+```
+
+Non-dry-run operations write a diagnostic, non-authoritative manifest under:
+
+```text
+artifacts/_derived/notebook_sessions/<operation>_<operation_id>/drive_sync_manifest.json
+```
+
+## Restore In A New Notebook Session
+
+Install the package, mount Drive if needed, define the same explicit roots, and
+initialize or recreate the local project directory. Then import selected
+snapshots:
+
+```bash
+!stratlake-session-import \
+  --root /content/stratlake \
+  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --include-configs \
+  --include-artifacts \
+  --include-features
+```
+
+Import preserves existing files by default. Use `--force` only when you
+intentionally want selected import destinations overwritten:
+
+```bash
+!stratlake-session-import \
+  --root /content/stratlake \
+  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --include-configs \
+  --force
+```
+
+## Safe Persistence Defaults
+
+The filesystem adapter excludes sensitive and noisy files by default:
+
+- `.env`
+- credentials
+- API keys and secrets
+- notebook checkpoints
+- caches
+- Python bytecode
+- temporary files
+
+Do not use Drive persistence as a credential workflow. Keep secrets outside
+session snapshots.
+
+## Command Guide
+
+- `stratlake-init-notebook`: workspace layout and starter templates only
+- `stratlake-init-session`: workspace layout plus `.stratlake/` session metadata
+- `stratlake-session-export`: explicit one-shot export to a mounted Drive path
+- `stratlake-session-import`: explicit one-shot import from a mounted Drive path
+
+All commands should be given explicit roots in Colab-style notebooks. The
+commands do not change notebook CWD, mutate `.env`, mutate `os.environ`, call
+Google APIs, or start background sync.

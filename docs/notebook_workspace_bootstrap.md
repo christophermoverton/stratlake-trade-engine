@@ -41,6 +41,9 @@ Bootstrap a session-first workspace and write `.stratlake/` metadata:
 stratlake-init-session --root ./stratlake-notebooks --project-name stratlake-demo
 ```
 
+For Colab and mounted-Drive notebooks, use the session-first flow in
+[`docs/colab_project_sessions.md`](colab_project_sessions.md).
+
 Overwrite only copied starter templates:
 
 ```powershell
@@ -142,7 +145,8 @@ stratlake-init-session `
   --marketlake-root ./fintech/data/curated
 ```
 
-Optional Drive persistence metadata can be recorded for later M42 workflows:
+Optional Drive persistence metadata can be recorded for explicit import/export
+workflows:
 
 ```powershell
 stratlake-init-session `
@@ -154,8 +158,8 @@ stratlake-init-session `
 ```
 
 `--enable-drive-persistence` records intent only. It does not sync, import,
-export, copy, or back up Drive files. Drive filesystem persistence belongs to
-later M42 work.
+export, copy, or back up Drive files. Use `stratlake-session-export` and
+`stratlake-session-import` for explicit one-shot filesystem snapshots.
 
 ## Session-Aware Path Helpers
 
@@ -267,6 +271,9 @@ artifacts/_derived/notebook_sessions/<operation>_<operation_id>/drive_sync_manif
 The manifest records the operation, roots, included categories, exclude rules,
 source and destination paths, relative path, category, size, SHA-256 hash,
 status, and skip reason when a destination is preserved.
+
+Use `--operation-id` when you want distinct historical manifests instead of
+reusing `latest`.
 
 ## Installed Commands
 

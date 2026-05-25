@@ -27,6 +27,7 @@ STARTER_DOCS: tuple[str, ...] = (
     "concurrency_and_idempotency.md",
     "cross_layer_validation.md",
     "catalog_notebook_ergonomics.md",
+    "colab_project_sessions.md",
     "examples/notebook_execution_api_examples.py",
 )
 

@@ -43,6 +43,10 @@ See [`docs/notebook_workspace_bootstrap.md`](notebook_workspace_bootstrap.md)
 for command reference, installed CLI entry points, and package/workspace
 boundary guidance.
 
+For a copy-friendly Colab walkthrough that keeps notebook CWD, project root,
+external MarketLake root, and mounted Drive root explicit, see
+[`docs/colab_project_sessions.md`](colab_project_sessions.md).
+
 For session-first notebooks, use `stratlake-init-session`. It delegates to the
 same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 `.stratlake/path_resolution.json`:
@@ -116,6 +120,9 @@ temporary files are excluded by default.
 Use `--dry-run` to see the deterministic plan without copying files. Import
 preserves existing files unless `--force` is supplied. Non-dry-run operations
 write a manifest under `artifacts/_derived/notebook_sessions/...`.
+
+Use `--operation-id` when you want distinct historical manifests instead of
+reusing `latest`.
 
 ## Existing Notebook Surface
 

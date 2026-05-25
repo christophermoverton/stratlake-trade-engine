@@ -278,9 +278,11 @@ def _coerce_session(
         if not isinstance(project_root_value, Mapping):
             raise ValueError("Session mapping must include project_root metadata")
         root_value = project_root_value.get("resolved_path")
-        if not isinstance(root_value, str):
-            raise ValueError("Session mapping must include project_root.resolved_path")
-        root = Path(root_value).resolve()
+        root = (
+            Path(root_value).resolve()
+            if isinstance(root_value, str) and root_value
+            else find_session_root()
+        )
         return _session_from_payload(session_or_root, root), root
     session = load_session(session_or_root)
     return session, Path(session.project_root.resolved_path).resolve()

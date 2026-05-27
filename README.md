@@ -647,8 +647,6 @@ Start with:
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
 
-### Release 0.43.0: Portable Notebook Session Archives
-
 ### Release 0.43.1: Session Archive Bootstrap Mini-Release
 
 Release 0.43.1 is a mini-release under the published M43 archive line. It

@@ -44,6 +44,38 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+### Session Archive Bootstrap (M43)
+
+For notebook and Colab workflows, use a single command to create an M43
+portable archive pack and optionally copy it to a mounted Drive-style path:
+
+```bash
+stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --include-features \
+  --include-artifacts \
+  --include-configs
+```
+
+Mounted destination copy with post-copy validation and inspection:
+
+```bash
+stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --include-features \
+  --include-artifacts \
+  --include-configs \
+  --validate-after-copy \
+  --inspect-after-copy
+```
+
+Mounted Drive paths are treated as local filesystem paths only. The command
+does not call Google APIs, does not require credentials, and does not make
+archive packs canonical storage.
+
 Milestone 28 adds Airflow, Prefect, and Dagster-style integration patterns as
 thin optional wrappers around existing StratLake CLI and `src.execution`
 surfaces. These examples do not add scheduler dependencies to the core runtime;

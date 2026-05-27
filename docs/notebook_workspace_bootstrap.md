@@ -275,6 +275,37 @@ status, and skip reason when a destination is preserved.
 Use `--operation-id` when you want distinct historical manifests instead of
 reusing `latest`.
 
+For notebook-friendly portable session archive packs, use the explicit archive
+bootstrap command:
+
+```powershell
+stratlake-session-archive-bootstrap `
+  --root /content/stratlake `
+  --archive-id notebook-session-001 `
+  --include-features `
+  --include-artifacts `
+  --include-configs
+```
+
+To persist the archive pack to a mounted Drive-style local filesystem path and
+validate/inspect the copied pack:
+
+```powershell
+stratlake-session-archive-bootstrap `
+  --root /content/stratlake `
+  --archive-id notebook-session-001 `
+  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives `
+  --include-features `
+  --include-artifacts `
+  --include-configs `
+  --validate-after-copy `
+  --inspect-after-copy
+```
+
+The mounted Drive path is treated as local filesystem storage only. The command
+does not call Google APIs, does not require credentials, and does not make
+archive packs canonical storage.
+
 Release-facing validation for the full notebook-session stack is documented in
 [`docs/m42_release_validation_checklist.md`](m42_release_validation_checklist.md).
 
@@ -286,6 +317,7 @@ The package now provides stable installed entry points for common workflows:
 - `stratlake-init-session`
 - `stratlake-session-export`
 - `stratlake-session-import`
+- `stratlake-session-archive-bootstrap`
 - `stratlake-build-features`
 - `stratlake-run-strategy`
 - `stratlake-run-alpha`

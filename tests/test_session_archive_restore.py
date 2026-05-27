@@ -284,6 +284,39 @@ def test_duckdb_memory_metadata_does_not_require_or_restore_snapshot_file(tmp_pa
     assert not (target / "artifacts/session.duckdb").exists()
 
 
+def test_duplicate_tar_member_path_is_rejected(tmp_path: Path) -> None:
+    archive_root = _archive(_repo(tmp_path / "source"))
+    _replace_first_shard(
+        archive_root,
+        [
+            ("configs/strategies.yml", b"first\n"),
+            ("configs/strategies.yml", b"second\n"),
+        ],
+    )
+
+    with pytest.raises(SessionArchiveError, match="duplicate member path"):
+        build_session_archive_restore_plan(
+            _restore_request(archive_root, tmp_path / "target", verify_checksums=False)
+        )
+
+
+def test_duplicate_member_rejected_before_any_restore_write(tmp_path: Path) -> None:
+    archive_root = _archive(_repo(tmp_path / "source"))
+    _replace_first_shard(
+        archive_root,
+        [
+            ("configs/strategies.yml", b"first\n"),
+            ("configs/strategies.yml", b"second\n"),
+        ],
+    )
+    target = tmp_path / "target"
+
+    with pytest.raises(SessionArchiveError, match="duplicate member path"):
+        restore_session_archive_pack(_restore_request(archive_root, target, verify_checksums=False))
+
+    assert not (target / "configs/strategies.yml").exists()
+
+
 def _replace_first_shard(archive_root: Path, members: list[tuple[str, bytes]]) -> None:
     shard = next((archive_root / "shards").glob("*.tar"))
     buffer = BytesIO()

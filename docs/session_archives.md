@@ -279,6 +279,10 @@ backslash-separated paths. Restore also rejects symlinks, hardlinks, device
 files, FIFO files, directories, and other non-regular tar members. Parent
 directories are created implicitly from safe regular-file paths.
 
+Restore rejects duplicate member paths inside a shard before extraction so
+malformed archives cannot create ambiguous overwrite behavior within a single
+archive.
+
 When `verify_checksums=True`, restore verifies each shard checksum before any
 extraction. If `checksums.json` includes file checksums, restored file content
 is checked as it is written.

@@ -315,11 +315,17 @@ class _TarMember:
 
 def _inspect_tar_members(shard_path: Path, shard_name: str) -> tuple[_TarMember, ...]:
     members: list[_TarMember] = []
+    seen: set[str] = set()
     try:
         with tarfile.open(shard_path, mode="r") as archive:
             for member in archive.getmembers():
                 _validate_regular_member(member, shard_name)
                 member_path = _portable_member_path(member.name)
+                if member_path in seen:
+                    raise SessionArchiveError(
+                        f"Session archive shard {shard_name} contains duplicate member path: {member_path}."
+                    )
+                seen.add(member_path)
                 members.append(_TarMember(member_path=member_path, size_bytes=member.size))
     except tarfile.TarError as exc:
         raise SessionArchiveError(

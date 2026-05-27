@@ -132,6 +132,25 @@ index, checksum, and restore-plan payloads, and writes nothing.
 `write_session_archive_pack(...)` builds the same plan and writes a derived
 archive pack under a repository-relative output root.
 
+By default, writes use `collision_policy="fail_if_exists"`. If the target
+archive root already exists and contains files, the writer raises instead of
+silently replacing a previous archive pack. Empty existing archive roots are
+allowed. Intentional replacement requires `collision_policy="overwrite_allowed"`;
+that policy only replaces known generated archive children under the derived
+archive root:
+
+```text
+manifest.json
+archive_index.json
+checksums.json
+restore_plan.json
+shards/
+```
+
+Collision handling applies only to derived archive outputs. It does not mutate
+canonical feature, artifact, or config inputs. Dry-run planning remains
+write-free and never creates, clears, or overwrites an archive root.
+
 The default layout is:
 
 ```text
@@ -206,8 +225,9 @@ files. These checksums support transfer verification; they do not make archive
 packs canonical storage.
 
 `restore_plan.json` records target relative roots, overwrite policy metadata,
-compatibility metadata, and derived/non-authoritative boundary flags. It is
-metadata for future restore work, not a restore implementation.
+writer collision policy, compatibility metadata, and derived/non-authoritative
+boundary flags. It is metadata for future restore work, not a restore
+implementation.
 
 ## Future M43 Use
 

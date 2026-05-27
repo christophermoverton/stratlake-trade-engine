@@ -7,6 +7,7 @@ from io import BytesIO
 import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
+import shutil
 import tarfile
 from typing import Any, Mapping, Sequence
 
@@ -27,6 +28,16 @@ from src.session_archive.manifest import (
 DEFAULT_ARCHIVE_ROOT = "artifacts/_derived/session_archives"
 DEFAULT_MAX_SHARD_SIZE_BYTES = 64 * 1024 * 1024
 DEFAULT_MAX_ENTRIES_PER_SHARD = 1000
+SUPPORTED_COLLISION_POLICIES = frozenset({"fail_if_exists", "overwrite_allowed"})
+GENERATED_ARCHIVE_CHILDREN = frozenset(
+    {
+        "manifest.json",
+        "archive_index.json",
+        "checksums.json",
+        "restore_plan.json",
+        "shards",
+    }
+)
 DEFAULT_INCLUDE_PATHS = {
     SessionArchiveLogicalGroup.FEATURES: ("data/curated",),
     SessionArchiveLogicalGroup.ARTIFACTS: ("artifacts",),
@@ -76,6 +87,7 @@ class SessionArchiveWriteRequest:
     source_profile_path: str | None = None
     duckdb_snapshot_source_path: str | None = None
     duckdb_snapshot_description: str | None = None
+    collision_policy: str = "fail_if_exists"
     metadata: Mapping[str, Any] = field(default_factory=dict)
 
 
@@ -176,6 +188,7 @@ def build_session_archive_plan(request: SessionArchiveWriteRequest) -> SessionAr
     if not repository_root.exists() or not repository_root.is_dir():
         raise SessionArchiveError("Session archive repository_root must be an existing directory.")
     _safe_archive_id(request.archive_id)
+    collision_policy = _collision_policy(request.collision_policy)
     output_root = _resolve_repository_relative_path(
         request.output_root,
         repository_root=repository_root,
@@ -261,13 +274,14 @@ def build_session_archive_plan(request: SessionArchiveWriteRequest) -> SessionAr
         metadata={
             "writer": "session_archive.writer",
             "artifact_role": "derived_transport_snapshot",
+            "collision_policy": collision_policy,
             **dict(request.metadata),
         },
     )
     validate_session_archive_manifest(manifest)
-    archive_index = _archive_index(request.archive_id, grouped_entries, shards)
+    archive_index = _archive_index(request.archive_id, grouped_entries, shards, collision_policy)
     checksums = _checksums(request.archive_id, entries, shards)
-    restore_plan = _restore_plan(request.archive_id, restore)
+    restore_plan = _restore_plan(request.archive_id, restore, collision_policy)
     return SessionArchivePlan(
         request=request,
         repository_root=repository_root,
@@ -283,6 +297,7 @@ def build_session_archive_plan(request: SessionArchiveWriteRequest) -> SessionAr
 
 def write_session_archive_pack(request: SessionArchiveWriteRequest) -> SessionArchiveWriteResult:
     plan = build_session_archive_plan(request)
+    _prepare_archive_root(plan.archive_root, request.collision_policy)
     shards_root = plan.archive_root / "shards"
     shards_root.mkdir(parents=True, exist_ok=True)
     shard_paths: list[Path] = []
@@ -432,6 +447,7 @@ def _archive_index(
     archive_id: str,
     grouped_entries: Mapping[SessionArchiveLogicalGroup, tuple[SessionArchiveShardEntry, ...]],
     shards: tuple[SessionArchiveShardPlan, ...],
+    collision_policy: str,
 ) -> dict[str, Any]:
     shard_by_entry = {
         entry.source_path: shard.shard_name for shard in shards for entry in shard.entries
@@ -455,6 +471,7 @@ def _archive_index(
                 for entry in entries
             ],
             "shards": [shard.to_dict() for shard in shards],
+            "writer": {"collision_policy": collision_policy},
         },
     )
 
@@ -486,11 +503,13 @@ def _checksums(
 def _restore_plan(
     archive_id: str,
     restore: SessionArchiveRestoreExpectations,
+    collision_policy: str,
 ) -> dict[str, Any]:
     return _derived_payload(
         archive_id,
         {
             "compatibility": restore.to_dict()["compatibility"],
+            "collision_policy": collision_policy,
             "overwrite_policy": restore.overwrite_policy,
             "target_relative_roots": dict(sorted(restore.target_relative_roots.items())),
         },
@@ -659,6 +678,45 @@ def _safe_archive_id(value: str) -> str:
     if "/" in text or "\\" in text or _WINDOWS_DRIVE_PREFIX_PATTERN.match(text):
         raise SessionArchiveError("Session archive archive_id must be a safe path segment.")
     return text
+
+
+def _collision_policy(value: str) -> str:
+    if value not in SUPPORTED_COLLISION_POLICIES:
+        raise SessionArchiveError(
+            "Session archive collision_policy must be one of "
+            f"{sorted(SUPPORTED_COLLISION_POLICIES)}."
+        )
+    return value
+
+
+def _prepare_archive_root(path: Path, collision_policy: str) -> None:
+    policy = _collision_policy(collision_policy)
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=False)
+        return
+    if not path.is_dir():
+        raise SessionArchiveError("Session archive archive_root exists and is not a directory.")
+    has_content = any(path.iterdir())
+    if has_content and policy == "fail_if_exists":
+        raise SessionArchiveError(
+            "Session archive archive_root already exists and is non-empty; "
+            "set collision_policy='overwrite_allowed' to replace derived archive outputs."
+        )
+    if has_content and policy == "overwrite_allowed":
+        _clear_generated_archive_children(path)
+    path.mkdir(parents=True, exist_ok=True)
+
+
+def _clear_generated_archive_children(path: Path) -> None:
+    for child_name in sorted(GENERATED_ARCHIVE_CHILDREN):
+        child = path / child_name
+        _ensure_under_root(child, path, "archive_root")
+        if not child.exists():
+            continue
+        if child.is_dir():
+            shutil.rmtree(child)
+        else:
+            child.unlink()
 
 
 def _optional_portable_path(value: str | None, field_name: str) -> str | None:

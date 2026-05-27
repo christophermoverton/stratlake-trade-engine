@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from dataclasses import replace
 import json
 from pathlib import Path
 import tarfile
@@ -110,6 +111,9 @@ def test_archive_creation_writes_expected_layout_and_valid_manifest(tmp_path: Pa
     validate_session_archive_manifest(manifest_payload)
     assert manifest_payload["boundaries"]["derived"] is True
     assert manifest_payload["boundaries"]["canonical_storage"] is False
+    assert manifest_payload["metadata"]["collision_policy"] == "fail_if_exists"
+    restore_plan = json.loads(result.restore_plan_path.read_text(encoding="utf-8"))
+    assert restore_plan["collision_policy"] == "fail_if_exists"
     sidecar_text = "\n".join(
         path.read_text(encoding="utf-8")
         for path in (
@@ -121,6 +125,48 @@ def test_archive_creation_writes_expected_layout_and_valid_manifest(tmp_path: Pa
     )
     assert str(root) not in sidecar_text
     assert root.as_posix() not in sidecar_text
+
+
+def test_default_collision_policy_fails_on_non_empty_archive_root(tmp_path: Path) -> None:
+    root = _repo(tmp_path / "repo")
+    request = _request(root)
+
+    write_session_archive_pack(request)
+
+    with pytest.raises(SessionArchiveError, match="archive_root.*non-empty|collision_policy"):
+        write_session_archive_pack(request)
+
+
+def test_overwrite_allowed_permits_intentional_rewrite(tmp_path: Path) -> None:
+    root = _repo(tmp_path / "repo")
+    request = _request(root)
+    first = write_session_archive_pack(request)
+    _write(first.archive_root / "shards" / "stale.tar", "stale\n")
+
+    result = write_session_archive_pack(replace(request, collision_policy="overwrite_allowed"))
+
+    assert result.manifest_path.is_file()
+    assert not (result.archive_root / "shards" / "stale.tar").exists()
+    manifest_payload = json.loads(result.manifest_path.read_text(encoding="utf-8"))
+    validate_session_archive_manifest(manifest_payload)
+    assert manifest_payload["metadata"]["collision_policy"] == "overwrite_allowed"
+
+
+def test_empty_existing_archive_root_is_allowed_by_default(tmp_path: Path) -> None:
+    root = _repo(tmp_path / "repo")
+    archive_root = root / "artifacts/_derived/session_archives/session-a"
+    archive_root.mkdir(parents=True)
+
+    result = write_session_archive_pack(_request(root))
+
+    assert result.manifest_path.is_file()
+
+
+def test_unknown_collision_policy_fails(tmp_path: Path) -> None:
+    root = _repo(tmp_path / "repo")
+
+    with pytest.raises(SessionArchiveError, match="collision_policy"):
+        write_session_archive_pack(replace(_request(root), collision_policy="unsafe"))
 
 
 def test_checksum_stability_for_identical_inputs(tmp_path: Path) -> None:

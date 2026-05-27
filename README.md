@@ -649,6 +649,31 @@ Start with:
 
 ### Release 0.43.0: Portable Notebook Session Archives
 
+### Release 0.43.1: Session Archive Bootstrap Mini-Release
+
+Release 0.43.1 is a mini-release under the published M43 archive line. It
+adds and hardens the notebook-friendly `stratlake-session-archive-bootstrap`
+command for creating portable session archive packs and optionally copying them
+to mounted filesystem paths.
+
+The mini-release keeps M43 boundaries unchanged: session archive packs remain
+derived, disposable, transport-only snapshots and are not canonical storage,
+canonical evidence, or a registry.
+
+Package/build version:
+`0.43.1`
+
+Release tag:
+`v0.43.1-session-archive-bootstrap`
+
+Start with:
+
+* [docs/m43_release_notes.md](docs/m43_release_notes.md)
+* [docs/m43_release_validation_checklist.md](docs/m43_release_validation_checklist.md)
+* [docs/session_archives.md](docs/session_archives.md)
+
+### Release 0.43.0: Portable Notebook Session Archives
+
 Release 0.43.0 aligns the package metadata and release-facing docs with the
 M43 portable notebook session archive milestone. Notebook and Colab-style users
 can pack selected repository-relative features, artifacts, configs, and optional

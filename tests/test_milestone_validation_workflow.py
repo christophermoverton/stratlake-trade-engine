@@ -5,6 +5,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 MILESTONE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "milestone_validation.yml"
+MILESTONE_BRANCH_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "milestone_branch_validation.yml"
 
 
 def test_milestone_validation_keeps_manual_dispatch() -> None:
@@ -14,10 +15,13 @@ def test_milestone_validation_keeps_manual_dispatch() -> None:
 
 
 def test_milestone_validation_covers_current_milestone_branch_pattern() -> None:
-    text = MILESTONE_WORKFLOW.read_text(encoding="utf-8")
+    milestone_text = MILESTONE_WORKFLOW.read_text(encoding="utf-8")
+    branch_text = MILESTONE_BRANCH_WORKFLOW.read_text(encoding="utf-8")
 
-    assert '- "feature/m*"' in text
-    assert "startsWith(github.head_ref, 'feature/m')" in text
+    assert '- "feature/m*"' in branch_text
+    assert "M43 Session Archive Validation" in branch_text
+    assert "tests/test_session_archive_roundtrip_validation.py" in branch_text
+    assert "startsWith(github.head_ref, 'feature/m')" in milestone_text
 
 
 def test_milestone_validation_preserves_legacy_branch_patterns() -> None:

@@ -49,6 +49,12 @@ Runtime profiles provide non-secret starter contexts for local, CI, notebook,
 and pipeline workflows. See [runtime_profiles.md](runtime_profiles.md) and the
 examples in [../configs/profiles](../configs/profiles).
 
+Portable notebook session archives are documented in the repository
+[session archive guide](../../../../docs/session_archives.md). They are useful
+for saving, moving, validating, inspecting, and restoring notebook or
+mounted-storage session state without making archive packs canonical StratLake
+storage.
+
 From a clean checkout, the CI-safe first-run flow does not require live market
 data, credentials, network access, or external services:
 

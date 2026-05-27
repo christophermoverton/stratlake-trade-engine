@@ -35,6 +35,7 @@ Start with:
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
 * [docs/colab_project_sessions.md](docs/colab_project_sessions.md)
 * [docs/session_archives.md](docs/session_archives.md)
+* [docs/m43_release_notes.md](docs/m43_release_notes.md)
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
 * [docs/pipeline_integration.md](docs/pipeline_integration.md)
 * [docs/concurrency_and_idempotency.md](docs/concurrency_and_idempotency.md)
@@ -603,6 +604,42 @@ Start with:
 * [docs/getting_started.md](docs/getting_started.md)
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
+
+### Release 0.43.0: Portable Notebook Session Archives
+
+Release 0.43.0 aligns the package metadata and release-facing docs with the
+M43 portable notebook session archive milestone. Notebook and Colab-style users
+can pack selected repository-relative features, artifacts, configs, and optional
+DuckDB snapshots, validate and inspect the archive pack, restore into a normal
+local workspace, and then run StratLake from restored local paths.
+
+Session archive CLI:
+
+```bash
+python -m src.cli.session_archive pack --repository-root . --archive-id demo-session --include-group features --include-group artifacts --include-group configs
+python -m src.cli.session_archive validate --archive-root artifacts/_derived/session_archives/demo-session --output-root artifacts
+python -m src.cli.session_archive inspect --archive-root artifacts/_derived/session_archives/demo-session
+python -m src.cli.session_archive restore --archive-root mounted_drive/stratlake_archives/demo-session --target-root restored_workspace --dry-run
+```
+
+Session archive packs are derived, disposable, transport-only snapshots. They
+are not canonical storage, canonical evidence, a registry, or active workflow
+inputs. Google Drive is optional mounted storage only; StratLake does not use
+Google Drive APIs, credentials, network access, live market data, dashboards,
+servers, or remote metadata services for M43 archive operations.
+
+Package/build version:
+`0.43.0`
+
+Release tag:
+`v0.43.0-portable-notebook-session-archives`
+
+Start with:
+
+* [docs/session_archives.md](docs/session_archives.md)
+* [docs/m43_release_notes.md](docs/m43_release_notes.md)
+* [docs/m43_release_validation_checklist.md](docs/m43_release_validation_checklist.md)
+* [docs/getting_started.md](docs/getting_started.md)
 
 ### Release 0.42.0: Notebook Project Sessions and Filesystem Drive Persistence
 

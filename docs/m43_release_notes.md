@@ -9,6 +9,64 @@ Candidate milestone release tag:
 Package/build version:
 `0.43.0`
 
+## M43 Mini-Release (Issue #477)
+
+Release tag:
+`v0.43.1-session-archive-bootstrap`
+
+Package/build version:
+`0.43.1`
+
+Scope:
+M43 mini-release for Issue #476 session archive bootstrap work.
+
+Branch:
+`feature/issue-476-session-archive-bootstrap-command`
+
+Primary issue:
+`#477`
+
+Related issue:
+`#476`
+
+### Mini-Release Summary
+
+`v0.43.1-session-archive-bootstrap` is a mini-release under the already-published
+M43 archive line. It adds and validates a notebook-friendly session archive
+bootstrap command for creating M43 portable archive packs and optionally copying
+them to mounted filesystem paths such as Drive-mounted Colab folders.
+
+The command supports explicit copy and local archive collision policies,
+whole-pack-safe skip-existing behavior, destination safety checks, optional
+validation/inspection after copy, and deterministic bootstrap reporting while
+preserving M43's derived, disposable, transport-only archive boundary model.
+
+### Mini-Release Highlights
+
+* Added `stratlake-session-archive-bootstrap` and
+  `python -m src.cli.session_archive_bootstrap` for thin M43 orchestration.
+* Added optional mounted filesystem copy via `--drive-root`.
+* Added explicit policy split:
+  `--archive-collision-policy fail_if_exists|overwrite_allowed` for local
+  archive generation and
+  `--copy-policy fail_if_exists|skip_existing|overwrite_allowed` for mounted
+  destination copy behavior.
+* Hardened `skip_existing` to skip existing destination archive packs as a
+  whole, avoiding mixed stale/new archive contents.
+* Added destination safety checks that reject unsafe local/destination
+  relationships before copy.
+* Added optional post-copy validation and inspection through existing M43 APIs.
+* Added deterministic derived bootstrap reporting under
+  `artifacts/_derived/session_archives/<archive_id>/bootstrap_report.json`.
+
+### Mini-Release Boundaries
+
+Session archive packs remain derived, disposable, transport-only snapshots.
+They are not canonical storage, canonical evidence, or a registry.
+
+This mini-release does not add Google API integration, OAuth, credentials,
+cloud SDK behavior, network access, or background sync.
+
 ## Milestone Principle
 
 Portable session archives should make notebook and cloud workflows faster to

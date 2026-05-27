@@ -6,7 +6,6 @@ on:
     branches:
       - "milestone/**"
       - "m22/**"
-      - "feature/m*"
   pull_request:
     branches:
       - main

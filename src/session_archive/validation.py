@@ -32,6 +32,8 @@ class SessionArchiveIssueCode:
     UNSUPPORTED_SCHEMA_VERSION = "unsupported_schema_version"
     MISSING_REQUIRED_MANIFEST_FIELDS = "missing_required_manifest_fields"
     MISSING_SHARD_INDEX = "missing_shard_index"
+    MISSING_CHECKSUMS = "missing_checksums"
+    MISSING_RESTORE_PLAN = "missing_restore_plan"
     MALFORMED_SHARD_INDEX = "malformed_shard_index"
     MISSING_REQUIRED_SHARD = "missing_required_shard"
     CHECKSUM_MISMATCH = "checksum_mismatch"
@@ -221,13 +223,16 @@ def write_session_archive_validation_report(
     archive_root: str | Path,
     output_path: str | Path | None = None,
     *,
+    output_root: str | Path | None = None,
     verify_checksums: bool = True,
 ) -> Path:
     result = validate_session_archive(archive_root, verify_checksums=verify_checksums)
-    path = (
-        Path(output_path)
-        if output_path is not None
-        else result.archive_root / "validation_report.json"
+    path = _report_output_path(
+        result.archive_root,
+        result.archive_id,
+        "validation_report.json",
+        output_path=output_path,
+        output_root=output_root,
     )
     try:
         return atomic_write_text(path, _deterministic_json(result.report))
@@ -239,13 +244,16 @@ def write_session_archive_inspection_report(
     archive_root: str | Path,
     output_path: str | Path | None = None,
     *,
+    output_root: str | Path | None = None,
     verify_checksums: bool = True,
 ) -> Path:
     result = inspect_session_archive(archive_root, verify_checksums=verify_checksums)
-    path = (
-        Path(output_path)
-        if output_path is not None
-        else result.archive_root / "inspection_report.json"
+    path = _report_output_path(
+        result.archive_root,
+        result.summary.archive_id,
+        "inspection_report.json",
+        output_path=output_path,
+        output_root=output_root,
     )
     try:
         return atomic_write_text(path, _deterministic_json(result.report))
@@ -326,12 +334,8 @@ def _load_sidecars(
     for name in EXPECTED_SIDECARS:
         path = archive_root / name
         if not path.is_file():
-            severity = "error" if name == "archive_index.json" else "warning"
-            code = (
-                SessionArchiveIssueCode.MISSING_SHARD_INDEX
-                if name == "archive_index.json"
-                else SessionArchiveIssueCode.MALFORMED_SHARD_INDEX
-            )
+            code = _missing_sidecar_code(name)
+            severity = "error"
             _issue(issues, code, severity, f"Session archive sidecar is missing: {name}.", name)
             sidecars[name] = None
             continue
@@ -413,7 +417,7 @@ def _validate_shards(
             continue
         if verify_checksums:
             expected = sidecar_checksums.get(shard.shard_name, shard.checksum)
-            digest = hashlib.sha256(shard_path.read_bytes()).hexdigest()
+            digest = _sha256_file(shard_path)
             if digest != expected:
                 _issue(
                     issues,
@@ -877,3 +881,41 @@ def _stable_jsonable(value: Any) -> Any:
 
 def _deterministic_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
+
+
+def _report_output_path(
+    archive_root: Path,
+    archive_id: str | None,
+    filename: str,
+    *,
+    output_path: str | Path | None,
+    output_root: str | Path | None,
+) -> Path:
+    if output_path is not None and output_root is not None:
+        raise SessionArchiveError(
+            "Session archive report output_path and output_root cannot both be supplied."
+        )
+    if output_path is not None:
+        return Path(output_path)
+    if output_root is not None:
+        report_archive_id = archive_id or "unknown_archive"
+        return Path(output_root) / "_derived" / "session_archives" / report_archive_id / filename
+    return archive_root / filename
+
+
+def _missing_sidecar_code(name: str) -> str:
+    if name == "archive_index.json":
+        return SessionArchiveIssueCode.MISSING_SHARD_INDEX
+    if name == "checksums.json":
+        return SessionArchiveIssueCode.MISSING_CHECKSUMS
+    if name == "restore_plan.json":
+        return SessionArchiveIssueCode.MISSING_RESTORE_PLAN
+    return SessionArchiveIssueCode.MALFORMED_SHARD_INDEX
+
+
+def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()

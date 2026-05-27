@@ -8,7 +8,7 @@ import tarfile
 
 import pytest
 
-from src.session_archive.manifest import SessionArchiveLogicalGroup
+from src.session_archive.manifest import SessionArchiveError, SessionArchiveLogicalGroup
 from src.session_archive.validation import (
     SessionArchiveIssueCode,
     inspect_session_archive,
@@ -96,6 +96,86 @@ def test_valid_archive_validation_inspection_and_reports_are_deterministic(
     assert tmp_path.as_posix() not in validation_text + inspection_text
 
 
+def test_reports_can_write_to_derived_output_root(tmp_path: Path) -> None:
+    archive_root = _archive(_repo(tmp_path / "source"))
+    output_root = tmp_path / "reports" / "artifacts"
+
+    validation_path = write_session_archive_validation_report(archive_root, output_root=output_root)
+    inspection_path = write_session_archive_inspection_report(archive_root, output_root=output_root)
+    validation_text = validation_path.read_text(encoding="utf-8")
+    inspection_text = inspection_path.read_text(encoding="utf-8")
+
+    assert validation_path == (
+        output_root / "_derived/session_archives/session-a/validation_report.json"
+    )
+    assert inspection_path == (
+        output_root / "_derived/session_archives/session-a/inspection_report.json"
+    )
+    write_session_archive_validation_report(archive_root, output_root=output_root)
+    write_session_archive_inspection_report(archive_root, output_root=output_root)
+    assert validation_path.read_text(encoding="utf-8") == validation_text
+    assert inspection_path.read_text(encoding="utf-8") == inspection_text
+    assert str(tmp_path) not in validation_text + inspection_text
+    assert tmp_path.as_posix() not in validation_text + inspection_text
+
+
+def test_reports_preserve_explicit_output_path(tmp_path: Path) -> None:
+    archive_root = _archive(_repo(tmp_path / "source"))
+    validation_path = tmp_path / "explicit" / "validation.json"
+    inspection_path = tmp_path / "explicit" / "inspection.json"
+
+    assert (
+        write_session_archive_validation_report(archive_root, output_path=validation_path)
+        == validation_path
+    )
+    assert (
+        write_session_archive_inspection_report(archive_root, output_path=inspection_path)
+        == inspection_path
+    )
+    assert validation_path.is_file()
+    assert inspection_path.is_file()
+
+
+def test_report_output_path_and_output_root_conflict_fails(tmp_path: Path) -> None:
+    archive_root = _archive(_repo(tmp_path / "source"))
+
+    with pytest.raises(SessionArchiveError, match="output_path and output_root"):
+        write_session_archive_validation_report(
+            archive_root,
+            output_path=tmp_path / "validation.json",
+            output_root=tmp_path / "reports",
+        )
+
+    with pytest.raises(SessionArchiveError, match="output_path and output_root"):
+        write_session_archive_inspection_report(
+            archive_root,
+            output_path=tmp_path / "inspection.json",
+            output_root=tmp_path / "reports",
+        )
+
+
+def test_derived_report_output_root_uses_unknown_archive_for_invalid_pack(
+    tmp_path: Path,
+) -> None:
+    archive_root = tmp_path / "bad-archive"
+    archive_root.mkdir()
+
+    path = write_session_archive_validation_report(
+        archive_root,
+        output_root=tmp_path / "reports" / "artifacts",
+    )
+
+    assert path == (
+        tmp_path
+        / "reports"
+        / "artifacts"
+        / "_derived/session_archives/unknown_archive/validation_report.json"
+    )
+    assert SessionArchiveIssueCode.MISSING_MANIFEST in {
+        item["code"] for item in json.loads(path.read_text(encoding="utf-8"))["issues"]
+    }
+
+
 def test_missing_manifest_fails_clearly(tmp_path: Path) -> None:
     archive_root = _archive(_repo(tmp_path / "source"))
     (archive_root / "manifest.json").unlink()
@@ -149,6 +229,26 @@ def test_missing_shard_index_fails_clearly(tmp_path: Path) -> None:
     assert SessionArchiveIssueCode.MISSING_SHARD_INDEX in _issue_codes(result)
 
 
+def test_missing_checksums_sidecar_fails_clearly(tmp_path: Path) -> None:
+    archive_root = _archive(_repo(tmp_path / "source"))
+    (archive_root / "checksums.json").unlink()
+
+    result = validate_session_archive(archive_root)
+
+    assert result.status == "failed"
+    assert SessionArchiveIssueCode.MISSING_CHECKSUMS in _issue_codes(result)
+
+
+def test_missing_restore_plan_sidecar_fails_clearly(tmp_path: Path) -> None:
+    archive_root = _archive(_repo(tmp_path / "source"))
+    (archive_root / "restore_plan.json").unlink()
+
+    result = validate_session_archive(archive_root)
+
+    assert result.status == "failed"
+    assert SessionArchiveIssueCode.MISSING_RESTORE_PLAN in _issue_codes(result)
+
+
 def test_malformed_shard_index_fails_clearly(tmp_path: Path) -> None:
     archive_root = _archive(_repo(tmp_path / "source"))
     _write(archive_root / "archive_index.json", "{bad")
@@ -168,6 +268,23 @@ def test_checksum_mismatch_fails_clearly(tmp_path: Path) -> None:
 
     assert result.status == "failed"
     assert SessionArchiveIssueCode.CHECKSUM_MISMATCH in _issue_codes(result)
+
+
+def test_checksum_validation_streams_without_path_read_bytes(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive_root = _archive(_repo(tmp_path / "source"))
+
+    def fail_read_bytes(path: Path) -> bytes:
+        raise AssertionError(f"read_bytes should not be used for checksum validation: {path}")
+
+    monkeypatch.setattr(Path, "read_bytes", fail_read_bytes)
+
+    result = validate_session_archive(archive_root)
+
+    assert result.passed is True
+    assert result.checksum_status == "passed"
 
 
 def test_malformed_shard_metadata_fails_clearly(tmp_path: Path) -> None:

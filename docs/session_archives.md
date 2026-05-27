@@ -233,6 +233,11 @@ writer collision policy, compatibility metadata, and derived/non-authoritative
 boundary flags. It is metadata for future restore work, not a restore
 implementation.
 
+The writer emits all three sidecars for every archive pack. M43 validation
+treats `archive_index.json`, `checksums.json`, and `restore_plan.json` as
+required pack metadata. If any are missing, validation fails so users can repair
+or recreate the derived pack before restore.
+
 ## Local Restore
 
 M43.3 adds a local filesystem restore API in `src/session_archive/restore.py`:
@@ -323,7 +328,9 @@ manifest schema and boundary fields are supported, required sidecars and shards
 are present, shard metadata is well formed, shard checksums match when
 requested, archive index counts and sizes are internally consistent, restore
 roots are portable, and tar members are safe regular files with
-repository-relative POSIX paths.
+repository-relative POSIX paths. Shard checksum verification uses streaming
+reads so large notebook/cloud transfer shards do not need to be loaded into
+memory all at once.
 
 `inspect_session_archive(...)` summarizes the same pack without extraction. It
 reports the archive ID, schema version, optional session/profile context,
@@ -338,18 +345,30 @@ or `:memory:` DuckDB metadata that intentionally has no file-backed snapshot.
 
 The warning/error taxonomy includes distinct codes for missing or malformed
 manifests, unsupported schema versions, missing required fields, missing shard
-index sidecars, malformed shard indexes, missing shards, checksum mismatches,
-malformed shard metadata, archive index inconsistencies, unsafe archive entries,
-unsafe restore paths, missing optional groups, optional DuckDB metadata,
-empty packs, unknown logical groups, non-portable paths, and report write
-failures.
+index sidecars, missing checksum sidecars, missing restore-plan sidecars,
+malformed shard indexes, missing shards, checksum mismatches, malformed shard
+metadata, archive index inconsistencies, unsafe archive entries, unsafe restore
+paths, missing optional groups, optional DuckDB metadata, empty packs, unknown
+logical groups, non-portable paths, and report write failures.
 
-The report writers emit deterministic derived JSON:
+The report writers emit deterministic derived JSON. The preferred report
+destination is an explicit `output_root`, which writes outside the archive pack:
 
 ```text
-artifacts/_derived/session_archives/<archive_id>/validation_report.json
-artifacts/_derived/session_archives/<archive_id>/inspection_report.json
+<output_root>/_derived/session_archives/<archive_id>/validation_report.json
+<output_root>/_derived/session_archives/<archive_id>/inspection_report.json
 ```
+
+For example, passing `output_root="artifacts"` writes under
+`artifacts/_derived/session_archives/<archive_id>/`.
+
+Explicit `output_path` values are still supported for callers that need an
+exact destination. Supplying both `output_path` and `output_root` is rejected to
+avoid ambiguous report placement. If neither is supplied, the report writers
+preserve the convenience behavior of writing `validation_report.json` or
+`inspection_report.json` adjacent to the archive pack root. Adjacent reports are
+derived convenience outputs only; they are not canonical archive contents,
+canonical evidence, or a registry.
 
 Report content uses archive-relative labels where possible and preserves the
 same derived, disposable, transport-only, non-authoritative boundary flags.

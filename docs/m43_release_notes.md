@@ -67,6 +67,12 @@ They are not canonical storage, canonical evidence, or a registry.
 This mini-release does not add Google API integration, OAuth, credentials,
 cloud SDK behavior, network access, or background sync.
 
+Workflow release-readiness coverage for this mini-release includes explicit
+branch validation for
+`feature/issue-476-session-archive-bootstrap-command` and M43 patch-tag
+validation path coverage through `v0.43.*` trigger matching in milestone
+branch validation.
+
 ## Milestone Principle
 
 Portable session archives should make notebook and cloud workflows faster to

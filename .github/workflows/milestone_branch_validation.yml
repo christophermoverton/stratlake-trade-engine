@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - "feature/m*"
+      - "feature/issue-476-session-archive-bootstrap-command"
+    tags:
+      - "v0.43.*"
 
 permissions:
   contents: read

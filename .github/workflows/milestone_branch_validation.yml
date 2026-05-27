@@ -42,14 +42,18 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -e ".[dev]" -c requirements-dev.lock
 
-      - name: Run M43 manifest tests
-        run: python -m pytest tests/test_session_archive_manifest.py
+      - name: Run M43 manifest and writer tests
+        run: >
+          python -m pytest
+          tests/test_session_archive_manifest.py
+          tests/test_session_archive_writer.py
 
       - name: Run M43 ruff check
         run: >
           python -m ruff check
           src/session_archive
           tests/test_session_archive_manifest.py
+          tests/test_session_archive_writer.py
           docs/session_archives.md
 
       - name: Run M43 Python format check
@@ -57,6 +61,7 @@ jobs:
           python -m ruff format --check
           src/session_archive
           tests/test_session_archive_manifest.py
+          tests/test_session_archive_writer.py
 
       - name: Run M43 docs format check
         run: python -m ruff format --check --preview docs/session_archives.md

@@ -12,9 +12,10 @@ evidence outputs, checked-in configs, and direct repository-relative scans
 remain authoritative. A session archive manifest is only metadata about a
 disposable archive pack.
 
-Issue #465 adds the manifest contract only. It does not write archive shards,
-extract archive contents, restore files, call Google Drive, read live market
-data, create CLI commands, or mutate canonical artifacts.
+Issue #465 added the manifest contract. Issue #466 adds the Python archive
+writer and deterministic shard planner. The writer creates derived archive
+packs only; it does not extract archives, restore files, call Google Drive, read
+live market data, create CLI commands, or mutate canonical artifacts.
 
 ## Manifest Contract
 
@@ -111,16 +112,115 @@ path, disables non-finite JSON numbers, and writes one trailing newline.
 the repository's atomic text writer. Identical logical manifest inputs should
 produce byte-stable JSON.
 
+## Archive Writer
+
+The writer API lives in `src/session_archive/writer.py`:
+
+```python
+from src.session_archive.writer import (
+    SessionArchiveIncludePolicy,
+    SessionArchiveWriteRequest,
+    build_session_archive_plan,
+    write_session_archive_pack,
+)
+```
+
+`build_session_archive_plan(...)` performs a dry-run plan. It enumerates files,
+applies excludes, assigns files to deterministic shards, builds manifest,
+index, checksum, and restore-plan payloads, and writes nothing.
+
+`write_session_archive_pack(...)` builds the same plan and writes a derived
+archive pack under a repository-relative output root.
+
+The default layout is:
+
+```text
+artifacts/_derived/session_archives/<archive_id>/
+  manifest.json
+  archive_index.json
+  checksums.json
+  restore_plan.json
+  shards/
+    features__000.tar
+    artifacts__000.tar
+    configs__000.tar
+```
+
+The writer supports these include groups:
+
+* `features`
+* `artifacts`
+* `configs`
+* `duckdb_snapshot`
+
+By default, features point at `data/curated`, artifacts point at `artifacts`,
+and configs point at `configs`. Callers can pass explicit repository-relative
+include paths per group. File-backed DuckDB snapshot paths are included only
+when supplied and when `duckdb_snapshot` is selected. `:memory:` DuckDB context
+is represented as metadata only.
+
+## Sharding And Excludes
+
+Shard planning is deterministic:
+
+* traversal uses sorted repository-relative paths
+* shard names use `<logical_group>__NNN.tar`
+* shard assignment respects max byte and max entry thresholds
+* archive member names are repository-relative POSIX paths
+* tar member metadata is normalized with fixed uid, gid, owner names, mode, and
+  `mtime`
+* generated JSON sidecars use sorted keys and one trailing newline
+
+M43.2 writes standard-library `tar` archives with `compression=none`. Zstandard
+or other compression backends are deferred until a later issue can validate
+portable deterministic behavior without adding hidden dependencies.
+
+The default exclude policy skips noisy or unsafe local paths, including:
+
+* `.git`
+* `.venv`
+* `__pycache__`
+* `.pytest_cache`
+* `.ruff_cache`
+* `.mypy_cache`
+* `.ipynb_checkpoints`
+* `.DS_Store`
+* `*.tmp`
+* `*.temp`
+* `artifacts/_derived/session_archives`
+
+The archive output directory is excluded so a pack does not recursively include
+itself when archiving the `artifacts` tree.
+
+## Writer Sidecars
+
+`manifest.json` uses the manifest contract documented above and validates with
+`validate_session_archive_manifest(...)`.
+
+`archive_index.json` records the archive ID, logical groups, included source
+paths, file inventory, shard assignments, file counts, sizes, and the same
+derived/non-authoritative boundary flags.
+
+`checksums.json` records SHA-256 checksums for shard files and included source
+files. These checksums support transfer verification; they do not make archive
+packs canonical storage.
+
+`restore_plan.json` records target relative roots, overwrite policy metadata,
+compatibility metadata, and derived/non-authoritative boundary flags. It is
+metadata for future restore work, not a restore implementation.
+
 ## Future M43 Use
 
-Later M43 issues can build on this contract for:
+Later M43 issues can build on this contract and writer for:
 
-* archive shard writing
 * archive validation and inspection reports
 * restore bootstrap workflows
 * notebook quickstart flows
 * optional cloud transport integrations
 * CLI entrypoints
+
+Restore/extraction is deferred to M43.3. Validation and inspection report APIs
+are deferred to M43.4. CLI commands are deferred to M43.5.
 
 Those future tools should treat the manifest as an inspectable description of
 transport metadata. They should continue to reopen canonical manifests,

@@ -14,7 +14,7 @@ SESSION_ARCHIVE_MANIFEST_SCHEMA_VERSION = 1
 SUPPORTED_ARCHIVE_FORMATS = frozenset({"tar", "zip", "directory"})
 SUPPORTED_COMPRESSIONS = frozenset({"none", "gzip", "zstd"})
 SUPPORTED_CHECKSUM_ALGORITHMS = frozenset({"sha256"})
-SUPPORTED_OVERWRITE_POLICIES = frozenset({"fail_if_exists", "skip_existing", "overwrite_allowed"})
+SUPPORTED_OVERWRITE_POLICIES = frozenset({"fail_if_exists", "skip_existing", "replace_existing"})
 _SECRET_KEY_PATTERN = re.compile(
     r"(secret|token|credential|password|passwd|api[_-]?key|access[_-]?key|private[_-]?key)",
     re.IGNORECASE,

@@ -3,10 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 import hashlib
 import json
+import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import tarfile
-from typing import Any, Mapping
+from typing import Any, IO, Mapping
+from uuid import uuid4
 
 from src.artifacts.safety import atomic_write_text
 from src.session_archive.manifest import (
@@ -198,17 +200,10 @@ def restore_session_archive_pack(
                     raise SessionArchiveError(
                         f"Session archive member cannot be read: {member.name}."
                     )
-                content = data.read()
                 entry = wanted[member.name]
-                if entry.checksum:
-                    digest = hashlib.sha256(content).hexdigest()
-                    if digest != entry.checksum:
-                        raise SessionArchiveError(
-                            f"Session archive restored file checksum mismatch: {member.name}."
-                        )
                 target_path = (plan.target_root / entry.target_path).resolve()
                 _ensure_under_root(target_path, plan.target_root, "target_path")
-                _atomic_write_bytes(target_path, content)
+                _stream_extract_member(data, target_path, entry.checksum, member.name)
                 restored_paths.append(target_path)
 
     report_path = None
@@ -271,7 +266,7 @@ def _verify_shard_checksums(
                 f"Session archive required shard is missing: {shard.shard_name}."
             )
         expected = sidecar_checksums.get(shard.shard_name, shard.checksum)
-        digest = hashlib.sha256(shard_path.read_bytes()).hexdigest()
+        digest = _sha256_file(shard_path)
         if digest != expected:
             raise SessionArchiveError(
                 f"Session archive shard checksum mismatch: {shard.shard_name}."
@@ -437,11 +432,59 @@ def _deterministic_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
 
 
+def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _sha256_stream(stream: IO[bytes], *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    for chunk in iter(lambda: stream.read(chunk_size), b""):
+        digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _stream_extract_member(
+    stream: IO[bytes],
+    target_path: Path,
+    expected_checksum: str | None,
+    member_name: str,
+    *,
+    chunk_size: int = 1024 * 1024,
+) -> None:
+    """Stream a tar member to disk atomically, verifying the checksum if provided."""
+    if target_path.exists() and target_path.is_dir():
+        raise SessionArchiveError("Session archive restore target is a directory.")
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+    temp_path = target_path.with_name(f".{target_path.name}.{os.getpid()}.{uuid4().hex}.tmp")
+    digest = hashlib.sha256() if expected_checksum else None
+    try:
+        with temp_path.open("wb") as out:
+            for chunk in iter(lambda: stream.read(chunk_size), b""):
+                if digest is not None:
+                    digest.update(chunk)
+                out.write(chunk)
+        if digest is not None and digest.hexdigest() != expected_checksum:
+            raise SessionArchiveError(
+                f"Session archive restored file checksum mismatch: {member_name}."
+            )
+        os.replace(temp_path, target_path)
+    except BaseException:
+        try:
+            temp_path.unlink(missing_ok=True)
+        except OSError:
+            pass
+        raise
+
+
 def _atomic_write_bytes(path: Path, data: bytes) -> Path:
     if path.exists() and path.is_dir():
         raise SessionArchiveError("Session archive restore target is a directory.")
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.tmp")
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.{uuid4().hex}.tmp")
     temp_path.write_bytes(data)
-    temp_path.replace(path)
+    os.replace(temp_path, path)
     return path

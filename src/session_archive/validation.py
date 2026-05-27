@@ -464,7 +464,7 @@ def _inspect_shard_entries(
                 if member_path in seen:
                     _issue(
                         issues,
-                        SessionArchiveIssueCode.UNSAFE_RESTORE_PATH,
+                        SessionArchiveIssueCode.UNSAFE_ARCHIVE_ENTRY,
                         "error",
                         f"Shard {shard.shard_name} contains duplicate member path: {member_path}.",
                         member_path,

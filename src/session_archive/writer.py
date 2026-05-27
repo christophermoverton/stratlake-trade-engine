@@ -5,11 +5,13 @@ import fnmatch
 import hashlib
 from io import BytesIO
 import json
+import os
 from pathlib import Path, PurePosixPath, PureWindowsPath
 import re
 import shutil
 import tarfile
 from typing import Any, Mapping, Sequence
+from uuid import uuid4
 
 from src.artifacts.safety import atomic_write_text
 from src.session_archive.manifest import (
@@ -362,16 +364,17 @@ def _collect_entries(
                 if relative in seen:
                     continue
                 seen.add(relative)
-                content = candidate.read_bytes()
+                size_bytes = candidate.stat().st_size
+                checksum = _sha256_file(candidate)
                 entries.append(
                     SessionArchiveShardEntry(
                         logical_group=group,
                         source_file_path=candidate,
                         source_path=relative,
                         archive_member_path=relative,
-                        size_bytes=len(content),
+                        size_bytes=size_bytes,
                         checksum_algorithm="sha256",
-                        checksum=hashlib.sha256(content).hexdigest(),
+                        checksum=checksum,
                     )
                 )
     return tuple(sorted(entries, key=lambda entry: (entry.logical_group.value, entry.source_path)))
@@ -780,9 +783,17 @@ def _deterministic_json(payload: Mapping[str, Any]) -> str:
     return json.dumps(payload, indent=2, sort_keys=True, allow_nan=False) + "\n"
 
 
+def _sha256_file(path: Path, *, chunk_size: int = 1024 * 1024) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(chunk_size), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
 def _atomic_write_bytes(path: Path, data: bytes) -> Path:
     path.parent.mkdir(parents=True, exist_ok=True)
-    temp_path = path.with_name(f".{path.name}.tmp")
+    temp_path = path.with_name(f".{path.name}.{os.getpid()}.{uuid4().hex}.tmp")
     temp_path.write_bytes(data)
-    temp_path.replace(path)
+    os.replace(temp_path, path)
     return path

@@ -165,7 +165,7 @@ def test_fail_if_exists_rejects_existing_destination(
     assert "fail_if_exists" in captured.err
 
 
-def test_skip_existing_preserves_destination_files(tmp_path: Path) -> None:
+def test_skip_existing_skips_existing_destination_pack_as_a_whole(tmp_path: Path) -> None:
     root = _repo(tmp_path / "repo")
     drive_archive_root = tmp_path / "drive" / "archive-a"
     _write(drive_archive_root / "manifest.json", "preserve\n")
@@ -188,7 +188,15 @@ def test_skip_existing_preserves_destination_files(tmp_path: Path) -> None:
 
     assert code == 0
     assert (drive_archive_root / "manifest.json").read_text(encoding="utf-8") == "preserve\n"
-    assert (drive_archive_root / "checksums.json").is_file()
+    assert not (drive_archive_root / "checksums.json").exists()
+    assert not (drive_archive_root / "restore_plan.json").exists()
+    assert not (drive_archive_root / "shards").exists()
+
+    report_path = root / "artifacts/_derived/session_archives/archive-a/bootstrap_report.json"
+    payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert payload["copy_status"] == "skipped_existing"
+    assert payload["copied_file_count"] == 0
+    assert payload["skipped_file_count"] > 0
 
 
 def test_overwrite_allowed_replaces_destination_contents(tmp_path: Path) -> None:
@@ -259,6 +267,45 @@ def test_validate_and_inspect_after_copy_use_copied_root(
     assert called["inspect"] == expected
 
 
+def test_skip_existing_validate_after_copy_uses_existing_destination_and_propagates_failure(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    root = _repo(tmp_path / "repo")
+    drive = tmp_path / "drive"
+    destination = drive / "archive-a"
+    _write(destination / "manifest.json", "stale\n")
+    called: dict[str, str] = {}
+
+    issue = SimpleNamespace(severity="error", code="missing_checksums", message="bad")
+
+    def _validate(archive_root: str | Path, *, verify_checksums: bool = True) -> object:
+        called["validate"] = Path(archive_root).resolve().as_posix()
+        return SimpleNamespace(status="failed", issues=(issue,), passed=False)
+
+    monkeypatch.setattr(bootstrap, "validate_session_archive", _validate)
+
+    code = bootstrap.main(
+        [
+            "--root",
+            str(root),
+            "--archive-id",
+            "archive-a",
+            "--drive-root",
+            str(drive),
+            "--include-features",
+            "--include-artifacts",
+            "--include-configs",
+            "--copy-policy",
+            "skip_existing",
+            "--validate-after-copy",
+        ]
+    )
+
+    assert code == 1
+    assert called["validate"] == destination.resolve().as_posix()
+
+
 def test_validation_failure_returns_nonzero(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,
@@ -286,6 +333,151 @@ def test_validation_failure_returns_nonzero(
     )
 
     assert code == 1
+
+
+def test_destination_archive_equal_to_local_archive_root_fails(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path / "repo")
+    local_output_root = root / "artifacts/_derived/session_archives"
+
+    code = bootstrap.main(
+        [
+            "--root",
+            str(root),
+            "--archive-id",
+            "archive-a",
+            "--drive-root",
+            str(local_output_root),
+            "--include-features",
+            "--include-artifacts",
+            "--include-configs",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "must differ from local archive root" in captured.err
+
+
+def test_destination_archive_inside_local_archive_root_fails(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path / "repo")
+    local_archive_root = root / "artifacts/_derived/session_archives/archive-a"
+
+    code = bootstrap.main(
+        [
+            "--root",
+            str(root),
+            "--archive-id",
+            "archive-a",
+            "--drive-root",
+            str(local_archive_root),
+            "--include-features",
+            "--include-artifacts",
+            "--include-configs",
+        ]
+    )
+
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "must not be inside local archive root" in captured.err
+    assert not (local_archive_root / "archive-a").exists()
+
+
+def test_default_archive_collision_policy_fails_on_local_archive_collision(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path / "repo")
+    argv = [
+        "--root",
+        str(root),
+        "--archive-id",
+        "archive-a",
+        "--include-features",
+        "--include-artifacts",
+        "--include-configs",
+    ]
+
+    assert bootstrap.main(argv) == 0
+    code = bootstrap.main(argv)
+
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert "collision_policy='overwrite_allowed'" in captured.err
+
+
+def test_archive_collision_policy_overwrite_allowed_regenerates_local_archive(tmp_path: Path) -> None:
+    root = _repo(tmp_path / "repo")
+    manifest_path = root / "artifacts/_derived/session_archives/archive-a/manifest.json"
+
+    assert (
+        bootstrap.main(
+            [
+                "--root",
+                str(root),
+                "--archive-id",
+                "archive-a",
+                "--include-features",
+                "--include-artifacts",
+                "--include-configs",
+            ]
+        )
+        == 0
+    )
+    _write(manifest_path, "stale\n")
+
+    assert (
+        bootstrap.main(
+            [
+                "--root",
+                str(root),
+                "--archive-id",
+                "archive-a",
+                "--archive-collision-policy",
+                "overwrite_allowed",
+                "--include-features",
+                "--include-artifacts",
+                "--include-configs",
+            ]
+        )
+        == 0
+    )
+
+    payload = json.loads(manifest_path.read_text(encoding="utf-8"))
+    assert payload["archive_id"] == "archive-a"
+
+
+def test_archive_collision_policy_appears_in_json_output(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    root = _repo(tmp_path / "repo")
+
+    code = bootstrap.main(
+        [
+            "--root",
+            str(root),
+            "--archive-id",
+            "archive-a",
+            "--archive-collision-policy",
+            "overwrite_allowed",
+            "--dry-run",
+            "--json",
+        ]
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 0
+    assert payload["archive_collision_policy"] == "overwrite_allowed"
 
 
 def test_json_output_is_deterministic_for_dry_run(
@@ -339,6 +531,7 @@ def test_bootstrap_report_is_deterministic(tmp_path: Path) -> None:
 
     assert payload["boundaries"]["derived"] is True
     assert payload["boundaries"]["authoritative"] is False
+    assert payload["archive_collision_policy"] == "fail_if_exists"
     assert first == second
 
 

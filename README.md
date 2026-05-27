@@ -64,7 +64,9 @@ Mounted destination copy with post-copy validation and inspection:
 stratlake-session-archive-bootstrap \
   --root /content/stratlake \
   --archive-id notebook-session-001 \
+  --archive-collision-policy overwrite_allowed \
   --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --copy-policy overwrite_allowed \
   --include-features \
   --include-artifacts \
   --include-configs \
@@ -75,6 +77,14 @@ stratlake-session-archive-bootstrap \
 Mounted Drive paths are treated as local filesystem paths only. The command
 does not call Google APIs, does not require credentials, and does not make
 archive packs canonical storage.
+
+`--archive-collision-policy` controls local derived archive creation, while
+`--copy-policy` controls copied archive behavior under `--drive-root`.
+`skip_existing` skips an existing destination archive pack as a whole rather
+than mixing old and new archive files.
+
+Do not set `--drive-root` to the local archive output directory or a child of
+the local archive pack.
 
 Milestone 28 adds Airflow, Prefect, and Dagster-style integration patterns as
 thin optional wrappers around existing StratLake CLI and `src.execution`

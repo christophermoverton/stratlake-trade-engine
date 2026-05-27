@@ -468,9 +468,38 @@ When `--drive-root` is supplied, the copy destination is:
 Supported copy policies are:
 
 * `fail_if_exists`: fail when destination archive root already contains files.
-* `skip_existing`: copy only missing destination files and preserve existing
-  files.
+* `skip_existing`: if destination archive root already contains files, skip the
+  destination archive pack as a whole.
 * `overwrite_allowed`: intentionally replace destination archive contents.
+
+Use `--archive-collision-policy` to control local derived archive generation:
+
+* `fail_if_exists` (default): fail if local archive output already exists.
+* `overwrite_allowed`: intentionally regenerate local derived archive output.
+
+Policy split for explicit reruns:
+
+* `--archive-collision-policy` controls local derived archive creation.
+* `--copy-policy` controls copied archive behavior under `--drive-root`.
+
+Mounted destination safety: do not set `--drive-root` to the local archive
+output directory or a child of the local archive pack.
+
+Recommended explicit rerun pattern:
+
+```bash
+stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --archive-collision-policy overwrite_allowed \
+  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --copy-policy overwrite_allowed \
+  --include-features \
+  --include-artifacts \
+  --include-configs \
+  --validate-after-copy \
+  --inspect-after-copy
+```
 
 For non-dry-run operations, bootstrap writes a deterministic derived report at:
 

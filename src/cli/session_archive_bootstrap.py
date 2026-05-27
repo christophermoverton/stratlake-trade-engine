@@ -27,6 +27,7 @@ BOUNDARY_TEXT = (
     "they are not canonical storage, canonical evidence, or a registry."
 )
 SUPPORTED_COPY_POLICIES = frozenset({"fail_if_exists", "skip_existing", "overwrite_allowed"})
+SUPPORTED_ARCHIVE_COLLISION_POLICIES = frozenset({"fail_if_exists", "overwrite_allowed"})
 
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
@@ -58,6 +59,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--max-shard-size-bytes", type=int, default=DEFAULT_MAX_SHARD_SIZE_BYTES)
     parser.add_argument("--max-entries-per-shard", type=int, default=DEFAULT_MAX_ENTRIES_PER_SHARD)
     parser.add_argument("--exclude-pattern", action="append", default=None)
+    parser.add_argument(
+        "--archive-collision-policy",
+        choices=sorted(SUPPORTED_ARCHIVE_COLLISION_POLICIES),
+        default="fail_if_exists",
+        help="Collision policy for local derived archive creation.",
+    )
     parser.add_argument(
         "--copy-policy",
         choices=sorted(SUPPORTED_COPY_POLICIES),
@@ -101,6 +108,7 @@ def _run_dry(
     groups = sorted({entry.logical_group.value for entry in plan.entries})
     summary: dict[str, Any] = {
         "archive_id": plan.manifest.archive_id,
+        "archive_collision_policy": args.archive_collision_policy,
         "bootstrap_report_path": None,
         "boundaries": _boundaries(),
         "copied_file_count": 0,
@@ -171,6 +179,7 @@ def _run_write(
     groups = sorted({entry.logical_group.value for entry in result.plan.entries})
     summary: dict[str, Any] = {
         "archive_id": result.plan.manifest.archive_id,
+        "archive_collision_policy": args.archive_collision_policy,
         "boundaries": _boundaries(),
         "copied_file_count": copied_file_count,
         "copy_policy": args.copy_policy,
@@ -216,7 +225,7 @@ def _build_write_request(args: argparse.Namespace) -> SessionArchiveWriteRequest
         max_entries_per_shard=args.max_entries_per_shard,
         duckdb_snapshot_source_path=args.duckdb_snapshot_source_path,
         duckdb_snapshot_description=args.duckdb_snapshot_description,
-        collision_policy="fail_if_exists",
+        collision_policy=args.archive_collision_policy,
     )
 
 
@@ -245,6 +254,10 @@ def _copy_archive_pack(
     destination_archive_root: Path,
     copy_policy: str,
 ) -> tuple[str, int, int]:
+    _validate_copy_destination(
+        source_archive_root=source_archive_root,
+        destination_archive_root=destination_archive_root,
+    )
     source_files = _archive_files(source_archive_root)
     if copy_policy == "fail_if_exists":
         if _has_any_files(destination_archive_root):
@@ -256,18 +269,10 @@ def _copy_archive_pack(
         return "copied", copied, 0
 
     if copy_policy == "skip_existing":
-        copied = 0
-        skipped = 0
-        for source in source_files:
-            relative = source.relative_to(source_archive_root)
-            destination = (destination_archive_root / relative).resolve()
-            if destination.exists():
-                skipped += 1
-                continue
-            destination.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, destination)
-            copied += 1
-        return "copied_with_skips" if copied else "skipped_existing", copied, skipped
+        if _has_any_files(destination_archive_root):
+            return "skipped_existing", 0, len(source_files)
+        copied = _copy_all_files(source_archive_root, destination_archive_root, source_files)
+        return "copied", copied, 0
 
     if copy_policy == "overwrite_allowed":
         if destination_archive_root.exists():
@@ -297,6 +302,33 @@ def _copy_all_files(
         shutil.copy2(source, destination)
         copied += 1
     return copied
+
+
+def _validate_copy_destination(
+    *,
+    source_archive_root: Path,
+    destination_archive_root: Path,
+) -> None:
+    source = source_archive_root.resolve()
+    destination = destination_archive_root.resolve()
+    if destination == source:
+        raise SessionArchiveError("Destination archive root must differ from local archive root.")
+    if _is_relative_to(destination, source):
+        raise SessionArchiveError(
+            "Destination archive root must not be inside local archive root."
+        )
+    if _is_relative_to(source, destination):
+        raise SessionArchiveError(
+            "Local archive root must not be inside destination archive root."
+        )
+
+
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+    except ValueError:
+        return False
+    return True
 
 
 def _archive_files(root: Path) -> tuple[Path, ...]:
@@ -361,6 +393,8 @@ def _print_human(payload: Mapping[str, Any]) -> None:
     print("Session archive bootstrap")
     print(f"Archive ID: {payload['archive_id']}")
     print(f"Local archive root: {payload['local_archive_root']}")
+    print(f"Archive collision policy: {payload['archive_collision_policy']}")
+    print(f"Copy policy: {payload['copy_policy']}")
     destination_archive_root = payload.get("destination_archive_root")
     if destination_archive_root:
         print(f"Destination archive root: {destination_archive_root}")

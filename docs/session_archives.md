@@ -380,6 +380,66 @@ Users should validate and inspect archive packs before local restore,
 especially when the pack was copied through mounted storage such as a local
 cloud-drive folder. Mounted paths are treated as local filesystem paths only.
 
+## CLI Usage
+
+M43.5 adds thin CLI wrappers in `src/cli/session_archive.py`. The CLI delegates
+to the shared Python APIs documented above; it does not implement a second
+writer, restore path, validator, inspector, checksum routine, or tar extractor.
+
+The commands are notebook-friendly and can be run from terminal sessions or
+notebook shell cells:
+
+```bash
+python -m src.cli.session_archive pack \
+  --repository-root . \
+  --archive-id session-a \
+  --include-group features \
+  --include-group artifacts \
+  --include-group configs
+
+python -m src.cli.session_archive validate \
+  --archive-root artifacts/_derived/session_archives/session-a \
+  --output-root artifacts
+
+python -m src.cli.session_archive inspect \
+  --archive-root artifacts/_derived/session_archives/session-a
+
+python -m src.cli.session_archive restore \
+  --archive-root artifacts/_derived/session_archives/session-a \
+  --target-root restored-session \
+  --dry-run
+
+python -m src.cli.session_archive restore \
+  --archive-root artifacts/_derived/session_archives/session-a \
+  --target-root restored-session
+```
+
+`pack` creates an archive pack through `write_session_archive_pack(...)`.
+`--dry-run` delegates to `build_session_archive_plan(...)` and writes no pack.
+Use `--include-group` to select logical groups and `--include-path GROUP=PATH`
+to override repository-relative include roots.
+
+`validate` and `inspect` return exit code `0` for passed or warning-only
+results and non-zero when error-severity issues are present. Both commands
+support `--output-path` for an exact report path and `--output-root` for the
+preferred derived location:
+
+```text
+<output-root>/_derived/session_archives/<archive_id>/
+```
+
+`restore` delegates to `build_session_archive_restore_plan(...)` for `--dry-run`
+and `restore_session_archive_pack(...)` for extraction. Use `--dry-run` before
+actual restore, especially when an archive pack was copied through mounted
+storage. Supported overwrite policies are `fail_if_exists`, `skip_existing`,
+and `replace_existing`.
+
+All commands support local filesystem paths only. Mounted cloud-drive folders
+are treated as ordinary local paths; the CLI does not call Google Drive APIs,
+require credentials, access the network, or read live market data. Archive packs
+and CLI reports remain derived, disposable, transport-only outputs, not
+canonical storage, canonical evidence, or a registry.
+
 ## Future M43 Use
 
 Later M43 issues can build on this contract and writer for:

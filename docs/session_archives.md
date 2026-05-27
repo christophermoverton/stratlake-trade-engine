@@ -303,17 +303,73 @@ Archive roots and target roots may be local mounted paths, including a locally
 mounted cloud drive folder, but restore does not call Google Drive APIs, require
 credentials, use network services, or access live market data.
 
+## Validation And Inspection
+
+M43.4 adds read-only validation and inspection APIs in
+`src/session_archive/validation.py`:
+
+```python
+from src.session_archive.validation import (
+    inspect_session_archive,
+    validate_session_archive,
+    write_session_archive_inspection_report,
+    write_session_archive_validation_report,
+)
+```
+
+`validate_session_archive(...)` checks an archive pack before restore without
+extracting it. It verifies that `manifest.json` is present and valid, the
+manifest schema and boundary fields are supported, required sidecars and shards
+are present, shard metadata is well formed, shard checksums match when
+requested, archive index counts and sizes are internally consistent, restore
+roots are portable, and tar members are safe regular files with
+repository-relative POSIX paths.
+
+`inspect_session_archive(...)` summarizes the same pack without extraction. It
+reports the archive ID, schema version, optional session/profile context,
+included logical groups, missing optional groups, shard summary, estimated
+restored file count and byte size, restore-root expectations, boundary status,
+DuckDB snapshot status, portability status, warnings, and errors.
+
+Both APIs return structured issues with stable codes and `warning` or `error`
+severity. Errors mean the pack should not be restored until corrected. Warnings
+describe non-fatal context, such as an optional logical group not being included
+or `:memory:` DuckDB metadata that intentionally has no file-backed snapshot.
+
+The warning/error taxonomy includes distinct codes for missing or malformed
+manifests, unsupported schema versions, missing required fields, missing shard
+index sidecars, malformed shard indexes, missing shards, checksum mismatches,
+malformed shard metadata, archive index inconsistencies, unsafe archive entries,
+unsafe restore paths, missing optional groups, optional DuckDB metadata,
+empty packs, unknown logical groups, non-portable paths, and report write
+failures.
+
+The report writers emit deterministic derived JSON:
+
+```text
+artifacts/_derived/session_archives/<archive_id>/validation_report.json
+artifacts/_derived/session_archives/<archive_id>/inspection_report.json
+```
+
+Report content uses archive-relative labels where possible and preserves the
+same derived, disposable, transport-only, non-authoritative boundary flags.
+Validation and inspection do not scan outside the archive pack, mutate restore
+targets, execute workflows, read live market data, call cloud APIs, require
+credentials, or make the archive canonical.
+
+Users should validate and inspect archive packs before local restore,
+especially when the pack was copied through mounted storage such as a local
+cloud-drive folder. Mounted paths are treated as local filesystem paths only.
+
 ## Future M43 Use
 
 Later M43 issues can build on this contract and writer for:
 
-* archive validation and inspection reports
 * notebook quickstart flows
 * optional cloud transport integrations
 * CLI entrypoints
 
-Validation and inspection report APIs are deferred to M43.4. CLI commands are
-deferred to M43.5.
+CLI commands are deferred to M43.5.
 
 Those future tools should treat the manifest as an inspectable description of
 transport metadata. They should continue to reopen canonical manifests,

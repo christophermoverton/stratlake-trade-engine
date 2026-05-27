@@ -115,7 +115,9 @@ def _run_dry(
         "copy_policy": args.copy_policy,
         "copy_status": "not_started_dry_run",
         "destination_archive_root": _destination_archive_root(args),
-        "destination_root": None if args.drive_root is None else Path(args.drive_root).resolve().as_posix(),
+        "destination_root": None
+        if args.drive_root is None
+        else Path(args.drive_root).resolve().as_posix(),
         "dry_run": True,
         "errors": [],
         "file_count": len(plan.entries),
@@ -139,12 +141,18 @@ def _run_write(
     args: argparse.Namespace,
     request: SessionArchiveWriteRequest,
 ) -> dict[str, Any]:
-    result = write_session_archive_pack(request)
     destination_root = None if args.drive_root is None else Path(args.drive_root).resolve()
     destination_archive_root = None
     copy_status = "not_requested"
     copied_file_count = 0
     skipped_file_count = 0
+    if destination_root is not None:
+        destination_archive_root = (destination_root / args.archive_id).resolve()
+        _validate_copy_destination(
+            source_archive_root=_planned_local_archive_root(args),
+            destination_archive_root=destination_archive_root,
+        )
+    result = write_session_archive_pack(request)
     if destination_root is not None:
         destination_archive_root = (destination_root / result.plan.manifest.archive_id).resolve()
         copy_status, copied_file_count, skipped_file_count = _copy_archive_pack(
@@ -153,7 +161,9 @@ def _run_write(
             copy_policy=args.copy_policy,
         )
 
-    inspect_target = destination_archive_root if destination_archive_root is not None else result.archive_root
+    inspect_target = (
+        destination_archive_root if destination_archive_root is not None else result.archive_root
+    )
     warnings: list[str] = []
     errors: list[str] = []
     validation_status = "not_requested"
@@ -213,7 +223,9 @@ def _build_write_request(args: argparse.Namespace) -> SessionArchiveWriteRequest
     include_policy = SessionArchiveIncludePolicy(
         include_groups=_include_groups(args),
         exclude_patterns=(
-            tuple(args.exclude_pattern) if args.exclude_pattern is not None else DEFAULT_EXCLUDE_PATTERNS
+            tuple(args.exclude_pattern)
+            if args.exclude_pattern is not None
+            else DEFAULT_EXCLUDE_PATTERNS
         ),
     )
     return SessionArchiveWriteRequest(
@@ -284,8 +296,7 @@ def _copy_archive_pack(
         return "overwritten", copied, 0
 
     raise SessionArchiveError(
-        "Unsupported bootstrap copy policy; expected one of "
-        f"{sorted(SUPPORTED_COPY_POLICIES)}."
+        f"Unsupported bootstrap copy policy; expected one of {sorted(SUPPORTED_COPY_POLICIES)}."
     )
 
 
@@ -314,13 +325,9 @@ def _validate_copy_destination(
     if destination == source:
         raise SessionArchiveError("Destination archive root must differ from local archive root.")
     if _is_relative_to(destination, source):
-        raise SessionArchiveError(
-            "Destination archive root must not be inside local archive root."
-        )
+        raise SessionArchiveError("Destination archive root must not be inside local archive root.")
     if _is_relative_to(source, destination):
-        raise SessionArchiveError(
-            "Local archive root must not be inside destination archive root."
-        )
+        raise SessionArchiveError("Local archive root must not be inside destination archive root.")
 
 
 def _is_relative_to(path: Path, root: Path) -> bool:
@@ -332,7 +339,9 @@ def _is_relative_to(path: Path, root: Path) -> bool:
 
 
 def _archive_files(root: Path) -> tuple[Path, ...]:
-    return tuple(sorted((path for path in root.rglob("*") if path.is_file()), key=lambda p: p.as_posix()))
+    return tuple(
+        sorted((path for path in root.rglob("*") if path.is_file()), key=lambda p: p.as_posix())
+    )
 
 
 def _has_any_files(path: Path) -> bool:
@@ -376,6 +385,10 @@ def _destination_archive_root(args: argparse.Namespace) -> str | None:
     if args.drive_root is None:
         return None
     return (Path(args.drive_root).resolve() / args.archive_id).as_posix()
+
+
+def _planned_local_archive_root(args: argparse.Namespace) -> Path:
+    return (Path(args.root).resolve() / args.output_root / args.archive_id).resolve()
 
 
 def _issue_lines(issues: Sequence[Any], severity: str) -> list[str]:

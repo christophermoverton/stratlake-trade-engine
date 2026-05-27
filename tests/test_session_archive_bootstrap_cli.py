@@ -87,7 +87,9 @@ def test_dry_run_writes_no_archive_copy_or_report(
     assert "Copy status: not_started_dry_run" in output
     assert not (root / "artifacts/_derived/session_archives/archive-a").exists()
     assert not drive.exists()
-    assert not (root / "artifacts/_derived/session_archives/archive-a/bootstrap_report.json").exists()
+    assert not (
+        root / "artifacts/_derived/session_archives/archive-a/bootstrap_report.json"
+    ).exists()
 
 
 def test_local_only_bootstrap_creates_archive_and_report(
@@ -363,6 +365,7 @@ def test_destination_archive_equal_to_local_archive_root_fails(
 
     assert code == 2
     assert "must differ from local archive root" in captured.err
+    assert not (local_output_root / "archive-a").exists()
 
 
 def test_destination_archive_inside_local_archive_root_fails(
@@ -417,7 +420,9 @@ def test_default_archive_collision_policy_fails_on_local_archive_collision(
     assert "collision_policy='overwrite_allowed'" in captured.err
 
 
-def test_archive_collision_policy_overwrite_allowed_regenerates_local_archive(tmp_path: Path) -> None:
+def test_archive_collision_policy_overwrite_allowed_regenerates_local_archive(
+    tmp_path: Path,
+) -> None:
     root = _repo(tmp_path / "repo")
     manifest_path = root / "artifacts/_derived/session_archives/archive-a/manifest.json"
 
@@ -566,7 +571,9 @@ def test_cli_delegates_to_existing_archive_apis(monkeypatch: pytest.MonkeyPatch)
 
     monkeypatch.setattr(bootstrap, "build_session_archive_plan", _build)
     monkeypatch.setattr(bootstrap, "write_session_archive_pack", _write)
-    monkeypatch.setattr(bootstrap, "_write_bootstrap_report", lambda *_args, **_kwargs: Path("report.json"))
+    monkeypatch.setattr(
+        bootstrap, "_write_bootstrap_report", lambda *_args, **_kwargs: Path("report.json")
+    )
     monkeypatch.setattr(bootstrap, "_emit", lambda *_args, **_kwargs: None)
 
     bootstrap.run_cli(["--root", ".", "--archive-id", "archive-a", "--dry-run"])

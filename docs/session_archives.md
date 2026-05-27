@@ -151,6 +151,10 @@ Collision handling applies only to derived archive outputs. It does not mutate
 canonical feature, artifact, or config inputs. Dry-run planning remains
 write-free and never creates, clears, or overwrites an archive root.
 
+User metadata is allowed for non-secret descriptive fields. The writer reserves
+`writer`, `artifact_role`, and `collision_policy` so generated manifests cannot
+misrepresent writer identity, archive role, or collision behavior.
+
 The default layout is:
 
 ```text

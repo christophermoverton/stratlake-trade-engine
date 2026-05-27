@@ -169,6 +169,41 @@ def test_unknown_collision_policy_fails(tmp_path: Path) -> None:
         write_session_archive_pack(replace(_request(root), collision_policy="unsafe"))
 
 
+@pytest.mark.parametrize("reserved_key", ["writer", "artifact_role", "collision_policy"])
+def test_rejects_reserved_writer_metadata_keys(tmp_path: Path, reserved_key: str) -> None:
+    root = _repo(tmp_path / "repo")
+
+    request = replace(_request(root), metadata={reserved_key: "not-allowed"})
+
+    with pytest.raises(SessionArchiveError, match="reserved writer metadata"):
+        build_session_archive_plan(request)
+
+
+def test_preserves_non_reserved_user_metadata(tmp_path: Path) -> None:
+    root = _repo(tmp_path / "repo")
+
+    plan = build_session_archive_plan(
+        replace(_request(root), metadata={"purpose": "notebook-transfer"})
+    )
+
+    assert plan.manifest.metadata["purpose"] == "notebook-transfer"
+    assert plan.manifest.metadata["writer"] == "session_archive.writer"
+    assert plan.manifest.metadata["artifact_role"] == "derived_transport_snapshot"
+    assert plan.manifest.metadata["collision_policy"] == "fail_if_exists"
+
+
+def test_collision_policy_consistent_across_writer_metadata_and_sidecars(
+    tmp_path: Path,
+) -> None:
+    root = _repo(tmp_path / "repo")
+
+    plan = build_session_archive_plan(replace(_request(root), collision_policy="overwrite_allowed"))
+
+    assert plan.manifest.metadata["collision_policy"] == "overwrite_allowed"
+    assert plan.archive_index["writer"]["collision_policy"] == "overwrite_allowed"
+    assert plan.restore_plan["collision_policy"] == "overwrite_allowed"
+
+
 def test_checksum_stability_for_identical_inputs(tmp_path: Path) -> None:
     first = write_session_archive_pack(_request(_repo(tmp_path / "first")))
     second = write_session_archive_pack(_request(_repo(tmp_path / "second")))

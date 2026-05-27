@@ -29,6 +29,7 @@ DEFAULT_ARCHIVE_ROOT = "artifacts/_derived/session_archives"
 DEFAULT_MAX_SHARD_SIZE_BYTES = 64 * 1024 * 1024
 DEFAULT_MAX_ENTRIES_PER_SHARD = 1000
 SUPPORTED_COLLISION_POLICIES = frozenset({"fail_if_exists", "overwrite_allowed"})
+RESERVED_WRITER_METADATA_KEYS = frozenset({"writer", "artifact_role", "collision_policy"})
 GENERATED_ARCHIVE_CHILDREN = frozenset(
     {
         "manifest.json",
@@ -271,12 +272,7 @@ def build_session_archive_plan(request: SessionArchiveWriteRequest) -> SessionAr
         restore=restore,
         boundaries=SessionArchiveBoundaries(),
         duckdb_snapshot=duckdb_snapshot,
-        metadata={
-            "writer": "session_archive.writer",
-            "artifact_role": "derived_transport_snapshot",
-            "collision_policy": collision_policy,
-            **dict(request.metadata),
-        },
+        metadata=_writer_metadata(request.metadata, collision_policy),
     )
     validate_session_archive_manifest(manifest)
     archive_index = _archive_index(request.archive_id, grouped_entries, shards, collision_policy)
@@ -687,6 +683,20 @@ def _collision_policy(value: str) -> str:
             f"{sorted(SUPPORTED_COLLISION_POLICIES)}."
         )
     return value
+
+
+def _writer_metadata(user_metadata: Mapping[str, Any], collision_policy: str) -> dict[str, Any]:
+    overlap = sorted(set(user_metadata) & RESERVED_WRITER_METADATA_KEYS)
+    if overlap:
+        raise SessionArchiveError(
+            f"Session archive metadata cannot override reserved writer metadata keys: {overlap}."
+        )
+    return {
+        **dict(user_metadata),
+        "writer": "session_archive.writer",
+        "artifact_role": "derived_transport_snapshot",
+        "collision_policy": collision_policy,
+    }
 
 
 def _prepare_archive_root(path: Path, collision_policy: str) -> None:

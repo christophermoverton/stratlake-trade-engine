@@ -233,18 +233,83 @@ writer collision policy, compatibility metadata, and derived/non-authoritative
 boundary flags. It is metadata for future restore work, not a restore
 implementation.
 
+## Local Restore
+
+M43.3 adds a local filesystem restore API in `src/session_archive/restore.py`:
+
+```python
+from src.session_archive.restore import (
+    SessionArchiveRestoreRequest,
+    build_session_archive_restore_plan,
+    restore_session_archive_pack,
+)
+```
+
+`build_session_archive_restore_plan(...)` is the dry-run path. It reads and
+validates `manifest.json`, reads sidecars when present, verifies required shard
+presence, optionally checks shard checksums, inspects tar members without
+extracting, applies overwrite-policy decisions, and writes nothing.
+
+`restore_session_archive_pack(...)` builds that plan, extracts regular file
+members into the selected local `target_root`, and optionally writes a derived
+restore report.
+
+The restore request supports:
+
+* `archive_root`
+* `target_root`
+* `overwrite_policy`
+* `verify_checksums`
+* `write_report`
+* `report_root`
+
+Supported restore overwrite policies are:
+
+* `fail_if_exists`: fail before extraction if any target file already exists.
+* `skip_existing`: leave existing target files unchanged and record skipped
+  entries.
+* `replace_existing`: intentionally replace existing target files.
+
+Restore supports the M43.2 archive format: standard-library `tar` shards with
+`compression=none`. Other archive formats or compression modes are rejected.
+
+Restore rejects unsafe member paths such as absolute paths, traversal paths,
+home-directory shortcuts, file URIs, URL-like paths, Windows drive paths, and
+backslash-separated paths. Restore also rejects symlinks, hardlinks, device
+files, FIFO files, directories, and other non-regular tar members. Parent
+directories are created implicitly from safe regular-file paths.
+
+When `verify_checksums=True`, restore verifies each shard checksum before any
+extraction. If `checksums.json` includes file checksums, restored file content
+is checked as it is written.
+
+The default restore report path is:
+
+```text
+<target_root>/artifacts/_derived/session_archives/<archive_id>/restore_report.json
+```
+
+The report is deterministic derived JSON. It records archive ID, portable source
+and target labels, overwrite policy, checksum status, restored entries, skipped
+entries, warnings, manifest metadata, and non-authoritative boundaries. It is a
+restore audit surface only; it is not canonical research evidence or a second
+artifact registry.
+
+Archive roots and target roots may be local mounted paths, including a locally
+mounted cloud drive folder, but restore does not call Google Drive APIs, require
+credentials, use network services, or access live market data.
+
 ## Future M43 Use
 
 Later M43 issues can build on this contract and writer for:
 
 * archive validation and inspection reports
-* restore bootstrap workflows
 * notebook quickstart flows
 * optional cloud transport integrations
 * CLI entrypoints
 
-Restore/extraction is deferred to M43.3. Validation and inspection report APIs
-are deferred to M43.4. CLI commands are deferred to M43.5.
+Validation and inspection report APIs are deferred to M43.4. CLI commands are
+deferred to M43.5.
 
 Those future tools should treat the manifest as an inspectable description of
 transport metadata. They should continue to reopen canonical manifests,

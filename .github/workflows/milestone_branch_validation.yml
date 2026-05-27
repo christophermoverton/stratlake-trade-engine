@@ -46,6 +46,7 @@ jobs:
         run: >
           python -m pytest
           tests/test_session_archive_manifest.py
+          tests/test_session_archive_restore.py
           tests/test_session_archive_writer.py
 
       - name: Run M43 ruff check
@@ -53,6 +54,7 @@ jobs:
           python -m ruff check
           src/session_archive
           tests/test_session_archive_manifest.py
+          tests/test_session_archive_restore.py
           tests/test_session_archive_writer.py
           docs/session_archives.md
 
@@ -61,6 +63,7 @@ jobs:
           python -m ruff format --check
           src/session_archive
           tests/test_session_archive_manifest.py
+          tests/test_session_archive_restore.py
           tests/test_session_archive_writer.py
 
       - name: Run M43 docs format check

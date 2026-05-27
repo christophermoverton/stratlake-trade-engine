@@ -38,6 +38,12 @@ Run workflow and release guard tests:
 python -m pytest tests/test_github_actions_pinning.py tests/test_release_workflow.py
 ```
 
+Run workflow-pattern policy checks:
+
+```bash
+python -m pytest tests/test_m36_deterministic_validation.py::test_cli_api_parity_and_release_hardening_assumptions tests/test_milestone_validation_workflow.py::test_milestone_validation_covers_current_milestone_branch_pattern
+```
+
 Run docs/path portability validation:
 
 ```bash
@@ -92,6 +98,8 @@ As of the M43 release-finalization pass:
   `128 passed, 1 skipped`
 * workflow and release guard tests:
   `11 passed`
+* workflow-pattern policy checks:
+  `2 passed`
 * docs/path portability tests:
   `3 passed`
 * packaging readiness:
@@ -114,19 +122,18 @@ As of the M43 release-finalization pass:
   no machine-local absolute path patterns, real Colab Drive paths, or
   workstation-specific cloud storage names found in the M43-facing docs
 * full pytest:
-  `2429 passed, 6 skipped, 2 failed`
+  `2431 passed, 6 skipped`
 
-The two full-suite failures are pre-existing workflow-pattern assertions outside
-the M43 archive implementation slice:
+Workflow trigger policy:
 
-* `tests/test_m36_deterministic_validation.py::test_cli_api_parity_and_release_hardening_assumptions`
-* `tests/test_milestone_validation_workflow.py::test_milestone_validation_covers_current_milestone_branch_pattern`
-
-Both assert that `.github/workflows/milestone_validation.yml` includes
-`- "feature/m*"`. M43 branch-push validation remains covered by
-`.github/workflows/milestone_branch_validation.yml`; changing the broader
-milestone workflow trigger is intentionally left as a separate CI policy
-decision.
+* `.github/workflows/milestone_branch_validation.yml` owns focused
+  `feature/m*` branch-push validation, including the M43 session archive test
+  slice
+* `.github/workflows/milestone_validation.yml` remains the broader milestone
+  validation bundle for manual dispatch, pull requests into `main`, and legacy
+  milestone branch patterns
+* full-pytest workflow-pattern checks enforce this split so focused branch-push
+  validation is not confused with broader release-readiness validation
 
 Package build emitted the existing setuptools deprecation warning for
 `project.license` as a TOML table. The M43 build completed successfully; the

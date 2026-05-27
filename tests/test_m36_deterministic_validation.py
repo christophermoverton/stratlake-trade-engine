@@ -30,6 +30,7 @@ from tests.catalog_scale_fixtures import build_catalog_scale_tree, snapshot_tree
 REPO_ROOT = Path(__file__).resolve().parents[1]
 CHECKLIST = REPO_ROOT / "docs" / "m36_release_validation_checklist.md"
 MILESTONE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "milestone_validation.yml"
+MILESTONE_BRANCH_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "milestone_branch_validation.yml"
 RELEASE_WORKFLOW = REPO_ROOT / ".github" / "workflows" / "release.yml"
 
 
@@ -40,9 +41,13 @@ def test_combined_m36_stack_is_equivalent_read_only_and_portable(tmp_path: Path)
 
     direct = build_catalog(tmp_path, repo_root=tmp_path)
     metadata = build_derived_index(tmp_path, index_path, repo_root=tmp_path)
-    indexed = load_catalog_records(tmp_path, repo_root=tmp_path, index_path=index_path, mode="index")
+    indexed = load_catalog_records(
+        tmp_path, repo_root=tmp_path, index_path=index_path, mode="index"
+    )
     auto = load_catalog_records(tmp_path, repo_root=tmp_path, index_path=index_path, mode="auto")
-    helper = load_catalog_for_workflow(".", repo_root=tmp_path, index_path=index_path, index_mode="auto")
+    helper = load_catalog_for_workflow(
+        ".", repo_root=tmp_path, index_path=index_path, index_mode="auto"
+    )
 
     serialized_direct = [record.to_dict() for record in direct]
     assert [record.to_dict() for record in indexed] == serialized_direct
@@ -92,7 +97,9 @@ def test_combined_m36_stack_is_equivalent_read_only_and_portable(tmp_path: Path)
     _assert_portable(metadata, serialized_direct, view, openlineage, tmp_path=tmp_path)
 
 
-def test_index_rebuild_disposability_missing_stale_and_incompatible_failures(tmp_path: Path) -> None:
+def test_index_rebuild_disposability_missing_stale_and_incompatible_failures(
+    tmp_path: Path,
+) -> None:
     build_catalog_scale_tree(tmp_path)
     before = snapshot_tree(tmp_path)
     index_path = tmp_path / "catalog_index.sqlite"
@@ -101,12 +108,18 @@ def test_index_rebuild_disposability_missing_stale_and_incompatible_failures(tmp
     second = build_derived_index(tmp_path, index_path, repo_root=tmp_path)
 
     assert first == second
-    assert snapshot_tree(tmp_path) == {**before, "catalog_index.sqlite": snapshot_tree(tmp_path)["catalog_index.sqlite"]}
+    assert snapshot_tree(tmp_path) == {
+        **before,
+        "catalog_index.sqlite": snapshot_tree(tmp_path)["catalog_index.sqlite"],
+    }
 
     missing = tmp_path / "missing.sqlite"
-    assert [record.to_dict() for record in load_catalog_records(tmp_path, repo_root=tmp_path, index_path=missing, mode="auto")] == [
-        record.to_dict() for record in build_catalog(tmp_path, repo_root=tmp_path)
-    ]
+    assert [
+        record.to_dict()
+        for record in load_catalog_records(
+            tmp_path, repo_root=tmp_path, index_path=missing, mode="auto"
+        )
+    ] == [record.to_dict() for record in build_catalog(tmp_path, repo_root=tmp_path)]
     with pytest.raises(DerivedIndexError, match="not found"):
         load_catalog_records(tmp_path, repo_root=tmp_path, index_path=missing, mode="index")
 
@@ -128,12 +141,16 @@ def test_index_rebuild_disposability_missing_stale_and_incompatible_failures(tmp
         validate_derived_index(index_path, artifacts_root=tmp_path, repo_root=tmp_path)
 
 
-def test_lineage_exports_and_fingerprints_stay_deterministic_without_new_edges(tmp_path: Path) -> None:
+def test_lineage_exports_and_fingerprints_stay_deterministic_without_new_edges(
+    tmp_path: Path,
+) -> None:
     build_catalog_scale_tree(tmp_path)
     index_path = tmp_path / "catalog_index.sqlite"
     build_derived_index(tmp_path, index_path, repo_root=tmp_path)
     direct = build_catalog(tmp_path, repo_root=tmp_path)
-    indexed = load_catalog_records(tmp_path, repo_root=tmp_path, index_path=index_path, mode="index")
+    indexed = load_catalog_records(
+        tmp_path, repo_root=tmp_path, index_path=index_path, mode="index"
+    )
     direct_edges = build_lineage_edges(direct, repo_root=tmp_path)
     indexed_edges = build_lineage_edges(indexed, repo_root=tmp_path)
 
@@ -166,10 +183,15 @@ def test_lineage_exports_and_fingerprints_stay_deterministic_without_new_edges(t
 
     direct_by_run = {record.run_id: record for record in direct}
     indexed_by_run = {record.run_id: record for record in indexed}
-    assert direct_by_run["strategy_000"].metadata["dataset_lineage"] == indexed_by_run["strategy_000"].metadata[
-        "dataset_lineage"
-    ]
-    node = next(node for node in direct_open["nodes"] if node["kind"] == "catalog_record" and node["facets"]["run_id"] == "strategy_000")
+    assert (
+        direct_by_run["strategy_000"].metadata["dataset_lineage"]
+        == indexed_by_run["strategy_000"].metadata["dataset_lineage"]
+    )
+    node = next(
+        node
+        for node in direct_open["nodes"]
+        if node["kind"] == "catalog_record" and node["facets"]["run_id"] == "strategy_000"
+    )
     entity = next(
         entity
         for entity in direct_prov["entities"]
@@ -182,13 +204,25 @@ def test_lineage_exports_and_fingerprints_stay_deterministic_without_new_edges(t
     _assert_portable(direct_open, direct_prov, selected, tmp_path=tmp_path)
 
 
-def test_cli_api_parity_and_release_hardening_assumptions(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_cli_api_parity_and_release_hardening_assumptions(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     build_catalog_scale_tree(tmp_path)
     index_path = tmp_path / "catalog_index.sqlite"
     export_path = tmp_path / "exports" / "lineage.json"
     explorer_path = tmp_path / "exports" / "evidence.json"
 
-    run_catalog_index_cli(["build", "--artifacts-root", ".", "--repo-root", str(tmp_path), "--output", str(index_path)])
+    run_catalog_index_cli(
+        [
+            "build",
+            "--artifacts-root",
+            ".",
+            "--repo-root",
+            str(tmp_path),
+            "--output",
+            str(index_path),
+        ]
+    )
     cli_query = run_query_cli(
         [
             "--artifacts-root",
@@ -264,8 +298,10 @@ def test_cli_api_parity_and_release_hardening_assumptions(tmp_path: Path, capsys
 
     checklist = CHECKLIST.read_text(encoding="utf-8")
     milestone = MILESTONE_WORKFLOW.read_text(encoding="utf-8")
+    milestone_branch = MILESTONE_BRANCH_WORKFLOW.read_text(encoding="utf-8")
     release = RELEASE_WORKFLOW.read_text(encoding="utf-8")
-    assert '- "feature/m*"' in milestone
+    assert '- "feature/m*"' in milestone_branch
+    assert "startsWith(github.head_ref, 'feature/m')" in milestone
     assert '- "v*"' in release
     for issue in ("405", "406", "407", "408", "409"):
         assert f"Issue #{issue}" in checklist
@@ -277,8 +313,12 @@ def _summary(records: list, openlineage: dict[str, object], *, repo_root: Path) 
         "record_count": len(records),
         "lineage_edge_count": len(build_lineage_edges(records, repo_root=repo_root)),
         "openlineage_node_count": len(openlineage["nodes"]),
-        "dataset_lineage_records": sum(1 for record in records if "dataset_lineage" in record.metadata),
-        "feature_lineage_records": sum(1 for record in records if "feature_lineage" in record.metadata),
+        "dataset_lineage_records": sum(
+            1 for record in records if "dataset_lineage" in record.metadata
+        ),
+        "feature_lineage_records": sum(
+            1 for record in records if "feature_lineage" in record.metadata
+        ),
         "index_record_count": len(records),
     }
 

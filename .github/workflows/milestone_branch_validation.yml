@@ -48,6 +48,7 @@ jobs:
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py
           tests/test_session_archive_cli.py
+          tests/test_session_archive_roundtrip_validation.py
           tests/test_session_archive_validation.py
           tests/test_session_archive_writer.py
 
@@ -59,6 +60,7 @@ jobs:
           tests/test_session_archive_cli.py
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py
+          tests/test_session_archive_roundtrip_validation.py
           tests/test_session_archive_validation.py
           tests/test_session_archive_writer.py
           docs/session_archives.md
@@ -71,6 +73,7 @@ jobs:
           tests/test_session_archive_cli.py
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py
+          tests/test_session_archive_roundtrip_validation.py
           tests/test_session_archive_validation.py
           tests/test_session_archive_writer.py
 

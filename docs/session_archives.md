@@ -782,6 +782,40 @@ Before running strategy, alpha, portfolio, feature, or research workflows:
 * Archive packs and reports are treated as derived transport metadata, not
   canonical storage or canonical evidence.
 
+## Deterministic Round-Trip Validation
+
+M43 includes a focused CI-safe validation slice for the full archive lifecycle:
+
+```text
+pack -> validate -> inspect -> restore -> compare
+```
+
+The test uses tiny synthetic StratLake-style files under `data/curated/`,
+`artifacts/`, `configs/`, and an optional file-backed DuckDB snapshot path. It
+does not require Google Drive APIs, credentials, network access, live market
+data, real mounted drives, production-sized datasets, or external services.
+
+The round-trip validation proves that:
+
+* a synthetic session tree can be archived into derived shards
+* `manifest.json`, `archive_index.json`, `checksums.json`, `restore_plan.json`,
+  and shard files are present
+* archive validation and inspection succeed without error-severity issues
+* validation and inspection reports are deterministic and avoid machine-local
+  absolute paths
+* restore dry-run plans the expected repository-relative files
+* restore recreates normal local `data/`, `artifacts/`, and `configs/` paths
+* restored file bytes match the original synthetic source files
+* canonical source files remain unchanged after pack, validate, inspect, and
+  restore
+* archive and report boundary metadata remains derived and non-authoritative
+
+The same validation slice also covers clear failure behavior for missing shards,
+checksum mismatches, and unsafe archive member paths. These checks are meant to
+prove transport integrity and restore safety. They do not run strategy, alpha,
+portfolio, feature, or research workflows from archive shards, and they do not
+make archive packs canonical storage or canonical evidence.
+
 ## Future M43 Use
 
 Later M43 issues can build on this contract and writer for:

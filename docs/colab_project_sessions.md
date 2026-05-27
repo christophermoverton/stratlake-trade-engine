@@ -224,6 +224,56 @@ Non-dry-run operations write a diagnostic, non-authoritative manifest under:
 artifacts/_derived/notebook_sessions/<operation>_<operation_id>/drive_sync_manifest.json
 ```
 
+For portable M43 archive packs, bootstrap a session archive directly from the
+workspace:
+
+```bash
+!stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --include-features \
+  --include-artifacts \
+  --include-configs
+```
+
+To persist the archive pack to mounted Drive-style storage and immediately
+validate/inspect the copied pack:
+
+```bash
+!stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --archive-collision-policy overwrite_allowed \
+  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --copy-policy overwrite_allowed \
+  --include-features \
+  --include-artifacts \
+  --include-configs \
+  --validate-after-copy \
+  --inspect-after-copy
+```
+
+The mounted Drive path is treated as local filesystem storage only. The archive
+bootstrap command does not call Google APIs, does not require credentials, and
+does not make archive packs canonical storage.
+
+`--archive-collision-policy` controls local derived archive creation, while
+`--copy-policy` controls copied archive behavior under `--drive-root`.
+`skip_existing` skips an existing destination archive pack as a whole rather
+than mixing old and new archive files.
+
+Do not set `--drive-root` to the local archive output directory or a child of
+the local archive pack.
+
+Restore reminder:
+
+```bash
+!python -m src.cli.session_archive restore \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
+  --target-root /content/restored-stratlake \
+  --dry-run
+```
+
 ## Restore In A New Notebook Session
 
 Install the package, mount Drive if needed, define the same explicit roots, and
@@ -271,6 +321,8 @@ session snapshots.
 - `stratlake-init-session`: workspace layout plus `.stratlake/` session metadata
 - `stratlake-session-export`: explicit one-shot export to a mounted Drive path
 - `stratlake-session-import`: explicit one-shot import from a mounted Drive path
+- `stratlake-session-archive-bootstrap`: create an M43 archive pack and optionally
+  copy it to a mounted Drive-style path
 
 All commands should be given explicit roots in Colab-style notebooks. The
 commands do not change notebook CWD, mutate `.env`, mutate `os.environ`, call

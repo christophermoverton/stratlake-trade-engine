@@ -4,6 +4,9 @@ on:
   push:
     branches:
       - "feature/m*"
+      - "feature/issue-476-session-archive-bootstrap-command"
+    tags:
+      - "v0.43.*"
 
 permissions:
   contents: read
@@ -45,6 +48,7 @@ jobs:
       - name: Run M43 manifest and writer tests
         run: >
           python -m pytest
+          tests/test_session_archive_bootstrap_cli.py
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py
           tests/test_session_archive_cli.py
@@ -56,7 +60,9 @@ jobs:
         run: >
           python -m ruff check
           src/session_archive
+          src/cli/session_archive_bootstrap.py
           src/cli/session_archive.py
+          tests/test_session_archive_bootstrap_cli.py
           tests/test_session_archive_cli.py
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py
@@ -69,7 +75,9 @@ jobs:
         run: >
           python -m ruff format --check
           src/session_archive
+          src/cli/session_archive_bootstrap.py
           src/cli/session_archive.py
+          tests/test_session_archive_bootstrap_cli.py
           tests/test_session_archive_cli.py
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py

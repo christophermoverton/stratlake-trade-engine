@@ -49,8 +49,8 @@ def test_package_version_is_not_milestone_tag_formatted() -> None:
 
 def test_m43_release_version_and_tag_metadata_are_consistent() -> None:
     declared_version = _declared_project_version()
-    expected_version = "0.43.0"
-    expected_tag = "v0.43.0-portable-notebook-session-archives"
+    expected_version = "0.43.1"
+    expected_tag = "v0.43.1-session-archive-bootstrap"
     version_pattern = re.compile(
         rf"Package/build version:\s*\n`{re.escape(expected_version)}`",
         re.MULTILINE,

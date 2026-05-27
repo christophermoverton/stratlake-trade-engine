@@ -12,6 +12,81 @@ Candidate milestone release tag:
 Package/build version:
 `0.43.0`
 
+## M43 Mini-Release Checklist (Issue #477)
+
+Release:
+`v0.43.1-session-archive-bootstrap`
+
+Package/build version:
+`0.43.1`
+
+Scope:
+M43 mini-release for Issue #476 session archive bootstrap command and hardening.
+
+Branch:
+`feature/issue-476-session-archive-bootstrap-command`
+
+Primary issue:
+`#477`
+
+Related issue:
+`#476`
+
+### Required Validation Commands
+
+```bash
+python -m pytest tests/test_session_archive_bootstrap_cli.py
+python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py
+python -m ruff check src tests docs
+python -m build
+```
+
+### Validation Results
+
+Validation completed for `v0.43.1-session-archive-bootstrap`:
+
+* `python -m pytest tests/test_session_archive_bootstrap_cli.py`
+  * `20 passed`
+* `python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py`
+  * `99 passed, 1 skipped`
+* `python -m ruff check src tests docs`
+  * `All checks passed!`
+* `python -m build`
+  * built `stratlake_trade_engine-0.43.1.tar.gz` and
+    `stratlake_trade_engine-0.43.1-py3-none-any.whl`
+
+### Workflow Branch/Tag Coverage (Issue #477 Scope Update)
+
+Branch validation coverage:
+
+* `feature/issue-476-session-archive-bootstrap-command` (explicit branch)
+* `feature/m*` (existing durable milestone pattern)
+
+Tag validation coverage:
+
+* `v0.43.*` in milestone branch validation workflow
+* `v*` in release and TestPyPI workflows (existing durable release pattern)
+
+Workflow files reviewed:
+
+* `.github/workflows/ci.yml`
+* `.github/workflows/milestone_branch_validation.yml`
+* `.github/workflows/milestone_validation.yml`
+* `.github/workflows/release.yml`
+* `.github/workflows/publish-testpypi.yml`
+
+Workflow files changed:
+
+* `.github/workflows/milestone_branch_validation.yml`
+
+This scope update changes trigger coverage only and does not change workflow
+job logic.
+
+Remote workflow runs for this update were not observed locally in this
+checklist; this section records trigger coverage and local validation only.
+
+No repository-specific YAML lint command found.
+
 ## M43 Scope Recap
 
 M43 adds:

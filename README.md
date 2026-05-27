@@ -44,6 +44,48 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
+### Session Archive Bootstrap (M43)
+
+For notebook and Colab workflows, use a single command to create an M43
+portable archive pack and optionally copy it to a mounted Drive-style path:
+
+```bash
+stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --include-features \
+  --include-artifacts \
+  --include-configs
+```
+
+Mounted destination copy with post-copy validation and inspection:
+
+```bash
+stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --archive-collision-policy overwrite_allowed \
+  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --copy-policy overwrite_allowed \
+  --include-features \
+  --include-artifacts \
+  --include-configs \
+  --validate-after-copy \
+  --inspect-after-copy
+```
+
+Mounted Drive paths are treated as local filesystem paths only. The command
+does not call Google APIs, does not require credentials, and does not make
+archive packs canonical storage.
+
+`--archive-collision-policy` controls local derived archive creation, while
+`--copy-policy` controls copied archive behavior under `--drive-root`.
+`skip_existing` skips an existing destination archive pack as a whole rather
+than mixing old and new archive files.
+
+Do not set `--drive-root` to the local archive output directory or a child of
+the local archive pack.
+
 Milestone 28 adds Airflow, Prefect, and Dagster-style integration patterns as
 thin optional wrappers around existing StratLake CLI and `src.execution`
 surfaces. These examples do not add scheduler dependencies to the core runtime;
@@ -604,6 +646,29 @@ Start with:
 * [docs/getting_started.md](docs/getting_started.md)
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
+
+### Release 0.43.1: Session Archive Bootstrap Mini-Release
+
+Release 0.43.1 is a mini-release under the published M43 archive line. It
+adds and hardens the notebook-friendly `stratlake-session-archive-bootstrap`
+command for creating portable session archive packs and optionally copying them
+to mounted filesystem paths.
+
+The mini-release keeps M43 boundaries unchanged: session archive packs remain
+derived, disposable, transport-only snapshots and are not canonical storage,
+canonical evidence, or a registry.
+
+Package/build version:
+`0.43.1`
+
+Release tag:
+`v0.43.1-session-archive-bootstrap`
+
+Start with:
+
+* [docs/m43_release_notes.md](docs/m43_release_notes.md)
+* [docs/m43_release_validation_checklist.md](docs/m43_release_validation_checklist.md)
+* [docs/session_archives.md](docs/session_archives.md)
 
 ### Release 0.43.0: Portable Notebook Session Archives
 

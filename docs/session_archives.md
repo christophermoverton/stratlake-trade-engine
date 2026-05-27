@@ -392,6 +392,23 @@ The commands are notebook-friendly and can be run from terminal sessions or
 notebook shell cells:
 
 ```bash
+python -m src.cli.session_archive_bootstrap \
+  --root . \
+  --archive-id session-a \
+  --include-features \
+  --include-artifacts \
+  --include-configs
+
+python -m src.cli.session_archive_bootstrap \
+  --root . \
+  --archive-id session-a \
+  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --include-features \
+  --include-artifacts \
+  --include-configs \
+  --validate-after-copy \
+  --inspect-after-copy
+
 python -m src.cli.session_archive pack \
   --repository-root . \
   --archive-id session-a \
@@ -415,6 +432,83 @@ python -m src.cli.session_archive restore \
   --archive-root artifacts/_derived/session_archives/session-a \
   --target-root restored-session
 ```
+
+For a mounted archive pack, restore from the copied archive root and run a
+dry-run first:
+
+```bash
+python -m src.cli.session_archive restore \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/session-a \
+  --target-root /content/restored-stratlake \
+  --dry-run
+```
+
+The installed command `stratlake-session-archive-bootstrap` is a thin wrapper
+over `python -m src.cli.session_archive_bootstrap`.
+
+`session_archive_bootstrap` orchestrates existing M43 APIs only:
+
+* pack creation through `write_session_archive_pack(...)`
+* dry-run plan creation through `build_session_archive_plan(...)`
+* optional post-copy validation through `validate_session_archive(...)`
+* optional post-copy inspection through `inspect_session_archive(...)`
+
+It does not implement a second writer, validator, inspector, tar format, or
+restore path. Mounted Drive roots are treated as ordinary local filesystem
+paths only. The command does not call Google APIs, does not require
+credentials, does not require network access, and does not make archive packs
+canonical storage.
+
+When `--drive-root` is supplied, the copy destination is:
+
+```text
+<drive-root>/<archive-id>/
+```
+
+Supported copy policies are:
+
+* `fail_if_exists`: fail when destination archive root already contains files.
+* `skip_existing`: if destination archive root already contains files, skip the
+  destination archive pack as a whole.
+* `overwrite_allowed`: intentionally replace destination archive contents.
+
+Use `--archive-collision-policy` to control local derived archive generation:
+
+* `fail_if_exists` (default): fail if local archive output already exists.
+* `overwrite_allowed`: intentionally regenerate local derived archive output.
+
+Policy split for explicit reruns:
+
+* `--archive-collision-policy` controls local derived archive creation.
+* `--copy-policy` controls copied archive behavior under `--drive-root`.
+
+Mounted destination safety: do not set `--drive-root` to the local archive
+output directory or a child of the local archive pack.
+
+Recommended explicit rerun pattern:
+
+```bash
+stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --archive-collision-policy overwrite_allowed \
+  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --copy-policy overwrite_allowed \
+  --include-features \
+  --include-artifacts \
+  --include-configs \
+  --validate-after-copy \
+  --inspect-after-copy
+```
+
+For non-dry-run operations, bootstrap writes a deterministic derived report at:
+
+```text
+<root>/artifacts/_derived/session_archives/<archive_id>/bootstrap_report.json
+```
+
+Dry-run planning writes no archive pack, no destination copy, and no bootstrap
+report.
 
 `pack` creates an archive pack through `write_session_archive_pack(...)`.
 `--dry-run` delegates to `build_session_archive_plan(...)` and writes no pack.

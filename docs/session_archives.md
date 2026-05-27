@@ -12,10 +12,12 @@ evidence outputs, checked-in configs, and direct repository-relative scans
 remain authoritative. A session archive manifest is only metadata about a
 disposable archive pack.
 
-Issue #465 added the manifest contract. Issue #466 adds the Python archive
-writer and deterministic shard planner. The writer creates derived archive
-packs only; it does not extract archives, restore files, call Google Drive, read
-live market data, create CLI commands, or mutate canonical artifacts.
+M43 adds the manifest contract, deterministic writer, local restore workflow,
+validation and inspection APIs, and thin CLI wrappers. These surfaces create,
+check, summarize, and restore derived archive packs only. They do not call
+Google Drive, read live market data, require credentials, execute research
+workflows, or mutate canonical artifacts outside the user-selected archive or
+restore targets.
 
 ## Manifest Contract
 
@@ -440,15 +442,354 @@ require credentials, access the network, or read live market data. Archive packs
 and CLI reports remain derived, disposable, transport-only outputs, not
 canonical storage, canonical evidence, or a registry.
 
+## Notebook And Colab Workflow Overview
+
+The intended notebook workflow is:
+
+1. Do active StratLake work in a normal local repository workspace.
+2. Pack selected repository-relative `features`, `artifacts`, `configs`, and
+   optional `duckdb_snapshot` files into a derived archive pack.
+3. Move or persist the archive pack through ordinary local or mounted storage.
+4. Validate and inspect the copied pack before restore.
+5. Restore the pack into a clean or intentionally selected local target root.
+6. Run strategy, alpha, portfolio, feature, and research workflows from the
+   restored repository-relative paths.
+
+Archive shards are transport containers. Do not point active StratLake workflows
+at tar shard internals, and do not treat archive packs as the active feature,
+artifact, config, registry, or evidence store. Restored files return to the
+normal StratLake layout before workflows run.
+
+## What Session Archives Are
+
+Portable session archives are useful when notebook environments are short-lived,
+slow to copy many small files, or attached to mounted storage. A pack can carry
+selected session context such as curated feature snapshots, research artifacts,
+checked-in or local config files, and optional file-backed DuckDB snapshots.
+
+The pack is deterministic and inspectable. Its manifest and sidecars describe
+what was packed, which shards contain the files, which checksums should match,
+which logical groups are included, and what restore paths are expected.
+
+## What Session Archives Are Not
+
+Portable session archives are not:
+
+* canonical feature storage
+* canonical research evidence
+* a strategy, alpha, portfolio, governance, or artifact registry
+* a hidden execution cache
+* a way to run workflows directly from archive shards
+* a replacement for standard repository-relative feature, artifact, and config
+  paths
+
+Canonical Parquet features, strategy outputs, alpha outputs, portfolio outputs,
+governance outputs, evidence artifacts, runtime configs, and direct
+repository-relative scans remain authoritative.
+
+## Storage Boundary Model
+
+Use a simple boundary model:
+
+* **Local runtime workspace:** where active StratLake workflows run.
+* **Derived archive output:** where `pack` writes disposable archive packs.
+* **Mounted storage:** optional local filesystem storage used to copy or persist
+  archive packs.
+* **Restore target workspace:** where archive contents are restored back into
+  normal StratLake paths.
+
+Mounted storage such as Google Drive is optional. StratLake treats mounted
+cloud folders as ordinary local paths and does not use Google Drive APIs,
+credentials, network access, live market data, or external services for archive
+pack, validate, inspect, or restore operations.
+
+## Recommended Colab Or Mounted-Drive Pattern
+
+In a notebook or Colab-style workflow, keep active work local to the runtime
+filesystem when possible:
+
+```text
+workspace/
+  data/curated/features_daily/
+  artifacts/strategies/
+  configs/
+mounted_drive/
+  stratlake_archives/
+```
+
+Pack from `workspace/`, copy the archive pack to
+`mounted_drive/stratlake_archives/`, then later copy or reference that pack as
+a local mounted path. Before restoring, validate and inspect it:
+
+```bash
+python -m src.cli.session_archive validate \
+  --archive-root mounted_drive/stratlake_archives/demo-session \
+  --output-root artifacts
+
+python -m src.cli.session_archive inspect \
+  --archive-root mounted_drive/stratlake_archives/demo-session
+```
+
+Restore into a normal workspace path, not into a tar shard:
+
+```bash
+python -m src.cli.session_archive restore \
+  --archive-root mounted_drive/stratlake_archives/demo-session \
+  --target-root restored_workspace \
+  --dry-run
+
+python -m src.cli.session_archive restore \
+  --archive-root mounted_drive/stratlake_archives/demo-session \
+  --target-root restored_workspace \
+  --overwrite-policy fail_if_exists
+```
+
+After restore, run StratLake from `restored_workspace/` using normal local
+repository-relative paths.
+
+## First-Run Round Trip With Small Synthetic Data
+
+This small documentation-only example uses tiny files in StratLake-style
+directories. It does not require live data, credentials, network access, or
+external services.
+
+Create a small local workspace:
+
+```bash
+mkdir -p data/curated/features_daily artifacts/strategies/run_a configs/profiles
+printf "feature-a\n" > data/curated/features_daily/AAPL.parquet
+printf "{\"run_id\":\"run_a\"}\n" > artifacts/strategies/run_a/manifest.json
+printf "schema_version: 1\nprofile: notebook\n" > configs/profiles/notebook.yml
+```
+
+Pack the selected groups:
+
+```bash
+python -m src.cli.session_archive pack \
+  --repository-root . \
+  --archive-id demo-session \
+  --include-group features \
+  --include-group artifacts \
+  --include-group configs
+```
+
+Validate and inspect before restore:
+
+```bash
+python -m src.cli.session_archive validate \
+  --archive-root artifacts/_derived/session_archives/demo-session \
+  --output-root artifacts
+
+python -m src.cli.session_archive inspect \
+  --archive-root artifacts/_derived/session_archives/demo-session
+```
+
+Plan and then run restore into a clean target:
+
+```bash
+python -m src.cli.session_archive restore \
+  --archive-root artifacts/_derived/session_archives/demo-session \
+  --target-root restored_workspace \
+  --dry-run
+
+python -m src.cli.session_archive restore \
+  --archive-root artifacts/_derived/session_archives/demo-session \
+  --target-root restored_workspace
+```
+
+The restored files are back under normal paths such as:
+
+```text
+restored_workspace/data/curated/features_daily/AAPL.parquet
+restored_workspace/artifacts/strategies/run_a/manifest.json
+restored_workspace/configs/profiles/notebook.yml
+```
+
+Active workflows should now use the restored local workspace paths, not archive
+shards.
+
+## Python API Workflow
+
+Notebook users can call the same APIs directly:
+
+```python
+from pathlib import Path
+
+from src.session_archive import (
+    SessionArchiveIncludePolicy,
+    SessionArchiveLogicalGroup,
+    SessionArchiveRestoreRequest,
+    SessionArchiveWriteRequest,
+    build_session_archive_restore_plan,
+    inspect_session_archive,
+    restore_session_archive_pack,
+    validate_session_archive,
+    write_session_archive_pack,
+)
+
+request = SessionArchiveWriteRequest(
+    archive_id="demo-session",
+    repository_root=Path("."),
+    include_policy=SessionArchiveIncludePolicy(
+        include_groups=(
+            SessionArchiveLogicalGroup.FEATURES,
+            SessionArchiveLogicalGroup.ARTIFACTS,
+            SessionArchiveLogicalGroup.CONFIGS,
+        ),
+    ),
+    source_runtime_profile="notebook",
+    source_profile_path="configs/profiles/notebook.yml",
+)
+
+pack = write_session_archive_pack(request)
+validation = validate_session_archive(pack.archive_root)
+inspection = inspect_session_archive(pack.archive_root)
+
+if validation.passed:
+    restore_request = SessionArchiveRestoreRequest(
+        archive_root=pack.archive_root,
+        target_root=Path("restored_workspace"),
+        overwrite_policy="fail_if_exists",
+    )
+    dry_run = build_session_archive_restore_plan(restore_request)
+    result = restore_session_archive_pack(restore_request)
+```
+
+The Python APIs have the same boundary as the CLI: they create and restore local
+filesystem snapshots but do not execute strategies, build features, call cloud
+APIs, resolve live data, or make archives canonical.
+
+## Runtime Profiles And Local Paths
+
+Archive manifests can record non-secret runtime profile context when callers
+supply `source_runtime_profile` or `source_profile_path`. This is descriptive
+metadata only. A runtime profile does not make an archive canonical and does not
+hide execution behavior.
+
+After restore, point environment variables and runtime profiles at normal local
+paths in the restored workspace. Do not point `FEATURES_ROOT`, `ARTIFACTS_ROOT`,
+profile paths, strategy configs, or notebook code at tar shard internals.
+Validation and inspection do not execute workflows, resolve live data, or prove
+that a future strategy run is valid; they only verify and summarize the archive
+pack.
+
+## Include And Exclude Recommendations
+
+Recommended logical groups:
+
+* `configs`: profile and configuration context needed to rerun local workflows.
+* `features`: curated feature snapshots that are expensive to recopy file by
+  file.
+* `artifacts`: research outputs, reports, and run artifacts useful for review.
+* `duckdb_snapshot`: optional file-backed DuckDB state when it is useful and
+  safe to move.
+
+Avoid packing:
+
+* secrets, credential files, API tokens, or private keys
+* virtual environments such as `.venv/`
+* `.git/`
+* cache directories such as `__pycache__/`, `.pytest_cache/`, `.ruff_cache/`,
+  `.mypy_cache/`, and `.ipynb_checkpoints/`
+* temporary notebook output and scratch files
+* huge debug artifacts unless they are intentionally needed
+* files that only make sense through machine-local absolute paths
+
+The writer excludes common noisy local paths by default. Add extra
+`--exclude-pattern` values when a notebook creates project-specific temporary
+files.
+
+## Large Feature Dataset Guidance
+
+Archive packs are most useful when many small Parquet or artifact files are
+slow to transfer through mounted storage. Shards group many files into fewer
+portable tar files, reducing transfer overhead while keeping restore behavior
+explicit.
+
+Choose `--max-shard-size-bytes` and `--max-entries-per-shard` based on storage
+limits, notebook runtime memory, and transfer behavior. Validate checksums after
+copying packs through mounted storage. Restore locally before active workflows.
+Do not read features directly from tar shards in strategy, alpha, portfolio, or
+research code.
+
+## Optional DuckDB Snapshot Guidance
+
+DuckDB snapshot metadata is optional. `:memory:` DuckDB context is metadata
+only and does not require or restore a snapshot file. File-backed snapshots may
+be included when they are useful to move with the session.
+
+Missing optional DuckDB metadata or `:memory:` warnings are not necessarily
+failures. Treat error-severity validation issues as blockers; treat DuckDB
+warnings as context to confirm whether the archive intentionally omitted a
+file-backed snapshot. After restore, workflows should use normal local DuckDB
+or config paths.
+
+## Restore Safety And Overwrite Policies
+
+Supported restore overwrite policies are:
+
+* `fail_if_exists`: fail before extraction if any target file exists.
+* `skip_existing`: preserve existing local files and restore non-conflicting
+  files.
+* `replace_existing`: intentionally replace existing target files.
+
+Use `fail_if_exists` for first restore into a clean target. Always run
+`--dry-run` before restoring into a non-empty workspace. Use `skip_existing`
+only when preserving local files is intentional. Use `replace_existing` only
+when replacing local targets is intentional and the dry-run plan is understood.
+
+## Troubleshooting
+
+Common validation or restore findings:
+
+* `missing_manifest`: check that `--archive-root` points at the archive pack
+  root, not the parent directory or a shard directory.
+* `malformed_manifest_json`: recreate the archive or recopy it from mounted
+  storage; avoid editing archive internals manually.
+* `unsupported_schema_version`: use compatible StratLake code for the pack, or
+  recreate the pack with the current repository version.
+* `missing_shard_index`, `missing_checksums`, or `missing_restore_plan`:
+  recreate or recopy the full archive pack; these sidecars are required.
+* `missing_required_shard`: recopy the `shards/` directory or recreate the
+  pack.
+* `checksum_mismatch`: recopy the pack from mounted storage, then validate
+  again before restore.
+* `unsafe_archive_entry`: recreate the pack from safe repository-relative paths;
+  archive entries must not be absolute paths, URL-like paths, home shortcuts, or
+  parent traversal paths.
+* `unsafe_restore_path`: check restore metadata and use a clean target root.
+* `unknown_logical_group`: recreate the archive with supported logical groups.
+* `non_portable_path`: remove absolute, machine-local, backslash, or traversal
+  paths from the source selection and recreate the pack.
+* optional DuckDB warnings: confirm whether `:memory:` or omitted file-backed
+  snapshots are intentional.
+
+When in doubt, recreate the archive from the original local workspace, copy the
+entire archive pack, validate after transfer, inspect before restore, and
+restore into a clean target root.
+
+## Checklist Before Running Active Workflows
+
+Before running strategy, alpha, portfolio, feature, or research workflows:
+
+* The archive validated with no error-severity issues.
+* The inspection summary matches the expected archive ID, groups, shard count,
+  file count, and restore roots.
+* A restore dry-run was reviewed for non-empty targets.
+* Files were restored into normal repository-relative paths.
+* Runtime profiles and environment variables point at restored local paths.
+* No workflow is reading directly from archive shards.
+* Archive packs and reports are treated as derived transport metadata, not
+  canonical storage or canonical evidence.
+
 ## Future M43 Use
 
 Later M43 issues can build on this contract and writer for:
 
 * notebook quickstart flows
 * optional cloud transport integrations
-* CLI entrypoints
 
-CLI commands are deferred to M43.5.
+CLI commands are available through `python -m src.cli.session_archive`.
 
 Those future tools should treat the manifest as an inspectable description of
 transport metadata. They should continue to reopen canonical manifests,

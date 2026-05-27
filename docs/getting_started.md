@@ -25,6 +25,7 @@ For deeper detail, continue with:
 
 * [alpha_workflow.md](alpha_workflow.md)
 * [notebook_execution_api.md](notebook_execution_api.md)
+* [session_archives.md](session_archives.md)
 * [strategy_evaluation_workflow.md](strategy_evaluation_workflow.md)
 * [portfolio_construction_workflow.md](portfolio_construction_workflow.md)
 * [research_validity_framework.md](research_validity_framework.md)
@@ -48,6 +49,12 @@ Important environment settings:
 Runtime profiles provide non-secret starter contexts for local, CI, notebook,
 and pipeline workflows. See [runtime_profiles.md](runtime_profiles.md) and the
 examples in [../configs/profiles](../configs/profiles).
+
+Portable notebook session archives are covered in
+[session_archives.md](session_archives.md). They help users save, move,
+validate, inspect, and restore notebook or mounted-storage session state while
+keeping archive packs derived, disposable, transport-only snapshots rather than
+canonical StratLake storage.
 
 From a clean checkout, the CI-safe first-run flow does not require live market
 data, credentials, network access, or external services:
@@ -338,10 +345,14 @@ os.environ["MARKETLAKE_ROOT"] = "data/curated"
 from cli.build_features import run_cli
 
 summary_path = run_cli([
-    "--timeframe", "1D",
-    "--start", "2025-01-01",
-    "--end", "2025-02-01",
-    "--tickers", "configs/tickers_50.txt",
+    "--timeframe",
+    "1D",
+    "--start",
+    "2025-01-01",
+    "--end",
+    "2025-02-01",
+    "--tickers",
+    "configs/tickers_50.txt",
 ])
 ```
 
@@ -351,11 +362,16 @@ Cell-local root override:
 from cli.build_features import run_cli
 
 summary_path = run_cli([
-    "--timeframe", "1D",
-    "--start", "2025-01-01",
-    "--end", "2025-02-01",
-    "--tickers", "configs/tickers_50.txt",
-    "--marketlake-root", "data/curated",
+    "--timeframe",
+    "1D",
+    "--start",
+    "2025-01-01",
+    "--end",
+    "2025-02-01",
+    "--tickers",
+    "configs/tickers_50.txt",
+    "--marketlake-root",
+    "data/curated",
 ])
 ```
 

@@ -43,7 +43,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--output-root",
         default="artifacts/_derived/session_archives",
-        help="Repository-relative or absolute output root for the local archive pack.",
+        help="Repository-relative output root for the local archive pack.",
     )
     parser.add_argument(
         "--drive-root",

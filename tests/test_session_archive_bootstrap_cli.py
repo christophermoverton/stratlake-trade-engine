@@ -27,9 +27,12 @@ def test_help_documents_boundaries(capsys: pytest.CaptureFixture[str]) -> None:
     assert bootstrap.main(["--help"]) == 0
 
     output = capsys.readouterr().out
+    normalized = " ".join(output.split())
 
     assert "derived, disposable, transport-only" in output
     assert "not canonical storage" in output
+    assert "Repository-relative output root for the local archive pack." in normalized
+    assert "Repository-relative or absolute output root" not in output
 
 
 def test_include_flags_map_to_logical_groups(

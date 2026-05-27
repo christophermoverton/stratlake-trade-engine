@@ -88,7 +88,7 @@ archives/session-a/shards/features-000.tar.zst
 The validator rejects:
 
 * absolute POSIX paths
-* Windows drive paths
+* Windows drive paths, including drive-relative forms such as `C:relative/path`
 * home-directory shortcuts such as `~/data`
 * `file://` URIs
 * URL-like paths
@@ -97,6 +97,9 @@ The validator rejects:
 
 The only special non-path value is `:memory:`, and it is allowed only for
 DuckDB source-path metadata.
+
+Shard names must be simple filename-like values. They must not be `.`, `..`,
+contain path separators, or start with a Windows drive prefix.
 
 ## Deterministic JSON
 

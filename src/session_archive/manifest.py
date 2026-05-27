@@ -20,6 +20,7 @@ _SECRET_KEY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 _URL_LIKE_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*://")
+_WINDOWS_DRIVE_PREFIX_PATTERN = re.compile(r"^[A-Za-z]:")
 
 
 class SessionArchiveError(ValueError):
@@ -126,7 +127,7 @@ class SessionArchiveShard:
         if missing:
             raise SessionArchiveError(f"Manifest shard is missing required field(s): {missing}.")
         return cls(
-            shard_name=_required_string(payload["shard_name"], "shard.shard_name"),
+            shard_name=_safe_shard_name(payload["shard_name"], "shard.shard_name"),
             shard_path=_portable_repository_path(payload["shard_path"], "shard.shard_path"),
             logical_group=_logical_group(payload["logical_group"], "shard.logical_group"),
             shard_index=_non_negative_int(payload["shard_index"], "shard.shard_index"),
@@ -141,7 +142,7 @@ class SessionArchiveShard:
         )
 
     def validate(self) -> None:
-        _required_string(self.shard_name, "shard.shard_name")
+        _safe_shard_name(self.shard_name, "shard.shard_name")
         _portable_repository_path(self.shard_path, "shard.shard_path")
         _logical_group(self.logical_group, "shard.logical_group")
         _non_negative_int(self.shard_index, "shard.shard_index")
@@ -366,6 +367,11 @@ class SessionArchiveManifest:
         if not self.included_groups:
             raise SessionArchiveError("Manifest field 'included_groups' must not be empty.")
         included = tuple(_logical_group(value, "included_groups") for value in self.included_groups)
+        included_values = [group.value for group in included]
+        if len(included_values) != len(set(included_values)):
+            raise SessionArchiveError(
+                "Manifest field 'included_groups' must not contain duplicates."
+            )
         if not self.shards:
             raise SessionArchiveError("Manifest field 'shards' must not be empty.")
         shard_groups = set()
@@ -516,6 +522,11 @@ def _portable_path_text(text: str, field_name: str) -> str:
         raise SessionArchiveError(f"Manifest field '{field_name}' must not be a URI or URL.")
     if text.startswith("~"):
         raise SessionArchiveError(f"Manifest field '{field_name}' must not use a home shortcut.")
+    if _WINDOWS_DRIVE_PREFIX_PATTERN.match(text):
+        raise SessionArchiveError(
+            f"Manifest field '{field_name}' must be a normalized repository-relative path "
+            "and must not use a Windows drive path."
+        )
     posix_path = PurePosixPath(text)
     windows_path = PureWindowsPath(text)
     first_part = posix_path.parts[0] if posix_path.parts else ""
@@ -531,6 +542,21 @@ def _portable_path_text(text: str, field_name: str) -> str:
             f"Manifest field '{field_name}' must be a normalized repository-relative path."
         )
     return posix_path.as_posix()
+
+
+def _safe_shard_name(value: Any, field_name: str) -> str:
+    text = _required_string(value, field_name)
+    if text in {".", ".."}:
+        raise SessionArchiveError(f"Manifest field '{field_name}' must be a safe shard filename.")
+    if "/" in text or "\\" in text:
+        raise SessionArchiveError(
+            f"Manifest field '{field_name}' must be a safe shard filename without path separators."
+        )
+    if _WINDOWS_DRIVE_PREFIX_PATTERN.match(text):
+        raise SessionArchiveError(
+            f"Manifest field '{field_name}' must be a safe shard filename without a Windows drive prefix."
+        )
+    return text
 
 
 def _safe_metadata_mapping(value: Any, field_name: str) -> dict[str, Any]:

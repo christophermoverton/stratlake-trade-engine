@@ -178,6 +178,8 @@ def test_repository_relative_posix_paths_are_allowed() -> None:
     [
         "/home/example/data",
         "C:/Users/example/data",
+        "C:Users/example/data",
+        "D:relative/path",
         "C:\\Users\\example\\data",
         "~/data",
         "file://data/curated",
@@ -195,6 +197,14 @@ def test_rejects_non_portable_paths(bad_path: str) -> None:
         validate_session_archive_manifest(payload)
 
 
+def test_rejects_duplicate_included_groups() -> None:
+    payload = _manifest_payload()
+    payload["included_groups"] = ["features", "features", "artifacts"]
+
+    with pytest.raises(SessionArchiveError, match="included_groups.*duplicates"):
+        validate_session_archive_manifest(payload)
+
+
 def test_rejects_malformed_shard_metadata() -> None:
     payload = _manifest_payload()
     shard = dict(_shard())
@@ -209,6 +219,28 @@ def test_rejects_malformed_shard_metadata() -> None:
     payload["shards"] = [shard]
 
     with pytest.raises(SessionArchiveError, match="missing required"):
+        validate_session_archive_manifest(payload)
+
+
+@pytest.mark.parametrize(
+    "bad_name",
+    [
+        "../features.tar.zst",
+        "nested/features.tar.zst",
+        "C:\\temp\\features.tar.zst",
+        "C:features.tar.zst",
+        ".",
+        "..",
+    ],
+)
+def test_rejects_unsafe_shard_names(bad_name: str) -> None:
+    payload = _manifest_payload()
+    shard = dict(_shard())
+    shard["shard_name"] = bad_name
+    payload["shards"] = [shard]
+    payload["included_groups"] = ["features"]
+
+    with pytest.raises(SessionArchiveError, match="safe shard filename"):
         validate_session_archive_manifest(payload)
 
 

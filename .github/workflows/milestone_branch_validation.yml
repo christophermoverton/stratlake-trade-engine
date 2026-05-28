@@ -49,6 +49,7 @@ jobs:
         run: >
           python -m pytest
           tests/test_session_archive_bootstrap_cli.py
+          tests/test_session_archive_restore_bootstrap_cli.py
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py
           tests/test_session_archive_cli.py
@@ -61,8 +62,10 @@ jobs:
           python -m ruff check
           src/session_archive
           src/cli/session_archive_bootstrap.py
+          src/cli/session_archive_restore_bootstrap.py
           src/cli/session_archive.py
           tests/test_session_archive_bootstrap_cli.py
+          tests/test_session_archive_restore_bootstrap_cli.py
           tests/test_session_archive_cli.py
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py
@@ -76,8 +79,10 @@ jobs:
           python -m ruff format --check
           src/session_archive
           src/cli/session_archive_bootstrap.py
+          src/cli/session_archive_restore_bootstrap.py
           src/cli/session_archive.py
           tests/test_session_archive_bootstrap_cli.py
+          tests/test_session_archive_restore_bootstrap_cli.py
           tests/test_session_archive_cli.py
           tests/test_session_archive_manifest.py
           tests/test_session_archive_restore.py

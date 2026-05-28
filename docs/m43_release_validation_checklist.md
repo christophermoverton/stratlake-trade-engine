@@ -44,13 +44,16 @@ python -m pytest tests/test_session_archive_bootstrap_cli.py
 python -m pytest tests/test_session_archive_restore_bootstrap_cli.py
 python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py
 python -m pytest tests/test_packaging_readiness.py
-python -m pytest tests/test_release_workflow.py tests/test_packaging_workflow.py
+python -m pytest tests/test_release_workflow.py
 python -m pytest tests/test_docs_path_portability.py
 python -m ruff check src tests docs
 python -m ruff format --check src tests docs README.md pyproject.toml
 python -m build
 git diff --check
 ```
+
+Run `python -m pytest tests/test_packaging_workflow.py` only if that optional
+workflow guard test file is present in the repository.
 
 ### Validation Results
 
@@ -61,6 +64,8 @@ pass are recorded in [Final Local Validation Status](#final-local-validation-sta
   * `20 passed`
 * `python -m pytest tests/test_session_archive_restore_bootstrap_cli.py`
   * `24 passed`
+* branch-validation-equivalent M43 pytest slice including restore-bootstrap:
+  * `172 passed, 1 skipped`
 * `python -m pytest tests/test_packaging_readiness.py`
   * `8 passed`
 * `python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py`
@@ -98,8 +103,10 @@ Workflow files changed:
 
 * `.github/workflows/milestone_branch_validation.yml`
 
-This scope update changes trigger coverage only and does not change workflow
-job logic.
+This scope update changes focused branch validation coverage only and does not
+change workflow job logic. The branch validation workflow now includes the
+restore-bootstrap CLI surface in its M43 pytest, Ruff check, and Python format
+check steps.
 
 Remote workflow runs for this update were not observed locally in this
 checklist; this section records trigger coverage and local validation only.
@@ -192,6 +199,8 @@ As of the Issue #481 restore-bootstrap mini-release readiness pass:
   `20 passed`
 * restore-bootstrap CLI:
   `24 passed`
+* branch-validation-equivalent M43 pytest slice including restore-bootstrap:
+  `172 passed, 1 skipped`
 * focused M43 archive suite:
   `99 passed, 1 skipped`
 * release workflow guard:

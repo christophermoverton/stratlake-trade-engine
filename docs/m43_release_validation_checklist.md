@@ -21,7 +21,7 @@ Package/build version:
 `0.43.1`
 
 Scope:
-M43 mini-release for Issue #476 session archive bootstrap command and hardening.
+M43 mini-release for session archive bootstrap and restore-bootstrap commands.
 
 Branch:
 `feature/issue-476-session-archive-bootstrap-command`
@@ -32,10 +32,14 @@ Primary issue:
 Related issue:
 `#476`
 
+Restore-bootstrap issue:
+`#480`
+
 ### Required Validation Commands
 
 ```bash
 python -m pytest tests/test_session_archive_bootstrap_cli.py
+python -m pytest tests/test_session_archive_restore_bootstrap_cli.py
 python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py
 python -m ruff check src tests docs
 python -m build
@@ -47,6 +51,12 @@ Validation completed for `v0.43.1-session-archive-bootstrap`:
 
 * `python -m pytest tests/test_session_archive_bootstrap_cli.py`
   * `20 passed`
+* `python -m pytest tests/test_session_archive_restore_bootstrap_cli.py`
+  * `16 passed`
+* `python -m pytest tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_roundtrip_validation.py`
+  * `56 passed`
+* `python -m pytest tests/test_packaging_readiness.py`
+  * `8 passed`
 * `python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py`
   * `99 passed, 1 skipped`
 * `python -m ruff check src tests docs`
@@ -104,7 +114,7 @@ M43 adds:
 Run the focused M43 archive pytest slice:
 
 ```bash
-python -m pytest tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_roundtrip_validation.py
+python -m pytest tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_bootstrap_cli.py tests/test_session_archive_restore_bootstrap_cli.py tests/test_session_archive_roundtrip_validation.py
 ```
 
 Run workflow and release guard tests:
@@ -128,13 +138,13 @@ python -m pytest tests/test_docs_path_portability.py
 Run Ruff over M43-facing source, tests, and docs:
 
 ```bash
-python -m ruff check src/session_archive src/cli/session_archive.py tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_roundtrip_validation.py docs/session_archives.md README.md docs/getting_started.md src/resources/notebook_workspace/docs/getting_started.md
+python -m ruff check src/session_archive src/cli/session_archive.py src/cli/session_archive_bootstrap.py src/cli/session_archive_restore_bootstrap.py tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_bootstrap_cli.py tests/test_session_archive_restore_bootstrap_cli.py tests/test_session_archive_roundtrip_validation.py docs/session_archives.md README.md docs/getting_started.md src/resources/notebook_workspace/docs/getting_started.md
 ```
 
 Run format checks:
 
 ```bash
-python -m ruff format --check src/session_archive src/cli/session_archive.py tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_roundtrip_validation.py
+python -m ruff format --check src/session_archive src/cli/session_archive.py src/cli/session_archive_bootstrap.py src/cli/session_archive_restore_bootstrap.py tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_bootstrap_cli.py tests/test_session_archive_restore_bootstrap_cli.py tests/test_session_archive_roundtrip_validation.py
 python -m ruff format --check --preview docs/session_archives.md README.md docs/getting_started.md src/resources/notebook_workspace/docs/getting_started.md
 ```
 
@@ -167,10 +177,10 @@ validation results.
 
 ## Final Local Validation Status
 
-As of the M43 release-finalization pass:
+As of the Issue #480 restore-bootstrap focused validation pass:
 
 * focused M43 archive suite:
-  `128 passed, 1 skipped`
+  `164 passed, 1 skipped`
 * workflow and release guard tests:
   `11 passed`
 * workflow-pattern policy checks:
@@ -182,22 +192,20 @@ As of the M43 release-finalization pass:
 * targeted Ruff check:
   `All checks passed!`
 * targeted Ruff format check:
-  `13 files already formatted`
+  `16 files already formatted`
 * docs Ruff format check:
   `6 files already formatted`
 * package build validation:
-  built `stratlake_trade_engine-0.43.0.tar.gz` and
-  `stratlake_trade_engine-0.43.0-py3-none-any.whl`
+  not rerun during the Issue #480 focused restore-bootstrap pass
 * package artifact validation:
-  `python -m twine check dist/*` passed for available `dist/` artifacts,
-  including the M43 `0.43.0` sdist and wheel
+  not rerun during the Issue #480 focused restore-bootstrap pass
 * whitespace/path check:
   `git diff --check` passed
 * changed-doc path scan:
   no machine-local absolute path patterns, real Colab Drive paths, or
   workstation-specific cloud storage names found in the M43-facing docs
 * full pytest:
-  `2431 passed, 6 skipped`
+  not rerun during the Issue #480 focused restore-bootstrap pass
 
 Workflow trigger policy:
 
@@ -224,10 +232,12 @@ Confirm package build artifacts are generated under `dist/` and are not staged
 unless release policy explicitly asks for them.
 
 Confirm source distributions and wheels include the session archive package and
-the CLI module:
+the CLI modules:
 
 * `src/session_archive/`
 * `src/cli/session_archive.py`
+* `src/cli/session_archive_bootstrap.py`
+* `src/cli/session_archive_restore_bootstrap.py`
 
 ## Release Tag Preparation
 

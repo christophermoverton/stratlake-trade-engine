@@ -32,9 +32,10 @@ Related issue:
 ### Mini-Release Summary
 
 `v0.43.1-session-archive-bootstrap` is a mini-release under the already-published
-M43 archive line. It adds and validates a notebook-friendly session archive
-bootstrap command for creating M43 portable archive packs and optionally copying
-them to mounted filesystem paths such as Drive-mounted Colab folders.
+M43 archive line. It adds and validates notebook-friendly session archive
+bootstrap commands for creating M43 portable archive packs, optionally copying
+them to mounted filesystem paths such as Drive-mounted Colab folders, and
+restoring copied packs into explicit local target workspaces.
 
 The command supports explicit copy and local archive collision policies,
 whole-pack-safe skip-existing behavior, destination safety checks, optional
@@ -45,6 +46,9 @@ preserving M43's derived, disposable, transport-only archive boundary model.
 
 * Added `stratlake-session-archive-bootstrap` and
   `python -m src.cli.session_archive_bootstrap` for thin M43 orchestration.
+* Added `stratlake-session-archive-restore-bootstrap` and
+  `python -m src.cli.session_archive_restore_bootstrap` for restore-side
+  notebook bootstrap orchestration.
 * Added optional mounted filesystem copy via `--drive-root`.
 * Added explicit policy split:
   `--archive-collision-policy fail_if_exists|overwrite_allowed` for local
@@ -58,6 +62,9 @@ preserving M43's derived, disposable, transport-only archive boundary model.
 * Added optional post-copy validation and inspection through existing M43 APIs.
 * Added deterministic derived bootstrap reporting under
   `artifacts/_derived/session_archives/<archive_id>/bootstrap_report.json`.
+* Added optional pre-restore validation and inspection, dry-run restore
+  planning, checksum verification, explicit restore target handling, and
+  deterministic restore-bootstrap reporting through existing M43 restore APIs.
 
 ### Mini-Release Boundaries
 
@@ -178,6 +185,30 @@ python -m src.cli.session_archive restore \
 python -m src.cli.session_archive restore \
   --archive-root mounted_drive/stratlake_archives/demo-session \
   --target-root restored_workspace \
+  --overwrite-policy fail_if_exists
+
+stratlake-session-archive-bootstrap \
+  --root /content/stratlake \
+  --archive-id notebook-session-001 \
+  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --include-features \
+  --include-artifacts \
+  --include-configs \
+  --validate-after-copy \
+  --inspect-after-copy
+
+stratlake-session-archive-restore-bootstrap \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
+  --target-root /content/stratlake \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --dry-run
+
+stratlake-session-archive-restore-bootstrap \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
+  --target-root /content/stratlake \
+  --validate-before-restore \
+  --inspect-before-restore \
   --overwrite-policy fail_if_exists
 ```
 

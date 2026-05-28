@@ -510,6 +510,52 @@ For non-dry-run operations, bootstrap writes a deterministic derived report at:
 Dry-run planning writes no archive pack, no destination copy, and no bootstrap
 report.
 
+The installed command `stratlake-session-archive-restore-bootstrap` is the
+restore-side companion for notebook and mounted-storage workflows:
+
+```bash
+stratlake-session-archive-restore-bootstrap \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
+  --target-root /content/stratlake \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --dry-run
+
+stratlake-session-archive-restore-bootstrap \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
+  --target-root /content/stratlake \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --overwrite-policy fail_if_exists
+```
+
+Restore bootstrap delegates to existing M43 APIs only:
+
+* optional pre-restore validation through `validate_session_archive(...)`
+* optional pre-restore inspection through `inspect_session_archive(...)`
+* dry-run planning through `build_session_archive_restore_plan(...)`
+* actual restore through `restore_session_archive_pack(...)`
+
+The command exposes notebook-friendly overwrite policies:
+
+* `fail_if_exists`
+* `skip_existing`
+* `overwrite_allowed`
+
+`overwrite_allowed` maps to the lower-level restore API's intentional
+replacement behavior. Dry-run writes no restored files and no restore-bootstrap
+report. Non-dry-run restore writes a deterministic derived report at:
+
+```text
+<target_root>/artifacts/_derived/session_archives/<archive_id>/restore_bootstrap_report.json
+```
+
+When `--report-root` is supplied, the restore report and restore-bootstrap
+report are written there under the same derived-report boundary. The restore
+target remains explicit. The command does not call Google APIs, require
+credentials, start background sync, execute research workflows, mutate
+canonical sources outside `--target-root`, or make archive packs canonical.
+
 `pack` creates an archive pack through `write_session_archive_pack(...)`.
 `--dry-run` delegates to `build_session_archive_plan(...)` and writes no pack.
 Use `--include-group` to select logical groups and `--include-path GROUP=PATH`

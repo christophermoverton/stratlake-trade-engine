@@ -86,6 +86,29 @@ than mixing old and new archive files.
 Do not set `--drive-root` to the local archive output directory or a child of
 the local archive pack.
 
+Restore the copied archive into an explicit local workspace with the companion
+restore-bootstrap command:
+
+```bash
+stratlake-session-archive-restore-bootstrap \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
+  --target-root /content/stratlake \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --dry-run
+
+stratlake-session-archive-restore-bootstrap \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
+  --target-root /content/stratlake \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --overwrite-policy fail_if_exists
+```
+
+Restore bootstrap delegates to the shared M43 validation, inspection, dry-run
+planning, and restore APIs. It does not call Google APIs, require credentials,
+execute research workflows, or make archive packs canonical.
+
 Milestone 28 adds Airflow, Prefect, and Dagster-style integration patterns as
 thin optional wrappers around existing StratLake CLI and `src.execution`
 surfaces. These examples do not add scheduler dependencies to the core runtime;
@@ -650,9 +673,10 @@ Start with:
 ### Release 0.43.1: Session Archive Bootstrap Mini-Release
 
 Release 0.43.1 is a mini-release under the published M43 archive line. It
-adds and hardens the notebook-friendly `stratlake-session-archive-bootstrap`
-command for creating portable session archive packs and optionally copying them
-to mounted filesystem paths.
+adds and hardens notebook-friendly `stratlake-session-archive-bootstrap` and
+`stratlake-session-archive-restore-bootstrap` commands for creating portable
+session archive packs, optionally copying them to mounted filesystem paths, and
+restoring copied packs into explicit local workspaces.
 
 The mini-release keeps M43 boundaries unchanged: session archive packs remain
 derived, disposable, transport-only snapshots and are not canonical storage,

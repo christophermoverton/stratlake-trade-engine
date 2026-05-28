@@ -9,6 +9,7 @@ import pytest
 
 from src.cli import session_archive_restore_bootstrap as restore_bootstrap
 from src.session_archive import (
+    SessionArchiveError,
     SessionArchiveIncludePolicy,
     SessionArchiveLogicalGroup,
     SessionArchiveWriteRequest,
@@ -186,6 +187,27 @@ def test_validate_before_restore_prevents_restore_when_validation_fails(
     assert not _restored_feature(target_root).exists()
 
 
+def test_validation_failure_json_includes_safe_archive_id(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    archive_root = _archive(_repo(tmp_path / "repo"))
+    (archive_root / "checksums.json").unlink()
+    target_root = tmp_path / "target"
+
+    code = restore_bootstrap.main(
+        _argv(archive_root, target_root, "--validate-before-restore", "--json")
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 1
+    assert payload["archive_id"] == "archive-a"
+    assert payload["status"] == "failed"
+    assert any("missing_checksums" in error for error in payload["errors"])
+    assert not _restored_feature(target_root).exists()
+
+
 def test_inspect_before_restore_prevents_restore_when_inspection_has_errors(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
@@ -201,6 +223,54 @@ def test_inspect_before_restore_prevents_restore_when_inspection_has_errors(
     assert code == 1
     assert "missing_restore_plan" in captured.out
     assert not _restored_feature(target_root).exists()
+
+
+def test_inspection_failure_json_includes_safe_archive_id(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    archive_root = _archive(_repo(tmp_path / "repo"))
+    (archive_root / "restore_plan.json").unlink()
+    target_root = tmp_path / "target"
+
+    code = restore_bootstrap.main(
+        _argv(archive_root, target_root, "--inspect-before-restore", "--json")
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 1
+    assert payload["archive_id"] == "archive-a"
+    assert payload["status"] == "failed"
+    assert any("missing_restore_plan" in error for error in payload["errors"])
+    assert not _restored_feature(target_root).exists()
+
+
+def test_validation_failure_json_uses_null_archive_id_for_missing_manifest(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    archive_root = _archive(_repo(tmp_path / "repo"))
+    (archive_root / "manifest.json").unlink()
+    target_root = tmp_path / "target"
+
+    code = restore_bootstrap.main(
+        _argv(archive_root, target_root, "--validate-before-restore", "--json")
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 1
+    assert payload["archive_id"] is None
+    assert payload["status"] == "failed"
+    assert any("missing_manifest" in error for error in payload["errors"])
+
+
+def test_safe_archive_id_returns_none_for_invalid_manifest(tmp_path: Path) -> None:
+    archive_root = tmp_path / "archive"
+    _write(archive_root / "manifest.json", "{bad json\n")
+
+    assert restore_bootstrap._safe_archive_id(archive_root) is None
 
 
 def test_warning_only_inspection_does_not_block_restore(tmp_path: Path) -> None:
@@ -281,6 +351,124 @@ def test_fail_if_exists_preserves_existing_files_by_default(tmp_path: Path) -> N
 
     assert code == 2
     assert _restored_feature(target_root).read_text(encoding="utf-8") == "local\n"
+
+
+def test_json_planning_error_emits_structured_failure_payload(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive_root = _archive(_repo(tmp_path / "repo"))
+    target_root = tmp_path / "target"
+
+    def _plan(_request: object) -> object:
+        raise SessionArchiveError("planned failure")
+
+    monkeypatch.setattr(restore_bootstrap, "build_session_archive_restore_plan", _plan)
+
+    code = restore_bootstrap.main(_argv(archive_root, target_root, "--dry-run", "--json"))
+
+    captured = capsys.readouterr()
+    payload = json.loads(captured.out)
+
+    assert code == 2
+    assert captured.err == ""
+    assert payload["archive_id"] == "archive-a"
+    assert payload["archive_root"] == archive_root.resolve().as_posix()
+    assert payload["target_root"] == target_root.resolve().as_posix()
+    assert payload["overwrite_policy"] == "fail_if_exists"
+    assert payload["restore_overwrite_policy"] == "fail_if_exists"
+    assert payload["verify_checksums"] is True
+    assert payload["dry_run"] is True
+    assert payload["status"] == "failed"
+    assert payload["errors"] == ["planned failure"]
+    assert payload["exit_code"] == 2
+    assert payload["boundaries"]["transport_only"] is True
+    assert payload["boundaries"]["canonical_storage"] is False
+    assert payload["bootstrap_report_path"] is None
+    assert not (
+        target_root / "artifacts/_derived/session_archives/archive-a/restore_bootstrap_report.json"
+    ).exists()
+
+
+def test_non_json_planning_error_preserves_stderr_behavior(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive_root = _archive(_repo(tmp_path / "repo"))
+    target_root = tmp_path / "target"
+
+    def _plan(_request: object) -> object:
+        raise SessionArchiveError("planned failure")
+
+    monkeypatch.setattr(restore_bootstrap, "build_session_archive_restore_plan", _plan)
+
+    code = restore_bootstrap.main(_argv(archive_root, target_root, "--dry-run"))
+
+    captured = capsys.readouterr()
+
+    assert code == 2
+    assert captured.out == ""
+    assert "error: planned failure" in captured.err
+
+
+def test_json_planning_error_payload_is_deterministic(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive_root = _archive(_repo(tmp_path / "repo"))
+    target_root = tmp_path / "target"
+
+    def _plan(_request: object) -> object:
+        raise SessionArchiveError("planned failure")
+
+    monkeypatch.setattr(restore_bootstrap, "build_session_archive_restore_plan", _plan)
+    argv = _argv(archive_root, target_root, "--dry-run", "--json")
+
+    assert restore_bootstrap.main(argv) == 2
+    first = capsys.readouterr().out
+    assert restore_bootstrap.main(argv) == 2
+    second = capsys.readouterr().out
+
+    assert first == second
+
+
+def test_json_restore_error_emits_structured_failure_payload(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    archive_root = _archive(_repo(tmp_path / "repo"))
+    target_root = tmp_path / "target"
+
+    def _restore(_request: object) -> object:
+        raise SessionArchiveError("restore failure")
+
+    monkeypatch.setattr(restore_bootstrap, "restore_session_archive_pack", _restore)
+
+    code = restore_bootstrap.main(
+        _argv(
+            archive_root,
+            target_root,
+            "--overwrite-policy",
+            "overwrite_allowed",
+            "--no-verify-checksums",
+            "--json",
+        )
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+
+    assert code == 2
+    assert payload["archive_id"] == "archive-a"
+    assert payload["errors"] == ["restore failure"]
+    assert payload["overwrite_policy"] == "overwrite_allowed"
+    assert payload["restore_overwrite_policy"] == "replace_existing"
+    assert payload["verify_checksums"] is False
+    assert payload["checksum_status"] == "not_requested"
+    assert payload["dry_run"] is False
 
 
 def test_skip_existing_follows_restore_semantics(tmp_path: Path) -> None:

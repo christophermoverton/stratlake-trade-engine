@@ -95,7 +95,8 @@ stratlake-session-archive-restore-bootstrap \
   --target-root /content/stratlake \
   --validate-before-restore \
   --inspect-before-restore \
-  --dry-run
+  --dry-run \
+  --json
 
 stratlake-session-archive-restore-bootstrap \
   --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
@@ -106,8 +107,9 @@ stratlake-session-archive-restore-bootstrap \
 ```
 
 Restore bootstrap delegates to the shared M43 validation, inspection, dry-run
-planning, and restore APIs. It does not call Google APIs, require credentials,
-execute research workflows, or make archive packs canonical.
+planning, and restore APIs. It does not call Google APIs, require OAuth or
+credentials, start background sync, execute research workflows, mutate hidden
+environment state, or make archive packs canonical.
 
 Milestone 28 adds Airflow, Prefect, and Dagster-style integration patterns as
 thin optional wrappers around existing StratLake CLI and `src.execution`
@@ -670,23 +672,29 @@ Start with:
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
 
-### Release 0.43.1: Session Archive Bootstrap Mini-Release
+### Release 0.43.2: Session Archive Restore Bootstrap Mini-Release Candidate
 
-Release 0.43.1 is a mini-release under the published M43 archive line. It
-adds and hardens notebook-friendly `stratlake-session-archive-bootstrap` and
-`stratlake-session-archive-restore-bootstrap` commands for creating portable
-session archive packs, optionally copying them to mounted filesystem paths, and
-restoring copied packs into explicit local workspaces.
+Release 0.43.2 is a mini-release candidate under the M43 archive line. It
+prepares the notebook-friendly `stratlake-session-archive-bootstrap` and
+`stratlake-session-archive-restore-bootstrap` command pair for PR review:
+creating portable session archive packs, optionally copying them to mounted
+filesystem paths, validating/inspecting before restore, and restoring copied
+packs into explicit local workspaces.
 
 The mini-release keeps M43 boundaries unchanged: session archive packs remain
 derived, disposable, transport-only snapshots and are not canonical storage,
-canonical evidence, or a registry.
+canonical evidence, or a registry. Mounted Drive-style paths are local
+filesystem paths only; no Google APIs, OAuth, credentials, background sync,
+research workflow execution, or canonical-storage behavior is introduced.
 
 Package/build version:
-`0.43.1`
+`0.43.2`
 
-Release tag:
-`v0.43.1-session-archive-bootstrap`
+Deferred release tag:
+`v0.43.2-session-archive-restore-bootstrap`
+
+Create the tag only after PR completion, review, merge, and post-merge release
+validation.
 
 Start with:
 

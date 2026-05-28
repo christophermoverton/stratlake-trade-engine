@@ -10,30 +10,32 @@ Candidate milestone release tag:
 `v0.43.0-portable-notebook-session-archives`
 
 Package/build version:
-`0.43.0`
+`0.43.2`
 
-## M43 Mini-Release Checklist (Issue #477)
+## M43 Mini-Release Checklist (Issue #481)
 
-Release:
-`v0.43.1-session-archive-bootstrap`
+Deferred release tag:
+`v0.43.2-session-archive-restore-bootstrap`
 
 Package/build version:
-`0.43.1`
+`0.43.2`
 
 Scope:
-M43 mini-release for session archive bootstrap and restore-bootstrap commands.
+M43 mini-release readiness for session archive restore-bootstrap commands.
 
 Branch:
-`feature/issue-476-session-archive-bootstrap-command`
+`feature/m43-session-archive-restore-bootstrap`
 
 Primary issue:
-`#477`
+`#481`
 
 Related issue:
-`#476`
-
-Restore-bootstrap issue:
 `#480`
+
+Release tag status:
+No release tag has been created or pushed. Do not create
+`v0.43.2-session-archive-restore-bootstrap` until PR completion, review, merge,
+and final post-merge release validation are complete.
 
 ### Required Validation Commands
 
@@ -41,41 +43,48 @@ Restore-bootstrap issue:
 python -m pytest tests/test_session_archive_bootstrap_cli.py
 python -m pytest tests/test_session_archive_restore_bootstrap_cli.py
 python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py
+python -m pytest tests/test_packaging_readiness.py
+python -m pytest tests/test_release_workflow.py tests/test_packaging_workflow.py
+python -m pytest tests/test_docs_path_portability.py
 python -m ruff check src tests docs
+python -m ruff format --check src tests docs README.md pyproject.toml
 python -m build
+git diff --check
 ```
 
 ### Validation Results
 
-Validation completed for `v0.43.1-session-archive-bootstrap`:
+Validation results for the `0.43.2` restore-bootstrap mini-release readiness
+pass are recorded in [Final Local Validation Status](#final-local-validation-status).
 
 * `python -m pytest tests/test_session_archive_bootstrap_cli.py`
   * `20 passed`
 * `python -m pytest tests/test_session_archive_restore_bootstrap_cli.py`
-  * `16 passed`
-* `python -m pytest tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_roundtrip_validation.py`
-  * `56 passed`
+  * `24 passed`
 * `python -m pytest tests/test_packaging_readiness.py`
   * `8 passed`
 * `python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py`
   * `99 passed, 1 skipped`
 * `python -m ruff check src tests docs`
   * `All checks passed!`
-* `python -m build`
-  * built `stratlake_trade_engine-0.43.1.tar.gz` and
-    `stratlake_trade_engine-0.43.1-py3-none-any.whl`
+* package build:
+  * built `stratlake_trade_engine-0.43.2.tar.gz` and
+    `stratlake_trade_engine-0.43.2-py3-none-any.whl`
 
-### Workflow Branch/Tag Coverage (Issue #477 Scope Update)
+### Workflow Branch/Tag Coverage (Issue #481 Scope Update)
 
 Branch validation coverage:
 
-* `feature/issue-476-session-archive-bootstrap-command` (explicit branch)
+* `feature/m43-session-archive-restore-bootstrap`
 * `feature/m*` (existing durable milestone pattern)
 
 Tag validation coverage:
 
 * `v0.43.*` in milestone branch validation workflow
 * `v*` in release and TestPyPI workflows (existing durable release pattern)
+
+No `v0.43.2-session-archive-restore-bootstrap` tag should exist before PR
+completion and post-merge validation.
 
 Workflow files reviewed:
 
@@ -177,35 +186,51 @@ validation results.
 
 ## Final Local Validation Status
 
-As of the Issue #480 restore-bootstrap focused validation pass:
+As of the Issue #481 restore-bootstrap mini-release readiness pass:
 
+* archive bootstrap CLI:
+  `20 passed`
+* restore-bootstrap CLI:
+  `24 passed`
 * focused M43 archive suite:
-  `164 passed, 1 skipped`
-* workflow and release guard tests:
-  `11 passed`
-* workflow-pattern policy checks:
-  `2 passed`
+  `99 passed, 1 skipped`
+* release workflow guard:
+  `8 passed`
+* packaging workflow guard:
+  not present in this repository; no `tests/test_packaging_workflow.py` file
+  was found
 * docs/path portability tests:
   `3 passed`
 * packaging readiness:
   `8 passed`
-* targeted Ruff check:
+* Ruff check:
   `All checks passed!`
-* targeted Ruff format check:
-  `16 files already formatted`
-* docs Ruff format check:
+* broad Ruff format check:
+  requested repository-wide command was run and exposed pre-existing
+  repo-wide formatting drift plus README Markdown parsing that requires
+  `--preview`; targeted changed-file format checks passed
+* targeted Python Ruff format check:
+  `1 file already formatted`
+* targeted docs Ruff format check:
   `6 files already formatted`
 * package build validation:
-  not rerun during the Issue #480 focused restore-bootstrap pass
+  built `stratlake_trade_engine-0.43.2.tar.gz` and
+  `stratlake_trade_engine-0.43.2-py3-none-any.whl`
 * package artifact validation:
-  not rerun during the Issue #480 focused restore-bootstrap pass
+  not run; `twine` validation remains optional for environments that include
+  it
 * whitespace/path check:
   `git diff --check` passed
 * changed-doc path scan:
   no machine-local absolute path patterns, real Colab Drive paths, or
   workstation-specific cloud storage names found in the M43-facing docs
 * full pytest:
-  not rerun during the Issue #480 focused restore-bootstrap pass
+  `2475 passed, 6 skipped`
+* release tag:
+  no `v0.43.2-session-archive-restore-bootstrap` tag was created or found
+  locally
+* GitHub release:
+  not published
 
 Workflow trigger policy:
 
@@ -226,7 +251,7 @@ license metadata modernization is release hygiene for a later packaging pass.
 
 Confirm package/build metadata reports:
 
-* `0.43.0`
+* `0.43.2`
 
 Confirm package build artifacts are generated under `dist/` and are not staged
 unless release policy explicitly asks for them.
@@ -241,11 +266,12 @@ the CLI modules:
 
 ## Release Tag Preparation
 
-Create the release tag only after merge to `main` and post-merge validation:
+Create the restore-bootstrap mini-release tag only after PR completion, review,
+merge to `main`, and post-merge validation:
 
 ```bash
-git tag -a v0.43.0-portable-notebook-session-archives -m "M43 - Portable Notebook Session Archives"
-git push origin v0.43.0-portable-notebook-session-archives
+git tag -a v0.43.2-session-archive-restore-bootstrap -m "M43.3 - Session Archive Restore Bootstrap"
+git push origin v0.43.2-session-archive-restore-bootstrap
 ```
 
 Tag-driven release workflow notes:

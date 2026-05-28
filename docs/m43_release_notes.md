@@ -9,38 +9,41 @@ Candidate milestone release tag:
 Package/build version:
 `0.43.0`
 
-## M43 Mini-Release (Issue #477)
+## M43 Mini-Release (Issue #481)
 
-Release tag:
-`v0.43.1-session-archive-bootstrap`
+Deferred release tag:
+`v0.43.2-session-archive-restore-bootstrap`
 
 Package/build version:
-`0.43.1`
+`0.43.2`
 
 Scope:
-M43 mini-release for Issue #476 session archive bootstrap work.
+M43 mini-release readiness for session archive restore-bootstrap work.
 
 Branch:
-`feature/issue-476-session-archive-bootstrap-command`
+`feature/m43-session-archive-restore-bootstrap`
 
 Primary issue:
-`#477`
+`#481`
 
 Related issue:
-`#476`
+`#480`
 
 ### Mini-Release Summary
 
-`v0.43.1-session-archive-bootstrap` is a mini-release under the already-published
-M43 archive line. It adds and validates notebook-friendly session archive
-bootstrap commands for creating M43 portable archive packs, optionally copying
-them to mounted filesystem paths such as Drive-mounted Colab folders, and
-restoring copied packs into explicit local target workspaces.
+`v0.43.2-session-archive-restore-bootstrap` is the deferred tag for a
+mini-release candidate under the already-published M43 archive line. It
+prepares notebook-friendly session archive bootstrap commands for creating M43
+portable archive packs, optionally copying them to mounted filesystem paths
+such as Drive-mounted Colab folders, validating and inspecting before restore,
+and restoring copied packs into explicit local target workspaces.
 
-The command supports explicit copy and local archive collision policies,
+The command pair supports explicit copy and local archive collision policies,
 whole-pack-safe skip-existing behavior, destination safety checks, optional
-validation/inspection after copy, and deterministic bootstrap reporting while
-preserving M43's derived, disposable, transport-only archive boundary model.
+validation/inspection after copy, optional validation/inspection before restore,
+deterministic bootstrap reporting, and structured JSON restore-bootstrap
+failure summaries while preserving M43's derived, disposable, transport-only
+archive boundary model.
 
 ### Mini-Release Highlights
 
@@ -65,6 +68,11 @@ preserving M43's derived, disposable, transport-only archive boundary model.
 * Added optional pre-restore validation and inspection, dry-run restore
   planning, checksum verification, explicit restore target handling, and
   deterministic restore-bootstrap reporting through existing M43 restore APIs.
+* Hardened restore-bootstrap failure output so JSON-mode notebook and
+  automation callers receive deterministic structured failure payloads with
+  boundary flags and best-effort archive IDs when `manifest.json` is readable.
+* Updated release-readiness docs, validation commands, and local validation
+  evidence for package/build version `0.43.2`.
 
 ### Mini-Release Boundaries
 
@@ -76,9 +84,11 @@ cloud SDK behavior, network access, or background sync.
 
 Workflow release-readiness coverage for this mini-release includes explicit
 branch validation for
-`feature/issue-476-session-archive-bootstrap-command` and M43 patch-tag
-validation path coverage through `v0.43.*` trigger matching in milestone
-branch validation.
+`feature/m43-session-archive-restore-bootstrap` and M43 patch-tag validation
+path coverage through `v0.43.*` trigger matching in milestone branch
+validation. Do not create or push
+`v0.43.2-session-archive-restore-bootstrap` until PR completion, review, merge,
+and post-merge release validation are complete.
 
 ## Milestone Principle
 
@@ -214,17 +224,29 @@ stratlake-session-archive-restore-bootstrap \
 
 ## Validation Status
 
-Final local validation for this branch should include:
+Final local validation for the `0.43.2` restore-bootstrap mini-release
+readiness branch includes:
 
-* focused M43 archive suite
-* workflow and release guard tests
-* docs/path portability tests
-* targeted Ruff check and format checks
-* package build validation
-* `git diff --check`
-* full pytest when practical, with unrelated failures recorded separately
+* `20 passed` for `tests/test_session_archive_bootstrap_cli.py`
+* `24 passed` for `tests/test_session_archive_restore_bootstrap_cli.py`
+* `99 passed, 1 skipped` for the focused session archive CLI, writer,
+  restore, validation, and round-trip slice
+* `8 passed` for packaging readiness
+* `8 passed` for release workflow guards
+* `3 passed` for docs/path portability
+* Ruff check passed across `src`, `tests`, `docs`, `README.md`, and
+  `pyproject.toml`
+* targeted Ruff format checks passed for changed source/test/docs files
+* package build produced `stratlake_trade_engine-0.43.2.tar.gz` and
+  `stratlake_trade_engine-0.43.2-py3-none-any.whl`
+* full pytest passed with `2475 passed, 6 skipped`
+* `git diff --check` passed
 
-The M43 release validation checklist records the final command set and results.
+The broader repository-wide Ruff format command still reports pre-existing
+formatting drift outside this readiness change and README Markdown formatting
+requires Ruff `--preview`; targeted changed-file format checks passed. The M43
+release validation checklist records the final command set, results, and this
+caveat.
 
 ## Non-Goals
 

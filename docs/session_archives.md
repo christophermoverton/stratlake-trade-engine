@@ -519,7 +519,8 @@ stratlake-session-archive-restore-bootstrap \
   --target-root /content/stratlake \
   --validate-before-restore \
   --inspect-before-restore \
-  --dry-run
+  --dry-run \
+  --json
 
 stratlake-session-archive-restore-bootstrap \
   --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
@@ -553,8 +554,37 @@ report. Non-dry-run restore writes a deterministic derived report at:
 When `--report-root` is supplied, the restore report and restore-bootstrap
 report are written there under the same derived-report boundary. The restore
 target remains explicit. The command does not call Google APIs, require
-credentials, start background sync, execute research workflows, mutate
-canonical sources outside `--target-root`, or make archive packs canonical.
+OAuth or credentials, start background sync, execute research workflows, mutate
+canonical sources outside `--target-root`, mutate hidden environment state, or
+make archive packs canonical.
+
+In JSON mode, restore bootstrap emits deterministic machine-readable summaries
+for both successful operations and runtime `SessionArchiveError` failures.
+Failure summaries include portable archive and target labels, boundary flags,
+the requested overwrite policy, checksum settings, warning/error lists, and a
+best-effort `archive_id` read directly from `manifest.json` when available.
+This is notebook and automation diagnostics only; it is not authoritative
+archive metadata.
+
+## Restore Bootstrap Mini-Release Readiness
+
+The `0.43.2` restore-bootstrap mini-release candidate prepares the M43 command
+pair for PR review:
+
+* `stratlake-session-archive-bootstrap`
+* `stratlake-session-archive-restore-bootstrap`
+
+The future release tag is:
+
+```text
+v0.43.2-session-archive-restore-bootstrap
+```
+
+Tag creation is deferred until the pull request is reviewed, merged, and
+post-merge release validation is complete. The mini-release does not change
+archive schemas, restore semantics, overwrite behavior, checksum defaults,
+Google Drive integration, credential handling, background sync, or canonical
+artifact contracts.
 
 `pack` creates an archive pack through `write_session_archive_pack(...)`.
 `--dry-run` delegates to `build_session_archive_plan(...)` and writes no pack.

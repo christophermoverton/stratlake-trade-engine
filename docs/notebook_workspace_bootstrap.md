@@ -324,7 +324,8 @@ stratlake-session-archive-restore-bootstrap `
   --target-root /content/stratlake `
   --validate-before-restore `
   --inspect-before-restore `
-  --dry-run
+  --dry-run `
+  --json
 
 stratlake-session-archive-restore-bootstrap `
   --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 `
@@ -336,8 +337,9 @@ stratlake-session-archive-restore-bootstrap `
 
 The restore-bootstrap command reuses existing M43 validation, inspection,
 restore-plan, and restore APIs. The restore target is explicit, and the command
-does not call Google APIs, require credentials, execute research workflows, or
-make archive packs canonical storage.
+does not rely on notebook CWD, mutate `.env` or `os.environ`, call Google APIs,
+require OAuth or credentials, start background sync, execute research workflows,
+or make archive packs canonical storage.
 
 Release-facing validation for the full notebook-session stack is documented in
 [`docs/m42_release_validation_checklist.md`](m42_release_validation_checklist.md).

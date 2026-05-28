@@ -11,8 +11,14 @@ Package/build version:
 
 ## M43 Mini-Release (Issue #481)
 
-Deferred release tag:
+Release tag:
 `v0.43.2-session-archive-restore-bootstrap`
+
+GitHub Release:
+`https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.43.2-session-archive-restore-bootstrap`
+
+Published:
+`2026-05-28T01:52:52Z`
 
 Package/build version:
 `0.43.2`
@@ -31,12 +37,12 @@ Related issue:
 
 ### Mini-Release Summary
 
-`v0.43.2-session-archive-restore-bootstrap` is the deferred tag for a
-mini-release candidate under the already-published M43 archive line. It
-prepares notebook-friendly session archive bootstrap commands for creating M43
-portable archive packs, optionally copying them to mounted filesystem paths
-such as Drive-mounted Colab folders, validating and inspecting before restore,
-and restoring copied packs into explicit local target workspaces.
+`v0.43.2-session-archive-restore-bootstrap` is the released mini-release tag
+under the M43 archive line. It prepares notebook-friendly session archive
+bootstrap commands for creating M43 portable archive packs, optionally copying
+them to mounted filesystem paths such as Drive-mounted Colab folders,
+validating and inspecting before restore, and restoring copied packs into
+explicit local target workspaces.
 
 The command pair supports explicit copy and local archive collision policies,
 whole-pack-safe skip-existing behavior, destination safety checks, optional
@@ -86,9 +92,10 @@ Workflow release-readiness coverage for this mini-release includes explicit
 branch validation for
 `feature/m43-session-archive-restore-bootstrap` and M43 patch-tag validation
 path coverage through `v0.43.*` trigger matching in milestone branch
-validation. Do not create or push
-`v0.43.2-session-archive-restore-bootstrap` until PR completion, review, merge,
-and post-merge release validation are complete.
+validation. The tag-triggered Release workflow completed successfully and
+created the GitHub Release. The tag-triggered TestPyPI workflow was waiting at
+the time these notes were updated and is tracked separately from the GitHub
+Release publication.
 
 ## Milestone Principle
 
@@ -241,6 +248,10 @@ readiness branch includes:
   `stratlake_trade_engine-0.43.2-py3-none-any.whl`
 * full pytest passed with `2475 passed, 6 skipped`
 * `git diff --check` passed
+* tag-triggered Milestone Branch Validation passed for
+  `v0.43.2-session-archive-restore-bootstrap`
+* tag-triggered Release workflow passed and published the GitHub Release
+* tag-triggered TestPyPI workflow was waiting when these notes were updated
 
 The broader repository-wide Ruff format command still reports pre-existing
 formatting drift outside this readiness change and README Markdown formatting

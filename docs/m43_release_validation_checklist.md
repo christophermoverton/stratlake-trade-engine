@@ -14,8 +14,14 @@ Package/build version:
 
 ## M43 Mini-Release Checklist (Issue #481)
 
-Deferred release tag:
+Release tag:
 `v0.43.2-session-archive-restore-bootstrap`
+
+GitHub Release:
+`https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.43.2-session-archive-restore-bootstrap`
+
+Published:
+`2026-05-28T01:52:52Z`
 
 Package/build version:
 `0.43.2`
@@ -33,9 +39,9 @@ Related issue:
 `#480`
 
 Release tag status:
-No release tag has been created or pushed. Do not create
-`v0.43.2-session-archive-restore-bootstrap` until PR completion, review, merge,
-and final post-merge release validation are complete.
+`v0.43.2-session-archive-restore-bootstrap` was created from the validated
+`main` merge commit and pushed to `origin`. The tag-triggered Release workflow
+completed successfully and created the GitHub Release.
 
 ### Required Validation Commands
 
@@ -88,8 +94,9 @@ Tag validation coverage:
 * `v0.43.*` in milestone branch validation workflow
 * `v*` in release and TestPyPI workflows (existing durable release pattern)
 
-No `v0.43.2-session-archive-restore-bootstrap` tag should exist before PR
-completion and post-merge validation.
+`v0.43.2-session-archive-restore-bootstrap` exists after PR completion and
+post-merge validation. Tag-triggered branch validation and Release workflows
+passed for the tag.
 
 Workflow files reviewed:
 
@@ -109,7 +116,10 @@ restore-bootstrap CLI surface in its M43 pytest, Ruff check, and Python format
 check steps.
 
 Remote workflow runs for this update were not observed locally in this
-checklist; this section records trigger coverage and local validation only.
+checklist before tagging. After tag publication, Milestone Branch Validation
+and Release workflows both passed for
+`v0.43.2-session-archive-restore-bootstrap`; the TestPyPI workflow was waiting
+when this checklist was updated.
 
 No repository-specific YAML lint command found.
 
@@ -236,10 +246,14 @@ As of the Issue #481 restore-bootstrap mini-release readiness pass:
 * full pytest:
   `2475 passed, 6 skipped`
 * release tag:
-  no `v0.43.2-session-archive-restore-bootstrap` tag was created or found
-  locally
+  `v0.43.2-session-archive-restore-bootstrap` was created, pushed, and
+  published through the GitHub Release workflow
 * GitHub release:
-  not published
+  published at
+  `https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.43.2-session-archive-restore-bootstrap`
+* tag-triggered workflow status:
+  Milestone Branch Validation passed, Release passed, and TestPyPI was waiting
+  when this checklist was updated
 
 Workflow trigger policy:
 
@@ -275,7 +289,7 @@ the CLI modules:
 
 ## Release Tag Preparation
 
-Create the restore-bootstrap mini-release tag only after PR completion, review,
+The restore-bootstrap mini-release tag was created after PR completion, review,
 merge to `main`, and post-merge validation:
 
 ```bash
@@ -285,13 +299,13 @@ git push origin v0.43.2-session-archive-restore-bootstrap
 
 Tag-driven release workflow notes:
 
-* pre-merge validation should pass on the feature branch
-* merge to `main`
-* run post-merge validation on `main`
-* create the annotated tag from the validated merge commit
-* confirm the tag-driven release workflow starts
-* confirm package build artifacts and deterministic release notes are uploaded
-* confirm the GitHub Release body uses the M43 release notes
+* pre-merge validation passed on the feature branch
+* branch merged to `main`
+* post-merge validation completed on `main`
+* annotated tag was created from the validated merge commit
+* tag-driven Release workflow started and passed
+* package build artifacts and deterministic release notes were uploaded
+* GitHub Release was created for the tag
 * package publication to PyPI/TestPyPI remains out of scope unless a separate
   release process explicitly enables it
 

@@ -690,11 +690,14 @@ research workflow execution, or canonical-storage behavior is introduced.
 Package/build version:
 `0.43.2`
 
-Deferred release tag:
+Release tag:
 `v0.43.2-session-archive-restore-bootstrap`
 
-Create the tag only after PR completion, review, merge, and post-merge release
-validation.
+GitHub Release:
+`https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.43.2-session-archive-restore-bootstrap`
+
+Published:
+`2026-05-28T01:52:52Z`
 
 Start with:
 

@@ -574,17 +574,21 @@ pair for PR review:
 * `stratlake-session-archive-bootstrap`
 * `stratlake-session-archive-restore-bootstrap`
 
-The future release tag is:
+The release tag is:
 
 ```text
 v0.43.2-session-archive-restore-bootstrap
 ```
 
-Tag creation is deferred until the pull request is reviewed, merged, and
-post-merge release validation is complete. The mini-release does not change
-archive schemas, restore semantics, overwrite behavior, checksum defaults,
-Google Drive integration, credential handling, background sync, or canonical
-artifact contracts.
+The GitHub Release is published at:
+
+```text
+https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.43.2-session-archive-restore-bootstrap
+```
+
+The mini-release does not change archive schemas, restore semantics, overwrite
+behavior, checksum defaults, Google Drive integration, credential handling,
+background sync, or canonical artifact contracts.
 
 `pack` creates an archive pack through `write_session_archive_pack(...)`.
 `--dry-run` delegates to `build_session_archive_plan(...)` and writes no pack.

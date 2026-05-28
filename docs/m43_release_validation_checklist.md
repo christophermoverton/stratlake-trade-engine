@@ -10,62 +10,86 @@ Candidate milestone release tag:
 `v0.43.0-portable-notebook-session-archives`
 
 Package/build version:
-`0.43.0`
+`0.43.2`
 
-## M43 Mini-Release Checklist (Issue #477)
+## M43 Mini-Release Checklist (Issue #481)
 
-Release:
-`v0.43.1-session-archive-bootstrap`
+Deferred release tag:
+`v0.43.2-session-archive-restore-bootstrap`
 
 Package/build version:
-`0.43.1`
+`0.43.2`
 
 Scope:
-M43 mini-release for Issue #476 session archive bootstrap command and hardening.
+M43 mini-release readiness for session archive restore-bootstrap commands.
 
 Branch:
-`feature/issue-476-session-archive-bootstrap-command`
+`feature/m43-session-archive-restore-bootstrap`
 
 Primary issue:
-`#477`
+`#481`
 
 Related issue:
-`#476`
+`#480`
+
+Release tag status:
+No release tag has been created or pushed. Do not create
+`v0.43.2-session-archive-restore-bootstrap` until PR completion, review, merge,
+and final post-merge release validation are complete.
 
 ### Required Validation Commands
 
 ```bash
 python -m pytest tests/test_session_archive_bootstrap_cli.py
+python -m pytest tests/test_session_archive_restore_bootstrap_cli.py
 python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py
+python -m pytest tests/test_packaging_readiness.py
+python -m pytest tests/test_release_workflow.py
+python -m pytest tests/test_docs_path_portability.py
 python -m ruff check src tests docs
+python -m ruff format --check src tests docs README.md pyproject.toml
 python -m build
+git diff --check
 ```
+
+Run `python -m pytest tests/test_packaging_workflow.py` only if that optional
+workflow guard test file is present in the repository.
 
 ### Validation Results
 
-Validation completed for `v0.43.1-session-archive-bootstrap`:
+Validation results for the `0.43.2` restore-bootstrap mini-release readiness
+pass are recorded in [Final Local Validation Status](#final-local-validation-status).
 
 * `python -m pytest tests/test_session_archive_bootstrap_cli.py`
   * `20 passed`
+* `python -m pytest tests/test_session_archive_restore_bootstrap_cli.py`
+  * `24 passed`
+* branch-validation-equivalent M43 pytest slice including restore-bootstrap:
+  * `172 passed, 1 skipped`
+* `python -m pytest tests/test_packaging_readiness.py`
+  * `8 passed`
 * `python -m pytest tests/test_session_archive_cli.py tests/test_session_archive_writer.py tests/test_session_archive_validation.py tests/test_session_archive_restore.py tests/test_session_archive_roundtrip_validation.py`
   * `99 passed, 1 skipped`
 * `python -m ruff check src tests docs`
   * `All checks passed!`
-* `python -m build`
-  * built `stratlake_trade_engine-0.43.1.tar.gz` and
-    `stratlake_trade_engine-0.43.1-py3-none-any.whl`
+* package build:
+  * built `stratlake_trade_engine-0.43.2.tar.gz` and
+    `stratlake_trade_engine-0.43.2-py3-none-any.whl`
 
-### Workflow Branch/Tag Coverage (Issue #477 Scope Update)
+### Workflow Branch/Tag Coverage (Issue #481 Scope Update)
 
 Branch validation coverage:
 
-* `feature/issue-476-session-archive-bootstrap-command` (explicit branch)
+* `feature/m43-session-archive-restore-bootstrap`
 * `feature/m*` (existing durable milestone pattern)
 
 Tag validation coverage:
 
 * `v0.43.*` in milestone branch validation workflow
 * `v*` in release and TestPyPI workflows (existing durable release pattern)
+
+No `v0.43.2-session-archive-restore-bootstrap` tag should exist before PR
+completion and post-merge validation.
 
 Workflow files reviewed:
 
@@ -79,8 +103,10 @@ Workflow files changed:
 
 * `.github/workflows/milestone_branch_validation.yml`
 
-This scope update changes trigger coverage only and does not change workflow
-job logic.
+This scope update changes focused branch validation coverage only and does not
+change workflow job logic. The branch validation workflow now includes the
+restore-bootstrap CLI surface in its M43 pytest, Ruff check, and Python format
+check steps.
 
 Remote workflow runs for this update were not observed locally in this
 checklist; this section records trigger coverage and local validation only.
@@ -104,7 +130,7 @@ M43 adds:
 Run the focused M43 archive pytest slice:
 
 ```bash
-python -m pytest tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_roundtrip_validation.py
+python -m pytest tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_bootstrap_cli.py tests/test_session_archive_restore_bootstrap_cli.py tests/test_session_archive_roundtrip_validation.py
 ```
 
 Run workflow and release guard tests:
@@ -128,13 +154,13 @@ python -m pytest tests/test_docs_path_portability.py
 Run Ruff over M43-facing source, tests, and docs:
 
 ```bash
-python -m ruff check src/session_archive src/cli/session_archive.py tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_roundtrip_validation.py docs/session_archives.md README.md docs/getting_started.md src/resources/notebook_workspace/docs/getting_started.md
+python -m ruff check src/session_archive src/cli/session_archive.py src/cli/session_archive_bootstrap.py src/cli/session_archive_restore_bootstrap.py tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_bootstrap_cli.py tests/test_session_archive_restore_bootstrap_cli.py tests/test_session_archive_roundtrip_validation.py docs/session_archives.md README.md docs/getting_started.md src/resources/notebook_workspace/docs/getting_started.md
 ```
 
 Run format checks:
 
 ```bash
-python -m ruff format --check src/session_archive src/cli/session_archive.py tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_roundtrip_validation.py
+python -m ruff format --check src/session_archive src/cli/session_archive.py src/cli/session_archive_bootstrap.py src/cli/session_archive_restore_bootstrap.py tests/test_session_archive_manifest.py tests/test_session_archive_writer.py tests/test_session_archive_restore.py tests/test_session_archive_validation.py tests/test_session_archive_cli.py tests/test_session_archive_bootstrap_cli.py tests/test_session_archive_restore_bootstrap_cli.py tests/test_session_archive_roundtrip_validation.py
 python -m ruff format --check --preview docs/session_archives.md README.md docs/getting_started.md src/resources/notebook_workspace/docs/getting_started.md
 ```
 
@@ -167,37 +193,53 @@ validation results.
 
 ## Final Local Validation Status
 
-As of the M43 release-finalization pass:
+As of the Issue #481 restore-bootstrap mini-release readiness pass:
 
+* archive bootstrap CLI:
+  `20 passed`
+* restore-bootstrap CLI:
+  `24 passed`
+* branch-validation-equivalent M43 pytest slice including restore-bootstrap:
+  `172 passed, 1 skipped`
 * focused M43 archive suite:
-  `128 passed, 1 skipped`
-* workflow and release guard tests:
-  `11 passed`
-* workflow-pattern policy checks:
-  `2 passed`
+  `99 passed, 1 skipped`
+* release workflow guard:
+  `8 passed`
+* packaging workflow guard:
+  not present in this repository; no `tests/test_packaging_workflow.py` file
+  was found
 * docs/path portability tests:
   `3 passed`
 * packaging readiness:
   `8 passed`
-* targeted Ruff check:
+* Ruff check:
   `All checks passed!`
-* targeted Ruff format check:
-  `13 files already formatted`
-* docs Ruff format check:
+* broad Ruff format check:
+  requested repository-wide command was run and exposed pre-existing
+  repo-wide formatting drift plus README Markdown parsing that requires
+  `--preview`; targeted changed-file format checks passed
+* targeted Python Ruff format check:
+  `1 file already formatted`
+* targeted docs Ruff format check:
   `6 files already formatted`
 * package build validation:
-  built `stratlake_trade_engine-0.43.0.tar.gz` and
-  `stratlake_trade_engine-0.43.0-py3-none-any.whl`
+  built `stratlake_trade_engine-0.43.2.tar.gz` and
+  `stratlake_trade_engine-0.43.2-py3-none-any.whl`
 * package artifact validation:
-  `python -m twine check dist/*` passed for available `dist/` artifacts,
-  including the M43 `0.43.0` sdist and wheel
+  not run; `twine` validation remains optional for environments that include
+  it
 * whitespace/path check:
   `git diff --check` passed
 * changed-doc path scan:
   no machine-local absolute path patterns, real Colab Drive paths, or
   workstation-specific cloud storage names found in the M43-facing docs
 * full pytest:
-  `2431 passed, 6 skipped`
+  `2475 passed, 6 skipped`
+* release tag:
+  no `v0.43.2-session-archive-restore-bootstrap` tag was created or found
+  locally
+* GitHub release:
+  not published
 
 Workflow trigger policy:
 
@@ -218,24 +260,27 @@ license metadata modernization is release hygiene for a later packaging pass.
 
 Confirm package/build metadata reports:
 
-* `0.43.0`
+* `0.43.2`
 
 Confirm package build artifacts are generated under `dist/` and are not staged
 unless release policy explicitly asks for them.
 
 Confirm source distributions and wheels include the session archive package and
-the CLI module:
+the CLI modules:
 
 * `src/session_archive/`
 * `src/cli/session_archive.py`
+* `src/cli/session_archive_bootstrap.py`
+* `src/cli/session_archive_restore_bootstrap.py`
 
 ## Release Tag Preparation
 
-Create the release tag only after merge to `main` and post-merge validation:
+Create the restore-bootstrap mini-release tag only after PR completion, review,
+merge to `main`, and post-merge validation:
 
 ```bash
-git tag -a v0.43.0-portable-notebook-session-archives -m "M43 - Portable Notebook Session Archives"
-git push origin v0.43.0-portable-notebook-session-archives
+git tag -a v0.43.2-session-archive-restore-bootstrap -m "M43.3 - Session Archive Restore Bootstrap"
+git push origin v0.43.2-session-archive-restore-bootstrap
 ```
 
 Tag-driven release workflow notes:

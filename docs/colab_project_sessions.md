@@ -265,14 +265,36 @@ than mixing old and new archive files.
 Do not set `--drive-root` to the local archive output directory or a child of
 the local archive pack.
 
-Restore reminder:
+Restore the copied archive into an explicit local workspace with the
+restore-bootstrap companion:
 
 ```bash
-!python -m src.cli.session_archive restore \
+!stratlake-session-archive-restore-bootstrap \
   --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
-  --target-root /content/restored-stratlake \
-  --dry-run
+  --target-root /content/stratlake \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --dry-run \
+  --json
+
+!stratlake-session-archive-restore-bootstrap \
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
+  --target-root /content/stratlake \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --overwrite-policy fail_if_exists
 ```
+
+Restore bootstrap reuses the shared M43 validation, inspection, restore-plan,
+and restore APIs. It treats Drive paths as mounted local filesystem paths only;
+it does not call Google APIs, require OAuth or credentials, start background
+sync, mutate `.env` or `os.environ`, execute research workflows, or make
+archive packs canonical storage.
+
+The restore-bootstrap JSON output is useful in notebooks because validation,
+inspection, planning, restore, and runtime failure summaries share a stable
+machine-readable shape. Active StratLake workflows should run only after files
+are restored into the explicit local target workspace.
 
 ## Restore In A New Notebook Session
 
@@ -323,6 +345,8 @@ session snapshots.
 - `stratlake-session-import`: explicit one-shot import from a mounted Drive path
 - `stratlake-session-archive-bootstrap`: create an M43 archive pack and optionally
   copy it to a mounted Drive-style path
+- `stratlake-session-archive-restore-bootstrap`: validate, inspect, plan, and
+  restore an M43 archive pack into an explicit local target workspace
 
 All commands should be given explicit roots in Colab-style notebooks. The
 commands do not change notebook CWD, mutate `.env`, mutate `os.environ`, call

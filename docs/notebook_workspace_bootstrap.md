@@ -316,6 +316,31 @@ than mixing old and new archive files.
 Do not set `--drive-root` to the local archive output directory or a child of
 the local archive pack.
 
+Restore a copied archive with the restore-bootstrap companion:
+
+```powershell
+stratlake-session-archive-restore-bootstrap `
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 `
+  --target-root /content/stratlake `
+  --validate-before-restore `
+  --inspect-before-restore `
+  --dry-run `
+  --json
+
+stratlake-session-archive-restore-bootstrap `
+  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 `
+  --target-root /content/stratlake `
+  --validate-before-restore `
+  --inspect-before-restore `
+  --overwrite-policy fail_if_exists
+```
+
+The restore-bootstrap command reuses existing M43 validation, inspection,
+restore-plan, and restore APIs. The restore target is explicit, and the command
+does not rely on notebook CWD, mutate `.env` or `os.environ`, call Google APIs,
+require OAuth or credentials, start background sync, execute research workflows,
+or make archive packs canonical storage.
+
 Release-facing validation for the full notebook-session stack is documented in
 [`docs/m42_release_validation_checklist.md`](m42_release_validation_checklist.md).
 
@@ -328,6 +353,7 @@ The package now provides stable installed entry points for common workflows:
 - `stratlake-session-export`
 - `stratlake-session-import`
 - `stratlake-session-archive-bootstrap`
+- `stratlake-session-archive-restore-bootstrap`
 - `stratlake-build-features`
 - `stratlake-run-strategy`
 - `stratlake-run-alpha`

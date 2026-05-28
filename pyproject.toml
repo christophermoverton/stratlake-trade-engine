@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stratlake-trade-engine"
-version = "0.43.1"
+version = "0.43.2"
 description = "Deterministic, artifact-driven quantitative research and backtesting platform."
 authors = [{ name = "Christopher Overton" }]
 readme = "README.md"
@@ -43,6 +43,7 @@ stratlake-init-session = "src.cli.init_session:main"
 stratlake-session-export = "src.cli.session_export:main"
 stratlake-session-import = "src.cli.session_import:main"
 stratlake-session-archive-bootstrap = "src.cli.session_archive_bootstrap:main"
+stratlake-session-archive-restore-bootstrap = "src.cli.session_archive_restore_bootstrap:main"
 stratlake-build-features = "cli.build_features:main"
 stratlake-run-strategy = "src.cli.run_strategy:main"
 stratlake-run-alpha = "src.cli.run_alpha:main"

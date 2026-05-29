@@ -64,6 +64,10 @@ After restore/readiness checks, that guide now includes notebook-native
 `src.execution` strategy examples for interactive artifact inspection while
 keeping init/archive/restore/doctor/handoff flows CLI-first.
 
+For unified persistence choices across fintech and StratLake (local runtime,
+lightweight export/import, and archive-pack transport), see
+[`docs/colab_persistence_guide.md`](colab_persistence_guide.md).
+
 Overwrite only copied starter templates:
 
 ```powershell

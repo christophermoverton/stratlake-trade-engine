@@ -63,6 +63,11 @@ in `docs/colab_project_sessions.md`: keep CLI for setup/restore/doctor/handoff
 flows, then switch to `src.execution` APIs (`run_strategy`, result helpers) for
 interactive execution and artifact inspection without hard-coded run IDs.
 
+For M44.7 persistence choices across fintech and StratLake, see
+[`docs/colab_persistence_guide.md`](colab_persistence_guide.md). It explains
+when to prefer lightweight session export/import versus archive-pack restore
+flows and reinforces local-runtime-first execution.
+
 For session-first notebooks, use `stratlake-init-session`. It delegates to the
 same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 `.stratlake/path_resolution.json`:

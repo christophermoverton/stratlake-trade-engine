@@ -368,6 +368,25 @@ Use this pattern to orchestrate and inspect existing deterministic workflows.
 Do not create notebook-only execution semantics, hidden environment mutation,
 or ad hoc artifact schemas.
 
+## Unified Persistence Choices
+
+For a unified fintech + StratLake persistence decision guide, see
+[`docs/colab_persistence_guide.md`](colab_persistence_guide.md).
+
+Quick decision rule:
+
+- keep CLI setup and persistence explicit (`stratlake-init-session`,
+  `stratlake-session-export`, `stratlake-session-import`,
+  `stratlake-session-archive-bootstrap`,
+  `stratlake-session-archive-restore-bootstrap`,
+  `stratlake-notebook-doctor`, and
+  `stratlake-validate-marketlake-handoff`)
+- use Python execution APIs for interactive research after readiness checks pass
+- use archive or backup packs for large data movement
+- run active feature/research workflows from local `/content/...` runtime roots
+- treat mounted Drive as persistence and transport only, not canonical runtime
+  state
+
 ## Inspect Session Paths
 
 Load the session and resolve the important roots before running workflow cells:

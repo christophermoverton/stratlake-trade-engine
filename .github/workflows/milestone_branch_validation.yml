@@ -124,6 +124,7 @@ jobs:
           tests/test_m44_colab_session_profile_docs.py
           tests/test_m44_restore_first_colab_docs.py
           tests/test_m44_notebook_execution_examples_docs.py
+          tests/test_m44_unified_persistence_guide_docs.py
           tests/test_init_session_cli.py
 
       - name: Run M44 ruff check
@@ -140,6 +141,7 @@ jobs:
           tests/test_m44_colab_session_profile_docs.py
           tests/test_m44_restore_first_colab_docs.py
           tests/test_m44_notebook_execution_examples_docs.py
+          tests/test_m44_unified_persistence_guide_docs.py
 
       - name: Run M44 Python format check
         run: >
@@ -155,3 +157,4 @@ jobs:
           tests/test_m44_colab_session_profile_docs.py
           tests/test_m44_restore_first_colab_docs.py
           tests/test_m44_notebook_execution_examples_docs.py
+          tests/test_m44_unified_persistence_guide_docs.py

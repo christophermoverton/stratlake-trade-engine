@@ -34,6 +34,7 @@ Start with:
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
 * [docs/colab_project_sessions.md](docs/colab_project_sessions.md)
+* [docs/colab_persistence_guide.md](docs/colab_persistence_guide.md)
 * [docs/session_archives.md](docs/session_archives.md)
 * [docs/m43_release_notes.md](docs/m43_release_notes.md)
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
@@ -95,6 +96,10 @@ M44.6 keeps setup/archive/restore/doctor/handoff validation CLI-first, then
 uses notebook-native `src.execution` APIs for interactive strategy execution,
 artifact inspection, and lightweight comparison loops from restored local
 workspace state.
+
+M44.7 adds a unified persistence guide to choose when to use lightweight
+session export/import versus archive-pack flows across fintech and StratLake,
+while keeping active workflows local and treating Drive as transport only.
 
 For notebook and Colab workflows, use a single command to create an M43
 portable archive pack and optionally copy it to a mounted Drive-style path:

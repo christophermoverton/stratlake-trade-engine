@@ -118,7 +118,9 @@ jobs:
         run: >
           python -m pytest
           tests/test_validate_marketlake_handoff.py
+          tests/test_notebook_doctor.py
           tests/test_m44_marketlake_handoff_docs.py
+          tests/test_m44_notebook_doctor_docs.py
           tests/test_m44_colab_session_profile_docs.py
           tests/test_m44_restore_first_colab_docs.py
           tests/test_init_session_cli.py
@@ -127,9 +129,13 @@ jobs:
         run: >
           python -m ruff check
           src/validation/marketlake_handoff.py
+          src/validation/notebook_doctor.py
           src/cli/validate_marketlake_handoff.py
+          src/cli/notebook_doctor.py
           tests/test_validate_marketlake_handoff.py
+          tests/test_notebook_doctor.py
           tests/test_m44_marketlake_handoff_docs.py
+          tests/test_m44_notebook_doctor_docs.py
           tests/test_m44_colab_session_profile_docs.py
           tests/test_m44_restore_first_colab_docs.py
 
@@ -137,8 +143,12 @@ jobs:
         run: >
           python -m ruff format --check
           src/validation/marketlake_handoff.py
+          src/validation/notebook_doctor.py
           src/cli/validate_marketlake_handoff.py
+          src/cli/notebook_doctor.py
           tests/test_validate_marketlake_handoff.py
+          tests/test_notebook_doctor.py
           tests/test_m44_marketlake_handoff_docs.py
+          tests/test_m44_notebook_doctor_docs.py
           tests/test_m44_colab_session_profile_docs.py
           tests/test_m44_restore_first_colab_docs.py

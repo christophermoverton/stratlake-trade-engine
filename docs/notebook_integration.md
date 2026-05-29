@@ -58,6 +58,11 @@ For M44 root stability in Colab, define a single profile cell once (for
 all later commands. Prefer explicit `--root`, `--marketlake-root`, and
 `--drive-root` arguments over notebook-CWD-dependent command behavior.
 
+For read-only preflight diagnostics across roots/configs/universe/Drive/archive
+markers and secret presence, run `stratlake-notebook-doctor --json` with
+explicit roots. The command does not mutate `.env`/`os.environ`, call Google
+APIs, or run hidden sync.
+
 For session-first notebooks, use `stratlake-init-session`. It delegates to the
 same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 `.stratlake/path_resolution.json`:

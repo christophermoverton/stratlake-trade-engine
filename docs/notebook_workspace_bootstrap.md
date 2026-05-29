@@ -56,6 +56,10 @@ It also includes a restore-first flow for fresh runtimes using
 `stratlake-session-archive-restore-bootstrap` with dry-run validation and
 inspection before intentional restore execution.
 
+That Colab guide also includes `stratlake-notebook-doctor` as a read-only
+preflight command for roots/configs/universe/Drive/archive checks and
+secret-presence diagnostics without printing secret values.
+
 Overwrite only copied starter templates:
 
 ```powershell

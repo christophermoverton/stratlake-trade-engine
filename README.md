@@ -81,6 +81,11 @@ The validator is read-only. It checks the curated root, explicit notebook
 profile paths, requested symbols, and requested date window before feature
 construction runs.
 
+For M44 notebook preflight diagnostics, run `stratlake-notebook-doctor` with
+explicit roots. It is read-only and checks Colab/session roots, configs,
+universe readiness, Drive/archive markers, and secret presence without printing
+secret values.
+
 In Colab notebooks, define one explicit profile cell (for `FINTECH_ROOT`,
 `STRATLAKE_ROOT`, `MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`, `END`,
 `UNIVERSE_CONFIG`, and `PATHS_CONFIG`) and reuse those variables in later

@@ -168,6 +168,35 @@ This check is read-only. It verifies the curated root, notebook-session paths,
 requested symbols, and the requested date window before any feature build
 runs.
 
+## Notebook Doctor Preflight (Read-Only)
+
+Run notebook doctor before restore/build cells when you want one deterministic
+read-only report covering roots, configs, universe, Drive mounts, archive
+markers, and secret presence.
+
+```bash
+!stratlake-notebook-doctor \
+  --root "{STRATLAKE_ROOT}" \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
+  --archive-root "{ARCHIVE_ROOT}" \
+  --check-configs \
+  --check-universe \
+  --check-drive \
+  --check-archives \
+  --check-secrets \
+  --json
+```
+
+Notebook doctor boundaries are strict: no .env or os.environ mutation, no
+Google API calls, no hidden sync, and no writes to curated data or artifacts.
+Secret values are never printed; only `SET`/`NOT_SET` state is reported.
+
+Use this preflight for quick session/root diagnostics, then run
+`stratlake-validate-marketlake-handoff` for symbol/date data readiness and
+`stratlake-session-archive-restore-bootstrap --dry-run --json` for restore
+planning and archive diagnostics.
+
 ## Restore-First Colab Workflow (Fresh Runtime)
 
 Use restore-first when a fresh Colab runtime starts and a previous session

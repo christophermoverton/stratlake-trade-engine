@@ -1,0 +1,76 @@
+{
+  "canonicality": {
+    "authority_fingerprint": "7f703bd4d863dfac6f807167e854cfa5a44c3241a892ca6bf1439cc0f1846a0b",
+    "authority_kind": "artifact_tree",
+    "authority_paths": [
+      "artifacts/strategies/example_strategy/_SUCCESS.json",
+      "artifacts/strategies/example_strategy/manifest.json",
+      "artifacts/strategies/example_strategy/metrics.json",
+      "artifacts/strategies/example_strategy/summary.json",
+      "artifacts/strategies/registry.jsonl"
+    ],
+    "authority_root": "artifacts",
+    "derived_class": "review_pack",
+    "non_authoritative": true,
+    "rebuildable": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+    "schema_version": "canonicality.v1",
+    "stale_if_source_changes": true,
+    "write_back_forbidden": true
+  },
+  "entries": [
+    {
+      "kind": "canonical_source",
+      "path": "artifacts/strategies/example_strategy/_SUCCESS.json"
+    },
+    {
+      "kind": "canonical_source",
+      "path": "artifacts/strategies/example_strategy/manifest.json"
+    },
+    {
+      "kind": "canonical_source",
+      "path": "artifacts/strategies/example_strategy/metrics.json"
+    },
+    {
+      "kind": "canonical_source",
+      "path": "artifacts/strategies/example_strategy/summary.json"
+    },
+    {
+      "kind": "canonical_source",
+      "path": "artifacts/strategies/registry.jsonl"
+    },
+    {
+      "kind": "diagnostics",
+      "path": "artifacts/_derived/evidence_review/example_review/catalog_health_diagnostics.json"
+    },
+    {
+      "kind": "report",
+      "path": "artifacts/_derived/evidence_review/example_review/report.md"
+    },
+    {
+      "kind": "resolver_resolution",
+      "path": "artifacts/_derived/evidence_review/example_review/resolver_resolution.json"
+    },
+    {
+      "kind": "review_summary",
+      "path": "artifacts/_derived/evidence_review/example_review/review_summary.json"
+    },
+    {
+      "kind": "selected_lineage",
+      "path": "artifacts/_derived/evidence_review/example_review/selected_lineage.openlineage.json"
+    },
+    {
+      "kind": "selected_lineage",
+      "path": "artifacts/_derived/evidence_review/example_review/selected_lineage.prov.json"
+    }
+  ],
+  "load_source": {
+    "canonical_source": "artifacts",
+    "loaded_from": "review_pack",
+    "non_authoritative": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+    "schema_version": "load_source.v1"
+  },
+  "review_id": "example_review",
+  "schema_version": "evidence_index.v1"
+}

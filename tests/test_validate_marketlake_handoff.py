@@ -61,7 +61,9 @@ def test_validate_marketlake_handoff_warns_without_paths_config(tmp_path: Path) 
     (project_root / "configs").mkdir(parents=True, exist_ok=True)
     tickers_path.write_text("AAPL\nMSFT\n", encoding="utf-8")
     universe_path.write_text(
-        yaml.safe_dump({"name": "demo", "tickers_file": "configs/tickers_sample.txt"}, sort_keys=True),
+        yaml.safe_dump(
+            {"name": "demo", "tickers_file": "configs/tickers_sample.txt"}, sort_keys=True
+        ),
         encoding="utf-8",
     )
 
@@ -75,11 +77,15 @@ def test_validate_marketlake_handoff_warns_without_paths_config(tmp_path: Path) 
     )
 
     assert result.status == "warn"
-    assert any(check.name == "paths_config_alignment" and check.status == "warn" for check in result.checks)
+    assert any(
+        check.name == "paths_config_alignment" and check.status == "warn" for check in result.checks
+    )
     assert result.errors == ()
 
 
-def test_validate_marketlake_handoff_fails_when_marketlake_root_looks_like_archive_pack(tmp_path: Path) -> None:
+def test_validate_marketlake_handoff_fails_when_marketlake_root_looks_like_archive_pack(
+    tmp_path: Path,
+) -> None:
     project_root = tmp_path / "stratlake"
     marketlake_root = project_root / "data" / "curated"
     universe_path = project_root / "configs" / "universe.yml"
@@ -105,7 +111,10 @@ def test_validate_marketlake_handoff_fails_when_marketlake_root_looks_like_archi
     )
 
     assert result.status == "fail"
-    assert any(check.name == "marketlake_root_not_archive_pack" and check.status == "fail" for check in result.checks)
+    assert any(
+        check.name == "marketlake_root_not_archive_pack" and check.status == "fail"
+        for check in result.checks
+    )
 
 
 def test_validate_marketlake_handoff_fails_on_missing_symbol(tmp_path: Path) -> None:
@@ -139,7 +148,9 @@ def test_validate_marketlake_handoff_fails_on_missing_symbol(tmp_path: Path) -> 
 
     assert result.status == "fail"
     assert result.symbols["missing"] == ["MSFT"]
-    assert any(check.name == "symbol_coverage" and check.status == "fail" for check in result.checks)
+    assert any(
+        check.name == "symbol_coverage" and check.status == "fail" for check in result.checks
+    )
 
 
 def test_validate_marketlake_handoff_fails_on_missing_window_rows(tmp_path: Path) -> None:
@@ -172,7 +183,9 @@ def test_validate_marketlake_handoff_fails_on_missing_window_rows(tmp_path: Path
     )
 
     assert result.status == "fail"
-    assert any(check.name == "window_coverage" and check.status == "fail" for check in result.checks)
+    assert any(
+        check.name == "window_coverage" and check.status == "fail" for check in result.checks
+    )
     assert result.coverage["window_row_count"] == 0
 
 
@@ -222,7 +235,9 @@ def test_validate_marketlake_handoff_fails_on_invalid_schema(tmp_path: Path) -> 
     assert any(check.name == "dataset_schema" and check.status == "fail" for check in result.checks)
 
 
-def test_validate_marketlake_handoff_cli_json_is_deterministic(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_validate_marketlake_handoff_cli_json_is_deterministic(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     project_root = tmp_path / "stratlake"
     marketlake_root = project_root / "data" / "curated"
     universe_path = project_root / "configs" / "universe.yml"
@@ -263,7 +278,9 @@ def test_validate_marketlake_handoff_cli_json_is_deterministic(tmp_path: Path, c
     assert json.loads(first_output)["status"] == "pass"
 
 
-def test_validate_marketlake_handoff_main_succeeds_for_valid_bundle(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
+def test_validate_marketlake_handoff_main_succeeds_for_valid_bundle(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
     project_root = tmp_path / "stratlake"
     marketlake_root = project_root / "data" / "curated"
     universe_path = project_root / "configs" / "universe.yml"
@@ -298,6 +315,123 @@ def test_validate_marketlake_handoff_main_succeeds_for_valid_bundle(tmp_path: Pa
     capsys.readouterr()
 
     assert exit_code == 0
+
+
+def test_validate_marketlake_handoff_output_outside_marketlake_root_succeeds(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "stratlake"
+    marketlake_root = project_root / "data" / "curated"
+    universe_path = project_root / "configs" / "universe.yml"
+    paths_path = project_root / "configs" / "paths.yml"
+    tickers_path = project_root / "configs" / "tickers_sample.txt"
+    output_path = project_root / "artifacts" / "_derived" / "handoff_validation" / "report.json"
+
+    _write_valid_bundle(
+        project_root=project_root,
+        marketlake_root=marketlake_root,
+        universe_path=universe_path,
+        paths_path=paths_path,
+        tickers_path=tickers_path,
+    )
+
+    result = validate_marketlake_handoff(
+        root=project_root,
+        marketlake_root=marketlake_root,
+        universe=universe_path,
+        start="2025-01-02",
+        end="2025-01-04",
+        timeframe="1D",
+        output=output_path,
+    )
+
+    assert result.status == "pass"
+    assert output_path.exists()
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+    assert payload["authoritative"] is False
+    assert payload["status"] == "pass"
+    assert output_path.resolve() != marketlake_root.resolve()
+    assert marketlake_root.resolve() not in output_path.resolve().parents
+
+
+def test_validate_marketlake_handoff_output_inside_marketlake_root_is_rejected(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "stratlake"
+    marketlake_root = project_root / "data" / "curated"
+    universe_path = project_root / "configs" / "universe.yml"
+    paths_path = project_root / "configs" / "paths.yml"
+    tickers_path = project_root / "configs" / "tickers_sample.txt"
+    output_path = marketlake_root / "handoff_report.json"
+
+    _write_valid_bundle(
+        project_root=project_root,
+        marketlake_root=marketlake_root,
+        universe_path=universe_path,
+        paths_path=paths_path,
+        tickers_path=tickers_path,
+    )
+    before_files = _snapshot_files(marketlake_root)
+
+    with pytest.raises(
+        ValueError, match="Refusing to write handoff validation report inside MarketLake root."
+    ):
+        validate_marketlake_handoff(
+            root=project_root,
+            marketlake_root=marketlake_root,
+            universe=universe_path,
+            start="2025-01-02",
+            end="2025-01-04",
+            timeframe="1D",
+            output=output_path,
+        )
+
+    after_files = _snapshot_files(marketlake_root)
+    assert not output_path.exists()
+    assert before_files == after_files
+
+
+def test_validate_marketlake_handoff_cli_output_inside_marketlake_root_surfaces_error(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "stratlake"
+    marketlake_root = project_root / "data" / "curated"
+    universe_path = project_root / "configs" / "universe.yml"
+    paths_path = project_root / "configs" / "paths.yml"
+    tickers_path = project_root / "configs" / "tickers_sample.txt"
+    output_path = marketlake_root / "handoff_report.json"
+
+    _write_valid_bundle(
+        project_root=project_root,
+        marketlake_root=marketlake_root,
+        universe_path=universe_path,
+        paths_path=paths_path,
+        tickers_path=tickers_path,
+    )
+
+    with pytest.raises(
+        ValueError, match="Refusing to write handoff validation report inside MarketLake root."
+    ):
+        validate_marketlake_handoff_main(
+            [
+                "--root",
+                str(project_root),
+                "--marketlake-root",
+                str(marketlake_root),
+                "--universe",
+                str(universe_path),
+                "--start",
+                "2025-01-02",
+                "--end",
+                "2025-01-04",
+                "--timeframe",
+                "1D",
+                "--output",
+                str(output_path),
+            ]
+        )
+
+    assert not output_path.exists()
 
 
 def _write_valid_bundle(
@@ -385,8 +519,4 @@ def _rows_for_symbols(symbols: tuple[str, ...], dates: tuple[str, ...]) -> list[
 
 
 def _snapshot_files(root: Path) -> set[str]:
-    return {
-        path.relative_to(root).as_posix()
-        for path in root.rglob("*")
-        if path.is_file()
-    }
+    return {path.relative_to(root).as_posix() for path in root.rglob("*") if path.is_file()}

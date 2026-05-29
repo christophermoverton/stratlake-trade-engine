@@ -30,9 +30,9 @@ def test_colab_docs_define_unified_session_profile_variables() -> None:
 def test_colab_docs_reuse_profile_values_for_init_session_notebook_configs() -> None:
     for path in COLAB_DOCS:
         source = path.read_text(encoding="utf-8")
-        assert "--root \"{STRATLAKE_ROOT}\"" in source
-        assert "--marketlake-root \"{MARKETLAKE_ROOT}\"" in source
-        assert "--drive-root \"{DRIVE_ROOT}\"" in source
+        assert '--root "{STRATLAKE_ROOT}"' in source
+        assert '--marketlake-root "{MARKETLAKE_ROOT}"' in source
+        assert '--drive-root "{DRIVE_ROOT}"' in source
         assert "--notebook-configs" in source
 
 

@@ -189,7 +189,10 @@ def validate_marketlake_handoff(
                 status="pass",
                 severity="info",
                 message=f"Found {len(dataset_files)} parquet file(s) under {dataset_root.as_posix()}.",
-                details={"dataset_root": dataset_root.as_posix(), "parquet_file_count": len(dataset_files)},
+                details={
+                    "dataset_root": dataset_root.as_posix(),
+                    "parquet_file_count": len(dataset_files),
+                },
             )
         )
 
@@ -248,7 +251,9 @@ def validate_marketlake_handoff(
 
     coverage_pct = 1.0
     if requested_sorted:
-        coverage_pct = round((len(requested_sorted) - len(missing_symbols)) / len(requested_sorted), 6)
+        coverage_pct = round(
+            (len(requested_sorted) - len(missing_symbols)) / len(requested_sorted), 6
+        )
 
     symbol_coverage_pass = not missing_symbols
     checks.append(
@@ -347,20 +352,42 @@ def validate_marketlake_handoff(
             "dataset_max_date": overall_stats.get("dataset_max_date"),
             "symbol_count": len(requested_sorted),
             "available_symbol_count": len(available_sorted),
-            "window_symbol_count": sum(1 for row in symbols_by_name.values() if row["window_row_count"] > 0),
+            "window_symbol_count": sum(
+                1 for row in symbols_by_name.values() if row["window_row_count"] > 0
+            ),
             "window_row_count": int(len(window_rows.index)) if not window_rows.empty else 0,
         },
-        errors=tuple(dict.fromkeys(errors + [check.message for check in checks if check.status == "fail"])),
-        warnings=tuple(dict.fromkeys(warnings + [check.message for check in checks if check.status == "warn"])),
+        errors=tuple(
+            dict.fromkeys(errors + [check.message for check in checks if check.status == "fail"])
+        ),
+        warnings=tuple(
+            dict.fromkeys(warnings + [check.message for check in checks if check.status == "warn"])
+        ),
     )
 
     if output is not None:
-        atomic_write_json(output, result.to_dict(), sort_keys=True)
+        output_path = Path(output)
+        _validate_output_path(output_path=output_path, marketlake_root=curated_root)
+        atomic_write_json(output_path, result.to_dict(), sort_keys=True)
     return result
 
 
-def write_marketlake_handoff_report(result: MarketLakeHandoffValidationResult, output: str | Path) -> Path:
+def write_marketlake_handoff_report(
+    result: MarketLakeHandoffValidationResult, output: str | Path
+) -> Path:
     return atomic_write_json(output, result.to_dict(), sort_keys=True)
+
+
+def _validate_output_path(*, output_path: Path, marketlake_root: Path) -> None:
+    resolved_output = output_path.expanduser().resolve()
+    resolved_marketlake_root = marketlake_root.expanduser().resolve()
+    try:
+        resolved_output.relative_to(resolved_marketlake_root)
+        inside_marketlake_root = True
+    except ValueError:
+        inside_marketlake_root = False
+    if resolved_output == resolved_marketlake_root or inside_marketlake_root:
+        raise ValueError("Refusing to write handoff validation report inside MarketLake root.")
 
 
 def _validate_session_root(session_root: Path) -> list[HandoffCheck]:
@@ -557,7 +584,9 @@ def _validate_schema_and_load(
     connection = duckdb.connect(database=":memory:")
     try:
         select_sql = f"SELECT * FROM {parquet_scan_sql(dataset_glob)}"
-        timeframe_where_sql, params = build_where_clause(symbols=symbols, start_date=start, end_date=end)
+        timeframe_where_sql, params = build_where_clause(
+            symbols=symbols, start_date=start, end_date=end
+        )
         params = dict(params)
         params["timeframe"] = timeframe
         where_sql = "WHERE timeframe = $timeframe"
@@ -612,7 +641,9 @@ def _validate_schema_and_load(
         errors.append(message)
 
     if not full_rows.empty:
-        distinct_timeframes = sorted({str(value) for value in full_rows["timeframe"].dropna().tolist()})
+        distinct_timeframes = sorted(
+            {str(value) for value in full_rows["timeframe"].dropna().tolist()}
+        )
         if distinct_timeframes == [timeframe]:
             checks.append(
                 HandoffCheck(
@@ -624,7 +655,9 @@ def _validate_schema_and_load(
                 )
             )
         else:
-            message = f"Dataset contains unexpected timeframe value(s): {', '.join(distinct_timeframes)}."
+            message = (
+                f"Dataset contains unexpected timeframe value(s): {', '.join(distinct_timeframes)}."
+            )
             checks.append(
                 HandoffCheck(
                     name="timeframe_alignment",
@@ -636,13 +669,26 @@ def _validate_schema_and_load(
             )
             errors.append(message)
 
-    available_symbols = tuple(sorted({str(symbol).upper() for symbol in full_rows.get("symbol", pd.Series(dtype=str)).dropna().tolist()}))
+    available_symbols = tuple(
+        sorted(
+            {
+                str(symbol).upper()
+                for symbol in full_rows.get("symbol", pd.Series(dtype=str)).dropna().tolist()
+            }
+        )
+    )
     overall_stats: dict[str, Any] = {}
     if not full_rows.empty and "date" in full_rows.columns:
         per_symbol: list[dict[str, Any]] = []
-        for symbol in sorted({str(symbol).upper() for symbol in full_rows["symbol"].dropna().tolist()}):
+        for symbol in sorted(
+            {str(symbol).upper() for symbol in full_rows["symbol"].dropna().tolist()}
+        ):
             symbol_full = full_rows[full_rows["symbol"].astype(str).str.upper() == symbol].copy()
-            symbol_window = window_rows[window_rows["symbol"].astype(str).str.upper() == symbol].copy() if not window_rows.empty else symbol_full.iloc[0:0]
+            symbol_window = (
+                window_rows[window_rows["symbol"].astype(str).str.upper() == symbol].copy()
+                if not window_rows.empty
+                else symbol_full.iloc[0:0]
+            )
             row = {
                 "symbol": symbol,
                 "available": True,
@@ -687,12 +733,16 @@ def _load_universe_selection(universe_path: Path, session_root: Path) -> Univers
     source_path: str | None = universe_path.as_posix()
     source = "symbols"
     symbols = _extract_symbols(payload, session_root=session_root, universe_path=universe_path)
-    if not _has_explicit_symbol_list(payload) and _resolve_config_path(
-        payload,
-        keys=("tickers_file", "tickers_path", "tickers"),
-        session_root=session_root,
-        universe_path=universe_path,
-    ) is not None:
+    if (
+        not _has_explicit_symbol_list(payload)
+        and _resolve_config_path(
+            payload,
+            keys=("tickers_file", "tickers_path", "tickers"),
+            session_root=session_root,
+            universe_path=universe_path,
+        )
+        is not None
+    ):
         source = "tickers_file"
         source_path = _resolve_config_path(
             payload,
@@ -729,7 +779,9 @@ def _extract_symbols(
     for key in ("symbols", "tickers", "universe_symbols"):
         value = payload.get(key)
         if isinstance(value, list):
-            symbol_candidates.extend(str(item).strip().upper() for item in value if str(item).strip())
+            symbol_candidates.extend(
+                str(item).strip().upper() for item in value if str(item).strip()
+            )
         elif isinstance(value, str) and value.strip():
             symbol_candidates.append(value.strip().upper())
 
@@ -737,7 +789,9 @@ def _extract_symbols(
     if isinstance(nested, Mapping):
         nested_symbols = nested.get("symbols")
         if isinstance(nested_symbols, list):
-            symbol_candidates.extend(str(item).strip().upper() for item in nested_symbols if str(item).strip())
+            symbol_candidates.extend(
+                str(item).strip().upper() for item in nested_symbols if str(item).strip()
+            )
 
     if symbol_candidates:
         return tuple(dict.fromkeys(sorted(set(symbol_candidates))))
@@ -787,8 +841,14 @@ def _resolve_config_path(
 
 def _load_ticker_file(path: Path) -> list[str]:
     if not path.exists():
-        raise FileNotFoundError(f"Ticker file referenced by universe config not found: {path.as_posix()}")
-    symbols = [line.strip().upper() for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
+        raise FileNotFoundError(
+            f"Ticker file referenced by universe config not found: {path.as_posix()}"
+        )
+    symbols = [
+        line.strip().upper()
+        for line in path.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
     return list(dict.fromkeys(symbols))
 
 
@@ -830,7 +890,9 @@ def _validate_paths_config_alignment(
     marketlake_value = payload.get("marketlake_root")
     if isinstance(marketlake_value, str) and marketlake_value.strip():
         candidate = Path(marketlake_value).expanduser()
-        resolved = candidate.resolve() if candidate.is_absolute() else (session_root / candidate).resolve()
+        resolved = (
+            candidate.resolve() if candidate.is_absolute() else (session_root / candidate).resolve()
+        )
         if resolved != marketlake_root:
             return HandoffCheck(
                 name="paths_config_alignment",
@@ -859,7 +921,9 @@ def _dataset_name_for_timeframe(timeframe: str) -> str:
         return SUPPORTED_TIMEFRAME_DATASETS[timeframe]
     except KeyError as exc:
         expected = ", ".join(sorted(SUPPORTED_TIMEFRAME_DATASETS))
-        raise ValueError(f"Unsupported timeframe: {timeframe!r}. Expected one of: {expected}.") from exc
+        raise ValueError(
+            f"Unsupported timeframe: {timeframe!r}. Expected one of: {expected}."
+        ) from exc
 
 
 def _overall_status(checks: Sequence[HandoffCheck]) -> str:

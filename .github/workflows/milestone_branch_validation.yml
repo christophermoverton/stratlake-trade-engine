@@ -129,7 +129,7 @@ jobs:
           src/cli/validate_marketlake_handoff.py
           tests/test_validate_marketlake_handoff.py
           tests/test_m44_marketlake_handoff_docs.py
-          tests/test_m44_marketlake_handoff_docs.py
+          tests/test_m44_colab_session_profile_docs.py
 
       - name: Run M44 Python format check
         run: >
@@ -138,3 +138,4 @@ jobs:
           src/cli/validate_marketlake_handoff.py
           tests/test_validate_marketlake_handoff.py
           tests/test_m44_marketlake_handoff_docs.py
+          tests/test_m44_colab_session_profile_docs.py

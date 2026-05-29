@@ -63,6 +63,11 @@ This opt-in bundle writes user-owned `configs/paths.yml`,
 preserved by default; use `--force-notebook-configs` to overwrite only those
 bundle files.
 
+In Colab notebooks, define one explicit profile cell (for `FINTECH_ROOT`,
+`STRATLAKE_ROOT`, `MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`, `END`,
+`UNIVERSE_CONFIG`, and `PATHS_CONFIG`) and reuse those variables in later
+commands so workflows do not depend on notebook CWD.
+
 For notebook and Colab workflows, use a single command to create an M43
 portable archive pack and optionally copy it to a mounted Drive-style path:
 

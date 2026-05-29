@@ -48,6 +48,10 @@ overwrite only those files.
 
 For Colab and mounted-Drive notebooks, use the session-first flow in
 [`docs/colab_project_sessions.md`](colab_project_sessions.md).
+That guide includes a unified profile cell (`FINTECH_ROOT`, `STRATLAKE_ROOT`,
+`MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`, `END`, `UNIVERSE_CONFIG`, and
+`PATHS_CONFIG`) so later commands can pass explicit paths without relying on
+notebook CWD.
 
 Overwrite only copied starter templates:
 

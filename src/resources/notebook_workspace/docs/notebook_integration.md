@@ -47,6 +47,12 @@ For a copy-friendly Colab walkthrough that keeps notebook CWD, project root,
 external MarketLake root, and mounted Drive root explicit, see
 [`docs/colab_project_sessions.md`](colab_project_sessions.md).
 
+For M44 root stability in Colab, define a single profile cell once (for
+`FINTECH_ROOT`, `STRATLAKE_ROOT`, `MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`,
+`END`, `UNIVERSE_CONFIG`, and `PATHS_CONFIG`) and pass those variables through
+all later commands. Prefer explicit `--root`, `--marketlake-root`, and
+`--drive-root` arguments over notebook-CWD-dependent command behavior.
+
 For session-first notebooks, use `stratlake-init-session`. It delegates to the
 same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 `.stratlake/path_resolution.json`:

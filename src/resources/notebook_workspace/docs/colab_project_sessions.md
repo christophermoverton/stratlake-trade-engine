@@ -77,24 +77,47 @@ from google.colab import drive
 drive.mount("/content/drive")
 ```
 
-Define explicit roots in a notebook cell:
+Define a unified Colab session profile once, then reuse it in later cells:
 
 ```python
 from pathlib import Path
 
-PROJECT_ROOT = Path("/content/stratlake").resolve()
-MARKETLAKE_ROOT = Path("/content/fintech/data/curated").resolve()
-DRIVE_ROOT = Path("/content/drive/MyDrive/stratlake-demo").resolve()
+FINTECH_ROOT = Path("/content/fintech-market-ingestion-demo").resolve()
+STRATLAKE_ROOT = Path("/content/stratlake-workspace").resolve()
+MARKETLAKE_ROOT = FINTECH_ROOT / "data" / "curated"
+DRIVE_ROOT = Path("/content/drive/MyDrive/stratlake-fintech-colab").resolve()
+
+START = "2024-10-01"
+END = "2025-04-15"
+UNIVERSE_CONFIG = STRATLAKE_ROOT / "configs" / "universe.yml"
+PATHS_CONFIG = STRATLAKE_ROOT / "configs" / "paths.yml"
+
+SESSION_ARCHIVES_ROOT = DRIVE_ROOT / "session_archives"
+ARTIFACTS_ROOT = STRATLAKE_ROOT / "artifacts"
+FEATURES_ROOT = STRATLAKE_ROOT / "data" / "curated"
+TICKERS_SAMPLE = STRATLAKE_ROOT / "configs" / "tickers_sample.txt"
 ```
+
+Root meanings:
+
+- `FINTECH_ROOT`: local Colab runtime checkout/workspace for fintech ingestion.
+- `STRATLAKE_ROOT`: local Colab runtime workspace for StratLake files and runs.
+- `MARKETLAKE_ROOT`: local curated-data root consumed by StratLake.
+- `DRIVE_ROOT`: mounted Drive persistence/archive location, not canonical working data.
+- `UNIVERSE_CONFIG`: generated or user-owned StratLake universe config.
+- `PATHS_CONFIG`: generated or user-owned StratLake path config.
+
+The profile is an explicit notebook convenience layer only. It does not mutate
+`.env`, `os.environ`, Drive files, or canonical artifacts.
 
 Initialize the project session:
 
 ```bash
 !stratlake-init-session \
-  --root /content/stratlake \
+  --root "{STRATLAKE_ROOT}" \
   --project-name stratlake-demo \
-  --marketlake-root /content/fintech/data/curated \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --notebook-configs
 ```
 
@@ -119,6 +142,10 @@ metadata and known notebook starter templates.
 external roots explicit when they are outside the project root, such as mounted
 Drive paths or restored local MarketLake curated roots.
 
+This pairing (`--notebook-configs` + profile values) ensures generated
+`configs/paths.yml` and `configs/universe.yml` line up with the notebook's
+explicit runtime roots.
+
 ## Inspect Session Paths
 
 Load the session and resolve the important roots before running workflow cells:
@@ -126,7 +153,7 @@ Load the session and resolve the important roots before running workflow cells:
 ```python
 from src.session import load_session, resolve_session_paths
 
-session = load_session(PROJECT_ROOT)
+session = load_session(STRATLAKE_ROOT)
 paths = resolve_session_paths(session)
 
 configs_root = paths["configs_root"].resolved_path
@@ -134,6 +161,13 @@ artifacts_root = paths["artifacts_root"].resolved_path
 features_root = paths["features_root"].resolved_path
 marketlake_root = paths["marketlake_root"].resolved_path
 drive_root = paths["drive_root"].resolved_path
+```
+
+If you are using the profile cell above, load the session from `STRATLAKE_ROOT`:
+
+```python
+session = load_session(STRATLAKE_ROOT)
+paths = resolve_session_paths(session)
 ```
 
 Each resolved path includes the serialized path, resolved absolute path, path
@@ -153,7 +187,7 @@ Resolution precedence is deterministic:
 Create or upload a ticker file under the project root:
 
 ```python
-(PROJECT_ROOT / "configs" / "tickers_demo.txt").write_text("AAPL\nMSFT\n", encoding="utf-8")
+(STRATLAKE_ROOT / "configs" / "tickers_demo.txt").write_text("AAPL\nMSFT\n", encoding="utf-8")
 ```
 
 Run the feature builder with an explicit MarketLake root so the notebook CWD is
@@ -162,10 +196,10 @@ irrelevant:
 ```bash
 !stratlake-build-features \
   --timeframe 1D \
-  --start 2025-01-01 \
-  --end 2025-02-01 \
-  --tickers /content/stratlake/configs/tickers_demo.txt \
-  --marketlake-root /content/fintech/data/curated
+  --start "{START}" \
+  --end "{END}" \
+  --tickers "{TICKERS_SAMPLE}" \
+  --marketlake-root "{MARKETLAKE_ROOT}"
 ```
 
 The feature-run summary records the effective MarketLake root and its source
@@ -181,11 +215,11 @@ Use explicit config paths from the project root. For example:
 
 ```bash
 !stratlake-run-strategy \
-  --strategies-config /content/stratlake/configs/strategies.yml \
+  --strategies-config "{STRATLAKE_ROOT / 'configs' / 'strategies.yml'}" \
   --strategy momentum_v1 \
-  --start 2025-01-01 \
-  --end 2025-02-01 \
-  --evaluation /content/stratlake/configs/evaluation.yml
+  --start "{START}" \
+  --end "{END}" \
+  --evaluation "{STRATLAKE_ROOT / 'configs' / 'evaluation.yml'}"
 ```
 
 Use notebooks to run established StratLake APIs or CLI-equivalent commands and
@@ -205,8 +239,8 @@ Dry-run first:
 
 ```bash
 !stratlake-session-export \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --root "{STRATLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --include-configs \
   --include-artifacts \
   --dry-run
@@ -216,8 +250,8 @@ Export configs, artifacts, and feature data:
 
 ```bash
 !stratlake-session-export \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --root "{STRATLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --include-configs \
   --include-artifacts \
   --include-features
@@ -232,8 +266,8 @@ reusing `latest`:
 
 ```bash
 !stratlake-session-export \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --root "{STRATLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --include-configs \
   --include-artifacts \
   --operation-id colab-run-001
@@ -253,8 +287,8 @@ snapshots:
 
 ```bash
 !stratlake-session-import \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --root "{STRATLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --include-configs \
   --include-artifacts \
   --include-features
@@ -265,8 +299,8 @@ intentionally want selected import destinations overwritten:
 
 ```bash
 !stratlake-session-import \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --root "{STRATLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --include-configs \
   --force
 ```

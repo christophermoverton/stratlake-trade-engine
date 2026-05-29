@@ -9,7 +9,10 @@ import yaml
 
 from src.cli.validate_marketlake_handoff import main as validate_marketlake_handoff_main
 from src.cli.validate_marketlake_handoff import run_cli as run_validate_marketlake_handoff_cli
-from src.validation.marketlake_handoff import validate_marketlake_handoff
+from src.validation.marketlake_handoff import (
+    validate_marketlake_handoff,
+    write_marketlake_handoff_report,
+)
 
 
 def test_validate_marketlake_handoff_passes_on_valid_bundle(tmp_path: Path) -> None:
@@ -432,6 +435,44 @@ def test_validate_marketlake_handoff_cli_output_inside_marketlake_root_surfaces_
         )
 
     assert not output_path.exists()
+
+
+def test_write_marketlake_handoff_report_rejects_output_inside_marketlake_root(
+    tmp_path: Path,
+) -> None:
+    project_root = tmp_path / "stratlake"
+    marketlake_root = project_root / "data" / "curated"
+    universe_path = project_root / "configs" / "universe.yml"
+    paths_path = project_root / "configs" / "paths.yml"
+    tickers_path = project_root / "configs" / "tickers_sample.txt"
+    output_path = marketlake_root / "helper_report.json"
+
+    _write_valid_bundle(
+        project_root=project_root,
+        marketlake_root=marketlake_root,
+        universe_path=universe_path,
+        paths_path=paths_path,
+        tickers_path=tickers_path,
+    )
+    result = validate_marketlake_handoff(
+        root=project_root,
+        marketlake_root=marketlake_root,
+        universe=universe_path,
+        start="2025-01-02",
+        end="2025-01-04",
+        timeframe="1D",
+    )
+    before_files = _snapshot_files(marketlake_root)
+
+    with pytest.raises(
+        ValueError,
+        match="Refusing to write handoff validation report inside MarketLake root.",
+    ):
+        write_marketlake_handoff_report(result, output_path)
+
+    after_files = _snapshot_files(marketlake_root)
+    assert not output_path.exists()
+    assert before_files == after_files
 
 
 def _write_valid_bundle(

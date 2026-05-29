@@ -375,7 +375,12 @@ def validate_marketlake_handoff(
 def write_marketlake_handoff_report(
     result: MarketLakeHandoffValidationResult, output: str | Path
 ) -> Path:
-    return atomic_write_json(output, result.to_dict(), sort_keys=True)
+    output_path = Path(output)
+    _validate_output_path(
+        output_path=output_path,
+        marketlake_root=Path(result.marketlake_root),
+    )
+    return atomic_write_json(output_path, result.to_dict(), sort_keys=True)
 
 
 def _validate_output_path(*, output_path: Path, marketlake_root: Path) -> None:

@@ -91,6 +91,11 @@ In Colab notebooks, define one explicit profile cell (for `FINTECH_ROOT`,
 `UNIVERSE_CONFIG`, and `PATHS_CONFIG`) and reuse those variables in later
 commands so workflows do not depend on notebook CWD.
 
+M44.6 keeps setup/archive/restore/doctor/handoff validation CLI-first, then
+uses notebook-native `src.execution` APIs for interactive strategy execution,
+artifact inspection, and lightweight comparison loops from restored local
+workspace state.
+
 For notebook and Colab workflows, use a single command to create an M43
 portable archive pack and optionally copy it to a mounted Drive-style path:
 

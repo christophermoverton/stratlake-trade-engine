@@ -268,6 +268,106 @@ After restore, run handoff validation before feature builds:
 Then continue with feature builds, strategy or research checks, and local
 artifact inspection from `/content/stratlake-workspace`.
 
+## Notebook-Native Execution After Restore
+
+After setup/restore/readiness checks pass, prefer notebook-native Python API
+calls for interactive research and artifact inspection.
+
+Use CLI for workflow boundaries where command behavior is the point:
+
+- install/import smoke checks
+- `stratlake-init-session`
+- `stratlake-session-archive-bootstrap`
+- `stratlake-session-archive-restore-bootstrap`
+- `stratlake-notebook-doctor`
+- `stratlake-validate-marketlake-handoff`
+
+Use Python execution APIs for interactive research after readiness passes:
+
+- strategy execution
+- strategy comparison and lightweight window sensitivity checks
+- artifact inspection with result helpers
+- metrics/manifest review in notebook cells
+
+These Python calls use the same execution system and canonical artifact
+contracts as CLI workflows. Keep notebook cells thin: call stable APIs, then
+inspect results. Do not duplicate strategy logic in notebook code.
+
+Run from restored local workspace state under `/content/...` and explicit
+profile variables; do not run workflows directly from Drive archive-pack
+directories.
+
+Define execution config paths from the M44 profile once:
+
+```python
+STRATEGIES_CONFIG = STRATLAKE_ROOT / "configs" / "strategies.yml"
+EVALUATION_CONFIG = STRATLAKE_ROOT / "configs" / "evaluation.yml"
+```
+
+Example strategy run (Python API) with canonical artifact output:
+
+```python
+from src.execution import run_strategy
+
+strategy_result = run_strategy(
+  "momentum_v1",
+  start=START,
+  end=END,
+  strategies_config_path=STRATEGIES_CONFIG,
+)
+
+strategy_result.notebook_summary()
+```
+
+Artifact inspection via `ExecutionResult` helpers (no hard-coded run IDs):
+
+```python
+metrics = strategy_result.load_metrics_json()
+manifest = strategy_result.load_manifest()
+available_outputs = strategy_result.output_keys()
+metrics_path = strategy_result.output_path("metrics_json", must_exist=True)
+
+{
+  "run_id": strategy_result.run_id,
+  "artifact_dir": strategy_result.artifact_dir.as_posix() if strategy_result.artifact_dir else None,
+  "metrics_path": metrics_path.as_posix(),
+  "output_keys": available_outputs,
+  "sharpe": metrics.get("sharpe"),
+}
+```
+
+Lightweight notebook-native sensitivity loop (evaluation-window comparison):
+
+```python
+window_runs = []
+for window_start, window_end in [
+  ("2024-10-01", "2025-01-31"),
+  ("2025-02-01", "2025-04-15"),
+]:
+  run = run_strategy(
+    "momentum_v1",
+    start=window_start,
+    end=window_end,
+    strategies_config_path=STRATEGIES_CONFIG,
+  )
+  run_metrics = run.load_metrics_json()
+  window_runs.append(
+    {
+      "window_start": window_start,
+      "window_end": window_end,
+      "run_id": run.run_id,
+      "total_return": run_metrics.get("total_return"),
+      "sharpe": run_metrics.get("sharpe"),
+    }
+  )
+
+window_runs
+```
+
+Use this pattern to orchestrate and inspect existing deterministic workflows.
+Do not create notebook-only execution semantics, hidden environment mutation,
+or ad hoc artifact schemas.
+
 ## Inspect Session Paths
 
 Load the session and resolve the important roots before running workflow cells:

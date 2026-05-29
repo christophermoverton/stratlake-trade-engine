@@ -63,6 +63,11 @@ markers and secret presence, run `stratlake-notebook-doctor --json` with
 explicit roots. The command does not mutate `.env`/`os.environ`, call Google
 APIs, or run hidden sync.
 
+For restored Colab sessions, use the M44.6 notebook-native execution pattern
+in `docs/colab_project_sessions.md`: keep CLI for setup/restore/doctor/handoff
+flows, then switch to `src.execution` APIs (`run_strategy`, result helpers) for
+interactive execution and artifact inspection without hard-coded run IDs.
+
 For session-first notebooks, use `stratlake-init-session`. It delegates to the
 same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 `.stratlake/path_resolution.json`:

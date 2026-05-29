@@ -58,6 +58,11 @@ For M44 root stability in Colab, define a single profile cell once (for
 all later commands. Prefer explicit `--root`, `--marketlake-root`, and
 `--drive-root` arguments over notebook-CWD-dependent command behavior.
 
+For restored Colab sessions, use the M44.6 notebook-native execution pattern
+in `docs/colab_project_sessions.md`: keep CLI for setup/restore/doctor/handoff
+flows, then switch to `src.execution` APIs (`run_strategy`, result helpers) for
+interactive execution and artifact inspection without hard-coded run IDs.
+
 For session-first notebooks, use `stratlake-init-session`. It delegates to the
 same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 `.stratlake/path_resolution.json`:

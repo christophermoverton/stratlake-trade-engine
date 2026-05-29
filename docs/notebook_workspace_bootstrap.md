@@ -60,6 +60,10 @@ That Colab guide also includes `stratlake-notebook-doctor` as a read-only
 preflight command for roots/configs/universe/Drive/archive checks and
 secret-presence diagnostics without printing secret values.
 
+After restore/readiness checks, that guide now includes notebook-native
+`src.execution` strategy examples for interactive artifact inspection while
+keeping init/archive/restore/doctor/handoff flows CLI-first.
+
 Overwrite only copied starter templates:
 
 ```powershell

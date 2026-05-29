@@ -73,6 +73,10 @@ For M44.7 persistence choices across fintech and StratLake, see
 when to prefer lightweight session export/import versus archive-pack restore
 flows and reinforces local-runtime-first execution.
 
+For M10.x/M44 companion restore ergonomics, that guide also documents a fintech
+restore-to-local sequence and explicit StratLake handoff root
+`/content/fintech-market-ingestion-demo/data/curated`.
+
 For session-first notebooks, use `stratlake-init-session`. It delegates to the
 same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 `.stratlake/path_resolution.json`:

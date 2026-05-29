@@ -387,6 +387,55 @@ Quick decision rule:
 - treat mounted Drive as persistence and transport only, not canonical runtime
   state
 
+### Fintech Restore-To-Local Handoff
+
+For companion fintech archive restores, keep the handoff root local:
+
+```python
+MARKETLAKE_ROOT = FINTECH_ROOT / "data" / "curated"
+```
+
+Companion restore example shape (verify fintech flags in fintech docs):
+
+```bash
+!fintech-backup-data validate \
+  --backup-pack-dir "/content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session"
+
+!fintech-backup-data inspect \
+  --backup-pack-dir "/content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session"
+
+!fintech-backup-data restore \
+  --backup-pack-dir "/content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session" \
+  --restore-root "/content/fintech-market-ingestion-demo/data/curated" \
+  --overwrite-policy fail
+```
+
+Then run StratLake checks against the restored local curated root:
+
+```bash
+!stratlake-notebook-doctor \
+  --root "/content/stratlake-workspace" \
+  --marketlake-root "/content/fintech-market-ingestion-demo/data/curated" \
+  --drive-root "/content/drive/MyDrive/stratlake-fintech-colab" \
+  --check-configs \
+  --check-universe \
+  --check-drive \
+  --check-marketlake \
+  --json
+
+!stratlake-validate-marketlake-handoff \
+  --root "/content/stratlake-workspace" \
+  --marketlake-root "/content/fintech-market-ingestion-demo/data/curated" \
+  --universe "/content/stratlake-workspace/configs/universe.yml" \
+  --start "2024-10-01" \
+  --end "2025-04-15" \
+  --timeframe 1D \
+  --json
+```
+
+Do not use backup-pack directories themselves as StratLake MarketLake roots.
+Mounted Drive paths are transport and persistence storage only.
+
 ## Inspect Session Paths
 
 Load the session and resolve the important roots before running workflow cells:

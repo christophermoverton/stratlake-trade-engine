@@ -101,6 +101,11 @@ M44.7 adds a unified persistence guide to choose when to use lightweight
 session export/import versus archive-pack flows across fintech and StratLake,
 while keeping active workflows local and treating Drive as transport only.
 
+M10.x/M44 companion guidance now clarifies fintech restore-to-local-first
+handoff: restore curated data into
+`/content/fintech-market-ingestion-demo/data/curated`, then pass that local
+root to StratLake doctor and handoff validation commands.
+
 For notebook and Colab workflows, use a single command to create an M43
 portable archive pack and optionally copy it to a mounted Drive-style path:
 

@@ -156,6 +156,121 @@ Companion command examples (fintech-side, naming may vary by fintech repo versio
 Treat those as companion-platform examples unless your fintech repository docs
 confirm exact command names.
 
+Within this StratLake repository, fintech CLI entry points are not implemented,
+so validate exact fintech command names and flags in the fintech repository
+before automation.
+
+## Fintech Restore-to-StratLake Handoff
+
+Handoff target for StratLake should be a local restored curated root:
+
+```python
+from pathlib import Path
+
+MARKETLAKE_ROOT = Path("/content/fintech-market-ingestion-demo/data/curated").resolve()
+```
+
+StratLake continuation should pass that local root explicitly:
+
+```bash
+stratlake-validate-marketlake-handoff \
+   --root /content/stratlake-workspace \
+   --marketlake-root /content/fintech-market-ingestion-demo/data/curated \
+   --universe /content/stratlake-workspace/configs/universe.yml \
+   --start 2024-10-01 \
+   --end 2025-04-15 \
+   --timeframe 1D \
+   --json
+```
+
+Do not point StratLake at a backup-pack directory under mounted Drive.
+Drive backup-pack folders are transport artifacts, not active MarketLake roots.
+
+## Restore-To-Local-First Sequence (Companion Example)
+
+Companion example shape from M10.x issue context (verify exact flags in fintech
+repository docs):
+
+```bash
+fintech-backup-data validate \
+   --backup-pack-dir /content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session
+
+fintech-backup-data inspect \
+   --backup-pack-dir /content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session
+
+fintech-backup-data restore \
+   --backup-pack-dir /content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session \
+   --restore-root /content/fintech-market-ingestion-demo/data/curated \
+   --overwrite-policy fail
+```
+
+Then run StratLake readiness checks against the restored local root:
+
+```bash
+stratlake-notebook-doctor \
+   --root /content/stratlake-workspace \
+   --marketlake-root /content/fintech-market-ingestion-demo/data/curated \
+   --drive-root /content/drive/MyDrive/stratlake-fintech-colab \
+   --check-configs \
+   --check-universe \
+   --check-drive \
+   --check-marketlake \
+   --json
+
+stratlake-validate-marketlake-handoff \
+   --root /content/stratlake-workspace \
+   --marketlake-root /content/fintech-market-ingestion-demo/data/curated \
+   --universe /content/stratlake-workspace/configs/universe.yml \
+   --start 2024-10-01 \
+   --end 2025-04-15 \
+   --timeframe 1D \
+   --json
+```
+
+This preserves the intended flow:
+
+- validate and inspect backup pack first
+- restore intentionally into local runtime data root
+- validate restored root and hand off that root to StratLake
+
+## Overwrite Policy Guidance (Fintech Companion)
+
+Use the safest restore policy first for clean runtime reruns:
+
+- `--overwrite-policy fail`: safest default for accidental rerun protection
+- use skip-like policies only when the fintech command explicitly supports them
+- use overwrite-like policies only for intentional refresh in a known-clean root
+
+Avoid mixing old and new restored files in one target root. Prefer restoring to
+clean local curated roots when possible.
+
+## Daily, 1-Minute, and Large Dataset Notes
+
+- daily curated bars are smaller and often manageable with lightweight flows
+- 1-minute curated bars are typically large; archive or backup packs are often
+   better for Drive transfer than many loose files
+- sharded backup packs (when provided by fintech tooling) can reduce transfer
+   friction for large curated datasets
+- local restored partitioned Parquet remains the working dataset; pack files are
+   transport artifacts
+
+## Session Save/Restore vs Archive Backup Packs (Fintech)
+
+Use fintech session save/restore commands (for example,
+`fintech-save-session` / `fintech-restore-session`) for:
+
+- config continuity
+- notebook metadata/state continuity
+- smaller reports and lightweight session payloads
+
+Use fintech archive or backup-pack commands (for example,
+`fintech-backup-data ...` or fintech archive commands) for:
+
+- large curated OHLCV datasets
+- feature-ready dataset transfer
+- Drive transport efficiency
+- restore-to-local-first handoff into StratLake
+
 ## Fresh Runtime Restore Sequence
 
 For a clean Colab runtime restart:

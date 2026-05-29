@@ -68,6 +68,10 @@ For unified persistence choices across fintech and StratLake (local runtime,
 lightweight export/import, and archive-pack transport), see
 [`docs/colab_persistence_guide.md`](colab_persistence_guide.md).
 
+That guide also includes companion fintech restore-to-local handoff guidance
+for setting `MARKETLAKE_ROOT` to local restored curated data before StratLake
+doctor and handoff validation steps.
+
 Overwrite only copied starter templates:
 
 ```powershell

@@ -41,6 +41,11 @@ Bootstrap a session-first workspace and write `.stratlake/` metadata:
 stratlake-init-session --root ./stratlake-notebooks --project-name stratlake-demo
 ```
 
+Add `--notebook-configs` to generate a deterministic config bundle with
+`configs/paths.yml`, `configs/universe.yml`, and `configs/tickers_sample.txt`.
+Bundle files are preserved by default; use `--force-notebook-configs` to
+overwrite only those files.
+
 For Colab and mounted-Drive notebooks, use the session-first flow in
 [`docs/colab_project_sessions.md`](colab_project_sessions.md).
 

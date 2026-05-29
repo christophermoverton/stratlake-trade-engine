@@ -55,6 +55,11 @@ same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 stratlake-init-session --root ./stratlake-notebooks --project-name stratlake-demo
 ```
 
+Add `--notebook-configs` when you want deterministic starter files for
+`configs/paths.yml`, `configs/universe.yml`, and `configs/tickers_sample.txt`.
+Existing bundle files are preserved by default; use
+`--force-notebook-configs` to overwrite only those three files.
+
 Use `stratlake-init-notebook` when you only need the workspace layout and
 starter templates. Use `stratlake-init-session` when the notebook CWD, project
 root, MarketLake root, or optional Drive root may differ and should be recorded

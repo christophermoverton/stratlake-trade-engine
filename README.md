@@ -46,6 +46,23 @@ Start with:
 
 ### Session Archive Bootstrap (M43)
 
+Initialize a Colab-style session workspace with deterministic notebook starter
+configs:
+
+```bash
+stratlake-init-session \
+  --root /content/stratlake \
+  --project-name stratlake-colab \
+  --marketlake-root /content/fintech-market-ingestion-demo/data/curated \
+  --drive-root /content/drive/MyDrive/stratlake-colab \
+  --notebook-configs
+```
+
+This opt-in bundle writes user-owned `configs/paths.yml`,
+`configs/universe.yml`, and `configs/tickers_sample.txt`. Existing files are
+preserved by default; use `--force-notebook-configs` to overwrite only those
+bundle files.
+
 For notebook and Colab workflows, use a single command to create an M43
 portable archive pack and optionally copy it to a mounted Drive-style path:
 

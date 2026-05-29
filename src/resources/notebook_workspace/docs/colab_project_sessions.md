@@ -94,13 +94,30 @@ Initialize the project session:
   --root /content/stratlake \
   --project-name stratlake-demo \
   --marketlake-root /content/fintech/data/curated \
-  --drive-root /content/drive/MyDrive/stratlake-demo
+  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --notebook-configs
 ```
 
 Use `stratlake-init-session` when you want workspace starter files plus
 `.stratlake/session.json` and `.stratlake/path_resolution.json`. Use
 `stratlake-init-notebook` only when you want the workspace layout and starter
 templates without session metadata.
+
+`--notebook-configs` writes a deterministic notebook-ready config bundle under
+`configs/`:
+
+- `configs/paths.yml`
+- `configs/universe.yml`
+- `configs/tickers_sample.txt`
+
+These starter configs are user-owned. Existing files are preserved by default.
+Use `--force-notebook-configs` to overwrite only this bundle (without touching
+unrelated files). `--force` remains the explicit refresh path for session
+metadata and known notebook starter templates.
+
+`configs/paths.yml` keeps project-owned paths relative where practical and keeps
+external roots explicit when they are outside the project root, such as mounted
+Drive paths or restored local MarketLake curated roots.
 
 ## Inspect Session Paths
 
@@ -153,6 +170,10 @@ irrelevant:
 
 The feature-run summary records the effective MarketLake root and its source
 under `config_resolution`.
+
+Keep `marketlake_root` pointed to a local curated dataset root (for example,
+restored fintech curated data under `/content/.../data/curated`). Do not treat
+Drive archive-pack directories as canonical MarketLake roots.
 
 ## Run Workflows From Session Configs
 

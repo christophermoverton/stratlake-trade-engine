@@ -5,6 +5,7 @@ import os
 from pathlib import Path
 
 import pytest
+import yaml
 
 from src.cli.init_session import main, run_cli
 from src.cli.init_notebook_workspace import _resolve_resource_root
@@ -194,7 +195,15 @@ def test_init_session_does_not_mutate_env_files_or_process_environment(
     before_environ = dict(os.environ)
     monkeypatch.setenv("STRATLAKE_TEST_SENTINEL", "keep")
 
-    run_cli(["--root", str(project_root), "--project-name", "demo"])
+    run_cli(
+        [
+            "--root",
+            str(project_root),
+            "--project-name",
+            "demo",
+            "--notebook-configs",
+        ]
+    )
 
     assert env_path.read_text(encoding="utf-8") == "SENTINEL=1\n"
     assert os.environ["STRATLAKE_TEST_SENTINEL"] == "keep"
@@ -224,3 +233,201 @@ def test_unsafe_session_metadata_write_outside_root_fails(
 
     assert exit_code == 2
     assert not project_root.exists()
+
+
+def test_notebook_configs_generate_expected_bundle_files(tmp_path: Path) -> None:
+    project_root = tmp_path / "stratlake-demo"
+    marketlake_root = tmp_path / "external-marketlake" / "data" / "curated"
+    drive_root = tmp_path / "drive" / "MyDrive" / "stratlake-demo"
+
+    summary = run_cli(
+        [
+            "--root",
+            str(project_root),
+            "--project-name",
+            "stratlake-demo",
+            "--marketlake-root",
+            str(marketlake_root),
+            "--drive-root",
+            str(drive_root),
+            "--notebook-configs",
+        ]
+    )
+
+    paths_path = project_root / "configs" / "paths.yml"
+    universe_path = project_root / "configs" / "universe.yml"
+    tickers_path = project_root / "configs" / "tickers_sample.txt"
+
+    assert paths_path.is_file()
+    assert universe_path.is_file()
+    assert tickers_path.is_file()
+
+    paths_payload = yaml.safe_load(paths_path.read_text(encoding="utf-8"))
+    universe_payload = yaml.safe_load(universe_path.read_text(encoding="utf-8"))
+    tickers_lines = tickers_path.read_text(encoding="utf-8").splitlines()
+
+    assert paths_payload["project_root"] == "."
+    assert paths_payload["configs_root"] == "configs"
+    assert paths_payload["marketlake_root"] == marketlake_root.resolve().as_posix()
+    assert paths_payload["drive_root"] == drive_root.resolve().as_posix()
+    assert paths_payload["path_kinds"]["marketlake_root"] == "external_absolute"
+    assert paths_payload["path_kinds"]["drive_root"] == "external_absolute"
+
+    assert universe_payload["tickers_file"] == "configs/tickers_sample.txt"
+    assert universe_payload["timeframe"] == "1D"
+    assert tickers_lines == sorted(tickers_lines)
+
+    assert summary["notebook_configs"]["requested"] is True
+    assert summary["notebook_configs"]["force"] is False
+    assert summary["notebook_configs"]["generated"] == [
+        "configs/paths.yml",
+        "configs/universe.yml",
+        "configs/tickers_sample.txt",
+    ]
+
+
+def test_notebook_configs_preserve_existing_user_files_by_default(tmp_path: Path) -> None:
+    project_root = tmp_path / "stratlake-demo"
+    configs_root = project_root / "configs"
+    configs_root.mkdir(parents=True)
+    sentinel_paths = "marketlake_root: keep/me\n"
+    sentinel_universe = "tickers_file: configs/custom.txt\n"
+    sentinel_tickers = "CUSTOM\n"
+    (configs_root / "paths.yml").write_text(sentinel_paths, encoding="utf-8")
+    (configs_root / "universe.yml").write_text(sentinel_universe, encoding="utf-8")
+    (configs_root / "tickers_sample.txt").write_text(sentinel_tickers, encoding="utf-8")
+
+    summary = run_cli(
+        [
+            "--root",
+            str(project_root),
+            "--project-name",
+            "demo",
+            "--notebook-configs",
+        ]
+    )
+
+    assert (configs_root / "paths.yml").read_text(encoding="utf-8") == sentinel_paths
+    assert (configs_root / "universe.yml").read_text(encoding="utf-8") == sentinel_universe
+    assert (configs_root / "tickers_sample.txt").read_text(encoding="utf-8") == sentinel_tickers
+    assert summary["notebook_configs"]["generated"] == []
+    assert summary["notebook_configs"]["overwritten"] == []
+    assert summary["notebook_configs"]["skipped"] == [
+        "configs/paths.yml",
+        "configs/universe.yml",
+        "configs/tickers_sample.txt",
+    ]
+
+
+def test_notebook_configs_force_overwrites_only_bundle_targets(tmp_path: Path) -> None:
+    project_root = tmp_path / "stratlake-demo"
+    run_cli(["--root", str(project_root), "--project-name", "demo"])
+
+    paths = project_root / "configs" / "paths.yml"
+    universe = project_root / "configs" / "universe.yml"
+    tickers = project_root / "configs" / "tickers_sample.txt"
+    unrelated = project_root / "configs" / "custom_user_config.yml"
+
+    paths.write_text("marketlake_root: stale\n", encoding="utf-8")
+    universe.write_text("tickers_file: stale.txt\n", encoding="utf-8")
+    tickers.write_text("STALE\n", encoding="utf-8")
+    unrelated.write_text("do-not-touch: true\n", encoding="utf-8")
+
+    summary = run_cli(
+        [
+            "--root",
+            str(project_root),
+            "--project-name",
+            "demo",
+            "--notebook-configs",
+            "--force-notebook-configs",
+            "--force",
+        ]
+    )
+
+    assert "stale" not in paths.read_text(encoding="utf-8")
+    assert "stale.txt" not in universe.read_text(encoding="utf-8")
+    assert tickers.read_text(encoding="utf-8") != "STALE\n"
+    assert unrelated.read_text(encoding="utf-8") == "do-not-touch: true\n"
+    assert summary["notebook_configs"]["overwritten"] == [
+        "configs/paths.yml",
+        "configs/universe.yml",
+        "configs/tickers_sample.txt",
+    ]
+
+
+def test_notebook_configs_are_deterministic_for_same_inputs(tmp_path: Path) -> None:
+    project_root = tmp_path / "stratlake-demo"
+
+    run_cli(
+        [
+            "--root",
+            str(project_root),
+            "--project-name",
+            "demo",
+            "--notebook-configs",
+        ]
+    )
+
+    first_paths = (project_root / "configs" / "paths.yml").read_text(encoding="utf-8")
+    first_universe = (project_root / "configs" / "universe.yml").read_text(encoding="utf-8")
+    first_tickers = (project_root / "configs" / "tickers_sample.txt").read_text(encoding="utf-8")
+
+    run_cli(
+        [
+            "--root",
+            str(project_root),
+            "--project-name",
+            "demo",
+            "--notebook-configs",
+            "--force-notebook-configs",
+            "--force",
+        ]
+    )
+
+    assert (project_root / "configs" / "paths.yml").read_text(encoding="utf-8") == first_paths
+    assert (project_root / "configs" / "universe.yml").read_text(encoding="utf-8") == first_universe
+    assert (project_root / "configs" / "tickers_sample.txt").read_text(encoding="utf-8") == first_tickers
+
+
+def test_force_notebook_configs_requires_notebook_configs(tmp_path: Path) -> None:
+    project_root = tmp_path / "stratlake-demo"
+
+    with pytest.raises(SystemExit) as exc_info:
+        run_cli(["--root", str(project_root), "--force-notebook-configs"])
+
+    assert exc_info.value.code == 2
+
+
+def test_path_resolution_metadata_records_notebook_bundle_status(tmp_path: Path) -> None:
+    project_root = tmp_path / "stratlake-demo"
+
+    run_cli(
+        [
+            "--root",
+            str(project_root),
+            "--project-name",
+            "demo",
+            "--notebook-configs",
+        ]
+    )
+
+    resolution_json = json.loads(
+        (project_root / ".stratlake" / "path_resolution.json").read_text(encoding="utf-8")
+    )
+    bundle = resolution_json["notebook_config_bundle"]
+
+    assert bundle["requested"] is True
+    assert bundle["force"] is False
+    assert bundle["config_dir"] == "configs"
+    assert bundle["generated"] == [
+        "configs/paths.yml",
+        "configs/universe.yml",
+        "configs/tickers_sample.txt",
+    ]
+    assert bundle["session_root"] == project_root.resolve().as_posix()
+    assert bundle["marketlake_root"]["kind"] in {
+        "project_internal",
+        "external_absolute",
+        "external_or_project_relative",
+    }

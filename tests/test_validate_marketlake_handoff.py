@@ -48,6 +48,50 @@ def test_validate_marketlake_handoff_passes_on_valid_bundle(tmp_path: Path) -> N
     assert result.symbols["missing"] == []
     assert before_files == after_files
     assert result.to_dict()["checks"]
+    assert any(
+        check.name == "universe_load" and check.status == "pass" and check.severity == "info"
+        for check in result.checks
+    )
+
+
+def test_validate_marketlake_handoff_loads_tickers_string_as_file_path(tmp_path: Path) -> None:
+    project_root = tmp_path / "stratlake"
+    marketlake_root = project_root / "data" / "curated"
+    universe_path = project_root / "configs" / "universe.yml"
+    paths_path = project_root / "configs" / "paths.yml"
+    tickers_path = project_root / "configs" / "tickers_sample.txt"
+
+    _write_valid_bundle(
+        project_root=project_root,
+        marketlake_root=marketlake_root,
+        universe_path=universe_path,
+        paths_path=paths_path,
+        tickers_path=tickers_path,
+    )
+    universe_path.write_text(
+        yaml.safe_dump({"name": "demo", "tickers": "configs/tickers_sample.txt"}, sort_keys=True),
+        encoding="utf-8",
+    )
+
+    result = validate_marketlake_handoff(
+        root=project_root,
+        marketlake_root=marketlake_root,
+        universe=universe_path,
+        start="2025-01-02",
+        end="2025-01-04",
+        timeframe="1D",
+    )
+
+    assert result.status == "pass"
+    assert result.symbols["requested"] == ["AAPL", "MSFT"]
+    assert result.symbols["missing"] == []
+    assert any(
+        check.name == "universe_load"
+        and check.status == "pass"
+        and check.details["source"] == "tickers_file"
+        and check.details["source_path"] == tickers_path.resolve().as_posix()
+        for check in result.checks
+    )
 
 
 def test_validate_marketlake_handoff_warns_without_paths_config(tmp_path: Path) -> None:

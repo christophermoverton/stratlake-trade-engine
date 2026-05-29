@@ -134,7 +134,7 @@ def validate_marketlake_handoff(
         HandoffCheck(
             name="universe_load",
             status="pass" if universe_selection.symbols else "fail",
-            severity="error" if universe_selection.symbols else "error",
+            severity="info" if universe_selection.symbols else "error",
             message=(
                 f"Loaded {len(universe_selection.symbols)} requested symbol(s) from "
                 f"{universe_selection.source_path or universe_selection.source}."
@@ -787,7 +787,7 @@ def _extract_symbols(
             symbol_candidates.extend(
                 str(item).strip().upper() for item in value if str(item).strip()
             )
-        elif isinstance(value, str) and value.strip():
+        elif key != "tickers" and isinstance(value, str) and value.strip():
             symbol_candidates.append(value.strip().upper())
 
     nested = payload.get("universe")
@@ -817,7 +817,7 @@ def _has_explicit_symbol_list(payload: Mapping[str, Any]) -> bool:
         value = payload.get(key)
         if isinstance(value, list) and value:
             return True
-        if isinstance(value, str) and value.strip():
+        if key != "tickers" and isinstance(value, str) and value.strip():
             return True
     nested = payload.get("universe")
     if isinstance(nested, Mapping):

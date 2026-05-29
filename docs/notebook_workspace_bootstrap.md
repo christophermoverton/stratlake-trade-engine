@@ -41,8 +41,39 @@ Bootstrap a session-first workspace and write `.stratlake/` metadata:
 stratlake-init-session --root ./stratlake-notebooks --project-name stratlake-demo
 ```
 
+Add `--notebook-configs` to generate a deterministic config bundle with
+`configs/paths.yml`, `configs/universe.yml`, and `configs/tickers_sample.txt`.
+Bundle files are preserved by default; use `--force-notebook-configs` to
+overwrite only those files.
+
 For Colab and mounted-Drive notebooks, use the session-first flow in
 [`docs/colab_project_sessions.md`](colab_project_sessions.md).
+M44 release metadata is summarized in
+[`docs/m44_release_notes.md`](m44_release_notes.md) and
+[`docs/m44_release_validation_checklist.md`](m44_release_validation_checklist.md).
+That guide includes a unified profile cell (`FINTECH_ROOT`, `STRATLAKE_ROOT`,
+`MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`, `END`, `UNIVERSE_CONFIG`, and
+`PATHS_CONFIG`) so later commands can pass explicit paths without relying on
+notebook CWD.
+It also includes a restore-first flow for fresh runtimes using
+`stratlake-session-archive-restore-bootstrap` with dry-run validation and
+inspection before intentional restore execution.
+
+That Colab guide also includes `stratlake-notebook-doctor` as a read-only
+preflight command for roots/configs/universe/Drive/archive checks and
+secret-presence diagnostics without printing secret values.
+
+After restore/readiness checks, that guide now includes notebook-native
+`src.execution` strategy examples for interactive artifact inspection while
+keeping init/archive/restore/doctor/handoff flows CLI-first.
+
+For unified persistence choices across fintech and StratLake (local runtime,
+lightweight export/import, and archive-pack transport), see
+[`docs/colab_persistence_guide.md`](colab_persistence_guide.md).
+
+That guide also includes companion fintech restore-to-local handoff guidance
+for setting `MARKETLAKE_ROOT` to local restored curated data before StratLake
+doctor and handoff validation steps.
 
 Overwrite only copied starter templates:
 

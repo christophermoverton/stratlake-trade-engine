@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import argparse
+import json
 from pathlib import Path
 import sys
 from typing import Sequence
 
 from src.cli.init_notebook_workspace import initialize_notebook_workspace
+from src.cli.notebook_config_bundle import (
+    initialize_notebook_config_bundle,
+)
 from src.session import create_notebook_project_session, write_session_files
 from src.session.io import PATH_RESOLUTION_FILE_NAME, SESSION_DIR_NAME, SESSION_FILE_NAME
 
@@ -53,9 +57,27 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
             "session metadata."
         ),
     )
+    parser.add_argument(
+        "--notebook-configs",
+        action="store_true",
+        help=(
+            "Generate a notebook-ready config bundle: configs/paths.yml, "
+            "configs/universe.yml, and configs/tickers_sample.txt."
+        ),
+    )
+    parser.add_argument(
+        "--force-notebook-configs",
+        action="store_true",
+        help=(
+            "Overwrite existing notebook config bundle files. Requires "
+            "--notebook-configs."
+        ),
+    )
     args = parser.parse_args(argv)
     if args.enable_drive_persistence and not args.drive_root:
         parser.error("--enable-drive-persistence requires --drive-root")
+    if args.force_notebook_configs and not args.notebook_configs:
+        parser.error("--force-notebook-configs requires --notebook-configs")
     return args
 
 
@@ -73,6 +95,19 @@ def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
         drive_persistence_enabled=args.enable_drive_persistence,
     )
     write_result = write_session_files(session, overwrite=args.force)
+    notebook_configs: dict[str, object] | None = None
+    if args.notebook_configs:
+        notebook_configs_result = initialize_notebook_config_bundle(
+            project_root=root,
+            session=session,
+            force=args.force_notebook_configs,
+        )
+        notebook_configs = notebook_configs_result.to_dict()
+        _write_init_session_diagnostics(
+            write_result.path_resolution_path,
+            session=session,
+            notebook_config_summary=notebook_configs,
+        )
     summary: dict[str, object] = {
         "bootstrap": bootstrap_summary,
         "session": session.to_dict(),
@@ -80,6 +115,8 @@ def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
         "path_resolution_path": write_result.path_resolution_path.as_posix(),
         "drive_persistence_enabled": args.enable_drive_persistence,
     }
+    if notebook_configs is not None:
+        summary["notebook_configs"] = notebook_configs
     print_summary(summary)
     return summary
 
@@ -159,7 +196,45 @@ def print_summary(summary: dict[str, object]) -> None:
     print("Session metadata:")
     print(f"  session: {summary['session_path']}")
     print(f"  path_resolution: {summary['path_resolution_path']}")
+    if "notebook_configs" in summary:
+        notebook_configs = summary["notebook_configs"]
+        print(
+            "Notebook config bundle: "
+            f"requested={'yes' if notebook_configs['requested'] else 'no'}, "
+            f"generated={len(notebook_configs['generated'])}, "
+            f"overwritten={len(notebook_configs['overwritten'])}, "
+            f"skipped={len(notebook_configs['skipped'])}"
+        )
     print("Next: open notebooks from this project root and pass explicit paths to StratLake APIs.")
+
+
+def _write_init_session_diagnostics(
+    resolution_path: Path,
+    *,
+    session,
+    notebook_config_summary: dict[str, object],
+) -> None:
+    payload = json.loads(resolution_path.read_text(encoding="utf-8"))
+    payload["notebook_config_bundle"] = {
+        **notebook_config_summary,
+        "session_root": session.project_root.resolved_path,
+        "project_name": session.project_name,
+        "marketlake_root": {
+            "path": session.marketlake_root.path,
+            "kind": session.marketlake_root.kind.value,
+        },
+        "drive_root": None
+        if session.drive_root is None
+        else {
+            "path": session.drive_root.path,
+            "kind": session.drive_root.kind.value,
+        },
+    }
+    resolution_path.write_text(
+        json.dumps(payload, indent=2, sort_keys=False) + "\n",
+        encoding="utf-8",
+        newline="\n",
+    )
 
 
 if __name__ == "__main__":

@@ -19,6 +19,11 @@ Google Drive, read live market data, require credentials, execute research
 workflows, or mutate canonical artifacts outside the user-selected archive or
 restore targets.
 
+M44 keeps the same archive boundary and documents restore-first Colab
+handoffs in [M44 release notes](m44_release_notes.md). Archive packs remain
+derived transport artifacts that should be restored into local runtime roots
+before active StratLake execution.
+
 ## Manifest Contract
 
 The Python contract lives in `src/session_archive/manifest.py`.

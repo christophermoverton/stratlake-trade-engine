@@ -6,7 +6,7 @@ Notebook integration makes StratLake easier to use for interactive research,
 inspection, teaching, and review while preserving the same artifact contracts
 used by CLI, pipeline, validation, and orchestrated workflows. Use this guide
 with `docs/notebook_execution_api.md`, `docs/concurrency_and_idempotency.md`,
-and `docs/pipeline_integration.md`.
+`docs/pipeline_integration.md`, and `docs/m44_release_notes.md`.
 
 Notebooks are an interactive surface over the existing StratLake execution
 system. They should run established workflows, inspect returned
@@ -47,6 +47,31 @@ For a copy-friendly Colab walkthrough that keeps notebook CWD, project root,
 external MarketLake root, and mounted Drive root explicit, see
 [`docs/colab_project_sessions.md`](colab_project_sessions.md).
 
+For fresh runtime recovery, that guide now includes a restore-first M44 pattern
+using `ARCHIVE_ID` / `ARCHIVE_ROOT`, dry-run validation and inspection, then
+intentional `stratlake-session-archive-restore-bootstrap` execution into an
+explicit local `/content/...` workspace.
+
+For M44 root stability in Colab, define a single profile cell once (for
+`FINTECH_ROOT`, `STRATLAKE_ROOT`, `MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`,
+`END`, `UNIVERSE_CONFIG`, and `PATHS_CONFIG`) and pass those variables through
+all later commands. Prefer explicit `--root`, `--marketlake-root`, and
+`--drive-root` arguments over notebook-CWD-dependent command behavior.
+
+For restored Colab sessions, use the M44.6 notebook-native execution pattern
+in `docs/colab_project_sessions.md`: keep CLI for setup/restore/doctor/handoff
+flows, then switch to `src.execution` APIs (`run_strategy`, result helpers) for
+interactive execution and artifact inspection without hard-coded run IDs.
+
+For M44.7 persistence choices across fintech and StratLake, see
+[`docs/colab_persistence_guide.md`](colab_persistence_guide.md). It explains
+when to prefer lightweight session export/import versus archive-pack restore
+flows and reinforces local-runtime-first execution.
+
+For M10.x/M44 companion restore ergonomics, that guide also documents a fintech
+restore-to-local sequence and explicit StratLake handoff root
+`/content/fintech-market-ingestion-demo/data/curated`.
+
 For session-first notebooks, use `stratlake-init-session`. It delegates to the
 same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 `.stratlake/path_resolution.json`:
@@ -55,10 +80,33 @@ same notebook bootstrap initializer, then writes `.stratlake/session.json` and
 stratlake-init-session --root ./stratlake-notebooks --project-name stratlake-demo
 ```
 
+Add `--notebook-configs` when you want deterministic starter files for
+`configs/paths.yml`, `configs/universe.yml`, and `configs/tickers_sample.txt`.
+Existing bundle files are preserved by default; use
+`--force-notebook-configs` to overwrite only those three files.
+
 Use `stratlake-init-notebook` when you only need the workspace layout and
 starter templates. Use `stratlake-init-session` when the notebook CWD, project
 root, MarketLake root, or optional Drive root may differ and should be recorded
 explicitly.
+
+Before building features, validate the restored curated data and notebook
+session paths with the handoff checker:
+
+```powershell
+stratlake-validate-marketlake-handoff \
+  --root "{STRATLAKE_ROOT}" \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --universe "{UNIVERSE_CONFIG}" \
+  --start "{START}" \
+  --end "{END}" \
+  --timeframe 1D \
+  --json
+```
+
+The validator is read-only. It fails early on missing curated roots, archive
+pack directories, missing symbols, missing date-window coverage, or notebook
+profile/config mismatches.
 
 ## Notebook Project Sessions
 

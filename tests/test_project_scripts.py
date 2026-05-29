@@ -23,6 +23,7 @@ EXPECTED_SCRIPT_TARGETS = {
     "stratlake-compare-alpha": "src.cli.compare_alpha:main",
     "stratlake-validate-config": "src.cli.validate_config:main",
     "stratlake-doctor": "src.cli.stratlake_doctor:main",
+    "stratlake-notebook-doctor": "src.cli.notebook_doctor:main",
     "stratlake-explain-config": "src.cli.explain_config:main",
     "stratlake-catalog-index": "src.cli.catalog_index:main",
     "stratlake-query-catalog": "src.cli.query_catalog:main",

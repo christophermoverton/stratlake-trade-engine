@@ -34,7 +34,9 @@ Start with:
 * [docs/notebook_integration.md](docs/notebook_integration.md)
 * [docs/notebook_workspace_bootstrap.md](docs/notebook_workspace_bootstrap.md)
 * [docs/colab_project_sessions.md](docs/colab_project_sessions.md)
+* [docs/colab_persistence_guide.md](docs/colab_persistence_guide.md)
 * [docs/session_archives.md](docs/session_archives.md)
+* [docs/m44_release_notes.md](docs/m44_release_notes.md)
 * [docs/m43_release_notes.md](docs/m43_release_notes.md)
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
 * [docs/pipeline_integration.md](docs/pipeline_integration.md)
@@ -44,7 +46,97 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
-### Session Archive Bootstrap (M43)
+### Release 0.44.0: Colab Notebook Session Ergonomics
+
+Release 0.44.0 prepares the M44 Colab notebook session ergonomics and
+MarketLake restore handoff milestone for merge. It collects the restore-first
+Colab workflow, notebook config bundle generation, unified profile variables,
+read-only notebook doctor diagnostics, read-only MarketLake handoff validation,
+notebook-native `src.execution` examples after restore/init, unified
+persistence guidance, and fintech restore-to-local handoff guidance.
+
+M44 preserves the notebook architecture boundary: active work runs from local
+runtime roots; Drive-mounted paths are filesystem persistence/transport only;
+archive and backup packs are derived and non-canonical; notebook/session
+metadata and MarketLake handoff reports are diagnostic. The milestone does not
+add hidden sync, Google API/OAuth behavior, restore-on-import behavior,
+background persistence, a second execution engine, or fintech ingestion
+behavior.
+
+Package/build version:
+`0.44.0`
+
+Candidate release tag:
+`v0.44.0-colab-notebook-session-ergonomics-marketlake-handoff`
+
+Start with:
+
+* [docs/m44_release_notes.md](docs/m44_release_notes.md)
+* [docs/m44_release_validation_checklist.md](docs/m44_release_validation_checklist.md)
+* [docs/colab_project_sessions.md](docs/colab_project_sessions.md)
+* [docs/colab_persistence_guide.md](docs/colab_persistence_guide.md)
+* [docs/notebook_integration.md](docs/notebook_integration.md)
+
+### Session Archive Bootstrap (M43/M44)
+
+Initialize a Colab-style session workspace with deterministic notebook starter
+configs:
+
+```bash
+stratlake-init-session \
+  --root /content/stratlake \
+  --project-name stratlake-colab \
+  --marketlake-root /content/fintech-market-ingestion-demo/data/curated \
+  --drive-root /content/drive/MyDrive/stratlake-colab \
+  --notebook-configs
+```
+
+This opt-in bundle writes user-owned `configs/paths.yml`,
+`configs/universe.yml`, and `configs/tickers_sample.txt`. Existing files are
+preserved by default; use `--force-notebook-configs` to overwrite only those
+bundle files.
+
+After restoring or refreshing curated fintech data, validate the handoff
+before any feature build:
+
+```bash
+stratlake-validate-marketlake-handoff \
+  --root /content/stratlake \
+  --marketlake-root /content/fintech-market-ingestion-demo/data/curated \
+  --universe /content/stratlake/configs/universe.yml \
+  --start 2025-01-01 \
+  --end 2025-02-01 \
+  --timeframe 1D \
+  --json
+```
+
+The validator is read-only. It checks the curated root, explicit notebook
+profile paths, requested symbols, and requested date window before feature
+construction runs.
+
+For M44 notebook preflight diagnostics, run `stratlake-notebook-doctor` with
+explicit roots. It is read-only and checks Colab/session roots, configs,
+universe readiness, Drive/archive markers, and secret presence without printing
+secret values.
+
+In Colab notebooks, define one explicit profile cell (for `FINTECH_ROOT`,
+`STRATLAKE_ROOT`, `MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`, `END`,
+`UNIVERSE_CONFIG`, and `PATHS_CONFIG`) and reuse those variables in later
+commands so workflows do not depend on notebook CWD.
+
+M44.6 keeps setup/archive/restore/doctor/handoff validation CLI-first, then
+uses notebook-native `src.execution` APIs for interactive strategy execution,
+artifact inspection, and lightweight comparison loops from restored local
+workspace state.
+
+M44.7 adds a unified persistence guide to choose when to use lightweight
+session export/import versus archive-pack flows across fintech and StratLake,
+while keeping active workflows local and treating Drive as transport only.
+
+M10.x/M44 companion guidance now clarifies fintech restore-to-local-first
+handoff: restore curated data into
+`/content/fintech-market-ingestion-demo/data/curated`, then pass that local
+root to StratLake doctor and handoff validation commands.
 
 For notebook and Colab workflows, use a single command to create an M43
 portable archive pack and optionally copy it to a mounted Drive-style path:
@@ -105,6 +197,12 @@ stratlake-session-archive-restore-bootstrap \
   --inspect-before-restore \
   --overwrite-policy fail_if_exists
 ```
+
+For fresh Colab runtimes, use the restore-first workflow in
+[`docs/colab_project_sessions.md`](docs/colab_project_sessions.md): define the
+unified profile once, set `ARCHIVE_ID` and `ARCHIVE_ROOT`, run restore dry-run
+with `--json`, then execute restore intentionally into local `/content/...`
+state before handoff validation and feature builds.
 
 Restore bootstrap delegates to the shared M43 validation, inspection, dry-run
 planning, and restore APIs. It does not call Google APIs, require OAuth or
@@ -701,6 +799,8 @@ Published:
 
 Start with:
 
+* [docs/m44_release_notes.md](docs/m44_release_notes.md)
+* [docs/m44_release_validation_checklist.md](docs/m44_release_validation_checklist.md)
 * [docs/m43_release_notes.md](docs/m43_release_notes.md)
 * [docs/m43_release_validation_checklist.md](docs/m43_release_validation_checklist.md)
 * [docs/session_archives.md](docs/session_archives.md)
@@ -2134,6 +2234,8 @@ Start here:
 * [docs/corporate_actions_event_contracts.md](docs/corporate_actions_event_contracts.md)
 * [docs/m40_release_notes.md](docs/m40_release_notes.md)
 * [docs/m40_release_validation_checklist.md](docs/m40_release_validation_checklist.md)
+* [docs/m44_release_notes.md](docs/m44_release_notes.md)
+* [docs/m44_release_validation_checklist.md](docs/m44_release_validation_checklist.md)
 * [docs/runtime_profiles.md](docs/runtime_profiles.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)

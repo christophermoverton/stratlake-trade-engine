@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stratlake-trade-engine"
-version = "0.43.2"
+version = "0.44.0"
 description = "Deterministic, artifact-driven quantitative research and backtesting platform."
 authors = [{ name = "Christopher Overton" }]
 readme = "README.md"
@@ -57,7 +57,9 @@ stratlake-review-candidate-selection = "src.cli.review_candidate_selection:main"
 stratlake-compare-strategies = "src.cli.compare_strategies:main"
 stratlake-compare-alpha = "src.cli.compare_alpha:main"
 stratlake-validate-config = "src.cli.validate_config:main"
+stratlake-validate-marketlake-handoff = "src.cli.validate_marketlake_handoff:main"
 stratlake-doctor = "src.cli.stratlake_doctor:main"
+stratlake-notebook-doctor = "src.cli.notebook_doctor:main"
 stratlake-explain-config = "src.cli.explain_config:main"
 stratlake-catalog-index = "src.cli.catalog_index:main"
 stratlake-query-catalog = "src.cli.query_catalog:main"

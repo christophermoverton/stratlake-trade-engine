@@ -1,5 +1,9 @@
 # Colab Project Sessions
 
+M44 release metadata:
+[M44 release notes](m44_release_notes.md) and
+[M44 release validation checklist](m44_release_validation_checklist.md).
+
 ## Purpose
 
 Use a StratLake project session in Colab or another cloud notebook when the
@@ -77,30 +81,364 @@ from google.colab import drive
 drive.mount("/content/drive")
 ```
 
-Define explicit roots in a notebook cell:
+Define a unified Colab session profile once, then reuse it in later cells:
 
 ```python
 from pathlib import Path
 
-PROJECT_ROOT = Path("/content/stratlake").resolve()
-MARKETLAKE_ROOT = Path("/content/fintech/data/curated").resolve()
-DRIVE_ROOT = Path("/content/drive/MyDrive/stratlake-demo").resolve()
+FINTECH_ROOT = Path("/content/fintech-market-ingestion-demo").resolve()
+STRATLAKE_ROOT = Path("/content/stratlake-workspace").resolve()
+MARKETLAKE_ROOT = FINTECH_ROOT / "data" / "curated"
+DRIVE_ROOT = Path("/content/drive/MyDrive/stratlake-fintech-colab").resolve()
+
+START = "2024-10-01"
+END = "2025-04-15"
+UNIVERSE_CONFIG = STRATLAKE_ROOT / "configs" / "universe.yml"
+PATHS_CONFIG = STRATLAKE_ROOT / "configs" / "paths.yml"
+
+SESSION_ARCHIVES_ROOT = DRIVE_ROOT / "session_archives"
+ARCHIVE_ID = "notebook-session-001"
+ARCHIVE_ROOT = SESSION_ARCHIVES_ROOT / ARCHIVE_ID
+ARTIFACTS_ROOT = STRATLAKE_ROOT / "artifacts"
+FEATURES_ROOT = STRATLAKE_ROOT / "data" / "curated"
+TICKERS_SAMPLE = STRATLAKE_ROOT / "configs" / "tickers_sample.txt"
 ```
+
+Root meanings:
+
+- `FINTECH_ROOT`: local Colab runtime checkout/workspace for fintech ingestion.
+- `STRATLAKE_ROOT`: local Colab runtime workspace for StratLake files and runs.
+- `MARKETLAKE_ROOT`: local curated-data root consumed by StratLake.
+- `DRIVE_ROOT`: mounted Drive persistence/archive location, not canonical working data.
+- `UNIVERSE_CONFIG`: generated or user-owned StratLake universe config.
+- `PATHS_CONFIG`: generated or user-owned StratLake path config.
+
+The profile is an explicit notebook convenience layer only. It does not mutate
+`.env`, `os.environ`, Drive files, or canonical artifacts.
 
 Initialize the project session:
 
 ```bash
 !stratlake-init-session \
-  --root /content/stratlake \
+  --root "{STRATLAKE_ROOT}" \
   --project-name stratlake-demo \
-  --marketlake-root /content/fintech/data/curated \
-  --drive-root /content/drive/MyDrive/stratlake-demo
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
+  --notebook-configs
 ```
 
 Use `stratlake-init-session` when you want workspace starter files plus
 `.stratlake/session.json` and `.stratlake/path_resolution.json`. Use
 `stratlake-init-notebook` only when you want the workspace layout and starter
 templates without session metadata.
+
+`--notebook-configs` writes a deterministic notebook-ready config bundle under
+`configs/`:
+
+- `configs/paths.yml`
+- `configs/universe.yml`
+- `configs/tickers_sample.txt`
+
+These starter configs are user-owned. Existing files are preserved by default.
+Use `--force-notebook-configs` to overwrite only this bundle (without touching
+unrelated files). `--force` remains the explicit refresh path for session
+metadata and known notebook starter templates.
+
+`configs/paths.yml` keeps project-owned paths relative where practical and keeps
+external roots explicit when they are outside the project root, such as mounted
+Drive paths or restored local MarketLake curated roots.
+
+This pairing (`--notebook-configs` + profile values) ensures generated
+`configs/paths.yml` and `configs/universe.yml` line up with the notebook's
+explicit runtime roots.
+
+## Validate Restored Curated Data Before Feature Builds
+
+After restoring or refreshing curated fintech data, validate the handoff before
+building features:
+
+```bash
+!stratlake-validate-marketlake-handoff \
+  --root "{STRATLAKE_ROOT}" \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --universe "{UNIVERSE_CONFIG}" \
+  --start "{START}" \
+  --end "{END}" \
+  --timeframe 1D \
+  --json
+```
+
+This check is read-only. It verifies the curated root, notebook-session paths,
+requested symbols, and the requested date window before any feature build
+runs.
+
+## Notebook Doctor Preflight (Read-Only)
+
+Run notebook doctor before restore/build cells when you want one deterministic
+read-only report covering roots, configs, universe, Drive mounts, archive
+markers, and secret presence.
+
+```bash
+!stratlake-notebook-doctor \
+  --root "{STRATLAKE_ROOT}" \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
+  --archive-root "{ARCHIVE_ROOT}" \
+  --check-configs \
+  --check-universe \
+  --check-drive \
+  --check-archives \
+  --check-secrets \
+  --json
+```
+
+Notebook doctor boundaries are strict: no .env or os.environ mutation, no
+Google API calls, no hidden sync, and no writes to curated data or artifacts.
+Secret values are never printed; only `SET`/`NOT_SET` state is reported.
+
+Use this preflight for quick session/root diagnostics, then run
+`stratlake-validate-marketlake-handoff` for symbol/date data readiness and
+`stratlake-session-archive-restore-bootstrap --dry-run --json` for restore
+planning and archive diagnostics.
+
+## Restore-First Colab Workflow (Fresh Runtime)
+
+Use restore-first when a fresh Colab runtime starts and a previous session
+archive already exists under mounted Drive storage. Restore local runtime state
+into `STRATLAKE_ROOT` first, then continue research from the restored local
+workspace.
+
+Drive folders and archive packs are derived persistence and transport artifacts,
+not canonical StratLake state.
+
+Dry-run with validation and inspection before any restore writes:
+
+```bash
+!stratlake-session-archive-restore-bootstrap \
+  --archive-root "{ARCHIVE_ROOT}" \
+  --target-root "{STRATLAKE_ROOT}" \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --dry-run \
+  --json
+```
+
+Dry-run validates archive structure and planned restore behavior, but does not
+write restored files.
+
+Run the restore intentionally after reviewing dry-run output:
+
+```bash
+!stratlake-session-archive-restore-bootstrap \
+  --archive-root "{ARCHIVE_ROOT}" \
+  --target-root "{STRATLAKE_ROOT}" \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --overwrite-policy fail_if_exists
+```
+
+`fail_if_exists` is the safest default for clean runtimes and accidental rerun
+protection. Use `skip_existing` or `overwrite_allowed` only when that behavior
+is intentionally required.
+
+Post-restore local checklist:
+
+```python
+for path in [
+    STRATLAKE_ROOT / ".stratlake" / "session.json",
+    STRATLAKE_ROOT / ".stratlake" / "path_resolution.json",
+    PATHS_CONFIG,
+    UNIVERSE_CONFIG,
+    STRATLAKE_ROOT / "configs" / "tickers_sample.txt",
+    STRATLAKE_ROOT / "artifacts",
+    STRATLAKE_ROOT / "data" / "curated",
+]:
+    print(path, "OK" if path.exists() else "MISSING")
+```
+
+After restore, run handoff validation before feature builds:
+
+```bash
+!stratlake-validate-marketlake-handoff \
+  --root "{STRATLAKE_ROOT}" \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --universe "{UNIVERSE_CONFIG}" \
+  --start "{START}" \
+  --end "{END}" \
+  --timeframe 1D \
+  --json
+```
+
+Then continue with feature builds, strategy or research checks, and local
+artifact inspection from `/content/stratlake-workspace`.
+
+## Notebook-Native Execution After Restore
+
+After setup/restore/readiness checks pass, prefer notebook-native Python API
+calls for interactive research and artifact inspection.
+
+Use CLI for workflow boundaries where command behavior is the point:
+
+- install/import smoke checks
+- `stratlake-init-session`
+- `stratlake-session-archive-bootstrap`
+- `stratlake-session-archive-restore-bootstrap`
+- `stratlake-notebook-doctor`
+- `stratlake-validate-marketlake-handoff`
+
+Use Python execution APIs for interactive research after readiness passes:
+
+- strategy execution
+- strategy comparison and lightweight window sensitivity checks
+- artifact inspection with result helpers
+- metrics/manifest review in notebook cells
+
+These Python calls use the same execution system and canonical artifact
+contracts as CLI workflows. Keep notebook cells thin: call stable APIs, then
+inspect results. Do not duplicate strategy logic in notebook code.
+
+Run from restored local workspace state under `/content/...` and explicit
+profile variables; do not run workflows directly from Drive archive-pack
+directories.
+
+Define execution config paths from the M44 profile once:
+
+```python
+STRATEGIES_CONFIG = STRATLAKE_ROOT / "configs" / "strategies.yml"
+EVALUATION_CONFIG = STRATLAKE_ROOT / "configs" / "evaluation.yml"
+```
+
+Example strategy run (Python API) with canonical artifact output:
+
+```python
+from src.execution import run_strategy
+
+strategy_result = run_strategy(
+  "momentum_v1",
+  start=START,
+  end=END,
+  strategies_config_path=STRATEGIES_CONFIG,
+)
+
+strategy_result.notebook_summary()
+```
+
+Artifact inspection via `ExecutionResult` helpers (no hard-coded run IDs):
+
+```python
+metrics = strategy_result.load_metrics_json()
+manifest = strategy_result.load_manifest()
+available_outputs = strategy_result.output_keys()
+metrics_path = strategy_result.output_path("metrics_json", must_exist=True)
+
+{
+  "run_id": strategy_result.run_id,
+  "artifact_dir": strategy_result.artifact_dir.as_posix() if strategy_result.artifact_dir else None,
+  "metrics_path": metrics_path.as_posix(),
+  "output_keys": available_outputs,
+  "sharpe": metrics.get("sharpe"),
+}
+```
+
+Lightweight notebook-native sensitivity loop (evaluation-window comparison):
+
+```python
+window_runs = []
+for window_start, window_end in [
+  ("2024-10-01", "2025-01-31"),
+  ("2025-02-01", "2025-04-15"),
+]:
+  run = run_strategy(
+    "momentum_v1",
+    start=window_start,
+    end=window_end,
+    strategies_config_path=STRATEGIES_CONFIG,
+  )
+  run_metrics = run.load_metrics_json()
+  window_runs.append(
+    {
+      "window_start": window_start,
+      "window_end": window_end,
+      "run_id": run.run_id,
+      "total_return": run_metrics.get("total_return"),
+      "sharpe": run_metrics.get("sharpe"),
+    }
+  )
+
+window_runs
+```
+
+Use this pattern to orchestrate and inspect existing deterministic workflows.
+Do not create notebook-only execution semantics, hidden environment mutation,
+or ad hoc artifact schemas.
+
+## Unified Persistence Choices
+
+For a unified fintech + StratLake persistence decision guide, see
+[`docs/colab_persistence_guide.md`](colab_persistence_guide.md).
+
+Quick decision rule:
+
+- keep CLI setup and persistence explicit (`stratlake-init-session`,
+  `stratlake-session-export`, `stratlake-session-import`,
+  `stratlake-session-archive-bootstrap`,
+  `stratlake-session-archive-restore-bootstrap`,
+  `stratlake-notebook-doctor`, and
+  `stratlake-validate-marketlake-handoff`)
+- use Python execution APIs for interactive research after readiness checks pass
+- use archive or backup packs for large data movement
+- run active feature/research workflows from local `/content/...` runtime roots
+- treat mounted Drive as persistence and transport only, not canonical runtime
+  state
+
+### Fintech Restore-To-Local Handoff
+
+For companion fintech archive restores, keep the handoff root local:
+
+```python
+MARKETLAKE_ROOT = FINTECH_ROOT / "data" / "curated"
+```
+
+Companion restore example shape (verify fintech flags in fintech docs):
+
+```bash
+!fintech-backup-data validate \
+  --backup-pack-dir "/content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session"
+
+!fintech-backup-data inspect \
+  --backup-pack-dir "/content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session"
+
+!fintech-backup-data restore \
+  --backup-pack-dir "/content/drive/MyDrive/fintech-market-ingestion/backups/backup_after_session" \
+  --restore-root "/content/fintech-market-ingestion-demo/data/curated" \
+  --overwrite-policy fail
+```
+
+Then run StratLake checks against the restored local curated root:
+
+```bash
+!stratlake-notebook-doctor \
+  --root "/content/stratlake-workspace" \
+  --marketlake-root "/content/fintech-market-ingestion-demo/data/curated" \
+  --drive-root "/content/drive/MyDrive/stratlake-fintech-colab" \
+  --check-configs \
+  --check-universe \
+  --check-drive \
+  --check-marketlake \
+  --json
+
+!stratlake-validate-marketlake-handoff \
+  --root "/content/stratlake-workspace" \
+  --marketlake-root "/content/fintech-market-ingestion-demo/data/curated" \
+  --universe "/content/stratlake-workspace/configs/universe.yml" \
+  --start "2024-10-01" \
+  --end "2025-04-15" \
+  --timeframe 1D \
+  --json
+```
+
+Do not use backup-pack directories themselves as StratLake MarketLake roots.
+Mounted Drive paths are transport and persistence storage only.
 
 ## Inspect Session Paths
 
@@ -109,7 +447,7 @@ Load the session and resolve the important roots before running workflow cells:
 ```python
 from src.session import load_session, resolve_session_paths
 
-session = load_session(PROJECT_ROOT)
+session = load_session(STRATLAKE_ROOT)
 paths = resolve_session_paths(session)
 
 configs_root = paths["configs_root"].resolved_path
@@ -117,6 +455,13 @@ artifacts_root = paths["artifacts_root"].resolved_path
 features_root = paths["features_root"].resolved_path
 marketlake_root = paths["marketlake_root"].resolved_path
 drive_root = paths["drive_root"].resolved_path
+```
+
+If you are using the profile cell above, load the session from `STRATLAKE_ROOT`:
+
+```python
+session = load_session(STRATLAKE_ROOT)
+paths = resolve_session_paths(session)
 ```
 
 Each resolved path includes the serialized path, resolved absolute path, path
@@ -136,7 +481,7 @@ Resolution precedence is deterministic:
 Create or upload a ticker file under the project root:
 
 ```python
-(PROJECT_ROOT / "configs" / "tickers_demo.txt").write_text("AAPL\nMSFT\n", encoding="utf-8")
+(STRATLAKE_ROOT / "configs" / "tickers_demo.txt").write_text("AAPL\nMSFT\n", encoding="utf-8")
 ```
 
 Run the feature builder with an explicit MarketLake root so the notebook CWD is
@@ -145,14 +490,18 @@ irrelevant:
 ```bash
 !stratlake-build-features \
   --timeframe 1D \
-  --start 2025-01-01 \
-  --end 2025-02-01 \
-  --tickers /content/stratlake/configs/tickers_demo.txt \
-  --marketlake-root /content/fintech/data/curated
+  --start "{START}" \
+  --end "{END}" \
+  --tickers "{TICKERS_SAMPLE}" \
+  --marketlake-root "{MARKETLAKE_ROOT}"
 ```
 
 The feature-run summary records the effective MarketLake root and its source
 under `config_resolution`.
+
+Keep `marketlake_root` pointed to a local curated dataset root (for example,
+restored fintech curated data under `/content/.../data/curated`). Do not treat
+Drive archive-pack directories as canonical MarketLake roots.
 
 ## Run Workflows From Session Configs
 
@@ -160,11 +509,11 @@ Use explicit config paths from the project root. For example:
 
 ```bash
 !stratlake-run-strategy \
-  --strategies-config /content/stratlake/configs/strategies.yml \
+  --strategies-config "{STRATLAKE_ROOT / 'configs' / 'strategies.yml'}" \
   --strategy momentum_v1 \
-  --start 2025-01-01 \
-  --end 2025-02-01 \
-  --evaluation /content/stratlake/configs/evaluation.yml
+  --start "{START}" \
+  --end "{END}" \
+  --evaluation "{STRATLAKE_ROOT / 'configs' / 'evaluation.yml'}"
 ```
 
 Use notebooks to run established StratLake APIs or CLI-equivalent commands and
@@ -184,8 +533,8 @@ Dry-run first:
 
 ```bash
 !stratlake-session-export \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --root "{STRATLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --include-configs \
   --include-artifacts \
   --dry-run
@@ -195,8 +544,8 @@ Export configs, artifacts, and feature data:
 
 ```bash
 !stratlake-session-export \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --root "{STRATLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --include-configs \
   --include-artifacts \
   --include-features
@@ -211,8 +560,8 @@ reusing `latest`:
 
 ```bash
 !stratlake-session-export \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
+  --root "{STRATLAKE_ROOT}" \
+  --drive-root "{DRIVE_ROOT}" \
   --include-configs \
   --include-artifacts \
   --operation-id colab-run-001
@@ -229,7 +578,7 @@ workspace:
 
 ```bash
 !stratlake-session-archive-bootstrap \
-  --root /content/stratlake \
+  --root "{STRATLAKE_ROOT}" \
   --archive-id notebook-session-001 \
   --include-features \
   --include-artifacts \
@@ -241,10 +590,10 @@ validate/inspect the copied pack:
 
 ```bash
 !stratlake-session-archive-bootstrap \
-  --root /content/stratlake \
+  --root "{STRATLAKE_ROOT}" \
   --archive-id notebook-session-001 \
   --archive-collision-policy overwrite_allowed \
-  --drive-root /content/drive/MyDrive/stratlake-colab/session_archives \
+  --drive-root "{SESSION_ARCHIVES_ROOT}" \
   --copy-policy overwrite_allowed \
   --include-features \
   --include-artifacts \
@@ -270,16 +619,16 @@ restore-bootstrap companion:
 
 ```bash
 !stratlake-session-archive-restore-bootstrap \
-  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
-  --target-root /content/stratlake \
+  --archive-root "{ARCHIVE_ROOT}" \
+  --target-root "{STRATLAKE_ROOT}" \
   --validate-before-restore \
   --inspect-before-restore \
   --dry-run \
   --json
 
 !stratlake-session-archive-restore-bootstrap \
-  --archive-root /content/drive/MyDrive/stratlake-colab/session_archives/notebook-session-001 \
-  --target-root /content/stratlake \
+  --archive-root "{ARCHIVE_ROOT}" \
+  --target-root "{STRATLAKE_ROOT}" \
   --validate-before-restore \
   --inspect-before-restore \
   --overwrite-policy fail_if_exists
@@ -296,31 +645,18 @@ inspection, planning, restore, and runtime failure summaries share a stable
 machine-readable shape. Active StratLake workflows should run only after files
 are restored into the explicit local target workspace.
 
-## Restore In A New Notebook Session
+## Restore-First vs Import/Export
 
-Install the package, mount Drive if needed, define the same explicit roots, and
-initialize or recreate the local project directory. Then import selected
-snapshots:
+Use `stratlake-session-archive-bootstrap` and
+`stratlake-session-archive-restore-bootstrap` for portable, restore-first
+session continuity across Colab restarts.
 
-```bash
-!stratlake-session-import \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
-  --include-configs \
-  --include-artifacts \
-  --include-features
-```
+Use `stratlake-session-export` and `stratlake-session-import` for lighter,
+explicit transfer of selected configs, artifacts, and features when you are
+already managing a local workspace.
 
-Import preserves existing files by default. Use `--force` only when you
-intentionally want selected import destinations overwritten:
-
-```bash
-!stratlake-session-import \
-  --root /content/stratlake \
-  --drive-root /content/drive/MyDrive/stratlake-demo \
-  --include-configs \
-  --force
-```
+Both patterns are explicit commands. Neither is hidden sync, and neither makes
+Drive or archive packs canonical state.
 
 ## Safe Persistence Defaults
 

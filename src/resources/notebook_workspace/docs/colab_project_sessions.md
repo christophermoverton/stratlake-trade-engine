@@ -146,6 +146,26 @@ This pairing (`--notebook-configs` + profile values) ensures generated
 `configs/paths.yml` and `configs/universe.yml` line up with the notebook's
 explicit runtime roots.
 
+## Validate Restored Curated Data Before Feature Builds
+
+After restoring or refreshing curated fintech data, validate the handoff before
+building features:
+
+```bash
+!stratlake-validate-marketlake-handoff \
+  --root "{STRATLAKE_ROOT}" \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --universe "{UNIVERSE_CONFIG}" \
+  --start "{START}" \
+  --end "{END}" \
+  --timeframe 1D \
+  --json
+```
+
+This check is read-only. It verifies the curated root, notebook-session paths,
+requested symbols, and the requested date window before any feature build
+runs.
+
 ## Inspect Session Paths
 
 Load the session and resolve the important roots before running workflow cells:

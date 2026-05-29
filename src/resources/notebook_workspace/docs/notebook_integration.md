@@ -71,6 +71,24 @@ starter templates. Use `stratlake-init-session` when the notebook CWD, project
 root, MarketLake root, or optional Drive root may differ and should be recorded
 explicitly.
 
+Before building features, validate the restored curated data and notebook
+session paths with the handoff checker:
+
+```powershell
+stratlake-validate-marketlake-handoff \
+  --root "{STRATLAKE_ROOT}" \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --universe "{UNIVERSE_CONFIG}" \
+  --start "{START}" \
+  --end "{END}" \
+  --timeframe 1D \
+  --json
+```
+
+The validator is read-only. It fails early on missing curated roots, archive
+pack directories, missing symbols, missing date-window coverage, or notebook
+profile/config mismatches.
+
 ## Notebook Project Sessions
 
 Notebook project sessions make root selection explicit without becoming a

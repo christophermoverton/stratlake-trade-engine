@@ -63,6 +63,24 @@ This opt-in bundle writes user-owned `configs/paths.yml`,
 preserved by default; use `--force-notebook-configs` to overwrite only those
 bundle files.
 
+After restoring or refreshing curated fintech data, validate the handoff
+before any feature build:
+
+```bash
+stratlake-validate-marketlake-handoff \
+  --root /content/stratlake \
+  --marketlake-root /content/fintech-market-ingestion-demo/data/curated \
+  --universe /content/stratlake/configs/universe.yml \
+  --start 2025-01-01 \
+  --end 2025-02-01 \
+  --timeframe 1D \
+  --json
+```
+
+The validator is read-only. It checks the curated root, explicit notebook
+profile paths, requested symbols, and requested date window before feature
+construction runs.
+
 In Colab notebooks, define one explicit profile cell (for `FINTECH_ROOT`,
 `STRATLAKE_ROOT`, `MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`, `END`,
 `UNIVERSE_CONFIG`, and `PATHS_CONFIG`) and reuse those variables in later

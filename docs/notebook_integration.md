@@ -329,6 +329,25 @@ that run and does not mutate `.env`, `configs/paths.yml`, or global process
 configuration. The feature-run `summary.json` records the effective root and
 source under `config_resolution`.
 
+## Validate Curated Data Before Feature Builds
+
+Run the handoff validator between curated-data restoration and feature builds:
+
+```bash
+stratlake-validate-marketlake-handoff \
+    --root "{STRATLAKE_ROOT}" \
+    --marketlake-root "{MARKETLAKE_ROOT}" \
+    --universe "{UNIVERSE_CONFIG}" \
+    --start "{START}" \
+    --end "{END}" \
+    --timeframe 1D \
+    --json
+```
+
+The validator is read-only. It fails early on missing curated roots, archive
+pack directories, missing symbols, missing date-window coverage, or notebook
+profile/config mismatches.
+
 Maintenance note: keep this `--marketlake-root` / `config_resolution`
 guidance synchronized with the notebook workspace starter-template copy at
 `src/resources/notebook_workspace/docs/notebook_integration.md`, because

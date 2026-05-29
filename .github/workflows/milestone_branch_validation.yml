@@ -7,6 +7,7 @@ on:
       - "feature/issue-476-session-archive-bootstrap-command"
     tags:
       - "v0.43.*"
+      - "v0.44.*"
 
 permissions:
   contents: read
@@ -127,6 +128,7 @@ jobs:
           tests/test_m44_unified_persistence_guide_docs.py
           tests/test_m44_fintech_handoff_persistence_docs.py
           tests/test_init_session_cli.py
+          tests/test_m44_release_readiness_docs.py
 
       - name: Run M44 ruff check
         run: >
@@ -144,6 +146,7 @@ jobs:
           tests/test_m44_notebook_execution_examples_docs.py
           tests/test_m44_unified_persistence_guide_docs.py
           tests/test_m44_fintech_handoff_persistence_docs.py
+          tests/test_m44_release_readiness_docs.py
 
       - name: Run M44 Python format check
         run: >
@@ -161,3 +164,4 @@ jobs:
           tests/test_m44_notebook_execution_examples_docs.py
           tests/test_m44_unified_persistence_guide_docs.py
           tests/test_m44_fintech_handoff_persistence_docs.py
+          tests/test_m44_release_readiness_docs.py

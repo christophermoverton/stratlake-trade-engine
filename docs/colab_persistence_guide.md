@@ -17,6 +17,7 @@ This guide complements:
 - [Notebook integration](notebook_integration.md)
 - [Notebook workspace bootstrap](notebook_workspace_bootstrap.md)
 - [Portable session archives](session_archives.md)
+- [M44 release notes](m44_release_notes.md)
 
 ## Persistence Categories
 

@@ -36,6 +36,7 @@ Start with:
 * [docs/colab_project_sessions.md](docs/colab_project_sessions.md)
 * [docs/colab_persistence_guide.md](docs/colab_persistence_guide.md)
 * [docs/session_archives.md](docs/session_archives.md)
+* [docs/m44_release_notes.md](docs/m44_release_notes.md)
 * [docs/m43_release_notes.md](docs/m43_release_notes.md)
 * [docs/notebook_execution_api.md](docs/notebook_execution_api.md)
 * [docs/pipeline_integration.md](docs/pipeline_integration.md)
@@ -45,7 +46,38 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
-### Session Archive Bootstrap (M43)
+### Release 0.44.0: Colab Notebook Session Ergonomics
+
+Release 0.44.0 prepares the M44 Colab notebook session ergonomics and
+MarketLake restore handoff milestone for merge. It collects the restore-first
+Colab workflow, notebook config bundle generation, unified profile variables,
+read-only notebook doctor diagnostics, read-only MarketLake handoff validation,
+notebook-native `src.execution` examples after restore/init, unified
+persistence guidance, and fintech restore-to-local handoff guidance.
+
+M44 preserves the notebook architecture boundary: active work runs from local
+runtime roots; Drive-mounted paths are filesystem persistence/transport only;
+archive and backup packs are derived and non-canonical; notebook/session
+metadata and MarketLake handoff reports are diagnostic. The milestone does not
+add hidden sync, Google API/OAuth behavior, restore-on-import behavior,
+background persistence, a second execution engine, or fintech ingestion
+behavior.
+
+Package/build version:
+`0.44.0`
+
+Candidate release tag:
+`v0.44.0-colab-notebook-session-ergonomics-marketlake-handoff`
+
+Start with:
+
+* [docs/m44_release_notes.md](docs/m44_release_notes.md)
+* [docs/m44_release_validation_checklist.md](docs/m44_release_validation_checklist.md)
+* [docs/colab_project_sessions.md](docs/colab_project_sessions.md)
+* [docs/colab_persistence_guide.md](docs/colab_persistence_guide.md)
+* [docs/notebook_integration.md](docs/notebook_integration.md)
+
+### Session Archive Bootstrap (M43/M44)
 
 Initialize a Colab-style session workspace with deterministic notebook starter
 configs:
@@ -767,6 +799,8 @@ Published:
 
 Start with:
 
+* [docs/m44_release_notes.md](docs/m44_release_notes.md)
+* [docs/m44_release_validation_checklist.md](docs/m44_release_validation_checklist.md)
 * [docs/m43_release_notes.md](docs/m43_release_notes.md)
 * [docs/m43_release_validation_checklist.md](docs/m43_release_validation_checklist.md)
 * [docs/session_archives.md](docs/session_archives.md)
@@ -2200,6 +2234,8 @@ Start here:
 * [docs/corporate_actions_event_contracts.md](docs/corporate_actions_event_contracts.md)
 * [docs/m40_release_notes.md](docs/m40_release_notes.md)
 * [docs/m40_release_validation_checklist.md](docs/m40_release_validation_checklist.md)
+* [docs/m44_release_notes.md](docs/m44_release_notes.md)
+* [docs/m44_release_validation_checklist.md](docs/m44_release_validation_checklist.md)
 * [docs/runtime_profiles.md](docs/runtime_profiles.md)
 * [docs/milestone_16_merge_readiness.md](docs/milestone_16_merge_readiness.md)
 * [docs/milestone_22_merge_readiness.md](docs/milestone_22_merge_readiness.md)

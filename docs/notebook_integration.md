@@ -6,7 +6,7 @@ Notebook integration makes StratLake easier to use for interactive research,
 inspection, teaching, and review while preserving the same artifact contracts
 used by CLI, pipeline, validation, and orchestrated workflows. Use this guide
 with `docs/notebook_execution_api.md`, `docs/concurrency_and_idempotency.md`,
-and `docs/pipeline_integration.md`.
+`docs/pipeline_integration.md`, and `docs/m44_release_notes.md`.
 
 Notebooks are an interactive surface over the existing StratLake execution
 system. They should run established workflows, inspect returned

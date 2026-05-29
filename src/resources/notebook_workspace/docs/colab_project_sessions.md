@@ -1,5 +1,8 @@
 # Colab Project Sessions
 
+M44 release metadata:
+`docs/m44_release_notes.md` and `docs/m44_release_validation_checklist.md`.
+
 ## Purpose
 
 Use a StratLake project session in Colab or another cloud notebook when the

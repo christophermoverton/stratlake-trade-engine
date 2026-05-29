@@ -20,7 +20,9 @@ def test_milestone_validation_covers_current_milestone_branch_pattern() -> None:
 
     assert '- "feature/m*"' in branch_text
     assert "M43 Session Archive Validation" in branch_text
+    assert "M44 MarketLake Handoff Validation" in branch_text
     assert "tests/test_session_archive_roundtrip_validation.py" in branch_text
+    assert "tests/test_m44_release_readiness_docs.py" in branch_text
     assert "startsWith(github.head_ref, 'feature/m')" in milestone_text
 
 

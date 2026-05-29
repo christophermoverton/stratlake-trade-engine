@@ -63,6 +63,52 @@ def test_init_session_writes_required_session_json_fields(tmp_path: Path) -> Non
     }
     assert resolution_json["paths"]["project_root"]["source"] == "explicit_root"
     assert resolution_json["paths"]["configs_root"]["base"] == project_root.resolve().as_posix()
+    assert "notebook_config_bundle" not in resolution_json
+
+
+def test_notebook_configs_extends_baseline_initialization_as_superset(tmp_path: Path) -> None:
+    baseline_root = tmp_path / "baseline"
+    notebook_bundle_root = tmp_path / "with-notebook-configs"
+
+    run_cli(["--root", str(baseline_root), "--project-name", "demo"])
+    run_cli(
+        [
+            "--root",
+            str(notebook_bundle_root),
+            "--project-name",
+            "demo",
+            "--notebook-configs",
+        ]
+    )
+
+    baseline_files = _workspace_files(baseline_root)
+    bundle_files = _workspace_files(notebook_bundle_root)
+
+    assert baseline_files.issubset(bundle_files)
+    assert {
+        "configs/paths.yml",
+        "configs/universe.yml",
+        "configs/tickers_sample.txt",
+    }.issubset(bundle_files)
+
+
+def test_notebook_configs_keeps_existing_baseline_starter_templates(tmp_path: Path) -> None:
+    project_root = tmp_path / "stratlake-demo"
+
+    run_cli(["--root", str(project_root), "--project-name", "demo", "--notebook-configs"])
+
+    for required in (
+        "notebooks",
+        "configs/session.yml",
+        "configs/features.yml",
+        "configs/strategies.yml",
+        "configs/evaluation.yml",
+        "docs/notebook_integration.md",
+        "docs/colab_project_sessions.md",
+        ".stratlake/session.json",
+        ".stratlake/path_resolution.json",
+    ):
+        assert (project_root / required).exists()
 
 
 def test_repeated_run_without_force_preserves_user_files_and_fails_clearly(
@@ -431,3 +477,11 @@ def test_path_resolution_metadata_records_notebook_bundle_status(tmp_path: Path)
         "external_absolute",
         "external_or_project_relative",
     }
+
+
+def _workspace_files(root: Path) -> set[str]:
+    files: set[str] = set()
+    for path in root.rglob("*"):
+        if path.is_file():
+            files.add(path.relative_to(root).as_posix())
+    return files

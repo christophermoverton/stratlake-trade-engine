@@ -9,7 +9,6 @@ from typing import Sequence
 from src.cli.init_notebook_workspace import initialize_notebook_workspace
 from src.cli.notebook_config_bundle import (
     initialize_notebook_config_bundle,
-    notebook_config_bundle_not_requested,
 )
 from src.session import create_notebook_project_session, write_session_files
 from src.session.io import PATH_RESOLUTION_FILE_NAME, SESSION_DIR_NAME, SESSION_FILE_NAME
@@ -96,26 +95,28 @@ def run_cli(argv: Sequence[str] | None = None) -> dict[str, object]:
         drive_persistence_enabled=args.enable_drive_persistence,
     )
     write_result = write_session_files(session, overwrite=args.force)
-    notebook_configs = notebook_config_bundle_not_requested()
+    notebook_configs: dict[str, object] | None = None
     if args.notebook_configs:
-        notebook_configs = initialize_notebook_config_bundle(
+        notebook_configs_result = initialize_notebook_config_bundle(
             project_root=root,
             session=session,
             force=args.force_notebook_configs,
         )
-    _write_init_session_diagnostics(
-        write_result.path_resolution_path,
-        session=session,
-        notebook_config_summary=notebook_configs.to_dict(),
-    )
+        notebook_configs = notebook_configs_result.to_dict()
+        _write_init_session_diagnostics(
+            write_result.path_resolution_path,
+            session=session,
+            notebook_config_summary=notebook_configs,
+        )
     summary: dict[str, object] = {
         "bootstrap": bootstrap_summary,
         "session": session.to_dict(),
         "session_path": write_result.session_path.as_posix(),
         "path_resolution_path": write_result.path_resolution_path.as_posix(),
         "drive_persistence_enabled": args.enable_drive_persistence,
-        "notebook_configs": notebook_configs.to_dict(),
     }
+    if notebook_configs is not None:
+        summary["notebook_configs"] = notebook_configs
     print_summary(summary)
     return summary
 
@@ -195,14 +196,15 @@ def print_summary(summary: dict[str, object]) -> None:
     print("Session metadata:")
     print(f"  session: {summary['session_path']}")
     print(f"  path_resolution: {summary['path_resolution_path']}")
-    notebook_configs = summary["notebook_configs"]
-    print(
-        "Notebook config bundle: "
-        f"requested={'yes' if notebook_configs['requested'] else 'no'}, "
-        f"generated={len(notebook_configs['generated'])}, "
-        f"overwritten={len(notebook_configs['overwritten'])}, "
-        f"skipped={len(notebook_configs['skipped'])}"
-    )
+    if "notebook_configs" in summary:
+        notebook_configs = summary["notebook_configs"]
+        print(
+            "Notebook config bundle: "
+            f"requested={'yes' if notebook_configs['requested'] else 'no'}, "
+            f"generated={len(notebook_configs['generated'])}, "
+            f"overwritten={len(notebook_configs['overwritten'])}, "
+            f"skipped={len(notebook_configs['skipped'])}"
+        )
     print("Next: open notebooks from this project root and pass explicit paths to StratLake APIs.")
 
 

@@ -52,6 +52,9 @@ That guide includes a unified profile cell (`FINTECH_ROOT`, `STRATLAKE_ROOT`,
 `MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`, `END`, `UNIVERSE_CONFIG`, and
 `PATHS_CONFIG`) so later commands can pass explicit paths without relying on
 notebook CWD.
+It also includes a restore-first flow for fresh runtimes using
+`stratlake-session-archive-restore-bootstrap` with dry-run validation and
+inspection before intentional restore execution.
 
 Overwrite only copied starter templates:
 

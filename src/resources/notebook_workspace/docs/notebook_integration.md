@@ -47,6 +47,11 @@ For a copy-friendly Colab walkthrough that keeps notebook CWD, project root,
 external MarketLake root, and mounted Drive root explicit, see
 [`docs/colab_project_sessions.md`](colab_project_sessions.md).
 
+For fresh runtime recovery, that guide now includes a restore-first M44 pattern
+using `ARCHIVE_ID` / `ARCHIVE_ROOT`, dry-run validation and inspection, then
+intentional `stratlake-session-archive-restore-bootstrap` execution into an
+explicit local `/content/...` workspace.
+
 For M44 root stability in Colab, define a single profile cell once (for
 `FINTECH_ROOT`, `STRATLAKE_ROOT`, `MARKETLAKE_ROOT`, `DRIVE_ROOT`, `START`,
 `END`, `UNIVERSE_CONFIG`, and `PATHS_CONFIG`) and pass those variables through

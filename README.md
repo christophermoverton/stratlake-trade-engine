@@ -146,6 +146,12 @@ stratlake-session-archive-restore-bootstrap \
   --overwrite-policy fail_if_exists
 ```
 
+For fresh Colab runtimes, use the restore-first workflow in
+[`docs/colab_project_sessions.md`](docs/colab_project_sessions.md): define the
+unified profile once, set `ARCHIVE_ID` and `ARCHIVE_ROOT`, run restore dry-run
+with `--json`, then execute restore intentionally into local `/content/...`
+state before handoff validation and feature builds.
+
 Restore bootstrap delegates to the shared M43 validation, inspection, dry-run
 planning, and restore APIs. It does not call Google APIs, require OAuth or
 credentials, start background sync, execute research workflows, mutate hidden

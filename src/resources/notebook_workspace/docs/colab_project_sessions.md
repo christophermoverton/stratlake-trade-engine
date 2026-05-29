@@ -93,6 +93,8 @@ UNIVERSE_CONFIG = STRATLAKE_ROOT / "configs" / "universe.yml"
 PATHS_CONFIG = STRATLAKE_ROOT / "configs" / "paths.yml"
 
 SESSION_ARCHIVES_ROOT = DRIVE_ROOT / "session_archives"
+ARCHIVE_ID = "notebook-session-001"
+ARCHIVE_ROOT = SESSION_ARCHIVES_ROOT / ARCHIVE_ID
 ARTIFACTS_ROOT = STRATLAKE_ROOT / "artifacts"
 FEATURES_ROOT = STRATLAKE_ROOT / "data" / "curated"
 TICKERS_SAMPLE = STRATLAKE_ROOT / "configs" / "tickers_sample.txt"
@@ -165,6 +167,77 @@ building features:
 This check is read-only. It verifies the curated root, notebook-session paths,
 requested symbols, and the requested date window before any feature build
 runs.
+
+## Restore-First Colab Workflow (Fresh Runtime)
+
+Use restore-first when a fresh Colab runtime starts and a previous session
+archive already exists under mounted Drive storage. Restore local runtime state
+into `STRATLAKE_ROOT` first, then continue research from the restored local
+workspace.
+
+Drive folders and archive packs are derived persistence and transport artifacts,
+not canonical StratLake state.
+
+Dry-run with validation and inspection before any restore writes:
+
+```bash
+!stratlake-session-archive-restore-bootstrap \
+  --archive-root "{ARCHIVE_ROOT}" \
+  --target-root "{STRATLAKE_ROOT}" \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --dry-run \
+  --json
+```
+
+Dry-run validates archive structure and planned restore behavior, but does not
+write restored files.
+
+Run the restore intentionally after reviewing dry-run output:
+
+```bash
+!stratlake-session-archive-restore-bootstrap \
+  --archive-root "{ARCHIVE_ROOT}" \
+  --target-root "{STRATLAKE_ROOT}" \
+  --validate-before-restore \
+  --inspect-before-restore \
+  --overwrite-policy fail_if_exists
+```
+
+`fail_if_exists` is the safest default for clean runtimes and accidental rerun
+protection. Use `skip_existing` or `overwrite_allowed` only when that behavior
+is intentionally required.
+
+Post-restore local checklist:
+
+```python
+for path in [
+    STRATLAKE_ROOT / ".stratlake" / "session.json",
+    STRATLAKE_ROOT / ".stratlake" / "path_resolution.json",
+    PATHS_CONFIG,
+    UNIVERSE_CONFIG,
+    STRATLAKE_ROOT / "configs" / "tickers_sample.txt",
+    STRATLAKE_ROOT / "artifacts",
+    STRATLAKE_ROOT / "data" / "curated",
+]:
+    print(path, "OK" if path.exists() else "MISSING")
+```
+
+After restore, run handoff validation before feature builds:
+
+```bash
+!stratlake-validate-marketlake-handoff \
+  --root "{STRATLAKE_ROOT}" \
+  --marketlake-root "{MARKETLAKE_ROOT}" \
+  --universe "{UNIVERSE_CONFIG}" \
+  --start "{START}" \
+  --end "{END}" \
+  --timeframe 1D \
+  --json
+```
+
+Then continue with feature builds, strategy or research checks, and local
+artifact inspection from `/content/stratlake-workspace`.
 
 ## Inspect Session Paths
 
@@ -299,31 +372,18 @@ Non-dry-run operations write a diagnostic, non-authoritative manifest under:
 artifacts/_derived/notebook_sessions/<operation>_<operation_id>/drive_sync_manifest.json
 ```
 
-## Restore In A New Notebook Session
+## Restore-First vs Import/Export
 
-Install the package, mount Drive if needed, define the same explicit roots, and
-initialize or recreate the local project directory. Then import selected
-snapshots:
+Use `stratlake-session-archive-bootstrap` and
+`stratlake-session-archive-restore-bootstrap` for portable, restore-first
+session continuity across Colab restarts.
 
-```bash
-!stratlake-session-import \
-  --root "{STRATLAKE_ROOT}" \
-  --drive-root "{DRIVE_ROOT}" \
-  --include-configs \
-  --include-artifacts \
-  --include-features
-```
+Use `stratlake-session-export` and `stratlake-session-import` for lighter,
+explicit transfer of selected configs, artifacts, and features when you are
+already managing a local workspace.
 
-Import preserves existing files by default. Use `--force` only when you
-intentionally want selected import destinations overwritten:
-
-```bash
-!stratlake-session-import \
-  --root "{STRATLAKE_ROOT}" \
-  --drive-root "{DRIVE_ROOT}" \
-  --include-configs \
-  --force
-```
+Both patterns are explicit commands. Neither is hidden sync, and neither makes
+Drive or archive packs canonical state.
 
 ## Safe Persistence Defaults
 
@@ -346,6 +406,10 @@ session snapshots.
 - `stratlake-init-session`: workspace layout plus `.stratlake/` session metadata
 - `stratlake-session-export`: explicit one-shot export to a mounted Drive path
 - `stratlake-session-import`: explicit one-shot import from a mounted Drive path
+- `stratlake-session-archive-bootstrap`: create an M43 archive pack and optionally
+  copy it to a mounted Drive-style path
+- `stratlake-session-archive-restore-bootstrap`: validate, inspect, plan, and
+  restore an M43 archive pack into an explicit local target workspace
 
 All commands should be given explicit roots in Colab-style notebooks. The
 commands do not change notebook CWD, mutate `.env`, mutate `os.environ`, call

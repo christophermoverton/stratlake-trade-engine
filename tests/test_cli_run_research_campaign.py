@@ -26,6 +26,7 @@ from src.research.reporting import (
     MILESTONE_SUMMARY_FILENAME,
 )
 from src.config.research_campaign import resolve_research_campaign_config
+from src.research.promotion import write_promotion_state_artifact as native_write_promotion_state_artifact
 
 
 def test_campaign_review_promotion_summary_preserves_readiness_fields(tmp_path: Path) -> None:
@@ -468,6 +469,25 @@ portfolios:
         lambda argv: call_order.append(("review", list(argv)))
         or SimpleNamespace(review_id="review_run"),
     )
+    promotion_writer_statuses: list[str] = []
+
+    def tracking_promotion_writer(
+        output_dir: str | Path,
+        state: object,
+        *,
+        artifact_filename: str | None = None,
+    ) -> Path:
+        promotion_writer_statuses.append(str(read_run_status(output_dir)["status"]))
+        return native_write_promotion_state_artifact(
+            output_dir,
+            state,
+            artifact_filename=artifact_filename,
+        )
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.write_promotion_state_artifact",
+        tracking_promotion_writer,
+    )
 
     result = run_research_campaign(config)
     from src.cli.run_research_campaign import print_summary
@@ -502,6 +522,14 @@ portfolios:
     assert result.campaign_milestone_markdown_path == result.campaign_artifact_dir / "milestone_report" / MILESTONE_MARKDOWN_REPORT_FILENAME
     assert result.preflight_summary["status"] == "passed"
     assert result.preflight_summary["check_counts"]["failed"] == 0
+    assert promotion_writer_statuses == ["running"]
+    completed_status = read_run_status(result.campaign_artifact_dir)
+    assert completed_status["status"] == "completed"
+    assert completed_status["metadata"]["metadata"] == {
+        "run_id": result.campaign_run_id,
+        "run_type": "research_campaign",
+        "status": "completed",
+    }
 
     campaign_checkpoint = json.loads(result.campaign_checkpoint_path.read_text(encoding="utf-8"))
     campaign_manifest = json.loads(result.campaign_manifest_path.read_text(encoding="utf-8"))

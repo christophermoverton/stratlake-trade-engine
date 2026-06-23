@@ -8,7 +8,13 @@ from typing import Any
 import yaml
 
 from src.research.governance import run_promotion_governance_report
-from src.research.promotion import evaluate_promotion_gates, write_promotion_gate_artifact
+from src.research.promotion import (
+    build_promotion_state_from_evaluation,
+    build_unconfigured_promotion_state,
+    evaluate_promotion_gates,
+    write_promotion_gate_artifact,
+    write_promotion_state_artifact,
+)
 from src.research.registry import append_registry_entry, build_review_metadata, canonicalize_value
 
 
@@ -59,6 +65,124 @@ M31_SCENARIO_METRICS: dict[str, dict[str, float]] = {
 }
 
 
+def test_m45_review_and_campaign_no_policy_evidence_remains_unresolved_end_to_end(
+    tmp_path: Path,
+) -> None:
+    artifact_root = tmp_path / "m45_artifacts"
+    review_dir = artifact_root / "reviews" / "m45_review"
+    campaign_dir = artifact_root / "research_campaigns" / "m45_campaign"
+    review_evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "approved",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "review_gate",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert review_evaluation is not None
+    review_state_path = write_promotion_state_artifact(
+        review_dir,
+        build_promotion_state_from_evaluation(
+            review_evaluation,
+            provenance={
+                "object_type": "review",
+                "object_id": "m45_review",
+                "review_id": "m45_review",
+                "run_type": "review",
+            },
+        ),
+    )
+    _write_json(review_dir / "review_summary.json", {"review_id": "m45_review"})
+    _write_json(review_dir / "manifest.json", {"review_id": "m45_review"})
+
+    campaign_state_path = write_promotion_state_artifact(
+        campaign_dir,
+        build_unconfigured_promotion_state(
+            run_type="research_campaign",
+            provenance={
+                "object_type": "research_campaign",
+                "object_id": "m45_campaign",
+                "campaign_run_id": "m45_campaign",
+                "run_type": "research_campaign",
+                "upstream_evidence": {
+                    "review_id": "m45_review",
+                    "review_promotion_state": review_state_path.as_posix(),
+                },
+            },
+        ),
+    )
+    _write_json(
+        campaign_dir / "summary.json",
+        {
+            "run_type": "research_campaign",
+            "campaign_run_id": "m45_campaign",
+            "status": "completed",
+            "final_outcomes": {
+                "campaign_promotion_status": "not_reviewed",
+                "campaign_promotion_gate_status": "not_configured",
+                "review_promotion_status": "approved",
+            },
+            "output_paths": {
+                "campaign_promotion_state": campaign_state_path.as_posix(),
+                "review_promotion_gates": review_state_path.as_posix(),
+            },
+        },
+    )
+    _write_json(
+        campaign_dir / "manifest.json",
+        {
+            "run_type": "research_campaign",
+            "campaign_run_id": "m45_campaign",
+            "artifact_files": ["promotion_gates.json", "summary.json", "manifest.json"],
+        },
+    )
+    _write_json(campaign_dir / "checkpoint.json", {"status": "completed"})
+    _write_json(campaign_dir / "campaign_config.json", {})
+    source_files = sorted(artifact_root.rglob("*.json"))
+    source_bytes = {path: path.read_bytes() for path in source_files}
+
+    first_result = run_promotion_governance_report(
+        registry_path=artifact_root / "missing_registry.jsonl",
+        artifact_root=artifact_root,
+        output_dir=tmp_path / "m45_governance",
+    )
+    first_payloads = _report_payloads(first_result.output_dir)
+    second_result = run_promotion_governance_report(
+        registry_path=artifact_root / "missing_registry.jsonl",
+        artifact_root=artifact_root,
+        output_dir=tmp_path / "m45_governance",
+    )
+    second_payloads = _report_payloads(second_result.output_dir)
+
+    summary = json.loads(first_result.summary_path.read_text(encoding="utf-8"))
+    validation = json.loads(first_result.validation_path.read_text(encoding="utf-8"))
+    rows = {
+        (row["workflow_type"], row["run_id"]): row
+        for row in _csv_rows(first_result.outcome_matrix_path)
+    }
+    assert first_result.report_id == second_result.report_id
+    assert first_payloads == second_payloads
+    assert rows[("review", "m45_review")]["promotion_status"] == "approved"
+    assert rows[("campaign", "m45_campaign")]["promotion_status"] == "not_reviewed"
+    assert rows[("campaign", "m45_campaign")]["review_status"] == "needs_review"
+    assert summary["promotion_status_counts"] == {"approved": 1, "not_reviewed": 1}
+    assert summary["eligible_fraction"] == 0.0
+    assert summary["blocked_fraction"] == 0.0
+    assert summary["review_fraction"] == 0.5
+    assert validation["status"] == "pass"
+    assert validation["finding_count"] == 0
+    assert {path: path.read_bytes() for path in source_files} == source_bytes
+
+
 def test_m31_readiness_style_governance_report_end_to_end_is_deterministic(tmp_path: Path) -> None:
     artifact_root = _m31_readiness_governance_fixture(tmp_path)
     first_result = run_promotion_governance_report(
@@ -92,10 +216,10 @@ def test_m31_readiness_style_governance_report_end_to_end_is_deterministic(tmp_p
 
     assert summary["row_count"] == 11
     assert summary["promotion_status_counts"] == {
-        "blocked": 3,
-        "eligible": 2,
-        "needs_review": 3,
-        "warn": 3,
+        "blocked": 2,
+        "eligible": 1,
+        "needs_review": 1,
+        "warn": 2,
     }
     assert summary["workflow_type_counts"] == {
         "campaign": 1,
@@ -139,15 +263,17 @@ def test_m31_readiness_style_governance_report_end_to_end_is_deterministic(tmp_p
         "review",
         "strategy",
     }
-    assert {"severity": "block", "highest_severity_count": "3", "triggered_reason_count": "3"} in severity_rows
+    assert {"severity": "block", "highest_severity_count": "2", "triggered_reason_count": "2"} in severity_rows
     reason_counts = {row["reason_code"]: int(row["count"]) for row in reason_rows}
-    assert reason_counts["severity_block"] == 3
-    assert reason_counts["severity_warn"] == 6
-    assert reason_counts["severity_review"] == 6
+    assert reason_counts["severity_block"] == 2
+    assert reason_counts["severity_warn"] == 4
+    assert reason_counts["severity_review"] == 3
     _assert_no_absolute_path_leaks(first_result.output_dir, tmp_path)
 
 
-def test_m31_readiness_style_governance_validation_reports_predictable_mismatch(tmp_path: Path) -> None:
+def test_m31_legacy_missing_state_does_not_borrow_altered_scenario_summary(
+    tmp_path: Path,
+) -> None:
     artifact_root = _m31_readiness_governance_fixture(tmp_path)
     blocked_manifest_path = artifact_root / "research_campaigns" / "m31_readiness_campaign" / "scenarios" / "blocked" / "manifest.json"
     blocked_manifest = json.loads(blocked_manifest_path.read_text(encoding="utf-8"))
@@ -163,13 +289,7 @@ def test_m31_readiness_style_governance_validation_reports_predictable_mismatch(
 
     validation = json.loads(result.validation_path.read_text(encoding="utf-8"))
     assert validation["status"] == "fail"
-    assert validation["counts_by_check"] == {
-        "missing_canonical_promotion_state": 5,
-        "scenario_promotion_status_mismatch": 1,
-    }
-    assert [finding["check_id"] for finding in validation["findings"]].count(
-        "scenario_promotion_status_mismatch"
-    ) == 1
+    assert validation["counts_by_check"] == {"missing_canonical_promotion_state": 5}
     assert validation["findings"] == sorted(
         validation["findings"],
         key=lambda item: (item["severity"], item["check_id"], item["run_id"]),

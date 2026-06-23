@@ -704,6 +704,7 @@ def test_compare_research_runs_writes_stable_artifacts_and_review_id(tmp_path: P
     assert first.csv_path.read_bytes() == second.csv_path.read_bytes()
     assert first.json_path.read_bytes() == second.json_path.read_bytes()
     assert first.manifest_path.read_bytes() == second.manifest_path.read_bytes()
+    assert first.promotion_gate_path.read_bytes() == second.promotion_gate_path.read_bytes()
     assert first.review_id == build_research_review_id(
         filters=first.filters,
         entries=first.entries,

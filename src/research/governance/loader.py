@@ -1070,6 +1070,8 @@ def _authoritative_promotion_summary(
     *,
     fallback: dict[str, Any] | None,
 ) -> dict[str, Any] | None:
+    if bool(context.get("required")) and not bool(context.get("present")):
+        return None
     if bool(context.get("present")):
         if bool(context.get("canonical")) and bool(context.get("valid")) and isinstance(promotion_gates, Mapping):
             return dict(promotion_gates)

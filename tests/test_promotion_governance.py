@@ -519,6 +519,12 @@ def test_governance_loader_discovers_review_and_candidate_review_contexts(tmp_pa
     }
     _write_json(review_dir / "review_summary.json", {"review_id": "review_a"})
     _write_json(review_dir / "manifest.json", {"review_id": "review_a", "promotion_gate_summary": review_summary})
+    _write_review_promotion_state(
+        review_dir,
+        review_id="review_a",
+        configured=True,
+        actual_value=0.0,
+    )
     _write_json(
         candidate_dir / "candidate_review_summary.json",
         {
@@ -1153,7 +1159,11 @@ def test_valid_review_no_policy_state_is_authoritative_and_review_required(tmp_p
     assert context["promotion_status"] == "not_reviewed"
     assert summary["promotion_status_counts"] == {"not_reviewed": 1}
     assert summary["review_fraction"] == 1.0
+    assert summary["eligible_fraction"] == 0.0
+    assert summary["blocked_fraction"] == 0.0
     assert workflow_summary[0]["needs_review_count"] == 1
+    assert workflow_summary[0]["eligible_count"] == 0
+    assert workflow_summary[0]["blocked_count"] == 0
     assert validation["finding_count"] == 0
     assert state_path.read_bytes() == source_bytes
 
@@ -1350,6 +1360,78 @@ def test_missing_canonical_state_is_distinct_from_not_reviewed(tmp_path: Path) -
 
     assert rows[0]["promotion_status"] == ""
     assert validation["counts_by_check"] == {"missing_canonical_promotion_state": 1}
+
+
+def test_governance_promotion_state_classification_matrix_is_read_only(
+    tmp_path: Path,
+) -> None:
+    artifact_root = tmp_path / "artifacts"
+    valid_dir = artifact_root / "reviews" / "review_valid"
+    missing_dir = artifact_root / "reviews" / "review_missing"
+    malformed_dir = artifact_root / "reviews" / "review_malformed"
+    for review_dir, review_id in (
+        (valid_dir, "review_valid"),
+        (missing_dir, "review_missing"),
+        (malformed_dir, "review_malformed"),
+    ):
+        _write_json(review_dir / "review_summary.json", {"review_id": review_id})
+        _write_json(
+            review_dir / "manifest.json",
+            {
+                "review_id": review_id,
+                "promotion_gate_summary": {
+                    "promotion_status": "eligible",
+                    "gate_count": 1,
+                },
+            },
+        )
+    valid_path = _write_review_promotion_state(valid_dir, review_id="review_valid")
+    malformed_path = _write_review_promotion_state(
+        malformed_dir,
+        review_id="review_malformed",
+    )
+    malformed_payload = json.loads(malformed_path.read_text(encoding="utf-8"))
+    malformed_payload["promotion_status"] = "eligible"
+    _write_json(malformed_path, malformed_payload)
+    source_files = sorted(artifact_root.rglob("*.json"))
+    before = {path: path.read_bytes() for path in source_files}
+
+    first_dataset = load_governance_artifacts(
+        registry_path=artifact_root / "missing_registry.jsonl",
+        artifact_root=artifact_root,
+    )
+    first_rows = build_governance_outcome_rows(first_dataset.records)
+    first_validation = validate_governance_consistency(
+        first_dataset.records,
+        first_rows,
+    )
+    second_dataset = load_governance_artifacts(
+        registry_path=artifact_root / "missing_registry.jsonl",
+        artifact_root=artifact_root,
+    )
+    second_rows = build_governance_outcome_rows(second_dataset.records)
+    second_validation = validate_governance_consistency(
+        second_dataset.records,
+        second_rows,
+    )
+
+    records = {record.run_id: record for record in first_dataset.records}
+    rows = {row["run_id"]: row for row in first_rows}
+    assert records["review_valid"].governance_metadata["promotion_state_context"]["valid"] is True
+    assert rows["review_valid"]["promotion_status"] == "not_reviewed"
+    assert records["review_missing"].governance_metadata["promotion_state_context"]["present"] is False
+    assert rows["review_missing"]["promotion_status"] == ""
+    assert records["review_malformed"].governance_metadata["promotion_state_context"]["valid"] is False
+    assert records["review_malformed"].promotion_gate_summary is None
+    assert rows["review_malformed"]["promotion_status"] == ""
+    assert first_validation["counts_by_check"] == {
+        "missing_canonical_promotion_state": 1,
+        "promotion_state_schema_invalid": 1,
+    }
+    assert first_rows == second_rows
+    assert first_validation == second_validation
+    assert valid_path.exists()
+    assert {path: path.read_bytes() for path in source_files} == before
 
 
 def test_legacy_status_aliases_normalize_without_changing_canonical_outputs(tmp_path: Path) -> None:
@@ -1742,6 +1824,36 @@ def _campaign_fixture(tmp_path: Path) -> Path:
         },
     )
     _write_json(scenario_a_dir / "checkpoint.json", {"stage_states": {"review": "completed"}})
+    scenario_evaluation = evaluate_promotion_gates(
+        run_type="research_campaign",
+        config={
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "campaign_gate",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                    "severity": "block",
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.0}},
+    )
+    assert scenario_evaluation is not None
+    write_promotion_state_artifact(
+        scenario_a_dir,
+        build_promotion_state_from_evaluation(
+            scenario_evaluation,
+            provenance={
+                "object_type": "research_campaign",
+                "object_id": "campaign_a",
+                "campaign_run_id": "campaign_a",
+                "run_type": "research_campaign",
+            },
+        ),
+    )
     return artifact_root
 
 

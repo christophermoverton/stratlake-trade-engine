@@ -406,28 +406,49 @@ def test_severity_promotion_gate_artifact_is_json_safe_and_deterministic(tmp_pat
     assert parsed["results"][0]["reason_codes"] == ["gate_failed_threshold", "severity_block"]
 
 
-def test_unconfigured_promotion_state_is_canonical_v2_and_deterministic(tmp_path: Path) -> None:
+@pytest.mark.parametrize(
+    ("run_type", "object_type", "object_id", "identity_field"),
+    [
+        ("review", "review", "registry_review_123", "review_id"),
+        (
+            "research_campaign",
+            "research_campaign",
+            "research_campaign_123",
+            "campaign_run_id",
+        ),
+    ],
+)
+def test_unconfigured_promotion_state_is_canonical_v2_and_deterministic(
+    tmp_path: Path,
+    run_type: str,
+    object_type: str,
+    object_id: str,
+    identity_field: str,
+) -> None:
     provenance = {
-        "object_id": "registry_review_123",
-        "object_type": "review",
-        "review_id": "registry_review_123",
+        "object_id": object_id,
+        "object_type": object_type,
+        identity_field: object_id,
         "source_artifacts": {
             "manifest": "manifest.json",
-            "review_summary": "review_summary.json",
+            "summary": "summary.json",
         },
     }
-    first = build_unconfigured_promotion_state(run_type="review", provenance=provenance)
-    second = build_unconfigured_promotion_state(run_type="review", provenance=dict(provenance))
+    first = build_unconfigured_promotion_state(run_type=run_type, provenance=provenance)
+    second = build_unconfigured_promotion_state(run_type=run_type, provenance=dict(provenance))
 
     first_payload = serialize_promotion_state(first)
     second_payload = serialize_promotion_state(second)
-    artifact_path = write_promotion_state_artifact(tmp_path, first)
+    artifact_path = write_promotion_state_artifact(tmp_path / run_type, first)
+    first_bytes = artifact_path.read_bytes()
+    second_path = write_promotion_state_artifact(tmp_path / run_type, second)
     parsed = json.loads(artifact_path.read_text(encoding="utf-8"))
 
     assert first_payload == second_payload == parsed
+    assert second_path.read_bytes() == first_bytes
     assert first_payload["schema_version"] == 2
     assert first_payload["artifact_type"] == "promotion_state"
-    assert first_payload["run_type"] == "review"
+    assert first_payload["run_type"] == run_type
     assert first_payload["configured"] is False
     assert first_payload["configuration_state"] == "not_configured"
     assert first_payload["evaluation_status"] == "not_configured"
@@ -448,7 +469,7 @@ def test_unconfigured_promotion_state_is_canonical_v2_and_deterministic(tmp_path
     }
     assert first_payload["gate_definitions"] == []
     assert first_payload["gate_results"] == []
-    assert first_payload["provenance"] == {**provenance, "run_type": "review"}
+    assert first_payload["provenance"] == {**provenance, "run_type": run_type}
     assert first_payload["artifact_metadata"] == {
         "artifact_filename": "promotion_gates.json",
         "deterministic": True,

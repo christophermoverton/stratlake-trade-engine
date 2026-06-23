@@ -492,6 +492,9 @@ portfolios:
     assert result.campaign_checkpoint_path.exists()
     assert result.campaign_manifest_path.exists()
     assert result.campaign_summary_path.exists()
+    campaign_promotion_state_path = result.campaign_artifact_dir / "promotion_gates.json"
+    assert result.campaign_promotion_state_path == campaign_promotion_state_path
+    assert result.campaign_promotion_state_path.exists()
     assert result.campaign_milestone_summary_path == result.campaign_artifact_dir / "milestone_report" / MILESTONE_SUMMARY_FILENAME
     assert result.campaign_milestone_decision_log_path == result.campaign_artifact_dir / "milestone_report" / MILESTONE_DECISION_LOG_FILENAME
     assert result.campaign_milestone_manifest_path == result.campaign_artifact_dir / "milestone_report" / MILESTONE_MANIFEST_FILENAME
@@ -502,6 +505,7 @@ portfolios:
     campaign_checkpoint = json.loads(result.campaign_checkpoint_path.read_text(encoding="utf-8"))
     campaign_manifest = json.loads(result.campaign_manifest_path.read_text(encoding="utf-8"))
     campaign_summary = json.loads(result.campaign_summary_path.read_text(encoding="utf-8"))
+    campaign_promotion_state = json.loads(campaign_promotion_state_path.read_text(encoding="utf-8"))
     milestone_summary = json.loads(result.campaign_milestone_summary_path.read_text(encoding="utf-8"))
     milestone_decision_log = json.loads(result.campaign_milestone_decision_log_path.read_text(encoding="utf-8"))
 
@@ -560,6 +564,16 @@ portfolios:
     assert campaign_manifest["status"] == "completed"
     assert campaign_manifest["checkpoint_path"] == "checkpoint.json"
     assert campaign_manifest["summary_path"] == "summary.json"
+    assert campaign_manifest["artifact_files"].count("promotion_gates.json") == 1
+    assert campaign_manifest["artifact_groups"]["promotion_state"] == ["promotion_gates.json"]
+    assert campaign_manifest["artifacts"]["promotion_gates.json"] == {
+        "artifact_type": "promotion_state",
+        "configured": False,
+        "evaluation_status": "not_configured",
+        "path": "promotion_gates.json",
+        "promotion_status": "not_reviewed",
+        "schema_version": 2,
+    }
     assert campaign_manifest["stage_statuses"]["candidate_review"] == "completed"
     assert campaign_manifest["skipped_stage_names"] == []
     assert campaign_manifest["resumable_stage_names"] == []
@@ -604,11 +618,68 @@ portfolios:
     assert candidate_review_stage["execution_metadata"]["failure"] is None
     assert campaign_summary["output_paths"]["candidate_review_dir"] == review_dir.as_posix()
     assert campaign_summary["output_paths"]["campaign_checkpoint"] == result.campaign_checkpoint_path.as_posix()
+    assert campaign_summary["output_paths"]["campaign_promotion_state"] == campaign_promotion_state_path.as_posix()
     assert campaign_summary["output_paths"]["milestone_report_summary"] == result.campaign_milestone_summary_path.as_posix()
     assert campaign_summary["output_paths"]["milestone_report_decision_log"] == result.campaign_milestone_decision_log_path.as_posix()
     assert campaign_summary["output_paths"]["milestone_report_manifest"] == result.campaign_milestone_manifest_path.as_posix()
     assert campaign_summary["output_paths"]["milestone_report_markdown"] == result.campaign_milestone_markdown_path.as_posix()
     assert "candidate_review_counts" in campaign_summary["final_outcomes"]
+    assert campaign_summary["final_outcomes"]["campaign_promotion_status"] == "not_reviewed"
+    assert campaign_summary["final_outcomes"]["campaign_promotion_gate_status"] == "not_configured"
+    assert campaign_summary["final_outcomes"]["campaign_promotion_decision_authority"] == "none"
+    assert campaign_summary["final_outcomes"]["campaign_promotion_decision_reason_codes"] == [
+        "promotion_policy_not_configured"
+    ]
+    assert campaign_summary["final_outcomes"]["campaign_promotion_gate_counts"] == {
+        "blocked": 0,
+        "failed": 0,
+        "missing": 0,
+        "passed": 0,
+        "rejected": 0,
+        "review": 0,
+        "skipped": 0,
+        "total": 0,
+        "warning": 0,
+    }
+    assert campaign_summary["final_outcomes"]["campaign_promotion_gate_summary"]["promotion_status"] == "not_reviewed"
+    assert campaign_promotion_state["schema_version"] == 2
+    assert campaign_promotion_state["artifact_type"] == "promotion_state"
+    assert campaign_promotion_state["run_type"] == "research_campaign"
+    assert campaign_promotion_state["configured"] is False
+    assert campaign_promotion_state["configuration_state"] == "not_configured"
+    assert campaign_promotion_state["evaluation_status"] == "not_configured"
+    assert campaign_promotion_state["promotion_status"] == "not_reviewed"
+    assert campaign_promotion_state["decision_authority"] == "none"
+    assert campaign_promotion_state["human_decision"] is None
+    assert campaign_promotion_state["decision_reason_codes"] == ["promotion_policy_not_configured"]
+    assert all(value == 0 for value in campaign_promotion_state["gate_counts"].values())
+    assert set(campaign_promotion_state["gate_counts"]) == {
+        "blocked",
+        "failed",
+        "missing",
+        "passed",
+        "rejected",
+        "review",
+        "skipped",
+        "total",
+        "warning",
+    }
+    assert campaign_promotion_state["gate_definitions"] == []
+    assert campaign_promotion_state["gate_results"] == []
+    assert campaign_promotion_state["artifact_metadata"]["artifact_filename"] == "promotion_gates.json"
+    assert campaign_promotion_state["provenance"]["object_type"] == "research_campaign"
+    assert campaign_promotion_state["provenance"]["object_id"] == result.campaign_run_id
+    assert campaign_promotion_state["provenance"]["campaign_run_id"] == result.campaign_run_id
+    assert campaign_promotion_state["provenance"]["run_type"] == "research_campaign"
+    assert campaign_promotion_state["provenance"]["source_artifacts"] == {
+        "campaign_config": "campaign_config.json",
+        "checkpoint": "checkpoint.json",
+        "manifest": "manifest.json",
+        "preflight_summary": "preflight_summary.json",
+        "summary": "summary.json",
+    }
+    assert campaign_promotion_state["provenance"]["upstream_evidence"]["review"]["review_id"] == "review_run"
+    assert campaign_promotion_state["provenance"]["object_id"] != "review_run"
     assert milestone_summary["related_artifacts"]["campaign_summary"] == "../summary.json"
     assert milestone_decision_log["decision_ids"] == ["campaign_execution", "review_promotion_outcome"]
     assert milestone_decision_log["decision_counts_by_status"] == {"accepted": 1, "deferred": 1}
@@ -627,6 +698,107 @@ portfolios:
         "candidate_review",
         "review",
     ]
+
+
+def test_run_research_campaign_fails_when_campaign_promotion_state_write_fails(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    alpha_catalog = tmp_path / "alphas.yml"
+    strategy_config = tmp_path / "strategies.yml"
+    portfolio_config = tmp_path / "portfolios.yml"
+    features_root = tmp_path / "features_root"
+    alpha_catalog.write_text(
+        """
+alpha_one:
+  alpha_name: alpha_one
+  dataset: features_daily
+  target_column: target_ret_1d
+  feature_columns: [feature_ret_1d]
+  model_type: cross_sectional_linear
+  model_params: {}
+  alpha_horizon: 1
+""".strip(),
+        encoding="utf-8",
+    )
+    strategy_config.write_text(
+        """
+momentum_v1:
+  dataset: features_daily
+  parameters: {}
+""".strip(),
+        encoding="utf-8",
+    )
+    portfolio_config.write_text(
+        """
+portfolios:
+  candidate_portfolio:
+    allocator: equal_weight
+    components:
+      - strategy_name: momentum_v1
+""".strip(),
+        encoding="utf-8",
+    )
+    _write_feature_fixture(features_root)
+    monkeypatch.setenv("FEATURES_ROOT", features_root.as_posix())
+    config = _build_full_campaign_config(
+        tmp_path=tmp_path,
+        alpha_catalog=alpha_catalog,
+        strategy_config=strategy_config,
+        portfolio_config=portfolio_config,
+    )
+
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(alpha_name="alpha_one", run_id="alpha_run", artifact_dir=tmp_path / "alpha"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_strategy_cli.run_cli",
+        lambda argv: SimpleNamespace(strategy_name="momentum_v1", run_id="strategy_run", experiment_dir=tmp_path / "strategy"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_alpha_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="alpha_cmp"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_strategies_cli.run_cli",
+        lambda argv: SimpleNamespace(comparison_id="strategy_cmp"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(run_id="candidate_run", artifact_dir=tmp_path / "candidate_selection"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.run_portfolio_cli.run_cli",
+        lambda argv: SimpleNamespace(
+            run_id="portfolio_run",
+            experiment_dir=tmp_path / "portfolio",
+            portfolio_name="candidate_portfolio",
+        ),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.review_candidate_selection_cli.run_cli",
+        lambda argv: SimpleNamespace(review_dir=tmp_path / "candidate_review"),
+    )
+    monkeypatch.setattr(
+        "src.cli.run_research_campaign.compare_research_cli.run_cli",
+        lambda argv: SimpleNamespace(review_id="review_run"),
+    )
+
+    def fail_write(*args: object, **kwargs: object) -> Path:
+        raise OSError("campaign promotion state write failed")
+
+    monkeypatch.setattr("src.cli.run_research_campaign.write_promotion_state_artifact", fail_write)
+
+    with pytest.raises(OSError, match="campaign promotion state write failed"):
+        run_research_campaign(config)
+
+    campaign_dirs = list((tmp_path / "campaign_artifacts").glob("research_campaign_*"))
+    assert len(campaign_dirs) == 1
+    campaign_dir = campaign_dirs[0]
+    assert not (campaign_dir / "promotion_gates.json").exists()
+    assert not (campaign_dir / "summary.json").exists()
+    assert not (campaign_dir / "manifest.json").exists()
 
 
 def test_run_research_campaign_reuses_matching_checkpoint_stages_on_resume(
@@ -3814,15 +3986,19 @@ portfolios:
     first_checkpoint = json.loads(first_result.campaign_checkpoint_path.read_text(encoding="utf-8"))
     first_preflight_bytes = first_result.preflight_summary_path.read_bytes()
     first_config_bytes = (first_result.campaign_artifact_dir / "campaign_config.json").read_bytes()
+    first_promotion_state_bytes = first_result.campaign_promotion_state_path.read_bytes()
 
     second_result = run_research_campaign(config)
 
     assert second_result.preflight_summary_path.read_bytes() == first_preflight_bytes
     assert (second_result.campaign_artifact_dir / "campaign_config.json").read_bytes() == first_config_bytes
+    assert second_result.campaign_promotion_state_path == first_result.campaign_promotion_state_path
+    assert second_result.campaign_promotion_state_path.read_bytes() == first_promotion_state_bytes
 
     checkpoint = json.loads(second_result.campaign_checkpoint_path.read_text(encoding="utf-8"))
     summary = json.loads(second_result.campaign_summary_path.read_text(encoding="utf-8"))
     manifest = json.loads(second_result.campaign_manifest_path.read_text(encoding="utf-8"))
+    promotion_state = json.loads(second_result.campaign_promotion_state_path.read_text(encoding="utf-8"))
 
     assert second_result.campaign_manifest_path.read_bytes() != first_manifest_bytes
     assert second_result.campaign_summary_path.read_bytes() != first_summary_bytes
@@ -3868,6 +4044,8 @@ portfolios:
     )
     assert summary["output_paths"]["review_manifest"].endswith("reviews/campaign_review/manifest.json")
     assert summary["output_paths"]["review_promotion_gates"].endswith("reviews/campaign_review/promotion_gates.json")
+    assert "campaign_artifacts" in summary["output_paths"]["campaign_promotion_state"]
+    assert summary["output_paths"]["campaign_promotion_state"].endswith("promotion_gates.json")
     assert summary["final_outcomes"]["review_promotion_gate_summary"] == {
         "evaluation_status": "passed",
         "failed_gate_count": 0,
@@ -3876,6 +4054,18 @@ portfolios:
         "passed_gate_count": 3,
         "promotion_status": "approved",
     }
+    assert summary["final_outcomes"]["review_promotion_status"] == "approved"
+    assert summary["final_outcomes"]["campaign_promotion_status"] == "not_reviewed"
+    assert summary["final_outcomes"]["campaign_promotion_gate_status"] == "not_configured"
+    assert summary["final_outcomes"]["campaign_promotion_decision_authority"] == "none"
+    assert promotion_state["promotion_status"] == "not_reviewed"
+    assert promotion_state["configured"] is False
+    assert promotion_state["provenance"]["object_id"] == second_result.campaign_run_id
+    assert promotion_state["provenance"]["object_id"] != "review_run"
+    assert promotion_state["provenance"]["upstream_evidence"]["review"]["review_id"] == "review_run"
+    assert promotion_state["provenance"]["upstream_evidence"]["review"]["review_promotion_state"].endswith(
+        "reviews/campaign_review/promotion_gates.json"
+    )
     assert summary["final_outcomes"]["review_counts_by_run_type"] == {
         "alpha_evaluation": 2,
         "portfolio": 2,
@@ -3905,8 +4095,11 @@ portfolios:
         "milestone_report/report.md",
         "milestone_report/summary.json",
         "preflight_summary.json",
+        "promotion_gates.json",
         "summary.json",
     ]
+    assert manifest["artifact_groups"]["promotion_state"] == ["promotion_gates.json"]
+    assert manifest["artifacts"]["promotion_gates.json"]["promotion_status"] == "not_reviewed"
     assert summary["output_paths"]["milestone_report_summary"].endswith("milestone_report/summary.json")
     assert summary["output_paths"]["milestone_report_decision_log"].endswith("milestone_report/decision_log.json")
     assert summary["output_paths"]["milestone_report_manifest"].endswith("milestone_report/manifest.json")

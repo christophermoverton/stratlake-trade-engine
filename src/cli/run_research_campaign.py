@@ -1085,25 +1085,40 @@ def _run_single_research_campaign(
             )
         raise
 
-    checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload = _write_campaign_artifacts(
-        config=config,
-        campaign_run_id=campaign_run_id,
-        campaign_artifact_dir=campaign_artifact_dir,
-        scenario_context=scenario_context,
-        preflight_result=preflight_result,
-        stage_records=records,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        alpha_comparison_result=alpha_comparison_result,
-        strategy_comparison_result=strategy_comparison_result,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        candidate_review_result=candidate_review_result,
-        review_result=review_result,
-        status="completed",
-    )
+    try:
+        checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload = _write_campaign_artifacts(
+            config=config,
+            campaign_run_id=campaign_run_id,
+            campaign_artifact_dir=campaign_artifact_dir,
+            scenario_context=scenario_context,
+            preflight_result=preflight_result,
+            stage_records=records,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            alpha_comparison_result=alpha_comparison_result,
+            strategy_comparison_result=strategy_comparison_result,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+            portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
+            candidate_review_result=candidate_review_result,
+            review_result=review_result,
+            status="completed",
+        )
+    except Exception:
+        try:
+            mark_run_failed(
+                campaign_artifact_dir,
+                {
+                    "run_type": "research_campaign",
+                    "run_id": campaign_run_id,
+                    "status": "failed",
+                    "failure_stage": "campaign_finalization",
+                },
+            )
+        except Exception:
+            pass
+        raise
     mark_run_completed(
         campaign_artifact_dir,
         {"run_type": "research_campaign", "run_id": campaign_run_id, "status": "completed"},

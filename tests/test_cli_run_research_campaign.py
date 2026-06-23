@@ -7,6 +7,7 @@ from types import SimpleNamespace
 
 import pytest
 
+from src.artifacts.safety import read_run_status
 from src.cli.run_research_campaign import (
     CampaignPreflightCheck,
     CampaignPreflightResult,
@@ -786,12 +787,13 @@ portfolios:
     )
 
     def fail_write(*args: object, **kwargs: object) -> Path:
-        raise OSError("campaign promotion state write failed")
+        raise OSError("promotion state write failed")
 
-    monkeypatch.setattr("src.cli.run_research_campaign.write_promotion_state_artifact", fail_write)
+    with monkeypatch.context() as failure_patch:
+        failure_patch.setattr("src.cli.run_research_campaign.write_promotion_state_artifact", fail_write)
 
-    with pytest.raises(OSError, match="campaign promotion state write failed"):
-        run_research_campaign(config)
+        with pytest.raises(OSError, match="promotion state write failed"):
+            run_research_campaign(config)
 
     campaign_dirs = list((tmp_path / "campaign_artifacts").glob("research_campaign_*"))
     assert len(campaign_dirs) == 1
@@ -799,6 +801,34 @@ portfolios:
     assert not (campaign_dir / "promotion_gates.json").exists()
     assert not (campaign_dir / "summary.json").exists()
     assert not (campaign_dir / "manifest.json").exists()
+    assert not (campaign_dir / "_SUCCESS.json").exists()
+    status = read_run_status(campaign_dir)
+    assert status["status"] == "failed"
+    assert status["metadata"]["metadata"] == {
+        "failure_stage": "campaign_finalization",
+        "run_id": campaign_dir.name,
+        "run_type": "research_campaign",
+        "status": "failed",
+    }
+
+    with monkeypatch.context() as marker_failure_patch:
+        marker_failure_patch.setattr("src.cli.run_research_campaign.write_promotion_state_artifact", fail_write)
+
+        def fail_marker(*args: object, **kwargs: object) -> Path:
+            raise RuntimeError("failed marker persistence failed")
+
+        marker_failure_patch.setattr("src.cli.run_research_campaign.mark_run_failed", fail_marker)
+
+        with pytest.raises(OSError, match="promotion state write failed"):
+            run_research_campaign(config)
+
+    recovered_result = run_research_campaign(config)
+
+    assert read_run_status(campaign_dir)["status"] == "completed"
+    assert recovered_result.campaign_promotion_state_path == campaign_dir / "promotion_gates.json"
+    assert recovered_result.campaign_promotion_state_path.exists()
+    recovered_summary = json.loads(recovered_result.campaign_summary_path.read_text(encoding="utf-8"))
+    assert recovered_summary["final_outcomes"]["campaign_promotion_status"] == "not_reviewed"
 
 
 def test_run_research_campaign_reuses_matching_checkpoint_stages_on_resume(

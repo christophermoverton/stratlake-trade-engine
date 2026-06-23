@@ -76,7 +76,18 @@ def _record_from_registry_entry(
     manifest = _load_json_if_exists(manifest_path)
     promotion_gate_path = None if artifact_dir is None else artifact_dir / DEFAULT_PROMOTION_ARTIFACT_FILENAME
     promotion_gates = _load_json_if_exists(promotion_gate_path)
-    summary = _promotion_gate_summary(entry, manifest, promotion_gates)
+    promotion_state_context = _promotion_state_context(
+        promotion_gate_path,
+        expected_run_type=workflow_type,
+        expected_object_type=None,
+        expected_object_id=None,
+        required=False,
+    )
+    summary = _authoritative_promotion_summary(
+        promotion_state_context,
+        promotion_gates,
+        fallback=_promotion_gate_summary(entry, manifest, promotion_gates),
+    )
     robustness_context = _robustness_context(
         entry=entry,
         manifest=manifest,
@@ -96,6 +107,7 @@ def _record_from_registry_entry(
         promotion_gates=promotion_gates,
         promotion_gate_summary=summary,
         governance_metadata={
+            "promotion_state_context": promotion_state_context,
             "robustness_context": robustness_context,
             "artifact_evidence_paths": _evidence_paths(
                 artifact_dir=artifact_dir,
@@ -122,6 +134,13 @@ def _standalone_review_records(*, artifact_root: Path, known_run_ids: set[str]) 
         manifest = _load_json_if_exists(manifest_path)
         promotion_gate_path = summary_path.parent / DEFAULT_PROMOTION_ARTIFACT_FILENAME
         promotion_gates = _load_json_if_exists(promotion_gate_path)
+        promotion_state_context = _promotion_state_context(
+            promotion_gate_path,
+            expected_run_type="review",
+            expected_object_type="review",
+            expected_object_id=review_id,
+            required=True,
+        )
         records.append(
             GovernanceSourceRecord(
                 run_id=review_id,
@@ -131,10 +150,15 @@ def _standalone_review_records(*, artifact_root: Path, known_run_ids: set[str]) 
                 manifest=manifest,
                 promotion_gate_path=promotion_gate_path,
                 promotion_gates=promotion_gates,
-                promotion_gate_summary=_promotion_gate_summary({}, manifest, promotion_gates),
+                promotion_gate_summary=_authoritative_promotion_summary(
+                    promotion_state_context,
+                    promotion_gates,
+                    fallback=_promotion_gate_summary({}, manifest, promotion_gates),
+                ),
                 review_summary_path=summary_path,
                 review_summary=summary,
                 governance_metadata={
+                    "promotion_state_context": promotion_state_context,
                     "artifact_evidence_paths": _evidence_paths(
                         artifact_dir=summary_path.parent,
                         manifest_path=manifest_path,
@@ -360,13 +384,29 @@ def _build_campaign_record(
     scenario_catalog: dict[str, Any] | None,
 ) -> GovernanceSourceRecord:
     campaign_id = str(summary.get("campaign_run_id") or summary.get("orchestration_run_id") or campaign_dir.name)
+    promotion_gate_path = campaign_dir / DEFAULT_PROMOTION_ARTIFACT_FILENAME
+    promotion_gates = _load_json_if_exists(promotion_gate_path)
+    promotion_state_required = str(summary.get("run_type") or "") == "research_campaign"
+    promotion_state_context = _promotion_state_context(
+        promotion_gate_path,
+        expected_run_type="research_campaign",
+        expected_object_type="research_campaign",
+        expected_object_id=campaign_id,
+        required=promotion_state_required,
+    )
     return GovernanceSourceRecord(
         run_id=campaign_id,
         workflow_type="campaign",
         artifact_dir=campaign_dir,
         manifest_path=manifest_path,
         manifest=manifest,
-        promotion_gate_summary=_campaign_promotion_summary(summary, manifest),
+        promotion_gate_path=promotion_gate_path,
+        promotion_gates=promotion_gates,
+        promotion_gate_summary=_authoritative_promotion_summary(
+            promotion_state_context,
+            promotion_gates,
+            fallback=_campaign_promotion_summary(summary, manifest),
+        ),
         governance_metadata=canonicalize_value(
             {
                 "campaign_id": campaign_id,
@@ -384,9 +424,11 @@ def _build_campaign_record(
                 "scenario_count": _scenario_count(summary, scenario_catalog),
                 "campaign_summary": _campaign_summary_context(summary),
                 "campaign_config_present": config is not None,
+                "promotion_state_context": promotion_state_context,
                 "artifact_evidence_paths": _evidence_paths(
                     artifact_dir=campaign_dir,
                     manifest_path=manifest_path,
+                    promotion_gate_path=promotion_gate_path,
                     campaign_summary_path=summary_path,
                     checkpoint_path=checkpoint_path,
                     scenario_catalog_path=scenario_catalog_path if scenario_catalog is not None else None,
@@ -481,13 +523,29 @@ def _build_scenario_record(
         or str(summary.get("campaign_run_id") or "")
     )
     selected_candidate_ids = _selected_candidate_ids(summary)
+    scenario_campaign_run_id = str(summary.get("campaign_run_id") or "").strip() or None
+    promotion_gate_path = campaign_dir / DEFAULT_PROMOTION_ARTIFACT_FILENAME
+    promotion_gates = _load_json_if_exists(promotion_gate_path)
+    promotion_state_context = _promotion_state_context(
+        promotion_gate_path,
+        expected_run_type="research_campaign",
+        expected_object_type="research_campaign",
+        expected_object_id=scenario_campaign_run_id,
+        required=summary_path.exists(),
+    )
     return GovernanceSourceRecord(
         run_id=f"{campaign_id}:{scenario_id}" if campaign_id else scenario_id,
         workflow_type="campaign_scenario",
         artifact_dir=campaign_dir,
         manifest_path=manifest_path,
         manifest=manifest,
-        promotion_gate_summary=_campaign_promotion_summary(summary, manifest),
+        promotion_gate_path=promotion_gate_path,
+        promotion_gates=promotion_gates,
+        promotion_gate_summary=_authoritative_promotion_summary(
+            promotion_state_context,
+            promotion_gates,
+            fallback=_campaign_promotion_summary(summary, manifest),
+        ),
         governance_metadata=canonicalize_value(
             {
                 "campaign_id": campaign_id,
@@ -496,6 +554,7 @@ def _build_scenario_record(
                 "scenario_status": summary.get("status") or _nested_string(parent_scenario_entry, "status"),
                 "campaign_status": parent_campaign_status,
                 "checkpoint_status": _checkpoint_status(checkpoint),
+                "campaign_summary": _campaign_summary_context(summary),
                 "selected_run_id": _first_child_run_id(summary),
                 "selected_candidate_id": selected_candidate_ids[0] if selected_candidate_ids else None,
                 "selected_candidate_ids": selected_candidate_ids,
@@ -517,10 +576,13 @@ def _build_scenario_record(
                 "checkpoint_stage_states": _checkpoint_stage_states(checkpoint),
                 "missing_child_artifact_paths": _missing_child_artifact_paths(summary),
                 "campaign_config_present": config is not None,
+                "promotion_state_owner_id": scenario_campaign_run_id,
+                "promotion_state_context": promotion_state_context,
                 "artifact_evidence_paths": _evidence_paths(
                     artifact_dir=campaign_dir,
                     campaign_manifest_path=parent_campaign_manifest_path,
                     manifest_path=manifest_path if manifest is not None else None,
+                    promotion_gate_path=promotion_gate_path,
                     campaign_summary_path=summary_path if summary_path.exists() else None,
                     checkpoint_path=checkpoint_path if checkpoint is not None else None,
                     campaign_config_path=config_path if config is not None else None,
@@ -889,6 +951,11 @@ def _campaign_summary_context(summary: Mapping[str, Any]) -> dict[str, Any]:
                 if isinstance(summary.get("stage_state_counts"), Mapping)
                 else {}
             ),
+            "final_outcomes": (
+                dict(summary.get("final_outcomes"))
+                if isinstance(summary.get("final_outcomes"), Mapping)
+                else {}
+            ),
         }
     )
 
@@ -995,6 +1062,217 @@ def _promotion_summary_payload(payload: Mapping[str, Any] | None) -> dict[str, A
     if "promotion_status" in payload and "gate_count" in payload:
         return dict(payload)
     return None
+
+
+def _authoritative_promotion_summary(
+    context: Mapping[str, Any],
+    promotion_gates: Mapping[str, Any] | None,
+    *,
+    fallback: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if bool(context.get("present")):
+        if bool(context.get("canonical")) and bool(context.get("valid")) and isinstance(promotion_gates, Mapping):
+            return dict(promotion_gates)
+        if bool(context.get("canonical")) or not bool(context.get("readable")):
+            return None
+    return fallback
+
+
+def _promotion_state_context(
+    path: Path | None,
+    *,
+    expected_run_type: str | None,
+    expected_object_type: str | None,
+    expected_object_id: str | None,
+    required: bool,
+) -> dict[str, Any]:
+    context: dict[str, Any] = {
+        "present": False,
+        "readable": False,
+        "canonical": False,
+        "schema_valid": False,
+        "valid": False,
+        "required": required,
+        "configured": None,
+        "promotion_status": None,
+        "evaluation_status": None,
+        "decision_authority": None,
+        "identity_valid": False,
+        "validation_errors": [],
+    }
+    if path is None or not path.exists() or not path.is_file():
+        return canonicalize_value(context)
+    context["present"] = True
+    try:
+        raw_payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        context["validation_errors"] = ["promotion_state_schema_invalid"]
+        return canonicalize_value(context)
+    if not isinstance(raw_payload, Mapping):
+        context["validation_errors"] = ["promotion_state_schema_invalid"]
+        return canonicalize_value(context)
+    payload = dict(raw_payload)
+    context["readable"] = True
+    context["canonical"] = payload.get("schema_version") == 2 or payload.get("artifact_type") == "promotion_state"
+    if not context["canonical"]:
+        return canonicalize_value(context)
+
+    errors: list[str] = []
+    required_fields = {
+        "schema_version",
+        "artifact_type",
+        "run_type",
+        "configured",
+        "configuration_state",
+        "evaluation_status",
+        "promotion_status",
+        "decision_authority",
+        "human_decision",
+        "decision_reason_codes",
+        "gate_counts",
+        "gate_definitions",
+        "gate_results",
+        "provenance",
+        "artifact_metadata",
+    }
+    if payload.get("schema_version") != 2 or payload.get("artifact_type") != "promotion_state":
+        errors.append("promotion_state_schema_invalid")
+    if required_fields - set(payload):
+        errors.append("promotion_state_schema_invalid")
+
+    configured = payload.get("configured")
+    promotion_status = payload.get("promotion_status")
+    evaluation_status = payload.get("evaluation_status")
+    decision_authority = payload.get("decision_authority")
+    context.update(
+        {
+            "configured": configured if isinstance(configured, bool) else None,
+            "promotion_status": promotion_status if isinstance(promotion_status, str) else None,
+            "evaluation_status": evaluation_status if isinstance(evaluation_status, str) else None,
+            "decision_authority": decision_authority if isinstance(decision_authority, str) else None,
+        }
+    )
+    if not _valid_gate_counts(payload.get("gate_counts"), payload.get("gate_results"), configured=configured):
+        errors.append("promotion_state_schema_invalid")
+    if not isinstance(payload.get("gate_definitions"), list) or not isinstance(payload.get("gate_results"), list):
+        errors.append("promotion_state_schema_invalid")
+    if not isinstance(payload.get("decision_reason_codes"), list):
+        errors.append("promotion_state_schema_invalid")
+
+    if configured is False:
+        if not _valid_unconfigured_state(payload):
+            errors.append("promotion_state_schema_invalid")
+    elif configured is True:
+        if not _valid_configured_state(payload):
+            errors.append("promotion_state_schema_invalid")
+    else:
+        errors.append("promotion_state_schema_invalid")
+
+    provenance = payload.get("provenance")
+    if not isinstance(provenance, Mapping):
+        errors.append("promotion_state_schema_invalid")
+        provenance = {}
+    run_type = payload.get("run_type")
+    if provenance.get("run_type") != run_type or (
+        expected_run_type is not None and run_type != expected_run_type
+    ):
+        errors.append("promotion_state_provenance_run_type_mismatch")
+    if expected_object_type is not None and provenance.get("object_type") != expected_object_type:
+        errors.append("promotion_state_object_type_mismatch")
+    if expected_object_id is not None and provenance.get("object_id") != expected_object_id:
+        errors.append("promotion_state_owner_id_mismatch")
+    if expected_object_id is not None:
+        identity_field = "review_id" if expected_object_type == "review" else "campaign_run_id"
+        if provenance.get(identity_field) != expected_object_id:
+            errors.append("promotion_state_owner_id_mismatch")
+
+    artifact_metadata = payload.get("artifact_metadata")
+    if not isinstance(artifact_metadata, Mapping):
+        errors.append("promotion_state_schema_invalid")
+    else:
+        if artifact_metadata.get("artifact_filename") != path.name:
+            errors.append("promotion_state_artifact_filename_mismatch")
+        if (
+            artifact_metadata.get("writer") != "engine"
+            or artifact_metadata.get("generated_by") != "src.research.promotion"
+            or artifact_metadata.get("deterministic") is not True
+        ):
+            errors.append("promotion_state_schema_invalid")
+
+    context["validation_errors"] = sorted(set(errors))
+    context["schema_valid"] = "promotion_state_schema_invalid" not in errors
+    context["identity_valid"] = not any(
+        error
+        in {
+            "promotion_state_provenance_run_type_mismatch",
+            "promotion_state_object_type_mismatch",
+            "promotion_state_owner_id_mismatch",
+        }
+        for error in errors
+    )
+    context["valid"] = not errors
+    return canonicalize_value(context)
+
+
+def _valid_gate_counts(value: Any, results: Any, *, configured: Any) -> bool:
+    required_keys = {
+        "total",
+        "passed",
+        "failed",
+        "missing",
+        "skipped",
+        "warning",
+        "review",
+        "rejected",
+        "blocked",
+    }
+    if not isinstance(value, Mapping) or set(value) != required_keys:
+        return False
+    if any(isinstance(item, bool) or not isinstance(item, int) or item < 0 for item in value.values()):
+        return False
+    if configured is False:
+        return all(item == 0 for item in value.values())
+    if configured is not True or not isinstance(results, list):
+        return False
+    non_passing = value["failed"] + value["missing"]
+    return (
+        value["total"] == len(results)
+        and value["passed"] + value["failed"] + value["missing"] == value["total"]
+        and value["skipped"] <= value["passed"]
+        and all(value[key] <= non_passing for key in ("warning", "review", "rejected", "blocked"))
+    )
+
+
+def _valid_unconfigured_state(payload: Mapping[str, Any]) -> bool:
+    return (
+        payload.get("configuration_state") == "not_configured"
+        and payload.get("evaluation_status") == "not_configured"
+        and payload.get("promotion_status") == "not_reviewed"
+        and payload.get("decision_authority") == "none"
+        and payload.get("human_decision") is None
+        and payload.get("decision_reason_codes") == ["promotion_policy_not_configured"]
+        and payload.get("gate_definitions") == []
+        and payload.get("gate_results") == []
+    )
+
+
+def _valid_configured_state(payload: Mapping[str, Any]) -> bool:
+    evaluation_status = payload.get("evaluation_status")
+    promotion_status = payload.get("promotion_status")
+    if (
+        payload.get("configuration_state") != "configured"
+        or evaluation_status not in {"pass", "fail"}
+        or not isinstance(promotion_status, str)
+        or not promotion_status.strip()
+        or payload.get("decision_authority") != "engine"
+        or payload.get("human_decision") is not None
+    ):
+        return False
+    canonical_statuses = {"eligible", "warn", "needs_review", "rejected", "blocked"}
+    if promotion_status in canonical_statuses:
+        return True
+    compatibility_field = "status_on_pass" if evaluation_status == "pass" else "status_on_fail"
+    return payload.get(compatibility_field) == promotion_status
 
 
 def _load_json_if_exists(path: Path | None) -> dict[str, Any] | None:

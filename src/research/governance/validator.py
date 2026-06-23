@@ -62,8 +62,13 @@ def _record_findings(record: GovernanceSourceRecord, row: Mapping[str, Any]) -> 
     summary = record.promotion_gate_summary
     promotion_status = normalize_promotion_status(row.get("promotion_status")) or ""
     raw_promotion_status = _coerce_string(row.get("promotion_status"))
+    promotion_state_context = _mapping(record.governance_metadata.get("promotion_state_context"))
+    findings.extend(_promotion_state_findings(record, promotion_state_context))
 
-    if summary is None:
+    if summary is None and not (
+        bool(promotion_state_context.get("required"))
+        or bool(promotion_state_context.get("present"))
+    ):
         findings.append(_finding("missing_promotion_summary", record, severity="warning"))
     if raw_promotion_status is not None and raw_promotion_status != promotion_status:
         findings.append(
@@ -78,7 +83,16 @@ def _record_findings(record: GovernanceSourceRecord, row: Mapping[str, Any]) -> 
                 },
             )
         )
-    if promotion_status and promotion_status not in CANONICAL_PROMOTION_STATUSES:
+    compatible_configured_status = (
+        bool(promotion_state_context.get("valid"))
+        and bool(promotion_state_context.get("configured"))
+        and promotion_state_context.get("promotion_status") == raw_promotion_status
+    )
+    if (
+        promotion_status
+        and promotion_status not in CANONICAL_PROMOTION_STATUSES
+        and not compatible_configured_status
+    ):
         findings.append(
             _finding(
                 "unknown_promotion_status",
@@ -126,7 +140,9 @@ def _record_findings(record: GovernanceSourceRecord, row: Mapping[str, Any]) -> 
                 },
             )
         )
-    findings.extend(_equivalent_promotion_summary_findings(record))
+    if not bool(promotion_state_context.get("canonical")) or bool(promotion_state_context.get("valid")):
+        findings.extend(_equivalent_promotion_summary_findings(record))
+    findings.extend(_campaign_promotion_state_summary_findings(record, promotion_state_context))
 
     review_raw_status = _coerce_string(entry.get("review_status"))
     if review_raw_status is None:
@@ -232,6 +248,66 @@ def _record_findings(record: GovernanceSourceRecord, row: Mapping[str, Any]) -> 
                     )
                 )
     return findings
+
+
+def _promotion_state_findings(
+    record: GovernanceSourceRecord,
+    context: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    if bool(context.get("required")) and not bool(context.get("present")):
+        return [_finding("missing_canonical_promotion_state", record, severity="warning")]
+    if not bool(context.get("present")):
+        return []
+    errors = context.get("validation_errors")
+    if not isinstance(errors, list):
+        return [_finding("promotion_state_schema_invalid", record, severity="error")]
+    return [
+        _finding(
+            str(check_id),
+            record,
+            severity="error",
+            details={
+                "promotion_state_path": _safe_path(record.promotion_gate_path),
+            },
+        )
+        for check_id in sorted({str(item) for item in errors if str(item).strip()})
+    ]
+
+
+def _campaign_promotion_state_summary_findings(
+    record: GovernanceSourceRecord,
+    context: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    if record.workflow_type not in {"campaign", "campaign_scenario"} or not bool(context.get("valid")):
+        return []
+    campaign_summary = record.governance_metadata.get("campaign_summary")
+    if not isinstance(campaign_summary, Mapping):
+        return []
+    final_outcomes = campaign_summary.get("final_outcomes")
+    if not isinstance(final_outcomes, Mapping):
+        return []
+    canonical_status = _coerce_string(context.get("promotion_status"))
+    claimed_status = _coerce_string(final_outcomes.get("campaign_promotion_status"))
+    if claimed_status is None or claimed_status == canonical_status:
+        return []
+    review_status = _coerce_string(final_outcomes.get("review_promotion_status"))
+    check_id = (
+        "campaign_promotion_state_upstream_review_conflation"
+        if review_status is not None and claimed_status == review_status
+        else "campaign_promotion_state_summary_mismatch"
+    )
+    return [
+        _finding(
+            check_id,
+            record,
+            severity="error",
+            details={
+                "canonical_campaign_promotion_status": canonical_status,
+                "claimed_campaign_promotion_status": claimed_status,
+                "upstream_review_promotion_status": review_status,
+            },
+        )
+    ]
 
 
 def _candidate_review_findings(records: list[GovernanceSourceRecord]) -> list[dict[str, Any]]:
@@ -572,8 +648,16 @@ def _message(check_id: str) -> str:
         "manifest_promotion_gates_summary_mismatch": "Manifest promotion_gate_summary differs from promotion_gates.json summary.",
         "manifest_registry_promotion_summary_mismatch": "Manifest promotion_gate_summary differs from registry promotion_gate_summary.",
         "manifest_run_id_mismatch": "Manifest run id does not match the source record run id.",
+        "missing_canonical_promotion_state": "Canonical promotion-state evidence is missing.",
         "missing_or_stale_manifest_link": "Manifest path is missing or stale.",
         "missing_promotion_summary": "Promotion summary is missing; governance row cannot cite canonical promotion status.",
+        "campaign_promotion_state_summary_mismatch": "Campaign summary promotion status conflicts with canonical campaign promotion state.",
+        "campaign_promotion_state_upstream_review_conflation": "Campaign summary conflates upstream review promotion status with canonical campaign promotion state.",
+        "promotion_state_artifact_filename_mismatch": "Promotion-state artifact metadata filename does not match the loaded artifact.",
+        "promotion_state_object_type_mismatch": "Promotion-state provenance object type does not match the owning governance record.",
+        "promotion_state_owner_id_mismatch": "Promotion-state provenance owner identity does not match the owning governance record.",
+        "promotion_state_provenance_run_type_mismatch": "Promotion-state provenance run type does not match the canonical state or owning record.",
+        "promotion_state_schema_invalid": "Promotion-state artifact is malformed or contract-inconsistent.",
         "registry_promotion_status_mismatch": "Registry promotion status differs from promotion_gate_summary.promotion_status.",
         "review_status_mismatch": "Review status differs from the canonical M31 promotion-to-review mapping.",
         "scenario_catalog_missing_scenario_dir": "Scenario catalog references a missing scenario directory.",

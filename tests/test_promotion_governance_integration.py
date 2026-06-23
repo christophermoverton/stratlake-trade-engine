@@ -106,8 +106,9 @@ def test_m31_readiness_style_governance_report_end_to_end_is_deterministic(tmp_p
     }
     assert summary["campaign_status_counts"] == {"completed": 1}
     assert summary["scenario_status_counts"] == {"completed": 4}
-    assert validation["status"] == "pass"
-    assert validation["finding_count"] == 0
+    assert validation["status"] == "fail"
+    assert validation["finding_count"] == 5
+    assert validation["counts_by_check"] == {"missing_canonical_promotion_state": 5}
     assert manifest["artifact_files"] == sorted(EXPECTED_GOVERNANCE_FILES)
     assert manifest["artifact_groups"]["validation"] == ["consistency_validation.json"]
 
@@ -162,8 +163,13 @@ def test_m31_readiness_style_governance_validation_reports_predictable_mismatch(
 
     validation = json.loads(result.validation_path.read_text(encoding="utf-8"))
     assert validation["status"] == "fail"
-    assert validation["counts_by_check"] == {"scenario_promotion_status_mismatch": 1}
-    assert [finding["check_id"] for finding in validation["findings"]] == ["scenario_promotion_status_mismatch"]
+    assert validation["counts_by_check"] == {
+        "missing_canonical_promotion_state": 5,
+        "scenario_promotion_status_mismatch": 1,
+    }
+    assert [finding["check_id"] for finding in validation["findings"]].count(
+        "scenario_promotion_status_mismatch"
+    ) == 1
     assert validation["findings"] == sorted(
         validation["findings"],
         key=lambda item: (item["severity"], item["check_id"], item["run_id"]),

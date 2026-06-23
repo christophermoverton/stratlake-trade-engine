@@ -14,7 +14,11 @@ from src.research.robustness.governance_integration import (
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 from .models import GovernanceSourceRecord
-from .normalization import normalize_promotion_status, normalize_review_status
+from .normalization import (
+    PROMOTION_TO_REVIEW_STATUS,
+    normalize_promotion_status,
+    normalize_review_status,
+)
 
 OUTCOME_MATRIX_COLUMNS = [
     "run_id",
@@ -67,7 +71,11 @@ def build_governance_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     severity_counts = {severity: highest_severity_counts.get(severity, 0) for severity in SEVERITIES}
     eligible = status_counts.get("eligible", 0)
     blocked = status_counts.get("blocked", 0)
-    review = status_counts.get("needs_review", 0) + status_counts.get("warn", 0)
+    review = (
+        status_counts.get("needs_review", 0)
+        + status_counts.get("warn", 0)
+        + status_counts.get("not_reviewed", 0)
+    )
     summary = {
         "row_count": row_count,
         "campaign_count": sum(row["workflow_type"] == "campaign" for row in rows),
@@ -138,7 +146,10 @@ def build_workflow_summary(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
             "row_count": len(group_rows),
             "eligible_count": sum(row["promotion_status"] == "eligible" for row in group_rows),
             "blocked_count": sum(row["promotion_status"] == "blocked" for row in group_rows),
-            "needs_review_count": sum(row["promotion_status"] in {"needs_review", "warn"} for row in group_rows),
+            "needs_review_count": sum(
+                row["promotion_status"] in {"needs_review", "warn", "not_reviewed"}
+                for row in group_rows
+            ),
             "rejected_count": sum(row["promotion_status"] == "rejected" for row in group_rows),
         }
         for workflow_type, group_rows in sorted(grouped.items())
@@ -167,12 +178,16 @@ def _record_to_row(record: GovernanceSourceRecord, *, base_dir: Path) -> dict[st
     metrics = _mapping(entry.get("metrics_summary")) or _mapping(entry.get("metrics")) or _mapping(manifest.get("metric_summary"))
     review_metadata = _mapping(entry.get("review_metadata"))
     robustness_context = _mapping(metadata.get("robustness_context"))
+    promotion_status = normalize_promotion_status(summary.get("promotion_status") or entry.get("promotion_status"))
+    review_status = normalize_review_status(entry.get("review_status") or review_metadata.get("status"))
+    if review_status is None and promotion_status == "not_reviewed":
+        review_status = PROMOTION_TO_REVIEW_STATUS[promotion_status]
     row = {
         "run_id": record.run_id,
         "workflow_type": record.workflow_type,
-        "promotion_status": _text(normalize_promotion_status(summary.get("promotion_status") or entry.get("promotion_status"))),
+        "promotion_status": _text(promotion_status),
         "highest_severity": _text(summary.get("highest_severity")),
-        "review_status": _text(normalize_review_status(entry.get("review_status") or review_metadata.get("status"))),
+        "review_status": _text(review_status),
         "decision_reason_codes": "|".join(_string_list(summary.get("decision_reason_codes"))),
         "triggered_gate_names": "|".join(_triggered_gate_names(summary, record.promotion_gates)),
         "registry_path": _relative_path(

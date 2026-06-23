@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sys
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -26,6 +27,18 @@ from src.research.promotion import (
     write_promotion_state_artifact,
 )
 from src.research.registry import load_registry
+
+
+def _assert_state_mutation_blocks_serialization_and_write(
+    tmp_path: Path,
+    state: PromotionState,
+    *,
+    match: str,
+) -> None:
+    with pytest.raises(PromotionGateError, match=match):
+        serialize_promotion_state(state)
+    with pytest.raises(PromotionGateError, match=match):
+        write_promotion_state_artifact(tmp_path, state)
 
 
 def test_evaluate_promotion_gates_handles_pass_fail_borderline_missing_and_split_statistics() -> None:
@@ -611,6 +624,9 @@ def test_configured_promotion_state_preserves_legacy_status_on_pass() -> None:
     assert payload["decision_authority"] == "engine"
     assert payload["gate_count"] == 1
     assert payload["gate_results"] == payload["results"]
+    assert not any(key.startswith("_") for key in payload)
+    with pytest.raises(PromotionGateError, match="promotion_status must be one of"):
+        PromotionState(payload)
 
 
 def test_configured_promotion_state_preserves_legacy_status_on_fail() -> None:
@@ -642,6 +658,32 @@ def test_configured_promotion_state_preserves_legacy_status_on_fail() -> None:
     assert payload["decision_authority"] == "engine"
     assert payload["decision_reason_codes"] == ["gate_failed_threshold"]
     assert payload["failed_gate_count"] == 1
+    assert not any(key.startswith("_") for key in payload)
+    with pytest.raises(PromotionGateError, match="promotion_status must be one of"):
+        PromotionState(payload)
+
+
+@pytest.mark.parametrize("status", ["approved", "manual_review", "definitely_promote_everything"])
+def test_direct_configured_promotion_state_rejects_noncanonical_statuses(status: str) -> None:
+    payload = build_promotion_state_from_evaluation(
+        evaluate_promotion_gates(
+            run_type="strategy",
+            config={
+                "gates": [
+                    {
+                        "gate_id": "min_sharpe",
+                        "source": "metrics",
+                        "metric_path": "sharpe_ratio",
+                        "comparator": "gte",
+                        "threshold": 1.0,
+                    }
+                ]
+            },
+            sources={"metrics": {"sharpe_ratio": 2.0}},
+        )
+    ).to_payload()
+    with pytest.raises(PromotionGateError, match="promotion_status must be one of"):
+        PromotionState({**payload, "promotion_status": status})
 
 
 def test_promotion_state_writer_filename_override_updates_metadata_without_mutation(tmp_path: Path) -> None:
@@ -677,10 +719,145 @@ def test_promotion_state_payload_copies_and_write_resist_mutation(tmp_path: Path
     assert state.to_payload() == expected_payload
 
     state._payload["promotion_status"] = "eligible"
-    with pytest.raises(PromotionGateError, match="promotion_status='not_reviewed'"):
-        serialize_promotion_state(state)
-    with pytest.raises(PromotionGateError, match="promotion_status='not_reviewed'"):
-        write_promotion_state_artifact(tmp_path, state)
+    _assert_state_mutation_blocks_serialization_and_write(
+        tmp_path,
+        state,
+        match="promotion_status='not_reviewed'",
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (lambda payload: payload.pop("provenance"), "provenance must be a mapping"),
+        (
+            lambda payload: payload["provenance"].__setitem__("run_type", "strategy"),
+            "provenance.run_type must match run_type",
+        ),
+        (lambda payload: payload.pop("artifact_metadata"), "artifact_metadata must be a mapping"),
+        (
+            lambda payload: payload["artifact_metadata"].__setitem__("artifact_filename", " "),
+            "artifact_metadata.artifact_filename",
+        ),
+        (
+            lambda payload: payload["artifact_metadata"].__setitem__("writer", "notebook"),
+            "artifact_metadata.writer must be 'engine'",
+        ),
+        (
+            lambda payload: payload["artifact_metadata"].__setitem__("generated_by", "notebook"),
+            "artifact_metadata.generated_by must be 'src.research.promotion'",
+        ),
+        (
+            lambda payload: payload["artifact_metadata"].__setitem__("deterministic", "true"),
+            "artifact_metadata.deterministic must be True",
+        ),
+    ],
+)
+def test_promotion_state_rejects_tampered_provenance_and_metadata(
+    tmp_path: Path,
+    mutator: Any,
+    match: str,
+) -> None:
+    state = build_unconfigured_promotion_state(run_type="review")
+    mutator(state._payload)
+
+    _assert_state_mutation_blocks_serialization_and_write(tmp_path, state, match=match)
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda payload: payload["gate_counts"].pop("total"),
+            "gate_counts missing required keys: total",
+        ),
+        (
+            lambda payload: payload.__setitem__("gate_counts", {}),
+            "gate_counts missing required keys",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("extra", 0),
+            "gate_counts has unexpected keys: extra",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", "0"),
+            "gate_counts.total must be a nonnegative integer",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", 0.0),
+            "gate_counts.total must be a nonnegative integer",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", True),
+            "gate_counts.total must be a nonnegative integer",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", -1),
+            "gate_counts.total must be a nonnegative integer",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("passed", 1),
+            "requires zero gate counts",
+        ),
+    ],
+)
+def test_unconfigured_promotion_state_rejects_malformed_gate_counts(
+    tmp_path: Path,
+    mutator: Any,
+    match: str,
+) -> None:
+    state = build_unconfigured_promotion_state(run_type="review")
+    mutator(state._payload)
+
+    _assert_state_mutation_blocks_serialization_and_write(tmp_path, state, match=match)
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", 2),
+            "gate_counts.total must equal gate_results length",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("passed", 0),
+            "pass/fail/missing gate counts must sum to total",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("warning", 1),
+            "severity counts cannot exceed non-passing results",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("skipped", 2),
+            "skipped gate count cannot exceed passed count",
+        ),
+    ],
+)
+def test_configured_promotion_state_rejects_inconsistent_gate_counts(
+    tmp_path: Path,
+    mutator: Any,
+    match: str,
+) -> None:
+    state = build_promotion_state_from_evaluation(
+        evaluate_promotion_gates(
+            run_type="strategy",
+            config={
+                "gates": [
+                    {
+                        "gate_id": "min_sharpe",
+                        "source": "metrics",
+                        "metric_path": "sharpe_ratio",
+                        "comparator": "gte",
+                        "threshold": 1.0,
+                    }
+                ]
+            },
+            sources={"metrics": {"sharpe_ratio": 2.0}},
+        )
+    )
+    mutator(state._payload)
+
+    _assert_state_mutation_blocks_serialization_and_write(tmp_path, state, match=match)
 
 
 def test_write_alpha_evaluation_artifacts_persists_promotion_gate_artifact(tmp_path: Path) -> None:

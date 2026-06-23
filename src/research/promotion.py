@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 from dataclasses import asdict, dataclass
 import json
 import math
@@ -26,9 +27,6 @@ SUPPORTED_PROMOTION_STATE_RUN_TYPES = frozenset(
         "review",
         "strategy",
     }
-)
-_CANONICAL_MACHINE_PROMOTION_STATUSES = frozenset(
-    {"eligible", "warn", "needs_review", "rejected", "blocked"}
 )
 _UNCONFIGURED_DECISION_REASON_CODES = ("promotion_policy_not_configured",)
 _SUPPORTED_SEVERITIES = frozenset({"warn", "review", "reject", "block"})
@@ -190,13 +188,23 @@ class PromotionGateEvaluation:
 class PromotionState:
     """Canonical M45 promotion-state payload with construction-time validation."""
 
-    payload: dict[str, Any]
+    _payload: dict[str, Any]
 
     def __post_init__(self) -> None:
-        _validate_promotion_state_payload(self.payload)
+        payload = canonicalize_value(deepcopy(self._payload))
+        _validate_promotion_state_payload(payload)
+        object.__setattr__(self, "_payload", payload)
+
+    @property
+    def payload(self) -> dict[str, Any]:
+        """Return a defensive JSON-safe copy of the canonical payload."""
+
+        return self.to_payload()
 
     def to_payload(self) -> dict[str, Any]:
-        return canonicalize_value(dict(self.payload))
+        payload = canonicalize_value(deepcopy(self._payload))
+        _validate_promotion_state_payload(payload)
+        return payload
 
     def summary(self) -> dict[str, Any]:
         payload = self.to_payload()
@@ -420,6 +428,11 @@ def write_promotion_state_artifact(
     resolved_output_dir = Path(output_dir)
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
     resolved_filename = artifact_filename or payload["artifact_metadata"]["artifact_filename"]
+    if resolved_filename != payload["artifact_metadata"]["artifact_filename"]:
+        payload = _promotion_state_payload_with_artifact_filename(
+            payload,
+            artifact_filename=resolved_filename,
+        )
     artifact_path = resolved_output_dir / resolved_filename
     with artifact_path.open("w", encoding="utf-8", newline="\n") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
@@ -534,6 +547,18 @@ def _promotion_state_artifact_metadata(artifact_filename: str) -> dict[str, Any]
     )
 
 
+def _promotion_state_payload_with_artifact_filename(
+    payload: Mapping[str, Any],
+    *,
+    artifact_filename: str,
+) -> dict[str, Any]:
+    updated = canonicalize_value(deepcopy(dict(payload)))
+    updated["artifact_metadata"] = _promotion_state_artifact_metadata(artifact_filename)
+    if "artifact_filename" in updated:
+        updated["artifact_filename"] = artifact_filename
+    return PromotionState(updated).to_payload()
+
+
 def _normalize_promotion_state_run_type(value: object) -> str:
     run_type = _normalize_required_string(value, field_name="run_type")
     if run_type not in SUPPORTED_PROMOTION_STATE_RUN_TYPES:
@@ -581,9 +606,8 @@ def _validate_configured_promotion_state(payload: Mapping[str, Any]) -> None:
     if payload.get("evaluation_status") not in {"pass", "fail"}:
         raise PromotionGateError("Configured promotion state evaluation_status must be pass or fail.")
     promotion_status = payload.get("promotion_status")
-    if promotion_status not in _CANONICAL_MACHINE_PROMOTION_STATUSES:
-        formatted = ", ".join(sorted(_CANONICAL_MACHINE_PROMOTION_STATUSES))
-        raise PromotionGateError(f"Configured promotion state promotion_status must be one of: {formatted}.")
+    if not isinstance(promotion_status, str) or not promotion_status.strip():
+        raise PromotionGateError("Configured promotion state promotion_status must be a non-empty string.")
     gate_results = payload.get("gate_results")
     if not gate_results:
         raise PromotionGateError("Configured promotion state requires at least one gate result.")

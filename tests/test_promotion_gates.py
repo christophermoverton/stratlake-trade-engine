@@ -712,6 +712,30 @@ def test_direct_promotion_state_cannot_enable_legacy_status_mode() -> None:
         PromotionState(altered_payload)
 
 
+def test_removed_evaluation_payload_bypass_is_not_callable() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "status_on_pass": "approved",
+            "gates": [
+                {
+                    "gate_id": "min_sharpe",
+                    "source": "metrics",
+                    "metric_path": "sharpe_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                }
+            ],
+        },
+        sources={"metrics": {"sharpe_ratio": 2.0}},
+    )
+    arbitrary_payload = build_promotion_state_from_evaluation(evaluation).to_payload()
+    arbitrary_payload["promotion_status"] = "definitely_promote_everything"
+
+    with pytest.raises(AttributeError):
+        PromotionState._from_evaluation_payload(evaluation, arbitrary_payload)
+
+
 def test_promotion_state_writer_filename_override_updates_metadata_without_mutation(tmp_path: Path) -> None:
     state = build_unconfigured_promotion_state(run_type="review")
     original_payload = state.to_payload()

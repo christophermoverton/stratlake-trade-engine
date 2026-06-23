@@ -211,13 +211,20 @@ class PromotionState:
         self._set_payload(payload, allow_legacy_promotion_status=False)
 
     @classmethod
-    def _from_evaluation_payload(
+    def _from_evaluation(
         cls,
         evaluation: PromotionGateEvaluation,
-        payload: Mapping[str, Any],
+        *,
+        provenance: Mapping[str, Any] | None = None,
+        artifact_filename: str | None = None,
     ) -> PromotionState:
         if not isinstance(evaluation, PromotionGateEvaluation):
             raise PromotionGateError("evaluation must be a PromotionGateEvaluation.")
+        payload = _promotion_state_payload_from_evaluation(
+            evaluation,
+            provenance=provenance,
+            artifact_filename=artifact_filename,
+        )
         state = cls.__new__(cls)
         state._set_payload(payload, allow_legacy_promotion_status=True)
         return state
@@ -253,6 +260,17 @@ class PromotionState:
             allow_legacy_promotion_status=self._allow_legacy_promotion_status,
         )
         return payload
+
+    def _payload_with_artifact_filename(self, artifact_filename: str) -> dict[str, Any]:
+        updated = canonicalize_value(deepcopy(self._payload))
+        updated["artifact_metadata"] = _promotion_state_artifact_metadata(artifact_filename)
+        if "artifact_filename" in updated:
+            updated["artifact_filename"] = artifact_filename
+        _validate_promotion_state_payload(
+            updated,
+            allow_legacy_promotion_status=self._allow_legacy_promotion_status,
+        )
+        return updated
 
     def summary(self) -> dict[str, Any]:
         payload = self.to_payload()
@@ -411,6 +429,19 @@ def build_promotion_state_from_evaluation(
 ) -> PromotionState:
     """Build a deterministic v2 state from an existing configured gate evaluation."""
 
+    return PromotionState._from_evaluation(
+        evaluation,
+        provenance=provenance,
+        artifact_filename=artifact_filename,
+    )
+
+
+def _promotion_state_payload_from_evaluation(
+    evaluation: PromotionGateEvaluation,
+    *,
+    provenance: Mapping[str, Any] | None = None,
+    artifact_filename: str | None = None,
+) -> dict[str, Any]:
     if not isinstance(evaluation, PromotionGateEvaluation):
         raise PromotionGateError("evaluation must be a PromotionGateEvaluation.")
     if not evaluation.configured:
@@ -453,7 +484,7 @@ def build_promotion_state_from_evaluation(
         "definitions": definitions,
         "results": results,
     }
-    return PromotionState._from_evaluation_payload(evaluation, canonicalize_value(payload))
+    return canonicalize_value(payload)
 
 
 def serialize_promotion_state(state: PromotionState) -> dict[str, Any]:
@@ -477,11 +508,7 @@ def write_promotion_state_artifact(
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
     resolved_filename = artifact_filename or payload["artifact_metadata"]["artifact_filename"]
     if resolved_filename != payload["artifact_metadata"]["artifact_filename"]:
-        payload = _promotion_state_payload_with_artifact_filename(
-            payload,
-            artifact_filename=resolved_filename,
-            allow_legacy_promotion_status=state._allow_legacy_promotion_status,
-        )
+        payload = state._payload_with_artifact_filename(resolved_filename)
     artifact_path = resolved_output_dir / resolved_filename
     with artifact_path.open("w", encoding="utf-8", newline="\n") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
@@ -594,23 +621,6 @@ def _promotion_state_artifact_metadata(artifact_filename: str) -> dict[str, Any]
             "writer": "engine",
         }
     )
-
-
-def _promotion_state_payload_with_artifact_filename(
-    payload: Mapping[str, Any],
-    *,
-    artifact_filename: str,
-    allow_legacy_promotion_status: bool,
-) -> dict[str, Any]:
-    updated = canonicalize_value(deepcopy(dict(payload)))
-    updated["artifact_metadata"] = _promotion_state_artifact_metadata(artifact_filename)
-    if "artifact_filename" in updated:
-        updated["artifact_filename"] = artifact_filename
-    _validate_promotion_state_payload(
-        updated,
-        allow_legacy_promotion_status=allow_legacy_promotion_status,
-    )
-    return updated
 
 
 def _normalize_promotion_state_run_type(value: object) -> str:

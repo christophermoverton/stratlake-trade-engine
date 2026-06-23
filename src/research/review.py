@@ -15,8 +15,10 @@ from src.research.comparison_plots import generate_research_review_plots
 from src.research.experiment_tracker import ARTIFACTS_ROOT as DEFAULT_STRATEGY_ARTIFACTS_ROOT
 from src.research.promotion import (
     DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+    build_promotion_state_from_evaluation,
+    build_unconfigured_promotion_state,
     evaluate_promotion_gates,
-    write_promotion_gate_artifact,
+    write_promotion_state_artifact,
 )
 from src.research.registry import (
     PORTFOLIO_RUN_TYPE,
@@ -280,7 +282,18 @@ def write_research_review_artifacts(
             "aggregate_metrics": _aggregate_metrics_by_run_type(entries),
         },
     )
-    promotion_gate_path = write_promotion_gate_artifact(output_dir, promotion_evaluation)
+    promotion_state = (
+        build_unconfigured_promotion_state(
+            run_type="review",
+            provenance=_review_promotion_state_provenance(review_id),
+        )
+        if promotion_evaluation is None
+        else build_promotion_state_from_evaluation(
+            promotion_evaluation,
+            provenance=_review_promotion_state_provenance(review_id),
+        )
+    )
+    promotion_gate_path = write_promotion_state_artifact(output_dir, promotion_state)
 
     manifest = _build_review_manifest(
         review_id=review_id,
@@ -288,7 +301,7 @@ def write_research_review_artifacts(
         entries=entries,
         leaderboard_frame=frame,
         leaderboard_filename=csv_path.name,
-        promotion_evaluation=promotion_evaluation,
+        promotion_state_summary=promotion_state.summary(),
         review_config=review_config,
         output_dir=output_dir,
         plot_paths=normalized_plot_paths,
@@ -296,6 +309,21 @@ def write_research_review_artifacts(
     )
     _write_json_with_lf(manifest_path, manifest)
     return csv_path, json_path, manifest_path, promotion_gate_path
+
+
+def _review_promotion_state_provenance(review_id: str) -> dict[str, Any]:
+    return canonicalize_value(
+        {
+            "object_id": review_id,
+            "object_type": "review",
+            "review_id": review_id,
+            "run_type": "review",
+            "source_artifacts": {
+                "manifest": _MANIFEST_FILENAME,
+                "review_summary": _REVIEW_SUMMARY_FILENAME,
+            },
+        }
+    )
 
 
 def _write_json_with_lf(path: Path, payload: Mapping[str, Any]) -> None:
@@ -962,7 +990,7 @@ def _build_review_manifest(
     entries: list[ResearchReviewEntry],
     leaderboard_frame: pd.DataFrame,
     leaderboard_filename: str,
-    promotion_evaluation: Any,
+    promotion_state_summary: Mapping[str, Any],
     review_config: Mapping[str, Any] | None,
     output_dir: Path,
     plot_paths: Mapping[str, Path],
@@ -981,18 +1009,14 @@ def _build_review_manifest(
             "rows": len(entries),
         },
         **{path: {"path": path, "plot_key": key} for key, path in relative_plot_paths.items()},
-        **(
-            {DEFAULT_PROMOTION_ARTIFACT_FILENAME: {"path": DEFAULT_PROMOTION_ARTIFACT_FILENAME}}
-            if promotion_evaluation is not None
-            else {}
-        ),
+        DEFAULT_PROMOTION_ARTIFACT_FILENAME: {"path": DEFAULT_PROMOTION_ARTIFACT_FILENAME},
     }
     review_group = sorted(
         [
             leaderboard_filename,
             _MANIFEST_FILENAME,
             _REVIEW_SUMMARY_FILENAME,
-            *([DEFAULT_PROMOTION_ARTIFACT_FILENAME] if promotion_evaluation is not None else []),
+            DEFAULT_PROMOTION_ARTIFACT_FILENAME,
         ]
     )
     payload = {
@@ -1002,11 +1026,7 @@ def _build_review_manifest(
             "core": review_group,
             "leaderboard": [leaderboard_filename],
             "plots": list(relative_plot_paths.values()),
-            "qa": (
-                [DEFAULT_PROMOTION_ARTIFACT_FILENAME]
-                if promotion_evaluation is not None
-                else []
-            ),
+            "qa": [DEFAULT_PROMOTION_ARTIFACT_FILENAME],
             "review": review_group,
             "summary": [_REVIEW_SUMMARY_FILENAME],
         },
@@ -1015,7 +1035,7 @@ def _build_review_manifest(
         "files_written": len(artifact_inventory),
         "leaderboard_path": leaderboard_filename,
         "plot_paths": dict(relative_plot_paths),
-        "promotion_gate_summary": None if promotion_evaluation is None else promotion_evaluation.summary(),
+        "promotion_gate_summary": canonicalize_value(dict(promotion_state_summary)),
         "review_config": canonicalize_value(dict(review_config or {})),
         "review_filters": canonicalize_value(dict(filters)),
         "review_id": review_id,

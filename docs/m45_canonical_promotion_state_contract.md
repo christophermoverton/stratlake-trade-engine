@@ -99,6 +99,13 @@ artifacts and are handled by the compatibility rules below.
 | Portfolio run | Existing portfolio run artifact directory `promotion_gates.json` beside portfolio metrics and manifest artifacts | portfolio artifact writer through `src/research/promotion.py` | Same compatibility and no-policy expectations as strategy. |
 | Alpha evaluation run | Existing alpha evaluation artifact directory `promotion_gates.json` beside `alpha_metrics.json`, QA, config, and manifest artifacts | alpha artifact writer through `src/research/promotion.py` | Same compatibility and no-policy expectations as strategy. |
 
+M45 requires new explicit no-policy promotion-state emission for completed
+standalone research reviews and research campaign containers. Strategy,
+portfolio, and alpha producers remain compatibility surfaces for this milestone.
+Extending explicit no-policy emission to those producers requires a separately
+scoped follow-on issue unless it is explicitly added to the M45 implementation
+plan.
+
 Embedded summaries remain allowed for fast discovery:
 
 * `manifest.json` may include `promotion_gate_summary`.
@@ -459,10 +466,16 @@ Issue #498 should extend compatibility tests and documentation for existing
 strategy, portfolio, alpha, review, and campaign configured artifacts, including
 legacy v1 artifacts and embedded `promotion_gate_summary` precedence.
 
-Issue #499 should update Notebook 14 or notebook-facing documentation only to
-read and display canonical engine evidence. It must explicitly avoid notebook
-backfills, notebook-generated canonical JSON, and ad hoc repair of promotion
-artifacts.
+Issue #499 should perform repository-level verification of the completed M45
+implementation. Verification should include native review and campaign artifact
+inspection, governance consistency outcomes, compatibility coverage, and
+regression evidence for the new contract.
+
+Notebook 14 consumer alignment is tracked separately in
+`christophermoverton/fintech-stratlake-notebook-workflows#134`. That downstream
+work may read and display canonical engine evidence only. It must not generate,
+backfill, repair, or otherwise act as a canonical promotion-state artifact
+producer.
 
 ## Non-Goals
 

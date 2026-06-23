@@ -12,8 +12,25 @@ import yaml
 from src.research.registry import canonicalize_value, serialize_canonical_json
 
 DEFAULT_PROMOTION_ARTIFACT_FILENAME = "promotion_gates.json"
+PROMOTION_STATE_SCHEMA_VERSION = 2
+PROMOTION_STATE_ARTIFACT_TYPE = "promotion_state"
 DEFAULT_STATUS_ON_PASS = "eligible"
 DEFAULT_STATUS_ON_FAIL = "blocked"
+SUPPORTED_PROMOTION_STATE_RUN_TYPES = frozenset(
+    {
+        "alpha_evaluation",
+        "portfolio",
+        "research_campaign",
+        "research_campaign_orchestration",
+        "research_campaign_scenario",
+        "review",
+        "strategy",
+    }
+)
+_CANONICAL_MACHINE_PROMOTION_STATUSES = frozenset(
+    {"eligible", "warn", "needs_review", "rejected", "blocked"}
+)
+_UNCONFIGURED_DECISION_REASON_CODES = ("promotion_policy_not_configured",)
 _SUPPORTED_SEVERITIES = frozenset({"warn", "review", "reject", "block"})
 _SEVERITY_RANK = {
     "warn": 0,
@@ -169,6 +186,51 @@ class PromotionGateEvaluation:
         )
 
 
+@dataclass(frozen=True)
+class PromotionState:
+    """Canonical M45 promotion-state payload with construction-time validation."""
+
+    payload: dict[str, Any]
+
+    def __post_init__(self) -> None:
+        _validate_promotion_state_payload(self.payload)
+
+    def to_payload(self) -> dict[str, Any]:
+        return canonicalize_value(dict(self.payload))
+
+    def summary(self) -> dict[str, Any]:
+        payload = self.to_payload()
+        summary = {
+            "schema_version": payload["schema_version"],
+            "artifact_type": payload["artifact_type"],
+            "configured": payload["configured"],
+            "configuration_state": payload["configuration_state"],
+            "evaluation_status": payload["evaluation_status"],
+            "promotion_status": payload["promotion_status"],
+            "decision_authority": payload["decision_authority"],
+            "decision_reason_codes": payload["decision_reason_codes"],
+            "artifact_filename": payload["artifact_metadata"]["artifact_filename"],
+        }
+        legacy_keys = (
+            "gate_count",
+            "passed_gate_count",
+            "failed_gate_count",
+            "missing_gate_count",
+            "highest_severity",
+            "severity_counts",
+            "warning_gate_count",
+            "review_gate_count",
+            "rejected_gate_count",
+            "blocked_gate_count",
+            "status_on_pass",
+            "status_on_fail",
+        )
+        for key in legacy_keys:
+            if key in payload:
+                summary[key] = payload[key]
+        return canonicalize_value(summary)
+
+
 def load_promotion_gate_config(path: str | Path) -> dict[str, Any]:
     """Load one JSON or YAML promotion gate config."""
 
@@ -249,6 +311,121 @@ def evaluate_promotion_gates(
     )
 
 
+def build_unconfigured_promotion_state(
+    *,
+    run_type: str,
+    provenance: Mapping[str, Any] | None = None,
+    artifact_filename: str = DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+) -> PromotionState:
+    """Build a deterministic v2 state for completed runs with no promotion policy."""
+
+    normalized_run_type = _normalize_promotion_state_run_type(run_type)
+    payload = {
+        "schema_version": PROMOTION_STATE_SCHEMA_VERSION,
+        "artifact_type": PROMOTION_STATE_ARTIFACT_TYPE,
+        "run_type": normalized_run_type,
+        "configured": False,
+        "configuration_state": "not_configured",
+        "evaluation_status": "not_configured",
+        "promotion_status": "not_reviewed",
+        "decision_authority": "none",
+        "human_decision": None,
+        "decision_reason_codes": list(_UNCONFIGURED_DECISION_REASON_CODES),
+        "gate_counts": _gate_counts_payload(
+            total=0,
+            passed=0,
+            failed=0,
+            missing=0,
+            skipped=0,
+            severity_counts=None,
+        ),
+        "gate_definitions": [],
+        "gate_results": [],
+        "provenance": _promotion_state_provenance(provenance, run_type=normalized_run_type),
+        "artifact_metadata": _promotion_state_artifact_metadata(artifact_filename),
+    }
+    return PromotionState(canonicalize_value(payload))
+
+
+def build_promotion_state_from_evaluation(
+    evaluation: PromotionGateEvaluation,
+    *,
+    provenance: Mapping[str, Any] | None = None,
+    artifact_filename: str | None = None,
+) -> PromotionState:
+    """Build a deterministic v2 state from an existing configured gate evaluation."""
+
+    if not isinstance(evaluation, PromotionGateEvaluation):
+        raise PromotionGateError("evaluation must be a PromotionGateEvaluation.")
+    if not evaluation.configured:
+        raise PromotionGateError("Configured promotion state requires evaluation.configured to be true.")
+    normalized_run_type = _normalize_promotion_state_run_type(evaluation.run_type)
+    resolved_artifact_filename = artifact_filename or evaluation.artifact_filename
+    legacy_payload = evaluation.to_payload()
+    definitions = [asdict(definition) for definition in evaluation.definitions]
+    results = [asdict(result) for result in evaluation.results]
+    payload = {
+        "schema_version": PROMOTION_STATE_SCHEMA_VERSION,
+        "artifact_type": PROMOTION_STATE_ARTIFACT_TYPE,
+        "run_type": normalized_run_type,
+        "configured": True,
+        "configuration_state": "configured",
+        "evaluation_status": evaluation.evaluation_status,
+        "promotion_status": evaluation.promotion_status,
+        "decision_authority": "engine",
+        "human_decision": None,
+        "decision_reason_codes": list(evaluation.decision_reason_codes),
+        "gate_counts": _gate_counts_payload(
+            total=evaluation.gate_count,
+            passed=evaluation.passed_gate_count,
+            failed=evaluation.failed_gate_count,
+            missing=evaluation.missing_gate_count,
+            skipped=sum(
+                result.status == "pass" and result.actual_value is None and result.missing_behavior == "skip"
+                for result in evaluation.results
+            ),
+            severity_counts=evaluation.severity_counts,
+        ),
+        "gate_definitions": definitions,
+        "gate_results": results,
+        "provenance": _promotion_state_provenance(provenance, run_type=normalized_run_type),
+        "artifact_metadata": _promotion_state_artifact_metadata(resolved_artifact_filename),
+        # Legacy fields keep existing readers and summaries compatible while
+        # new consumers transition to the v2 canonical names above.
+        **legacy_payload,
+        "artifact_filename": resolved_artifact_filename,
+        "definitions": definitions,
+        "results": results,
+    }
+    return PromotionState(canonicalize_value(payload))
+
+
+def serialize_promotion_state(state: PromotionState) -> dict[str, Any]:
+    """Return one canonical JSON-safe M45 promotion-state payload."""
+
+    if not isinstance(state, PromotionState):
+        raise PromotionGateError("state must be a PromotionState.")
+    return state.to_payload()
+
+
+def write_promotion_state_artifact(
+    output_dir: str | Path,
+    state: PromotionState,
+    *,
+    artifact_filename: str | None = None,
+) -> Path:
+    """Persist a canonical v2 promotion-state artifact as stable JSON."""
+
+    payload = serialize_promotion_state(state)
+    resolved_output_dir = Path(output_dir)
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    resolved_filename = artifact_filename or payload["artifact_metadata"]["artifact_filename"]
+    artifact_path = resolved_output_dir / resolved_filename
+    with artifact_path.open("w", encoding="utf-8", newline="\n") as handle:
+        json.dump(payload, handle, indent=2, sort_keys=True)
+    return artifact_path
+
+
 def write_promotion_gate_artifact(
     output_dir: str | Path,
     evaluation: PromotionGateEvaluation | None,
@@ -300,6 +477,134 @@ def _normalize_promotion_gate_config(config: Mapping[str, Any]) -> dict[str, Any
         "status_on_fail": status_on_fail,
         "definitions": definitions,
     }
+
+
+def _gate_counts_payload(
+    *,
+    total: int,
+    passed: int,
+    failed: int,
+    missing: int,
+    skipped: int,
+    severity_counts: Mapping[str, int] | None,
+) -> dict[str, int]:
+    severity_counts = dict(severity_counts or {})
+    return canonicalize_value(
+        {
+            "total": total,
+            "passed": passed,
+            "failed": failed,
+            "missing": missing,
+            "skipped": skipped,
+            "warning": int(severity_counts.get("warn", 0)),
+            "review": int(severity_counts.get("review", 0)),
+            "rejected": int(severity_counts.get("reject", 0)),
+            "blocked": int(severity_counts.get("block", 0)),
+        }
+    )
+
+
+def _promotion_state_provenance(
+    provenance: Mapping[str, Any] | None,
+    *,
+    run_type: str,
+) -> dict[str, Any]:
+    if provenance is None:
+        payload: dict[str, Any] = {}
+    elif isinstance(provenance, Mapping):
+        payload = dict(provenance)
+    else:
+        raise PromotionGateError("promotion state provenance must be a mapping when provided.")
+    payload.setdefault("run_type", run_type)
+    return canonicalize_value(payload)
+
+
+def _promotion_state_artifact_metadata(artifact_filename: str) -> dict[str, Any]:
+    normalized_filename = _normalize_required_string(
+        artifact_filename,
+        field_name="artifact_filename",
+    )
+    return canonicalize_value(
+        {
+            "artifact_filename": normalized_filename,
+            "deterministic": True,
+            "generated_by": "src.research.promotion",
+            "writer": "engine",
+        }
+    )
+
+
+def _normalize_promotion_state_run_type(value: object) -> str:
+    run_type = _normalize_required_string(value, field_name="run_type")
+    if run_type not in SUPPORTED_PROMOTION_STATE_RUN_TYPES:
+        formatted = ", ".join(sorted(SUPPORTED_PROMOTION_STATE_RUN_TYPES))
+        raise PromotionGateError(f"run_type must be one of: {formatted}.")
+    return run_type
+
+
+def _validate_promotion_state_payload(payload: Mapping[str, Any]) -> None:
+    if not isinstance(payload, Mapping):
+        raise PromotionGateError("Promotion state payload must be a mapping.")
+    if payload.get("schema_version") != PROMOTION_STATE_SCHEMA_VERSION:
+        raise PromotionGateError("Promotion state schema_version must be 2.")
+    if payload.get("artifact_type") != PROMOTION_STATE_ARTIFACT_TYPE:
+        raise PromotionGateError("Promotion state artifact_type must be 'promotion_state'.")
+    _normalize_promotion_state_run_type(payload.get("run_type"))
+
+    configured = payload.get("configured")
+    if not isinstance(configured, bool):
+        raise PromotionGateError("Promotion state configured must be a boolean.")
+    if payload.get("human_decision") is not None:
+        raise PromotionGateError("M45 promotion state factory output must not include human_decision.")
+
+    gate_definitions = payload.get("gate_definitions")
+    gate_results = payload.get("gate_results")
+    if not isinstance(gate_definitions, list):
+        raise PromotionGateError("Promotion state gate_definitions must be a list.")
+    if not isinstance(gate_results, list):
+        raise PromotionGateError("Promotion state gate_results must be a list.")
+    gate_counts = payload.get("gate_counts")
+    if not isinstance(gate_counts, Mapping):
+        raise PromotionGateError("Promotion state gate_counts must be a mapping.")
+
+    if configured:
+        _validate_configured_promotion_state(payload)
+    else:
+        _validate_unconfigured_promotion_state(payload)
+
+
+def _validate_configured_promotion_state(payload: Mapping[str, Any]) -> None:
+    if payload.get("configuration_state") != "configured":
+        raise PromotionGateError("Configured promotion state requires configuration_state='configured'.")
+    if payload.get("decision_authority") != "engine":
+        raise PromotionGateError("Configured promotion state requires decision_authority='engine'.")
+    if payload.get("evaluation_status") not in {"pass", "fail"}:
+        raise PromotionGateError("Configured promotion state evaluation_status must be pass or fail.")
+    promotion_status = payload.get("promotion_status")
+    if promotion_status not in _CANONICAL_MACHINE_PROMOTION_STATUSES:
+        formatted = ", ".join(sorted(_CANONICAL_MACHINE_PROMOTION_STATUSES))
+        raise PromotionGateError(f"Configured promotion state promotion_status must be one of: {formatted}.")
+    gate_results = payload.get("gate_results")
+    if not gate_results:
+        raise PromotionGateError("Configured promotion state requires at least one gate result.")
+
+
+def _validate_unconfigured_promotion_state(payload: Mapping[str, Any]) -> None:
+    if payload.get("configuration_state") != "not_configured":
+        raise PromotionGateError("Unconfigured promotion state requires configuration_state='not_configured'.")
+    if payload.get("evaluation_status") != "not_configured":
+        raise PromotionGateError("Unconfigured promotion state requires evaluation_status='not_configured'.")
+    if payload.get("promotion_status") != "not_reviewed":
+        raise PromotionGateError("Unconfigured promotion state requires promotion_status='not_reviewed'.")
+    if payload.get("decision_authority") != "none":
+        raise PromotionGateError("Unconfigured promotion state requires decision_authority='none'.")
+    if payload.get("gate_definitions") or payload.get("gate_results"):
+        raise PromotionGateError("Unconfigured promotion state cannot include gate definitions or results.")
+    if payload.get("decision_reason_codes") != list(_UNCONFIGURED_DECISION_REASON_CODES):
+        raise PromotionGateError("Unconfigured promotion state requires promotion_policy_not_configured reason code.")
+    gate_counts = dict(payload.get("gate_counts") or {})
+    if any(int(value or 0) != 0 for value in gate_counts.values()):
+        raise PromotionGateError("Unconfigured promotion state requires zero gate counts.")
 
 
 def _normalize_definition(raw_definition: Any, *, index: int) -> PromotionGateDefinition:
@@ -645,12 +950,20 @@ def _coerce_finite_float(value: object, *, field_name: str) -> float:
 
 __all__ = [
     "DEFAULT_PROMOTION_ARTIFACT_FILENAME",
+    "PROMOTION_STATE_ARTIFACT_TYPE",
+    "PROMOTION_STATE_SCHEMA_VERSION",
     "PromotionGateDefinition",
     "PromotionGateEvaluation",
     "PromotionGateError",
     "PromotionGateResult",
+    "PromotionState",
+    "SUPPORTED_PROMOTION_STATE_RUN_TYPES",
+    "build_promotion_state_from_evaluation",
+    "build_unconfigured_promotion_state",
     "evaluate_promotion_gates",
     "load_promotion_gate_config",
     "promotion_gate_config_digest",
+    "serialize_promotion_state",
     "write_promotion_gate_artifact",
+    "write_promotion_state_artifact",
 ]

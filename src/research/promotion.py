@@ -200,20 +200,45 @@ class PromotionGateEvaluation:
         )
 
 
-@dataclass(frozen=True)
+@dataclass(frozen=True, init=False)
 class PromotionState:
     """Canonical M45 promotion-state payload with construction-time validation."""
 
     _payload: dict[str, Any]
-    _allow_legacy_promotion_status: bool = False
+    _allow_legacy_promotion_status: bool
 
-    def __post_init__(self) -> None:
-        payload = canonicalize_value(deepcopy(self._payload))
+    def __init__(self, payload: Mapping[str, Any]) -> None:
+        self._set_payload(payload, allow_legacy_promotion_status=False)
+
+    @classmethod
+    def _from_evaluation_payload(
+        cls,
+        evaluation: PromotionGateEvaluation,
+        payload: Mapping[str, Any],
+    ) -> PromotionState:
+        if not isinstance(evaluation, PromotionGateEvaluation):
+            raise PromotionGateError("evaluation must be a PromotionGateEvaluation.")
+        state = cls.__new__(cls)
+        state._set_payload(payload, allow_legacy_promotion_status=True)
+        return state
+
+    def _set_payload(
+        self,
+        payload: Mapping[str, Any],
+        *,
+        allow_legacy_promotion_status: bool,
+    ) -> None:
+        payload = canonicalize_value(deepcopy(dict(payload)))
         _validate_promotion_state_payload(
             payload,
-            allow_legacy_promotion_status=self._allow_legacy_promotion_status,
+            allow_legacy_promotion_status=allow_legacy_promotion_status,
         )
         object.__setattr__(self, "_payload", payload)
+        object.__setattr__(
+            self,
+            "_allow_legacy_promotion_status",
+            allow_legacy_promotion_status,
+        )
 
     @property
     def payload(self) -> dict[str, Any]:
@@ -428,7 +453,7 @@ def build_promotion_state_from_evaluation(
         "definitions": definitions,
         "results": results,
     }
-    return PromotionState(canonicalize_value(payload), _allow_legacy_promotion_status=True)
+    return PromotionState._from_evaluation_payload(evaluation, canonicalize_value(payload))
 
 
 def serialize_promotion_state(state: PromotionState) -> dict[str, Any]:
@@ -581,10 +606,11 @@ def _promotion_state_payload_with_artifact_filename(
     updated["artifact_metadata"] = _promotion_state_artifact_metadata(artifact_filename)
     if "artifact_filename" in updated:
         updated["artifact_filename"] = artifact_filename
-    return PromotionState(
+    _validate_promotion_state_payload(
         updated,
-        _allow_legacy_promotion_status=allow_legacy_promotion_status,
-    ).to_payload()
+        allow_legacy_promotion_status=allow_legacy_promotion_status,
+    )
+    return updated
 
 
 def _normalize_promotion_state_run_type(value: object) -> str:

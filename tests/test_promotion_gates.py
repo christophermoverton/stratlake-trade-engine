@@ -686,6 +686,32 @@ def test_direct_configured_promotion_state_rejects_noncanonical_statuses(status:
         PromotionState({**payload, "promotion_status": status})
 
 
+def test_direct_promotion_state_cannot_enable_legacy_status_mode() -> None:
+    payload = build_promotion_state_from_evaluation(
+        evaluate_promotion_gates(
+            run_type="strategy",
+            config={
+                "gates": [
+                    {
+                        "gate_id": "min_sharpe",
+                        "source": "metrics",
+                        "metric_path": "sharpe_ratio",
+                        "comparator": "gte",
+                        "threshold": 1.0,
+                    }
+                ]
+            },
+            sources={"metrics": {"sharpe_ratio": 2.0}},
+        )
+    ).to_payload()
+    altered_payload = {**payload, "promotion_status": "definitely_promote_everything"}
+
+    with pytest.raises(TypeError, match="_allow_legacy_promotion_status"):
+        PromotionState(altered_payload, _allow_legacy_promotion_status=True)
+    with pytest.raises(PromotionGateError, match="promotion_status must be one of"):
+        PromotionState(altered_payload)
+
+
 def test_promotion_state_writer_filename_override_updates_metadata_without_mutation(tmp_path: Path) -> None:
     state = build_unconfigured_promotion_state(run_type="review")
     original_payload = state.to_payload()
@@ -699,6 +725,37 @@ def test_promotion_state_writer_filename_override_updates_metadata_without_mutat
     assert state.to_payload() == original_payload
     assert original_payload["artifact_metadata"]["artifact_filename"] == "promotion_gates.json"
     assert first_path.read_text(encoding="utf-8") == second_path.read_text(encoding="utf-8")
+
+
+def test_legacy_evaluation_state_filename_override_updates_metadata(tmp_path: Path) -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "status_on_pass": "approved",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "min_sharpe",
+                    "source": "metrics",
+                    "metric_path": "sharpe_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                }
+            ],
+        },
+        sources={"metrics": {"sharpe_ratio": 2.0}},
+    )
+    state = build_promotion_state_from_evaluation(evaluation)
+    original_payload = state.to_payload()
+
+    path = write_promotion_state_artifact(tmp_path, state, artifact_filename="legacy_state.json")
+    parsed = json.loads(path.read_text(encoding="utf-8"))
+
+    assert path == tmp_path / "legacy_state.json"
+    assert parsed["promotion_status"] == "approved"
+    assert parsed["artifact_metadata"]["artifact_filename"] == "legacy_state.json"
+    assert state.to_payload() == original_payload
+    assert not any(key.startswith("_") for key in parsed)
 
 
 def test_promotion_state_payload_copies_and_write_resist_mutation(tmp_path: Path) -> None:

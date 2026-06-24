@@ -16,10 +16,10 @@ Issue range covered:
 `#483` through `#491`
 
 Candidate milestone release tag:
-`v0.44.0-colab-notebook-session-ergonomics-marketlake-handoff`
+`v0.45.0-colab-notebook-session-ergonomics-marketlake-handoff`
 
 Package/build version:
-`0.44.0`
+`0.45.0`
 
 ## M44 Scope Recap
 
@@ -113,7 +113,7 @@ Issue #491 release-readiness validation results from
 `feature/m44-unified-colab-session-drive-persistence`:
 
 * refreshed editable install:
-  `stratlake-trade-engine==0.44.0`
+  `stratlake-trade-engine==0.45.0`
 * focused release-readiness metadata tests:
   `16 passed`
 * M44 workflow-equivalent pytest slice:
@@ -129,8 +129,8 @@ Issue #491 release-readiness validation results from
 * full pytest:
   `2527 passed, 6 skipped, 348 warnings`
 * package build:
-  built `stratlake_trade_engine-0.44.0.tar.gz` and
-  `stratlake_trade_engine-0.44.0-py3-none-any.whl`
+  built `stratlake_trade_engine-0.45.0.tar.gz` and
+  `stratlake_trade_engine-0.45.0-py3-none-any.whl`
 * generated-output cleanup:
   removed untracked
   `docs/examples/output/m38_static_evidence_review_pack_example/`;
@@ -161,9 +161,9 @@ boundaries.
 ## Post-Merge Validation Checklist
 
 * confirm the merged branch targets `main`
-* confirm package/build version `0.44.0`
+* confirm package/build version `0.45.0`
 * confirm release tag candidate
-  `v0.44.0-colab-notebook-session-ergonomics-marketlake-handoff`
+  `v0.45.0-colab-notebook-session-ergonomics-marketlake-handoff`
 * run the M44 workflow-equivalent pytest slice
 * run focused Ruff and format checks
 * run docs/path lint and confirm `finding_count: 0`

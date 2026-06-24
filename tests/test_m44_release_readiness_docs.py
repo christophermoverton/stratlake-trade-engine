@@ -15,8 +15,8 @@ def test_m44_release_notes_exist_and_identify_release_metadata() -> None:
 
     expected_tokens = (
         "M44 - Colab Notebook Session Ergonomics and MarketLake Restore Handoff",
-        "0.44.0",
-        "v0.44.0-colab-notebook-session-ergonomics-marketlake-handoff",
+        "0.45.0",
+        "v0.45.0-colab-notebook-session-ergonomics-marketlake-handoff",
         "feature/m44-unified-colab-session-drive-persistence",
         "Target branch:",
         "`main`",
@@ -67,11 +67,11 @@ def test_m44_release_checklist_and_readme_link_release_notes() -> None:
     checklist = RELEASE_CHECKLIST.read_text(encoding="utf-8")
     readme = README.read_text(encoding="utf-8")
 
-    assert "v0.44.0-colab-notebook-session-ergonomics-marketlake-handoff" in checklist
+    assert "v0.45.0-colab-notebook-session-ergonomics-marketlake-handoff" in checklist
     assert "python -m src.cli.run_docs_path_lint" in checklist
     assert "docs/m44_release_notes.md" in readme
     assert "docs/m44_release_validation_checklist.md" in readme
-    assert "Release 0.44.0: Colab Notebook Session Ergonomics" in readme
+    assert "Release 0.45.0: Colab Notebook Session Ergonomics" in readme
 
 
 def test_m44_docs_references_are_relative_and_lint_friendly() -> None:

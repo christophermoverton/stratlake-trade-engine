@@ -46,9 +46,9 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
-### Release 0.44.0: Colab Notebook Session Ergonomics
+### Release 0.45.0: Colab Notebook Session Ergonomics
 
-Release 0.44.0 prepares the M44 Colab notebook session ergonomics and
+Release 0.45.0 prepares the M44 Colab notebook session ergonomics and
 MarketLake restore handoff milestone for merge. It collects the restore-first
 Colab workflow, notebook config bundle generation, unified profile variables,
 read-only notebook doctor diagnostics, read-only MarketLake handoff validation,
@@ -64,10 +64,10 @@ background persistence, a second execution engine, or fintech ingestion
 behavior.
 
 Package/build version:
-`0.44.0`
+`0.45.0`
 
 Candidate release tag:
-`v0.44.0-colab-notebook-session-ergonomics-marketlake-handoff`
+`v0.45.0-colab-notebook-session-ergonomics-marketlake-handoff`
 
 Start with:
 

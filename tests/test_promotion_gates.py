@@ -1648,6 +1648,92 @@ def test_build_promotion_state_from_evaluation_rejects_unsafe_filename(unsafe_fi
         build_promotion_state_from_evaluation(evaluation, artifact_filename=unsafe_filename)
 
 
+def test_build_promotion_state_from_evaluation_rejects_empty_filename() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    with pytest.raises(PromotionGateError):
+        build_promotion_state_from_evaluation(evaluation, artifact_filename="")
+
+
+def test_build_promotion_state_from_evaluation_rejects_whitespace_filename() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    with pytest.raises(PromotionGateError):
+        build_promotion_state_from_evaluation(evaluation, artifact_filename="   ")
+
+
+def test_build_promotion_state_from_evaluation_none_inherits_evaluation_filename() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    state = build_promotion_state_from_evaluation(evaluation, artifact_filename=None)
+    payload = state.to_payload()
+    assert payload["artifact_metadata"]["artifact_filename"] == "promotion_gates.json"
+
+
+def test_build_promotion_state_from_evaluation_accepts_valid_custom_basename() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    state = build_promotion_state_from_evaluation(evaluation, artifact_filename="custom_state.json")
+    payload = state.to_payload()
+    assert payload["artifact_metadata"]["artifact_filename"] == "custom_state.json"
+
+
 def test_severity_driven_failure_cannot_be_overridden_by_custom_fail_status() -> None:
     evaluation = evaluate_promotion_gates(
         run_type="review",

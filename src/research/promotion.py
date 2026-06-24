@@ -455,7 +455,10 @@ def _promotion_state_payload_from_evaluation(
         raise PromotionGateError("Configured promotion state requires evaluation.configured to be true.")
     _validate_evaluation_status_consistency(evaluation)
     normalized_run_type = _normalize_promotion_state_run_type(evaluation.run_type)
-    resolved_artifact_filename = artifact_filename or evaluation.artifact_filename
+    if artifact_filename is not None:
+        resolved_artifact_filename = _validate_artifact_filename(artifact_filename)
+    else:
+        resolved_artifact_filename = _validate_artifact_filename(evaluation.artifact_filename)
     legacy_payload = evaluation.to_payload()
     definitions = [asdict(definition) for definition in evaluation.definitions]
     results = [asdict(result) for result in evaluation.results]
@@ -513,8 +516,9 @@ def write_promotion_state_artifact(
 
     payload = serialize_promotion_state(state)
     if artifact_filename is not None:
-        _validate_artifact_filename(artifact_filename)
-    resolved_filename = artifact_filename or payload["artifact_metadata"]["artifact_filename"]
+        resolved_filename = _validate_artifact_filename(artifact_filename)
+    else:
+        resolved_filename = payload["artifact_metadata"]["artifact_filename"]
     _validate_artifact_filename(resolved_filename)
     resolved_output_dir = Path(output_dir)
     resolved_output_dir.mkdir(parents=True, exist_ok=True)

@@ -25,6 +25,16 @@ benchmark-pack, campaign, validation, regime, or stress-test behavior. They
 should remain thin cells that import StratLake APIs, pass explicit inputs, and
 inspect canonical outputs.
 
+For M45 promotion evidence, notebooks are read-only consumers. Read
+`promotion_gates.json` through manifest or named result paths, preserve
+`not_reviewed` as explicit unresolved/no-policy evidence, and surface missing
+or malformed artifacts rather than inventing a replacement. Notebook code must
+not generate, backfill, repair, or infer canonical promotion state, and it must
+not interpret campaign completion or `not_reviewed` as eligibility, approval,
+or readiness.
+
+See [m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).
+
 ## Local Notebook Workspace Bootstrap
 
 Use the installed bootstrap command to initialize a local notebook workspace

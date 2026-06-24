@@ -1,7 +1,16 @@
 {
   "artifact_filename": "promotion_gates.json",
+  "artifact_metadata": {
+    "artifact_filename": "promotion_gates.json",
+    "deterministic": true,
+    "generated_by": "src.research.promotion",
+    "writer": "engine"
+  },
+  "artifact_type": "promotion_state",
   "blocked_gate_count": 0,
+  "configuration_state": "configured",
   "configured": true,
+  "decision_authority": "engine",
   "decision_reason_codes": [],
   "definitions": [
     {
@@ -41,10 +50,120 @@
   "evaluation_status": "pass",
   "failed_gate_count": 0,
   "gate_count": 3,
+  "gate_counts": {
+    "blocked": 0,
+    "failed": 0,
+    "missing": 0,
+    "passed": 3,
+    "rejected": 0,
+    "review": 0,
+    "skipped": 0,
+    "total": 3,
+    "warning": 0
+  },
+  "gate_definitions": [
+    {
+      "comparator": "gte",
+      "description": null,
+      "gate_id": "review_has_three_rows",
+      "metric_path": "reviewed_entry_count",
+      "missing_behavior": "fail",
+      "severity": null,
+      "source": "metrics",
+      "statistic": "value",
+      "threshold": 3.0
+    },
+    {
+      "comparator": "gte",
+      "description": null,
+      "gate_id": "at_least_one_promoted_candidate",
+      "metric_path": "promoted_entry_count",
+      "missing_behavior": "fail",
+      "severity": null,
+      "source": "metrics",
+      "statistic": "value",
+      "threshold": 1.0
+    },
+    {
+      "comparator": "lte",
+      "description": null,
+      "gate_id": "blocked_rows_capped",
+      "metric_path": "blocked_entry_count",
+      "missing_behavior": "fail",
+      "severity": null,
+      "source": "metrics",
+      "statistic": "value",
+      "threshold": 1.0
+    }
+  ],
+  "gate_results": [
+    {
+      "actual_value": 3.0,
+      "comparator": "gte",
+      "description": null,
+      "gate_id": "review_has_three_rows",
+      "metric_path": "reviewed_entry_count",
+      "missing_behavior": "fail",
+      "reason": "3.0 gte 3.0",
+      "reason_codes": [
+        "gate_passed"
+      ],
+      "severity": null,
+      "source": "metrics",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 3.0
+    },
+    {
+      "actual_value": 1.0,
+      "comparator": "gte",
+      "description": null,
+      "gate_id": "at_least_one_promoted_candidate",
+      "metric_path": "promoted_entry_count",
+      "missing_behavior": "fail",
+      "reason": "1.0 gte 1.0",
+      "reason_codes": [
+        "gate_passed"
+      ],
+      "severity": null,
+      "source": "metrics",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 1.0
+    },
+    {
+      "actual_value": 1.0,
+      "comparator": "lte",
+      "description": null,
+      "gate_id": "blocked_rows_capped",
+      "metric_path": "blocked_entry_count",
+      "missing_behavior": "fail",
+      "reason": "1.0 lte 1.0",
+      "reason_codes": [
+        "gate_passed"
+      ],
+      "severity": null,
+      "source": "metrics",
+      "statistic": "value",
+      "status": "pass",
+      "threshold": 1.0
+    }
+  ],
   "highest_severity": null,
+  "human_decision": null,
   "missing_gate_count": 0,
   "passed_gate_count": 3,
   "promotion_status": "review_ready",
+  "provenance": {
+    "object_id": "registry_review_84035021a28d",
+    "object_type": "review",
+    "review_id": "registry_review_84035021a28d",
+    "run_type": "review",
+    "source_artifacts": {
+      "manifest": "manifest.json",
+      "review_summary": "review_summary.json"
+    }
+  },
   "rejected_gate_count": 0,
   "results": [
     {
@@ -101,6 +220,7 @@
   ],
   "review_gate_count": 0,
   "run_type": "review",
+  "schema_version": 2,
   "severity_counts": {
     "block": 0,
     "reject": 0,

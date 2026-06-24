@@ -35,7 +35,17 @@ The campaign schema supports these sections:
 * `scenarios`: optional parameter-sweep and scenario-matrix expansion contract
   for generating multiple resolved campaign variants from one campaign spec
 
+The schema does not currently define a dedicated campaign-level promotion
+policy. Completed campaign containers therefore emit canonical explicit
+no-policy promotion state. The nested `review.promotion_gates` configuration
+controls the standalone review only and must not be interpreted as campaign
+policy.
+
 The repository example lives at `configs/research_campaign.yml`.
+
+For campaign-owned state placement, finalization behavior, and review/campaign
+identity boundaries, see
+[m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).
 
 The default config now uses the canonical Milestone 16 field names such as
 `min_mean_ic`, `max_pairwise_correlation`, `allocation_method`, and

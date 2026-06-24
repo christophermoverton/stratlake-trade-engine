@@ -111,3 +111,18 @@ market-data dependencies, a second promotion engine, or separate
 The example thresholds are illustrative policy defaults. They are not universal
 statistical truth and should be calibrated to the strategy family, portfolio
 context, and review governance process.
+
+## M45 Compatibility Note
+
+M31 remains the configured gate-evaluation layer. Its severity outcomes
+(`warn`, `needs_review`, `rejected`, and `blocked`) retain their original
+meaning, and valid custom `status_on_pass` / `status_on_fail` values remain
+configured evaluator outputs.
+
+M45 adds owner-level canonical state for standalone reviews and completed
+campaign containers. Its `not_reviewed` value is an explicit no-policy state,
+not an M31 gate pass or failure. Legacy `promotion_gates.json` artifacts may
+still use the pre-v2 configured evaluator shape; the filename alone does not
+prove an artifact is canonical M45 state.
+
+See [m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).

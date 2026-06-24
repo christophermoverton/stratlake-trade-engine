@@ -81,8 +81,11 @@
   "plot_paths": {},
   "promotion_gate_summary": {
     "artifact_filename": "promotion_gates.json",
+    "artifact_type": "promotion_state",
     "blocked_gate_count": 0,
+    "configuration_state": "configured",
     "configured": true,
+    "decision_authority": "engine",
     "decision_reason_codes": [],
     "evaluation_status": "pass",
     "failed_gate_count": 0,
@@ -93,6 +96,7 @@
     "promotion_status": "review_ready",
     "rejected_gate_count": 0,
     "review_gate_count": 0,
+    "schema_version": 2,
     "severity_counts": {
       "block": 0,
       "reject": 0,

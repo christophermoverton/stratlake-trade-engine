@@ -33,24 +33,27 @@ payload currently includes fields such as `configured`, `run_type`,
 `evaluation_status`, `promotion_status`, gate counts, severity counts,
 `decision_reason_codes`, `definitions`, and `results`.
 
-`src/research/review.py` writes standalone review artifacts under a review
-output directory, embeds `promotion_gate_summary` in `manifest.json` when a
-review promotion evaluation exists, and returns no promotion artifact path when
-review promotion gates are absent.
+`src/research/review.py` now writes canonical review-owned promotion state for
+every successfully completed standalone review. Configured evaluation remains
+compatible, while absent review policy produces explicit `not_reviewed` state.
 
-`src/cli/run_research_campaign.py` observes the standalone review
-`promotion_gates.json` through `_campaign_review_promotion_summary()` and
-propagates review promotion fields into campaign `summary.json`,
-`manifest.json`, scenario matrix rows, and `final_outcomes` when present. A
-campaign currently does not own promotion policy evaluation.
+`src/cli/run_research_campaign.py` now writes campaign-owned canonical state
+during successful campaign finalization. It may also observe nested review
+evidence as upstream context, but the campaign state preserves its own identity
+and does not inherit the review result. A dedicated campaign promotion policy
+surface still does not exist.
 
 `src/research/governance/loader.py`,
 `src/research/governance/aggregator.py`, and
 `src/research/governance/validator.py` are observational. They load registry,
 manifest, review, candidate-review, campaign, scenario, and promotion artifacts;
-normalize statuses for reporting; and emit consistency findings such as
-`missing_promotion_summary`. They do not replay gates or create promotion
-decisions.
+normalize statuses for reporting; classify canonical state; and emit distinct
+missing, malformed, ownership, and consistency findings. Required missing M45
+state does not borrow manifest summaries. Governance does not replay gates,
+create promotion decisions, or mutate source evidence.
+
+For the operational guide, see
+[m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).
 
 The M31 and M32 architecture documents remain compatible with this contract:
 

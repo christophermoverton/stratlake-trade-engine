@@ -191,8 +191,10 @@ The review CLI evaluates gates against review-specific sources such as:
 * `aggregate_metrics`
   Review-level aggregates grouped by run type
 
-Promotion gates are optional. When configured, the review pack writes
-`promotion_gates.json` and mirrors a compact summary into `manifest.json`.
+Promotion gates are optional. Every successful review now writes canonical
+`promotion_gates.json` state and mirrors a compact summary into `manifest.json`.
+When gates are not configured, the artifact explicitly records
+`promotion_status: not_reviewed`; it is not omitted.
 
 ## What Gets Written
 
@@ -207,11 +209,18 @@ Core files:
 * `leaderboard.csv`
 * `review_summary.json`
 * `manifest.json`
-* `promotion_gates.json` when review-level promotion gates are configured
+* `promotion_gates.json`
 
 Optional files:
 
 * `plots/<run_type>/metric_comparison_<metric>.png` for review-sized groups
+
+`promotion_gates.json` is review-owned evidence. Its provenance identifies the
+review ID. A no-policy artifact means no review promotion policy was configured;
+it does not mean the review passed, is eligible, or has human approval.
+Configured review gates preserve their actual evaluator result.
+
+See [m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).
 
 ### `leaderboard.csv`
 

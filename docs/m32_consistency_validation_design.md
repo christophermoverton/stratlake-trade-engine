@@ -51,6 +51,7 @@ Canonical promotion statuses:
 * `needs_review`
 * `rejected`
 * `blocked`
+* `not_reviewed`
 
 Canonical review statuses:
 
@@ -65,6 +66,7 @@ Promotion-to-review mapping:
 * `needs_review -> needs_review`
 * `rejected -> rejected`
 * `blocked -> rejected`
+* `not_reviewed -> needs_review`
 
 Supported aliases:
 
@@ -166,6 +168,29 @@ is available:
 
 These checks compare propagated summaries. They do not rerun campaign stages or
 promotion gates.
+
+## M45 Canonical-State Checks
+
+For completed standalone reviews and campaign containers, validation
+distinguishes explicit no-policy evidence from absent or malformed evidence.
+Valid `not_reviewed` is not a favorable outcome and is not rewritten in the
+promotion-status field.
+
+M45 findings include:
+
+* `missing_canonical_promotion_state`
+* `promotion_state_schema_invalid`
+* `promotion_state_provenance_run_type_mismatch`
+* `promotion_state_object_type_mismatch`
+* `promotion_state_owner_id_mismatch`
+* `promotion_state_artifact_filename_mismatch`
+* `campaign_promotion_state_summary_mismatch`
+* `campaign_promotion_state_upstream_review_conflation`
+
+Malformed canonical evidence does not fall back to manifest or registry
+summaries. Campaign-owned state is compared with campaign summary claims;
+upstream review state remains separate context. These findings describe
+integrity and consistency, not approval or promotion decisions.
 
 ## Path Safety
 

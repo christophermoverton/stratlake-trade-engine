@@ -77,3 +77,18 @@ python -m pytest tests/test_promotion_gates.py tests/test_experiment_registry.py
 The broader M32 slice may emit existing `signal_engine.py` runtime warnings from
 low-sample or high-turnover fixtures. Those warnings are expected in the current
 test fixtures and are not governance-report failures.
+
+## M45 Compatibility Note
+
+M45 extends governance inputs with canonical v2 review and campaign state.
+Valid canonical state is authoritative. Required state that is missing is not
+converted to `not_reviewed`, and malformed canonical evidence does not fall
+back to registry or manifest summaries.
+
+Governance preserves raw `not_reviewed` evidence and maps its review disposition
+to `needs_review`. Campaign-owned state must agree with campaign summaries;
+nested review state remains upstream context and cannot substitute for campaign
+state. Governance remains read-only and does not replay evaluation or write
+source evidence.
+
+See [m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).

@@ -2001,3 +2001,188 @@ def test_campaign_loader_gracefully_handles_artifact_root_without_campaigns(tmp_
     assert dataset.records == []
     assert dataset.sources["campaign_record_count"] == 0
     assert dataset.sources["campaign_scenario_record_count"] == 0
+
+
+def test_registry_review_missing_canonical_state_produces_missing_finding(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    review_dir = artifact_root / "reviews" / "review_missing"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "review_summary.json", {"review_id": "review_missing"})
+    _write_json(review_dir / "manifest.json", {
+        "review_id": "review_missing",
+        "promotion_gate_summary": {"promotion_status": "eligible", "gate_count": 1},
+    })
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    review_records = [r for r in dataset.records if r.run_id == "review_missing"]
+    assert len(review_records) == 1
+    record = review_records[0]
+    assert record.promotion_gate_summary is None
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+    check_ids = [f["check_id"] for f in validation["findings"]]
+    assert "missing_canonical_promotion_state" in check_ids
+    assert "not_reviewed" not in [
+        str(row.get("promotion_status")) for row in rows if row.get("run_id") == "review_missing"
+    ]
+
+
+def test_registry_review_with_valid_canonical_no_policy_state(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    review_dir = artifact_root / "reviews" / "review_nopolicy"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "review_summary.json", {"review_id": "review_nopolicy"})
+    _write_json(review_dir / "manifest.json", {"review_id": "review_nopolicy"})
+    _write_review_promotion_state(review_dir, review_id="review_nopolicy", configured=False)
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    review_records = [r for r in dataset.records if r.run_id == "review_nopolicy"]
+    assert len(review_records) == 1
+    record = review_records[0]
+    assert record.promotion_gates is not None
+    assert record.promotion_gates["promotion_status"] == "not_reviewed"
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+    check_ids = [f["check_id"] for f in validation["findings"]]
+    assert "missing_canonical_promotion_state" not in check_ids
+
+
+def test_registry_review_with_malformed_canonical_state_no_fallback(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    review_dir = artifact_root / "reviews" / "review_bad"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "review_summary.json", {"review_id": "review_bad"})
+    _write_json(review_dir / "manifest.json", {
+        "review_id": "review_bad",
+        "promotion_gate_summary": {"promotion_status": "eligible", "gate_count": 1},
+    })
+    _write_json(review_dir / "promotion_gates.json", {
+        "schema_version": 2,
+        "artifact_type": "promotion_state",
+        "configured": True,
+        "configuration_state": "configured",
+        "evaluation_status": "invalid_value",
+    })
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    review_records = [r for r in dataset.records if r.run_id == "review_bad"]
+    assert len(review_records) == 1
+    record = review_records[0]
+    assert record.promotion_gate_summary is None
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+    check_ids = [f["check_id"] for f in validation["findings"]]
+    assert "promotion_state_schema_invalid" in check_ids
+
+
+def test_registry_strategy_legacy_summary_fallback_unchanged(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    registry_path = artifact_root / "research_registry.json"
+    artifact_root.mkdir(parents=True)
+    strategy_dir = artifact_root / "strategies" / "strat_a"
+    strategy_dir.mkdir(parents=True)
+    _write_json(strategy_dir / "manifest.json", {
+        "run_id": "strat_a",
+        "promotion_gate_summary": {"promotion_status": "eligible", "gate_count": 1},
+    })
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "strat_a",
+            "run_type": "strategy",
+            "artifact_dir": strategy_dir.as_posix(),
+            "manifest_path": (strategy_dir / "manifest.json").as_posix(),
+            "promotion_status": "eligible",
+        },
+    )
+
+    dataset = load_governance_artifacts(
+        registry_path=registry_path,
+        artifact_root=artifact_root,
+    )
+    strategy_records = [r for r in dataset.records if r.run_id == "strat_a"]
+    assert len(strategy_records) == 1
+    assert strategy_records[0].promotion_gate_summary is not None
+    assert strategy_records[0].promotion_gate_summary["promotion_status"] == "eligible"
+
+
+def test_registry_review_entry_requires_canonical_state(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    registry_path = artifact_root / "research_registry.json"
+    artifact_root.mkdir(parents=True)
+    review_dir = artifact_root / "reviews" / "review_reg"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "manifest.json", {
+        "review_id": "review_reg",
+        "promotion_gate_summary": {"promotion_status": "eligible", "gate_count": 1},
+    })
+    append_registry_entry(
+        registry_path,
+        {
+            "run_id": "review_reg",
+            "run_type": "review",
+            "artifact_dir": review_dir.as_posix(),
+            "manifest_path": (review_dir / "manifest.json").as_posix(),
+            "promotion_status": "eligible",
+        },
+    )
+
+    dataset = load_governance_artifacts(
+        registry_path=registry_path,
+        artifact_root=artifact_root,
+    )
+    review_records = [r for r in dataset.records if r.run_id == "review_reg"]
+    assert len(review_records) == 1
+    record = review_records[0]
+    assert record.promotion_gate_summary is None
+    context = record.governance_metadata.get("promotion_state_context", {})
+    assert context.get("required") is True
+
+
+def test_governance_rejects_forged_configured_compatibility_status(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    review_dir = artifact_root / "reviews" / "review_forged"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "review_summary.json", {"review_id": "review_forged"})
+    _write_json(review_dir / "manifest.json", {"review_id": "review_forged"})
+    forged_payload = {
+        "schema_version": 2,
+        "artifact_type": "promotion_state",
+        "run_type": "review",
+        "configured": True,
+        "configuration_state": "configured",
+        "evaluation_status": "pass",
+        "promotion_status": "definitely_promote",
+        "status_on_pass": "definitely_promote",
+        "status_on_fail": "blocked",
+        "decision_authority": "engine",
+        "human_decision": None,
+        "decision_reason_codes": [],
+        "gate_counts": {
+            "total": 1, "passed": 1, "failed": 0, "missing": 0,
+            "skipped": 0, "warning": 0, "review": 0, "rejected": 0, "blocked": 0,
+        },
+        "gate_definitions": [{"gate_id": "g1"}],
+        "gate_results": [{"gate_id": "g1", "status": "pass"}],
+        "provenance": {
+            "object_type": "review",
+            "object_id": "review_forged",
+            "review_id": "review_forged",
+            "run_type": "review",
+        },
+        "artifact_metadata": {
+            "artifact_filename": "promotion_gates.json",
+            "deterministic": True,
+            "generated_by": "src.research.promotion",
+            "writer": "engine",
+        },
+    }
+    _write_json(review_dir / "promotion_gates.json", forged_payload)
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    review_records = [r for r in dataset.records if r.run_id == "review_forged"]
+    assert len(review_records) == 1
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+    check_ids = [f["check_id"] for f in validation["findings"]]
+    assert "promotion_state_schema_invalid" in check_ids

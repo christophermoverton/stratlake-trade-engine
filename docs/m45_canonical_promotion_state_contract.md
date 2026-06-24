@@ -424,6 +424,23 @@ Existing configured artifacts remain valid. In particular:
 The transition path is additive. New writers emit v2 artifacts. Readers support
 legacy configured artifacts and explicit v2 no-policy artifacts side by side.
 
+Registry-backed review records are canonical-state-required. A registry entry
+with `run_type: review` loads canonical state with `required=True` and review
+identity validation. Missing canonical state for registry review records
+produces `missing_canonical_promotion_state` without manifest fallback.
+
+Custom configured evaluator compatibility statuses are accepted only when the
+artifact fields establish a valid configured relationship: consistent evaluation
+direction, matching gate result structure, and correct severity resolution.
+Manually constructed or forged evaluations where `promotion_status` and
+`status_on_pass` (or `status_on_fail`) are set to arbitrary matching values
+are rejected at both the serialization boundary and governance validation.
+
+Artifact filename overrides for promotion state writers accept only a plain
+basename (e.g. `promotion_gates.json`, `custom_state.json`). Path traversal
+(`../`), nested paths (`nested/file.json`), absolute paths, and degenerate
+values (`.`, `..`, empty string) are rejected with a domain error.
+
 ## Reason Codes
 
 Initial reserved reason codes:

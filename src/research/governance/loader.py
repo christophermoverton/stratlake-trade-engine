@@ -76,12 +76,13 @@ def _record_from_registry_entry(
     manifest = _load_json_if_exists(manifest_path)
     promotion_gate_path = None if artifact_dir is None else artifact_dir / DEFAULT_PROMOTION_ARTIFACT_FILENAME
     promotion_gates = _load_json_if_exists(promotion_gate_path)
+    is_review = workflow_type == "review"
     promotion_state_context = _promotion_state_context(
         promotion_gate_path,
         expected_run_type=workflow_type,
-        expected_object_type=None,
-        expected_object_id=None,
-        required=False,
+        expected_object_type="review" if is_review else None,
+        expected_object_id=run_id if is_review else None,
+        required=is_review,
     )
     summary = _authoritative_promotion_summary(
         promotion_state_context,
@@ -1274,7 +1275,71 @@ def _valid_configured_state(payload: Mapping[str, Any]) -> bool:
     if promotion_status in canonical_statuses:
         return True
     compatibility_field = "status_on_pass" if evaluation_status == "pass" else "status_on_fail"
-    return payload.get(compatibility_field) == promotion_status
+    if payload.get(compatibility_field) != promotion_status:
+        return False
+    return _compatible_status_consistent_with_evaluation(payload, evaluation_status, promotion_status)
+
+
+def _compatible_status_consistent_with_evaluation(
+    payload: Mapping[str, Any],
+    evaluation_status: str,
+    promotion_status: str,
+) -> bool:
+    gate_counts = payload.get("gate_counts")
+    gate_results = payload.get("gate_results")
+    if not _gate_results_have_evaluator_structure(gate_results):
+        return False
+    severity_status_map = {"warn": "warn", "review": "needs_review", "reject": "rejected", "block": "blocked"}
+    if evaluation_status == "pass":
+        if payload.get("status_on_pass") != promotion_status:
+            return False
+        if not isinstance(gate_counts, Mapping):
+            return False
+        if gate_counts.get("failed", 0) != 0 or gate_counts.get("missing", 0) != 0:
+            return False
+        return True
+    highest_severity = _highest_severity_from_payload(gate_counts, gate_results)
+    if highest_severity is not None:
+        expected_status = severity_status_map.get(highest_severity)
+        if expected_status is not None and expected_status != promotion_status:
+            return False
+    if payload.get("status_on_fail") != promotion_status:
+        return False
+    if highest_severity is not None:
+        return False
+    return True
+
+
+def _gate_results_have_evaluator_structure(gate_results: Any) -> bool:
+    if not isinstance(gate_results, list) or not gate_results:
+        return False
+    required_fields = {"gate_id", "status", "source", "metric_path", "comparator", "threshold"}
+    return all(
+        isinstance(result, Mapping) and required_fields <= set(result)
+        for result in gate_results
+    )
+
+
+def _highest_severity_from_payload(
+    gate_counts: Any,
+    gate_results: Any,
+) -> str | None:
+    if isinstance(gate_counts, Mapping):
+        for severity in ("blocked", "rejected", "review", "warning"):
+            if gate_counts.get(severity, 0) > 0:
+                rank = {"warning": "warn", "review": "review", "rejected": "reject", "blocked": "block"}
+                return rank[severity]
+    if isinstance(gate_results, list):
+        severity_rank = {"warn": 0, "review": 1, "reject": 2, "block": 3}
+        highest = None
+        for result in gate_results:
+            if isinstance(result, Mapping) and result.get("status") in {"fail", "missing"}:
+                sev = result.get("severity")
+                if isinstance(sev, str) and sev in severity_rank:
+                    if highest is None or severity_rank[sev] > severity_rank[highest]:
+                        highest = sev
+        return highest
+    return None
 
 
 def _load_json_if_exists(path: Path | None) -> dict[str, Any] | None:

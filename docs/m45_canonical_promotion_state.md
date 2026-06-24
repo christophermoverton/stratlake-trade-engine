@@ -156,7 +156,10 @@ Governance remains observational and read-only. It:
 * validates schema, counts, metadata, filename, provenance run type, object
   type, and owner identity
 * treats valid canonical evidence as authoritative
-* preserves legacy summary behavior where M45 canonical state is not required
+* requires canonical state for registry-backed review records; missing canonical
+  state emits `missing_canonical_promotion_state` with no manifest fallback
+* preserves legacy summary behavior for strategy, portfolio, and alpha records
+  where M45 canonical state is not required
 * does not borrow a manifest summary when required review or campaign state is
   missing
 * preserves raw `not_reviewed` while mapping its review disposition to
@@ -182,8 +185,14 @@ These are governance findings, not promotion decisions.
 
 Legacy `promotion_gate_summary` and configured promotion-gate artifacts remain
 supported where applicable. Valid custom evaluator statuses such as `approved`
-or `manual_review` are retained only when a valid configured evaluator artifact
-proves their origin. Arbitrary unknown values remain validation errors.
+or `manual_review` are accepted only when validated as genuine evaluator
+outcomes — status consistency with evaluation direction, gate results, and
+severity resolution is verified at both the serialization boundary and
+governance validation. Arbitrary forged or caller-constructed status values are
+rejected even when `promotion_status` matches `status_on_pass` or
+`status_on_fail`. Artifact filename overrides are restricted to a plain
+basename within the owner artifact directory; path traversal and absolute paths
+are rejected.
 
 M45 does not convert missing or legacy evidence into canonical no-policy state,
 and it does not require strategy, portfolio, or alpha producers to emit new

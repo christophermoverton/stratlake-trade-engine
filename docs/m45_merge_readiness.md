@@ -51,6 +51,12 @@ review outcomes.
 * Missing evidence is not normalized into `not_reviewed`.
 * Malformed canonical evidence does not fall back to manifest or registry
   summaries.
+* Registry-backed review records are canonical-state-required; missing canonical
+  state produces an integrity finding without manifest fallback.
+* Canonical configured compatibility statuses are accepted only when validated
+  as genuine evaluator outcomes, not forged field combinations.
+* Artifact filename overrides are restricted to a plain basename within the
+  owner artifact directory.
 * Review and campaign identities remain separate.
 * Governance does not write or repair source artifacts.
 * Legacy configured evaluator statuses remain bounded compatibility values.

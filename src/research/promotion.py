@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import asdict, dataclass
 import json
 import math
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any, Iterable, Mapping
 
 import pandas as pd
@@ -356,7 +356,7 @@ def evaluate_promotion_gates(
     evaluation_status = "pass" if failed_gate_count == 0 and missing_gate_count == 0 else "fail"
     highest_severity = _highest_failing_severity(results)
     severity_counts = _severity_counts(results)
-    return PromotionGateEvaluation(
+    evaluation = PromotionGateEvaluation(
         configured=True,
         run_type=run_type,
         evaluation_status=evaluation_status,
@@ -383,6 +383,8 @@ def evaluate_promotion_gates(
         definitions=definitions,
         results=results,
     )
+    object.__setattr__(evaluation, "_evaluator_validated", True)
+    return evaluation
 
 
 def build_unconfigured_promotion_state(
@@ -446,6 +448,7 @@ def _promotion_state_payload_from_evaluation(
         raise PromotionGateError("evaluation must be a PromotionGateEvaluation.")
     if not evaluation.configured:
         raise PromotionGateError("Configured promotion state requires evaluation.configured to be true.")
+    _validate_evaluation_status_consistency(evaluation)
     normalized_run_type = _normalize_promotion_state_run_type(evaluation.run_type)
     resolved_artifact_filename = artifact_filename or evaluation.artifact_filename
     legacy_payload = evaluation.to_payload()
@@ -506,6 +509,8 @@ def write_promotion_state_artifact(
     payload = serialize_promotion_state(state)
     resolved_output_dir = Path(output_dir)
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
+    if artifact_filename is not None:
+        _validate_artifact_filename(artifact_filename)
     resolved_filename = artifact_filename or payload["artifact_metadata"]["artifact_filename"]
     if resolved_filename != payload["artifact_metadata"]["artifact_filename"]:
         payload = state._payload_with_artifact_filename(resolved_filename)
@@ -513,6 +518,21 @@ def write_promotion_state_artifact(
     with artifact_path.open("w", encoding="utf-8", newline="\n") as handle:
         json.dump(payload, handle, indent=2, sort_keys=True)
     return artifact_path
+
+
+def _validate_artifact_filename(value: object) -> str:
+    if not isinstance(value, str) or not value.strip():
+        raise PromotionGateError("artifact_filename must be a non-empty string.")
+    name = value.strip()
+    if name in {".", ".."}:
+        raise PromotionGateError(
+            f"artifact_filename must be a plain basename without path separators or traversal: {value!r}"
+        )
+    if Path(name).name != name or PureWindowsPath(name).name != name:
+        raise PromotionGateError(
+            f"artifact_filename must be a plain basename without path separators or traversal: {value!r}"
+        )
+    return name
 
 
 def write_promotion_gate_artifact(
@@ -689,6 +709,8 @@ def _validate_configured_promotion_state(
     if not allow_legacy_promotion_status and promotion_status not in _CANONICAL_MACHINE_PROMOTION_STATUSES:
         formatted = ", ".join(sorted(_CANONICAL_MACHINE_PROMOTION_STATUSES))
         raise PromotionGateError(f"Configured promotion state promotion_status must be one of: {formatted}.")
+    if allow_legacy_promotion_status and promotion_status not in _CANONICAL_MACHINE_PROMOTION_STATUSES:
+        _validate_compatibility_status_consistency(payload, promotion_status)
     gate_results = payload.get("gate_results")
     if not gate_results:
         raise PromotionGateError("Configured promotion state requires at least one gate result.")
@@ -779,6 +801,113 @@ def _validate_promotion_state_gate_counts(value: Any) -> dict[str, int]:
             raise PromotionGateError(f"Promotion state gate_counts.{key} must be a nonnegative integer.")
         counts[key] = count
     return counts
+
+
+def _validate_compatibility_status_consistency(
+    payload: Mapping[str, Any],
+    promotion_status: str,
+) -> None:
+    evaluation_status = payload.get("evaluation_status")
+    expected_status = _expected_promotion_status_from_payload(payload)
+    if expected_status is not None and expected_status != promotion_status:
+        raise PromotionGateError(
+            f"Configured compatibility promotion_status {promotion_status!r} is inconsistent "
+            f"with evaluator outcome {expected_status!r}."
+        )
+    if evaluation_status == "pass":
+        if payload.get("status_on_pass") != promotion_status:
+            raise PromotionGateError(
+                "Configured compatibility promotion_status must match status_on_pass for passing evaluations."
+            )
+        gate_counts = payload.get("gate_counts")
+        if isinstance(gate_counts, Mapping):
+            if gate_counts.get("failed", 0) != 0 or gate_counts.get("missing", 0) != 0:
+                raise PromotionGateError(
+                    "Configured compatibility promotion_status claims pass but gate counts show failures."
+                )
+    elif evaluation_status == "fail":
+        highest_severity = _highest_severity_from_gate_results(payload)
+        if highest_severity is not None:
+            expected = _SEVERITY_PROMOTION_STATUS.get(highest_severity)
+            if expected is not None and expected != promotion_status:
+                raise PromotionGateError(
+                    "Configured compatibility promotion_status conflicts with severity-driven outcome."
+                )
+        if payload.get("status_on_fail") != promotion_status:
+            raise PromotionGateError(
+                "Configured compatibility promotion_status must match status_on_fail for failing evaluations."
+            )
+        if highest_severity is not None:
+            raise PromotionGateError(
+                "Configured compatibility promotion_status cannot override severity-driven status resolution."
+            )
+
+
+def _expected_promotion_status_from_payload(payload: Mapping[str, Any]) -> str | None:
+    evaluation_status = payload.get("evaluation_status")
+    gate_results = payload.get("gate_results")
+    status_on_pass = payload.get("status_on_pass")
+    status_on_fail = payload.get("status_on_fail")
+    if not isinstance(evaluation_status, str) or not isinstance(gate_results, list):
+        return None
+    if not isinstance(status_on_pass, str) or not isinstance(status_on_fail, str):
+        return None
+    highest_severity = _highest_severity_from_gate_results(payload)
+    return _resolve_promotion_status(
+        evaluation_status=evaluation_status,
+        highest_severity=highest_severity,
+        status_on_pass=status_on_pass,
+        status_on_fail=status_on_fail,
+    )
+
+
+def _validate_evaluation_status_consistency(evaluation: PromotionGateEvaluation) -> None:
+    actual_highest_severity = _highest_failing_severity(evaluation.results)
+    if evaluation.highest_severity != actual_highest_severity:
+        raise PromotionGateError(
+            f"Evaluation highest_severity {evaluation.highest_severity!r} is inconsistent with "
+            f"gate results (expected {actual_highest_severity!r})."
+        )
+    actual_evaluation_status = (
+        "pass" if all(r.status == "pass" for r in evaluation.results) else "fail"
+    )
+    if evaluation.evaluation_status != actual_evaluation_status:
+        raise PromotionGateError(
+            f"Evaluation evaluation_status {evaluation.evaluation_status!r} is inconsistent with "
+            f"gate results (expected {actual_evaluation_status!r})."
+        )
+    expected = _resolve_promotion_status(
+        evaluation_status=actual_evaluation_status,
+        highest_severity=actual_highest_severity,
+        status_on_pass=evaluation.status_on_pass or DEFAULT_STATUS_ON_PASS,
+        status_on_fail=evaluation.status_on_fail or DEFAULT_STATUS_ON_FAIL,
+    )
+    if evaluation.promotion_status != expected:
+        raise PromotionGateError(
+            f"Evaluation promotion_status {evaluation.promotion_status!r} is inconsistent with "
+            f"evaluator outcome {expected!r}. A valid configured state must be derived from "
+            f"actual evaluator inputs and results."
+        )
+    if expected not in _CANONICAL_MACHINE_PROMOTION_STATUSES:
+        if not getattr(evaluation, "_evaluator_validated", False):
+            raise PromotionGateError(
+                f"Non-canonical promotion_status {expected!r} requires evaluator-validated construction. "
+                f"Manually constructed evaluations with custom status values are not accepted."
+            )
+
+
+def _highest_severity_from_gate_results(payload: Mapping[str, Any]) -> str | None:
+    gate_results = payload.get("gate_results")
+    if not isinstance(gate_results, list):
+        return None
+    highest: str | None = None
+    for result in gate_results:
+        if isinstance(result, Mapping) and result.get("status") in {"fail", "missing"}:
+            sev = result.get("severity")
+            if isinstance(sev, str) and sev in _SEVERITY_RANK:
+                if highest is None or _SEVERITY_RANK[sev] > _SEVERITY_RANK[highest]:
+                    highest = sev
+    return highest
 
 
 def _normalize_definition(raw_definition: Any, *, index: int) -> PromotionGateDefinition:

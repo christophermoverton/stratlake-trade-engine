@@ -125,9 +125,20 @@ manifest summary.
 * Governance is observational and read-only.
 * Legacy artifact compatibility remains intentionally bounded.
 
+## Release
+
+Release tag: `v0.45.0`
+Package/build version: `0.45.0`
+
+GitHub Release published at:
+https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.45.0
+
+TestPyPI publication completed via workflow\_dispatch.
+
+Release notes: [docs/m45_release_notes.md](m45_release_notes.md)
+
 ## Merge Recommendation
 
-M45 is ready for merge once documented verification passes and the associated
-issue chain is closed. This confirms deterministic research-artifact and
+M45 is merged. Release `v0.45.0` confirms deterministic research-artifact and
 governance semantics only; it does not authorize live trading, deployment, or
 promotion.

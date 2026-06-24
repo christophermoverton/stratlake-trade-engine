@@ -46,28 +46,34 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
-### Release 0.45.0: Colab Notebook Session Ergonomics
+### Release 0.45.0: Canonical Promotion-State Contracts
 
-Release 0.45.0 prepares the M44 Colab notebook session ergonomics and
-MarketLake restore handoff milestone for merge. It collects the restore-first
-Colab workflow, notebook config bundle generation, unified profile variables,
-read-only notebook doctor diagnostics, read-only MarketLake handoff validation,
-notebook-native `src.execution` examples after restore/init, unified
-persistence guidance, and fintech restore-to-local handoff guidance.
-
-M44 preserves the notebook architecture boundary: active work runs from local
-runtime roots; Drive-mounted paths are filesystem persistence/transport only;
-archive and backup packs are derived and non-canonical; notebook/session
-metadata and MarketLake handoff reports are diagnostic. The milestone does not
-add hidden sync, Google API/OAuth behavior, restore-on-import behavior,
-background persistence, a second execution engine, or fintech ingestion
-behavior.
+Release 0.45.0 completes M45 canonical promotion-state contracts and governance
+validation. It establishes deterministic, engine-owned promotion-state evidence
+for standalone research reviews and campaign containers, bounded compatibility
+status vocabulary, registry-backed review canonical evidence requirements,
+artifact filename security, and boundary-hardened governance validation.
 
 Package/build version:
 `0.45.0`
 
-Candidate release tag:
-`v0.45.0-colab-notebook-session-ergonomics-marketlake-handoff`
+Release tag:
+`v0.45.0`
+
+Start with:
+
+* [docs/m45_release_notes.md](docs/m45_release_notes.md)
+* [docs/m45_canonical_promotion_state.md](docs/m45_canonical_promotion_state.md)
+* [docs/m45_canonical_promotion_state_contract.md](docs/m45_canonical_promotion_state_contract.md)
+
+### Release 0.44.0: Colab Notebook Session Ergonomics
+
+Release 0.44.0 completed the M44 Colab notebook session ergonomics and
+MarketLake restore handoff milestone. It collected the restore-first Colab
+workflow, notebook config bundle generation, unified profile variables,
+read-only notebook doctor diagnostics, read-only MarketLake handoff validation,
+notebook-native `src.execution` examples after restore/init, unified
+persistence guidance, and fintech restore-to-local handoff guidance.
 
 Start with:
 
@@ -390,6 +396,7 @@ promotion state.
 
 Start with:
 
+* [docs/m45_release_notes.md](docs/m45_release_notes.md)
 * [docs/m45_canonical_promotion_state.md](docs/m45_canonical_promotion_state.md)
 * [docs/m45_canonical_promotion_state_contract.md](docs/m45_canonical_promotion_state_contract.md)
 * [docs/m45_merge_readiness.md](docs/m45_merge_readiness.md)

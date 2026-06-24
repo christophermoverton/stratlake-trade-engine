@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "stratlake-trade-engine"
-version = "0.44.0"
+version = "0.44.1"
 description = "Deterministic, artifact-driven quantitative research and backtesting platform."
 authors = [{ name = "Christopher Overton" }]
 readme = "README.md"

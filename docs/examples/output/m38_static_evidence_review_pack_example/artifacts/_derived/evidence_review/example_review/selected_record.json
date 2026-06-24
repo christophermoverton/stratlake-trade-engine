@@ -1,0 +1,69 @@
+{
+  "allocator_name": null,
+  "alpha_model_name": null,
+  "artifact_root": "artifacts/strategies/example_strategy",
+  "campaign_id": null,
+  "catalog_id": "e4157328be957476",
+  "created_at": "2026-01-01T00:00:00Z",
+  "end_ts": null,
+  "fragility_status": null,
+  "governance_status": null,
+  "metadata": {
+    "metrics.json": {
+      "sharpe_ratio": 1.0
+    },
+    "summary.json": {
+      "run_id": "example_strategy",
+      "run_type": "strategy",
+      "strategy_name": "example"
+    }
+  },
+  "metrics_summary": {
+    "sharpe_ratio": 1.0
+  },
+  "multiple_testing_status": null,
+  "portfolio_name": null,
+  "promotion_review_status": null,
+  "promotion_status": null,
+  "qa_status": null,
+  "record_family": null,
+  "regime_method": null,
+  "release_validation_present": false,
+  "review_status": null,
+  "robustness_status": null,
+  "run_id": "example_strategy",
+  "run_type": "strategy",
+  "sample_size_status": null,
+  "scenario_id": null,
+  "sensitivity_status": null,
+  "source_files": [
+    "artifacts/strategies/example_strategy/_SUCCESS.json",
+    "artifacts/strategies/example_strategy/manifest.json",
+    "artifacts/strategies/example_strategy/metrics.json",
+    "artifacts/strategies/example_strategy/summary.json",
+    "artifacts/strategies/registry.jsonl"
+  ],
+  "source_manifest_path": "artifacts/strategies/example_strategy/manifest.json",
+  "source_marker_path": "artifacts/strategies/example_strategy/_SUCCESS.json",
+  "source_registry_path": "artifacts/strategies/registry.jsonl",
+  "start_ts": null,
+  "status": "completed",
+  "strategy_name": "example",
+  "tags": [],
+  "temporal_validation_status": null,
+  "timeframe": null,
+  "trade_count_status": null,
+  "validation": {
+    "artifact_status": "ok",
+    "catalog_status": "completed",
+    "manifest_status": "present",
+    "marker_status": "present",
+    "qa_status": null,
+    "validation_errors": [],
+    "validation_warnings": [
+      "undeclared_artifact:manifest.json"
+    ]
+  },
+  "validation_readiness_present": false,
+  "wfe_status": null
+}

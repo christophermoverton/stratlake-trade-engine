@@ -1,0 +1,69 @@
+{
+  "canonicality": {
+    "authority_fingerprint": "7f703bd4d863dfac6f807167e854cfa5a44c3241a892ca6bf1439cc0f1846a0b",
+    "authority_kind": "artifact_tree",
+    "authority_paths": [
+      "artifacts/strategies/example_strategy/_SUCCESS.json",
+      "artifacts/strategies/example_strategy/manifest.json",
+      "artifacts/strategies/example_strategy/metrics.json",
+      "artifacts/strategies/example_strategy/summary.json",
+      "artifacts/strategies/registry.jsonl"
+    ],
+    "authority_root": "artifacts",
+    "derived_class": "review_pack",
+    "non_authoritative": true,
+    "rebuildable": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+    "schema_version": "canonicality.v1",
+    "stale_if_source_changes": true,
+    "write_back_forbidden": true
+  },
+  "load_source": {
+    "canonical_source": "artifacts",
+    "loaded_from": "review_pack",
+    "non_authoritative": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+    "schema_version": "load_source.v1"
+  },
+  "missing_sources": [],
+  "resolution_status": "resolved",
+  "resolved_sources": [
+    {
+      "fingerprint": "92572e0ab4e18c471eb6b1575a5407c550fc94ffd7859d6df5752da3b1ac49e7",
+      "kind": "marker",
+      "path": "artifacts/strategies/example_strategy/_SUCCESS.json"
+    },
+    {
+      "fingerprint": "d58a598b56ba0be40ab2512bd9400a3fb5d3b45d2441a30d4d4e558178161856",
+      "kind": "manifest",
+      "path": "artifacts/strategies/example_strategy/manifest.json"
+    },
+    {
+      "fingerprint": "6cf07b4dd2646a26078c69b632f8fe48f3ded2b7dff00060f11c8cab156a9831",
+      "kind": "metrics.json",
+      "path": "artifacts/strategies/example_strategy/metrics.json"
+    },
+    {
+      "fingerprint": "d0789c0ebb23968619c2ed4b681251494089730d0a64a749b3f1f60da4e8d076",
+      "kind": "summary.json",
+      "path": "artifacts/strategies/example_strategy/summary.json"
+    },
+    {
+      "fingerprint": "98f619f4dceaf4399c9bc6258f671f64357d472349c5cbb041fcf7f18d490d79",
+      "kind": "registry",
+      "path": "artifacts/strategies/registry.jsonl"
+    }
+  ],
+  "review_id": "example_review",
+  "schema_version": "resolver_resolution.v1",
+  "selected_run_id": "example_strategy",
+  "source_fingerprint": "88b1ce04b483441ae9bef44bb7290376f5d23dedbf270d33ab5bc93faa697df0",
+  "source_paths": [
+    "artifacts/strategies/example_strategy/_SUCCESS.json",
+    "artifacts/strategies/example_strategy/manifest.json",
+    "artifacts/strategies/example_strategy/metrics.json",
+    "artifacts/strategies/example_strategy/summary.json",
+    "artifacts/strategies/registry.jsonl"
+  ],
+  "warnings": []
+}

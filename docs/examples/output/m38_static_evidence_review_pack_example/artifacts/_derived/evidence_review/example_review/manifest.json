@@ -1,0 +1,78 @@
+{
+  "artifact_family": "evidence_review_pack",
+  "canonicality": {
+    "authority_fingerprint": "7f703bd4d863dfac6f807167e854cfa5a44c3241a892ca6bf1439cc0f1846a0b",
+    "authority_kind": "artifact_tree",
+    "authority_paths": [
+      "artifacts/strategies/example_strategy/_SUCCESS.json",
+      "artifacts/strategies/example_strategy/manifest.json",
+      "artifacts/strategies/example_strategy/metrics.json",
+      "artifacts/strategies/example_strategy/summary.json",
+      "artifacts/strategies/registry.jsonl"
+    ],
+    "authority_root": "artifacts",
+    "derived_class": "review_pack",
+    "non_authoritative": true,
+    "rebuildable": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+    "schema_version": "canonicality.v1",
+    "stale_if_source_changes": true,
+    "write_back_forbidden": true
+  },
+  "file_digests": {
+    "artifact_inventory.csv": "8f15a54fae77dea58edbd9d59105980c516255b25fedf29f8915510187744fb1",
+    "catalog_health_diagnostics.json": "0e11987eca2c5be5db46bd2aba996c14fe4d41b6bb524c3f756b3d224a50a189",
+    "evidence_index.json": "cc8f1a8e8108967047a7f81b0b5b307139b835df05d08c4c46c39b39d1c6a259",
+    "related_records.json": "37517e5f3dc66819f61f5a7bb8ace1921282415f10551d2defa5c3eb0985b570",
+    "report.md": "1189b6b57b5aab56fd36c11945e7d088db82272f68896fe58e64d14828846a85",
+    "resolver_resolution.json": "c0873f369628c41035d108bb0256e91f5d1058e39e9098ccf9c1a90f6e8977a8",
+    "review_request.json": "64d10e879ae6a904c123aff9246378ed85f4e25af90d1db6b8ce7efe87aadfc4",
+    "review_summary.json": "9773c4bfdfa1eeeaa10e8b13b9958031aa8806163e638ff4adc2b469220c3d04",
+    "selected_lineage.openlineage.json": "ecfcd1ca71f849a77a6670c871db7005b5b56da8bf6c34572f3515f991008504",
+    "selected_lineage.prov.json": "885fa78093abc72cbdc6ef757c59e4e7f1462faa326dc6bd3d1b5fdb0d87bd32",
+    "selected_record.json": "120e0649efd9489b17006ae272db0a6278d241b16545bb391c011188189cbbdb",
+    "validation.json": "180e090c7ca821a0eeee61cb0cfc4e59d89b3a5c1202cdabf5b96aa84a5fcbdf"
+  },
+  "generated_files": [
+    "artifact_inventory.csv",
+    "catalog_health_diagnostics.json",
+    "evidence_index.json",
+    "manifest.json",
+    "related_records.json",
+    "report.md",
+    "resolver_resolution.json",
+    "review_request.json",
+    "review_summary.json",
+    "selected_lineage.openlineage.json",
+    "selected_lineage.prov.json",
+    "selected_record.json",
+    "validation.json"
+  ],
+  "load_source": {
+    "canonical_source": "artifacts",
+    "loaded_from": "review_pack",
+    "non_authoritative": true,
+    "resolver_hint": "reopen canonical manifests/registries before decision-sensitive use",
+    "schema_version": "load_source.v1"
+  },
+  "optional_files": [
+    "selected_lineage.openlineage.json",
+    "selected_lineage.prov.json"
+  ],
+  "output_root": "artifacts/_derived/evidence_review/example_review",
+  "required_files": [
+    "manifest.json",
+    "review_request.json",
+    "review_summary.json",
+    "catalog_health_diagnostics.json",
+    "validation.json",
+    "selected_record.json",
+    "related_records.json",
+    "resolver_resolution.json",
+    "evidence_index.json",
+    "artifact_inventory.csv",
+    "report.md"
+  ],
+  "review_id": "example_review",
+  "schema_version": "review_pack_manifest.v1"
+}

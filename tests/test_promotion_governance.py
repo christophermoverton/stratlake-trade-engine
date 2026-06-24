@@ -4,6 +4,7 @@ from copy import deepcopy
 import csv
 import json
 from pathlib import Path
+from typing import Any
 
 import pytest
 
@@ -2186,3 +2187,168 @@ def test_governance_rejects_forged_configured_compatibility_status(tmp_path: Pat
     validation = validate_governance_consistency(dataset.records, rows)
     check_ids = [f["check_id"] for f in validation["findings"]]
     assert "promotion_state_schema_invalid" in check_ids
+
+
+def _evaluator_shaped_forged_payload(
+    *,
+    review_id: str,
+    evaluation_status: str = "pass",
+    promotion_status: str = "definitely_promote",
+    status_on_pass: str = "definitely_promote",
+    status_on_fail: str = "blocked",
+) -> dict[str, Any]:
+    if evaluation_status == "pass":
+        gate_result = {
+            "gate_id": "g1", "status": "pass", "source": "metrics",
+            "metric_path": "score", "comparator": "gte", "threshold": 0.5,
+            "actual_value": 1.0, "missing_behavior": "fail", "severity": None,
+            "reason_codes": ["gate_passed"], "reason": "1.0 gte 0.5",
+            "statistic": "value", "description": None,
+        }
+        gate_counts = {
+            "total": 1, "passed": 1, "failed": 0, "missing": 0,
+            "skipped": 0, "warning": 0, "review": 0, "rejected": 0, "blocked": 0,
+        }
+    else:
+        gate_result = {
+            "gate_id": "g1", "status": "fail", "source": "metrics",
+            "metric_path": "score", "comparator": "gte", "threshold": 0.5,
+            "actual_value": 0.1, "missing_behavior": "fail", "severity": None,
+            "reason_codes": ["gate_failed_threshold"], "reason": "0.1 not gte 0.5",
+            "statistic": "value", "description": None,
+        }
+        gate_counts = {
+            "total": 1, "passed": 0, "failed": 1, "missing": 0,
+            "skipped": 0, "warning": 0, "review": 0, "rejected": 0, "blocked": 0,
+        }
+    return {
+        "schema_version": 2,
+        "artifact_type": "promotion_state",
+        "run_type": "review",
+        "configured": True,
+        "configuration_state": "configured",
+        "evaluation_status": evaluation_status,
+        "promotion_status": promotion_status,
+        "status_on_pass": status_on_pass,
+        "status_on_fail": status_on_fail,
+        "decision_authority": "engine",
+        "human_decision": None,
+        "decision_reason_codes": [],
+        "gate_counts": gate_counts,
+        "gate_definitions": [{"gate_id": "g1", "source": "metrics", "metric_path": "score", "comparator": "gte", "threshold": 0.5}],
+        "gate_results": [gate_result],
+        "provenance": {
+            "object_type": "review",
+            "object_id": review_id,
+            "review_id": review_id,
+            "run_type": "review",
+        },
+        "artifact_metadata": {
+            "artifact_filename": "promotion_gates.json",
+            "deterministic": True,
+            "generated_by": "src.research.promotion",
+            "writer": "engine",
+        },
+    }
+
+
+def test_governance_rejects_evaluator_shaped_forged_pass_artifact(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    review_dir = artifact_root / "reviews" / "review_forged_pass"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "review_summary.json", {"review_id": "review_forged_pass"})
+    _write_json(review_dir / "manifest.json", {"review_id": "review_forged_pass"})
+    forged = _evaluator_shaped_forged_payload(
+        review_id="review_forged_pass",
+        evaluation_status="pass",
+        promotion_status="definitely_promote",
+        status_on_pass="definitely_promote",
+    )
+    _write_json(review_dir / "promotion_gates.json", forged)
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    review_records = [r for r in dataset.records if r.run_id == "review_forged_pass"]
+    assert len(review_records) == 1
+    record = review_records[0]
+    assert record.promotion_gate_summary is None
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+    check_ids = [f["check_id"] for f in validation["findings"]]
+    assert "promotion_state_schema_invalid" in check_ids
+
+
+def test_governance_rejects_evaluator_shaped_forged_fail_artifact(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    review_dir = artifact_root / "reviews" / "review_forged_fail"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "review_summary.json", {"review_id": "review_forged_fail"})
+    _write_json(review_dir / "manifest.json", {"review_id": "review_forged_fail"})
+    forged = _evaluator_shaped_forged_payload(
+        review_id="review_forged_fail",
+        evaluation_status="fail",
+        promotion_status="definitely_ignore",
+        status_on_pass="eligible",
+        status_on_fail="definitely_ignore",
+    )
+    _write_json(review_dir / "promotion_gates.json", forged)
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    review_records = [r for r in dataset.records if r.run_id == "review_forged_fail"]
+    assert len(review_records) == 1
+    record = review_records[0]
+    assert record.promotion_gate_summary is None
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+    check_ids = [f["check_id"] for f in validation["findings"]]
+    assert "promotion_state_schema_invalid" in check_ids
+
+
+def test_governance_accepts_supported_compatibility_pass_artifact(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    review_dir = artifact_root / "reviews" / "review_approved"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "review_summary.json", {"review_id": "review_approved"})
+    _write_json(review_dir / "manifest.json", {"review_id": "review_approved"})
+    payload = _evaluator_shaped_forged_payload(
+        review_id="review_approved",
+        evaluation_status="pass",
+        promotion_status="approved",
+        status_on_pass="approved",
+    )
+    _write_json(review_dir / "promotion_gates.json", payload)
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    review_records = [r for r in dataset.records if r.run_id == "review_approved"]
+    assert len(review_records) == 1
+    record = review_records[0]
+    assert record.promotion_gates is not None
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+    error_checks = [f["check_id"] for f in validation["findings"] if f["severity"] == "error"]
+    assert "promotion_state_schema_invalid" not in error_checks
+
+
+def test_governance_accepts_supported_compatibility_fail_artifact(tmp_path: Path) -> None:
+    artifact_root = tmp_path / "artifacts"
+    review_dir = artifact_root / "reviews" / "review_needs_work"
+    review_dir.mkdir(parents=True)
+    _write_json(review_dir / "review_summary.json", {"review_id": "review_needs_work"})
+    _write_json(review_dir / "manifest.json", {"review_id": "review_needs_work"})
+    payload = _evaluator_shaped_forged_payload(
+        review_id="review_needs_work",
+        evaluation_status="fail",
+        promotion_status="needs_work",
+        status_on_pass="eligible",
+        status_on_fail="needs_work",
+    )
+    _write_json(review_dir / "promotion_gates.json", payload)
+
+    dataset = load_governance_artifacts(artifact_root=artifact_root)
+    review_records = [r for r in dataset.records if r.run_id == "review_needs_work"]
+    assert len(review_records) == 1
+    record = review_records[0]
+    assert record.promotion_gates is not None
+    rows = build_governance_outcome_rows(dataset.records)
+    validation = validate_governance_consistency(dataset.records, rows)
+    error_checks = [f["check_id"] for f in validation["findings"] if f["severity"] == "error"]
+    assert "promotion_state_schema_invalid" not in error_checks

@@ -31,6 +31,12 @@ SUPPORTED_PROMOTION_STATE_RUN_TYPES = frozenset(
 _CANONICAL_MACHINE_PROMOTION_STATUSES = frozenset(
     {"eligible", "warn", "needs_review", "rejected", "blocked"}
 )
+SUPPORTED_COMPATIBILITY_PROMOTION_STATUSES = frozenset(
+    {"approved", "manual_review", "review_ready", "needs_work"}
+)
+_ALL_ACCEPTED_CONFIGURED_PROMOTION_STATUSES = (
+    _CANONICAL_MACHINE_PROMOTION_STATUSES | SUPPORTED_COMPATIBILITY_PROMOTION_STATUSES
+)
 _UNCONFIGURED_DECISION_REASON_CODES = ("promotion_policy_not_configured",)
 _PROMOTION_STATE_GATE_COUNT_KEYS = frozenset(
     {
@@ -383,7 +389,6 @@ def evaluate_promotion_gates(
         definitions=definitions,
         results=results,
     )
-    object.__setattr__(evaluation, "_evaluator_validated", True)
     return evaluation
 
 
@@ -507,11 +512,12 @@ def write_promotion_state_artifact(
     """Persist a canonical v2 promotion-state artifact as stable JSON."""
 
     payload = serialize_promotion_state(state)
-    resolved_output_dir = Path(output_dir)
-    resolved_output_dir.mkdir(parents=True, exist_ok=True)
     if artifact_filename is not None:
         _validate_artifact_filename(artifact_filename)
     resolved_filename = artifact_filename or payload["artifact_metadata"]["artifact_filename"]
+    _validate_artifact_filename(resolved_filename)
+    resolved_output_dir = Path(output_dir)
+    resolved_output_dir.mkdir(parents=True, exist_ok=True)
     if resolved_filename != payload["artifact_metadata"]["artifact_filename"]:
         payload = state._payload_with_artifact_filename(resolved_filename)
     artifact_path = resolved_output_dir / resolved_filename
@@ -522,7 +528,7 @@ def write_promotion_state_artifact(
 
 def _validate_artifact_filename(value: object) -> str:
     if not isinstance(value, str) or not value.strip():
-        raise PromotionGateError("artifact_filename must be a non-empty string.")
+        raise PromotionGateError("artifact_metadata.artifact_filename must be a non-empty plain basename.")
     name = value.strip()
     if name in {".", ".."}:
         raise PromotionGateError(
@@ -629,10 +635,7 @@ def _promotion_state_provenance(
 
 
 def _promotion_state_artifact_metadata(artifact_filename: str) -> dict[str, Any]:
-    normalized_filename = _normalize_required_string(
-        artifact_filename,
-        field_name="artifact_filename",
-    )
+    normalized_filename = _validate_artifact_filename(artifact_filename)
     return canonicalize_value(
         {
             "artifact_filename": normalized_filename,
@@ -771,7 +774,7 @@ def _validate_promotion_state_artifact_metadata_payload(payload: Mapping[str, An
     if set(metadata) != required:
         formatted = ", ".join(sorted(set(metadata) - required))
         raise PromotionGateError(f"Promotion state artifact_metadata has unexpected keys: {formatted}.")
-    _normalize_required_string(metadata.get("artifact_filename"), field_name="artifact_metadata.artifact_filename")
+    _validate_artifact_filename(metadata.get("artifact_filename"))
     if metadata.get("writer") != "engine":
         raise PromotionGateError("Promotion state artifact_metadata.writer must be 'engine'.")
     if metadata.get("generated_by") != "src.research.promotion":
@@ -807,13 +810,13 @@ def _validate_compatibility_status_consistency(
     payload: Mapping[str, Any],
     promotion_status: str,
 ) -> None:
-    evaluation_status = payload.get("evaluation_status")
-    expected_status = _expected_promotion_status_from_payload(payload)
-    if expected_status is not None and expected_status != promotion_status:
+    if promotion_status not in SUPPORTED_COMPATIBILITY_PROMOTION_STATUSES:
+        formatted = ", ".join(sorted(_ALL_ACCEPTED_CONFIGURED_PROMOTION_STATUSES))
         raise PromotionGateError(
-            f"Configured compatibility promotion_status {promotion_status!r} is inconsistent "
-            f"with evaluator outcome {expected_status!r}."
+            f"Configured promotion_status {promotion_status!r} is not a supported canonical or "
+            f"compatibility value. Accepted values: {formatted}."
         )
+    evaluation_status = payload.get("evaluation_status")
     if evaluation_status == "pass":
         if payload.get("status_on_pass") != promotion_status:
             raise PromotionGateError(
@@ -843,24 +846,6 @@ def _validate_compatibility_status_consistency(
             )
 
 
-def _expected_promotion_status_from_payload(payload: Mapping[str, Any]) -> str | None:
-    evaluation_status = payload.get("evaluation_status")
-    gate_results = payload.get("gate_results")
-    status_on_pass = payload.get("status_on_pass")
-    status_on_fail = payload.get("status_on_fail")
-    if not isinstance(evaluation_status, str) or not isinstance(gate_results, list):
-        return None
-    if not isinstance(status_on_pass, str) or not isinstance(status_on_fail, str):
-        return None
-    highest_severity = _highest_severity_from_gate_results(payload)
-    return _resolve_promotion_status(
-        evaluation_status=evaluation_status,
-        highest_severity=highest_severity,
-        status_on_pass=status_on_pass,
-        status_on_fail=status_on_fail,
-    )
-
-
 def _validate_evaluation_status_consistency(evaluation: PromotionGateEvaluation) -> None:
     actual_highest_severity = _highest_failing_severity(evaluation.results)
     if evaluation.highest_severity != actual_highest_severity:
@@ -888,12 +873,12 @@ def _validate_evaluation_status_consistency(evaluation: PromotionGateEvaluation)
             f"evaluator outcome {expected!r}. A valid configured state must be derived from "
             f"actual evaluator inputs and results."
         )
-    if expected not in _CANONICAL_MACHINE_PROMOTION_STATUSES:
-        if not getattr(evaluation, "_evaluator_validated", False):
-            raise PromotionGateError(
-                f"Non-canonical promotion_status {expected!r} requires evaluator-validated construction. "
-                f"Manually constructed evaluations with custom status values are not accepted."
-            )
+    if expected not in _ALL_ACCEPTED_CONFIGURED_PROMOTION_STATUSES:
+        formatted = ", ".join(sorted(_ALL_ACCEPTED_CONFIGURED_PROMOTION_STATUSES))
+        raise PromotionGateError(
+            f"Configured promotion_status {expected!r} is not a supported canonical or "
+            f"compatibility value. Accepted values: {formatted}."
+        )
 
 
 def _highest_severity_from_gate_results(payload: Mapping[str, Any]) -> str | None:
@@ -1260,6 +1245,7 @@ __all__ = [
     "PromotionGateError",
     "PromotionGateResult",
     "PromotionState",
+    "SUPPORTED_COMPATIBILITY_PROMOTION_STATUSES",
     "SUPPORTED_PROMOTION_STATE_RUN_TYPES",
     "build_promotion_state_from_evaluation",
     "build_unconfigured_promotion_state",

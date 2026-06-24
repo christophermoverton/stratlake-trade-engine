@@ -4,7 +4,10 @@ import json
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Mapping
 
-from src.research.promotion import DEFAULT_PROMOTION_ARTIFACT_FILENAME
+from src.research.promotion import (
+    DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+    SUPPORTED_COMPATIBILITY_PROMOTION_STATUSES,
+)
 from src.research.robustness.governance_integration import load_robustness_governance_context
 from src.research.registry import canonicalize_value, default_registry_path, load_registry
 
@@ -1274,6 +1277,8 @@ def _valid_configured_state(payload: Mapping[str, Any]) -> bool:
     canonical_statuses = {"eligible", "warn", "needs_review", "rejected", "blocked"}
     if promotion_status in canonical_statuses:
         return True
+    if promotion_status not in SUPPORTED_COMPATIBILITY_PROMOTION_STATUSES:
+        return False
     compatibility_field = "status_on_pass" if evaluation_status == "pass" else "status_on_fail"
     if payload.get(compatibility_field) != promotion_status:
         return False

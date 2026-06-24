@@ -372,7 +372,10 @@ Review state is review-owned. Campaign state is campaign-owned and does not
 inherit a nested review outcome. Governance reads and validates canonical
 evidence without repairing, backfilling, or replaying policy. It preserves raw
 `not_reviewed`, maps it to review-required treatment, and reports missing or
-malformed artifacts as distinct integrity findings.
+malformed artifacts as distinct integrity findings. Custom configured evaluator
+statuses are accepted only from a bounded compatibility vocabulary (`approved`,
+`manual_review`, `review_ready`, `needs_work`). Artifact filename overrides are
+restricted to plain basenames.
 
 Run a governance report over existing artifacts:
 

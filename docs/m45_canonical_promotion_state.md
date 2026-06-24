@@ -184,15 +184,21 @@ These are governance findings, not promotion decisions.
 ## Legacy Compatibility
 
 Legacy `promotion_gate_summary` and configured promotion-gate artifacts remain
-supported where applicable. Valid custom evaluator statuses such as `approved`
-or `manual_review` are accepted only when validated as genuine evaluator
-outcomes — status consistency with evaluation direction, gate results, and
-severity resolution is verified at both the serialization boundary and
-governance validation. Arbitrary forged or caller-constructed status values are
-rejected even when `promotion_status` matches `status_on_pass` or
-`status_on_fail`. Artifact filename overrides are restricted to a plain
-basename within the owner artifact directory; path traversal and absolute paths
-are rejected.
+supported where applicable. Custom evaluator statuses are accepted only from
+a bounded compatibility vocabulary: `approved`, `manual_review`, `review_ready`,
+`needs_work`. A configured compatibility value is valid only when:
+
+1. it is in the bounded supported compatibility vocabulary;
+2. it matches the correct pass/fail configuration field;
+3. it is consistent with gate-result direction;
+4. it does not override severity-driven canonical failure outcomes;
+5. the artifact contains valid evaluator-shaped results and valid counts.
+
+Unsupported custom configured status values are rejected at both the
+serialization boundary and governance validation. Arbitrary unknown values
+remain validation errors regardless of field matching. Artifact filename
+overrides are restricted to a plain basename within the owner artifact
+directory; path traversal and absolute paths are rejected.
 
 M45 does not convert missing or legacy evidence into canonical no-policy state,
 and it does not require strategy, portfolio, or alpha producers to emit new

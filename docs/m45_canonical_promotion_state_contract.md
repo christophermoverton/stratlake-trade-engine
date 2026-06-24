@@ -429,12 +429,20 @@ with `run_type: review` loads canonical state with `required=True` and review
 identity validation. Missing canonical state for registry review records
 produces `missing_canonical_promotion_state` without manifest fallback.
 
-Custom configured evaluator compatibility statuses are accepted only when the
-artifact fields establish a valid configured relationship: consistent evaluation
-direction, matching gate result structure, and correct severity resolution.
-Manually constructed or forged evaluations where `promotion_status` and
-`status_on_pass` (or `status_on_fail`) are set to arbitrary matching values
-are rejected at both the serialization boundary and governance validation.
+Custom configured evaluator compatibility statuses are accepted only from a
+bounded vocabulary: `approved`, `manual_review`, `review_ready`, `needs_work`.
+A configured compatibility value is valid only when:
+
+1. it is in the bounded supported compatibility vocabulary;
+2. it matches the correct pass/fail configuration field;
+3. it is consistent with gate-result direction;
+4. it does not override severity-driven canonical failure outcomes;
+5. the artifact contains valid evaluator-shaped results and valid counts.
+
+Unsupported custom configured status values are rejected at both the
+serialization boundary and governance validation. Arbitrary unknown values
+outside the bounded vocabulary remain validation errors regardless of whether
+`promotion_status` matches `status_on_pass` or `status_on_fail`.
 
 Artifact filename overrides for promotion state writers accept only a plain
 basename (e.g. `promotion_gates.json`, `custom_state.json`). Path traversal

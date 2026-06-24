@@ -53,8 +53,9 @@ review outcomes.
   summaries.
 * Registry-backed review records are canonical-state-required; missing canonical
   state produces an integrity finding without manifest fallback.
-* Canonical configured compatibility statuses are accepted only when validated
-  as genuine evaluator outcomes, not forged field combinations.
+* Canonical configured compatibility statuses are accepted only from a bounded
+  vocabulary (`approved`, `manual_review`, `review_ready`, `needs_work`) and
+  only when consistent with evaluation direction and severity resolution.
 * Artifact filename overrides are restricted to a plain basename within the
   owner artifact directory.
 * Review and campaign identities remain separate.

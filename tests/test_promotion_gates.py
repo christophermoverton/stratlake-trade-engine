@@ -1373,12 +1373,12 @@ def test_forged_evaluation_with_status_on_fail_forgery_rejected(tmp_path: Path) 
         build_promotion_state_from_evaluation(forged)
 
 
-def test_pass_evaluation_claiming_status_on_fail_rejected() -> None:
+def test_unsupported_arbitrary_pass_status_rejected() -> None:
     evaluation = evaluate_promotion_gates(
         run_type="review",
         config={
             "status_on_pass": "eligible",
-            "status_on_fail": "manual_review",
+            "status_on_fail": "blocked",
             "gates": [
                 {
                     "gate_id": "gate_a",
@@ -1397,9 +1397,9 @@ def test_pass_evaluation_claiming_status_on_fail_rejected() -> None:
         configured=evaluation.configured,
         run_type=evaluation.run_type,
         evaluation_status=evaluation.evaluation_status,
-        promotion_status="manual_review",
-        status_on_pass="manual_review",
-        status_on_fail="manual_review",
+        promotion_status="custom_unsupported_value",
+        status_on_pass="custom_unsupported_value",
+        status_on_fail=evaluation.status_on_fail,
         gate_count=evaluation.gate_count,
         passed_gate_count=evaluation.passed_gate_count,
         failed_gate_count=evaluation.failed_gate_count,
@@ -1415,7 +1415,53 @@ def test_pass_evaluation_claiming_status_on_fail_rejected() -> None:
         definitions=evaluation.definitions,
         results=evaluation.results,
     )
-    with pytest.raises(PromotionGateError):
+    with pytest.raises(PromotionGateError, match="not a supported canonical or compatibility value"):
+        build_promotion_state_from_evaluation(forged)
+
+
+def test_unsupported_arbitrary_fail_status_rejected() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    forged = PromotionGateEvaluation(
+        configured=evaluation.configured,
+        run_type=evaluation.run_type,
+        evaluation_status=evaluation.evaluation_status,
+        promotion_status="definitely_ignore_everything",
+        status_on_pass=evaluation.status_on_pass,
+        status_on_fail="definitely_ignore_everything",
+        gate_count=evaluation.gate_count,
+        passed_gate_count=evaluation.passed_gate_count,
+        failed_gate_count=evaluation.failed_gate_count,
+        missing_gate_count=evaluation.missing_gate_count,
+        highest_severity=evaluation.highest_severity,
+        severity_counts=evaluation.severity_counts,
+        warning_gate_count=evaluation.warning_gate_count,
+        review_gate_count=evaluation.review_gate_count,
+        rejected_gate_count=evaluation.rejected_gate_count,
+        blocked_gate_count=evaluation.blocked_gate_count,
+        decision_reason_codes=evaluation.decision_reason_codes,
+        artifact_filename=evaluation.artifact_filename,
+        definitions=evaluation.definitions,
+        results=evaluation.results,
+    )
+    with pytest.raises(PromotionGateError, match="not a supported canonical or compatibility value"):
         build_promotion_state_from_evaluation(forged)
 
 
@@ -1495,3 +1541,135 @@ def test_severity_driven_fail_with_custom_status_on_fail_uses_severity() -> None
     state = build_promotion_state_from_evaluation(evaluation)
     payload = state.to_payload()
     assert payload["promotion_status"] == "rejected"
+
+
+def test_approved_custom_pass_status_valid() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "approved",
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    assert evaluation.promotion_status == "approved"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "approved"
+
+
+def test_needs_work_custom_fail_status_valid() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "needs_work",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    assert evaluation.promotion_status == "needs_work"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "needs_work"
+
+
+@pytest.mark.parametrize(
+    "unsafe_filename",
+    [
+        "../escaped.json",
+        "nested/state.json",
+        "nested\\state.json",
+        "/absolute/state.json",
+        "C:\\absolute\\state.json",
+        ".",
+        "..",
+    ],
+)
+def test_build_unconfigured_promotion_state_rejects_unsafe_filename(unsafe_filename: str) -> None:
+    with pytest.raises(PromotionGateError):
+        build_unconfigured_promotion_state(
+            run_type="review",
+            provenance={"run_type": "review"},
+            artifact_filename=unsafe_filename,
+        )
+
+
+@pytest.mark.parametrize(
+    "unsafe_filename",
+    [
+        "../escaped.json",
+        "nested/state.json",
+        "nested\\state.json",
+        "/absolute/state.json",
+        "C:\\absolute\\state.json",
+        ".",
+        "..",
+    ],
+)
+def test_build_promotion_state_from_evaluation_rejects_unsafe_filename(unsafe_filename: str) -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    with pytest.raises(PromotionGateError):
+        build_promotion_state_from_evaluation(evaluation, artifact_filename=unsafe_filename)
+
+
+def test_severity_driven_failure_cannot_be_overridden_by_custom_fail_status() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "needs_work",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                    "severity": "block",
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    assert evaluation.promotion_status == "blocked"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "blocked"

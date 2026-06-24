@@ -353,6 +353,47 @@ Start with:
 * [docs/m32_consistency_validation_design.md](docs/m32_consistency_validation_design.md)
 * [docs/architecture/cross_platform_reproducibility_audit.md](docs/architecture/cross_platform_reproducibility_audit.md)
 
+### Milestone 45: Canonical Promotion-State Contracts
+
+Milestone 45 keeps `promotion_gates.json` as the engine-owned evidence filename
+and adds a canonical v2 promotion-state contract for completed standalone
+research reviews and research campaign containers. The artifact distinguishes
+configured automated evaluation, explicit unconfigured/no-policy state, missing
+or malformed evidence, and future human-decision fields that remain separate.
+
+The explicit no-policy state uses `configured=false`,
+`evaluation_status=not_configured`, `promotion_status=not_reviewed`, and
+`decision_authority=none`. `not_reviewed` means no promotion policy was
+configured and no promotion decision was made. It does not imply eligibility,
+approval, promotion, production readiness, deployment readiness, or human
+sign-off.
+
+Review state is review-owned. Campaign state is campaign-owned and does not
+inherit a nested review outcome. Governance reads and validates canonical
+evidence without repairing, backfilling, or replaying policy. It preserves raw
+`not_reviewed`, maps it to review-required treatment, and reports missing or
+malformed artifacts as distinct integrity findings. Custom configured evaluator
+statuses are accepted only from a bounded compatibility vocabulary (`approved`,
+`manual_review`, `review_ready`, `needs_work`). Artifact filename overrides are
+restricted to plain basenames.
+
+Run a governance report over existing artifacts:
+
+```powershell
+python -m src.cli.run_promotion_governance_report `
+  --artifact-root artifacts `
+  --output-dir artifacts/promotion_governance/m45_example
+```
+
+This command writes governance-report artifacts; it does not create canonical
+promotion state.
+
+Start with:
+
+* [docs/m45_canonical_promotion_state.md](docs/m45_canonical_promotion_state.md)
+* [docs/m45_canonical_promotion_state_contract.md](docs/m45_canonical_promotion_state_contract.md)
+* [docs/m45_merge_readiness.md](docs/m45_merge_readiness.md)
+
 ### Milestone 33: Cross-Platform Validation Posture
 
 Milestone 33 introduces a focused CI smoke matrix on Windows, Ubuntu, and macOS

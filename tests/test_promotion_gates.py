@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import sys
+from typing import Any
 
 import pandas as pd
 import pytest
@@ -16,11 +17,29 @@ from src.research.experiment_tracker import save_experiment, save_walk_forward_e
 from src.research.metrics import compute_performance_metrics
 from src.research.promotion import (
     PromotionGateError,
+    PromotionGateEvaluation,
+    PromotionState,
+    build_promotion_state_from_evaluation,
+    build_unconfigured_promotion_state,
     evaluate_promotion_gates,
     promotion_gate_config_digest,
+    serialize_promotion_state,
     write_promotion_gate_artifact,
+    write_promotion_state_artifact,
 )
 from src.research.registry import load_registry
+
+
+def _assert_state_mutation_blocks_serialization_and_write(
+    tmp_path: Path,
+    state: PromotionState,
+    *,
+    match: str,
+) -> None:
+    with pytest.raises(PromotionGateError, match=match):
+        serialize_promotion_state(state)
+    with pytest.raises(PromotionGateError, match=match):
+        write_promotion_state_artifact(tmp_path, state)
 
 
 def test_evaluate_promotion_gates_handles_pass_fail_borderline_missing_and_split_statistics() -> None:
@@ -388,6 +407,562 @@ def test_severity_promotion_gate_artifact_is_json_safe_and_deterministic(tmp_pat
     assert parsed["results"][0]["reason_codes"] == ["gate_failed_threshold", "severity_block"]
 
 
+@pytest.mark.parametrize(
+    ("run_type", "object_type", "object_id", "identity_field"),
+    [
+        ("review", "review", "registry_review_123", "review_id"),
+        (
+            "research_campaign",
+            "research_campaign",
+            "research_campaign_123",
+            "campaign_run_id",
+        ),
+    ],
+)
+def test_unconfigured_promotion_state_is_canonical_v2_and_deterministic(
+    tmp_path: Path,
+    run_type: str,
+    object_type: str,
+    object_id: str,
+    identity_field: str,
+) -> None:
+    provenance = {
+        "object_id": object_id,
+        "object_type": object_type,
+        identity_field: object_id,
+        "source_artifacts": {
+            "manifest": "manifest.json",
+            "summary": "summary.json",
+        },
+    }
+    first = build_unconfigured_promotion_state(run_type=run_type, provenance=provenance)
+    second = build_unconfigured_promotion_state(run_type=run_type, provenance=dict(provenance))
+
+    first_payload = serialize_promotion_state(first)
+    second_payload = serialize_promotion_state(second)
+    artifact_path = write_promotion_state_artifact(tmp_path / run_type, first)
+    first_bytes = artifact_path.read_bytes()
+    second_path = write_promotion_state_artifact(tmp_path / run_type, second)
+    parsed = json.loads(artifact_path.read_text(encoding="utf-8"))
+
+    assert first_payload == second_payload == parsed
+    assert second_path.read_bytes() == first_bytes
+    assert first_payload["schema_version"] == 2
+    assert first_payload["artifact_type"] == "promotion_state"
+    assert first_payload["run_type"] == run_type
+    assert first_payload["configured"] is False
+    assert first_payload["configuration_state"] == "not_configured"
+    assert first_payload["evaluation_status"] == "not_configured"
+    assert first_payload["promotion_status"] == "not_reviewed"
+    assert first_payload["decision_authority"] == "none"
+    assert first_payload["human_decision"] is None
+    assert first_payload["decision_reason_codes"] == ["promotion_policy_not_configured"]
+    assert first_payload["gate_counts"] == {
+        "blocked": 0,
+        "failed": 0,
+        "missing": 0,
+        "passed": 0,
+        "rejected": 0,
+        "review": 0,
+        "skipped": 0,
+        "total": 0,
+        "warning": 0,
+    }
+    assert first_payload["gate_definitions"] == []
+    assert first_payload["gate_results"] == []
+    assert first_payload["provenance"] == {**provenance, "run_type": run_type}
+    assert first_payload["artifact_metadata"] == {
+        "artifact_filename": "promotion_gates.json",
+        "deterministic": True,
+        "generated_by": "src.research.promotion",
+        "writer": "engine",
+    }
+
+
+def test_configured_pass_promotion_state_preserves_evaluation_semantics() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "gates": [
+                {
+                    "gate_id": "min_sharpe",
+                    "source": "metrics",
+                    "metric_path": "sharpe_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                }
+            ]
+        },
+        sources={"metrics": {"sharpe_ratio": 1.5}},
+    )
+
+    state = build_promotion_state_from_evaluation(
+        evaluation,
+        provenance={"object_id": "strategy_1", "object_type": "strategy"},
+    )
+    payload = state.to_payload()
+
+    assert payload["schema_version"] == 2
+    assert payload["artifact_type"] == "promotion_state"
+    assert payload["configured"] is True
+    assert payload["configuration_state"] == "configured"
+    assert payload["evaluation_status"] == "pass"
+    assert payload["promotion_status"] == "eligible"
+    assert payload["decision_authority"] == "engine"
+    assert payload["human_decision"] is None
+    assert payload["decision_reason_codes"] == []
+    assert payload["gate_counts"] == {
+        "blocked": 0,
+        "failed": 0,
+        "missing": 0,
+        "passed": 1,
+        "rejected": 0,
+        "review": 0,
+        "skipped": 0,
+        "total": 1,
+        "warning": 0,
+    }
+    assert payload["gate_definitions"] == payload["definitions"]
+    assert payload["gate_results"] == payload["results"]
+    assert payload["gate_count"] == 1
+    assert payload["passed_gate_count"] == 1
+    assert payload["artifact_filename"] == "promotion_gates.json"
+
+
+def test_configured_failure_promotion_state_preserves_reason_codes_and_compatibility_fields() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="portfolio",
+        config={
+            "gates": [
+                {
+                    "gate_id": "minimum_effective_n",
+                    "source": "metrics",
+                    "metric_path": "effective_n",
+                    "comparator": "gte",
+                    "threshold": 30,
+                    "severity": "review",
+                },
+                {
+                    "gate_id": "missing_block_skipped",
+                    "source": "metrics",
+                    "metric_path": "sharpe_stability_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                    "missing_behavior": "skip",
+                    "severity": "block",
+                },
+            ]
+        },
+        sources={"metrics": {"effective_n": 12}},
+    )
+
+    state = build_promotion_state_from_evaluation(
+        evaluation,
+        provenance={
+            "object_id": "portfolio_1",
+            "object_type": "portfolio",
+            "source_artifacts": {"manifest": "manifest.json"},
+        },
+    )
+    payload = state.to_payload()
+
+    assert payload["evaluation_status"] == "fail"
+    assert payload["promotion_status"] == "needs_review"
+    assert payload["decision_authority"] == "engine"
+    assert payload["decision_reason_codes"] == ["gate_failed_threshold", "severity_review"]
+    assert payload["gate_counts"]["total"] == 2
+    assert payload["gate_counts"]["failed"] == 1
+    assert payload["gate_counts"]["skipped"] == 1
+    assert payload["gate_counts"]["review"] == 1
+    assert payload["highest_severity"] == "review"
+    assert payload["review_gate_count"] == 1
+    assert payload["results"][0]["reason_codes"] == ["gate_failed_threshold", "severity_review"]
+    assert payload["gate_results"][0]["reason_codes"] == ["gate_failed_threshold", "severity_review"]
+
+
+def test_promotion_state_rejects_invalid_combinations_and_unknown_values() -> None:
+    state = build_unconfigured_promotion_state(run_type="review")
+    payload = state.to_payload()
+
+    with pytest.raises(PromotionGateError, match="promotion_status='not_reviewed'"):
+        PromotionState({**payload, "promotion_status": "eligible"})
+    with pytest.raises(PromotionGateError, match="cannot include gate definitions or results"):
+        PromotionState({**payload, "gate_results": [{"gate_id": "fabricated"}]})
+    with pytest.raises(PromotionGateError, match="decision_authority='none'"):
+        PromotionState({**payload, "decision_authority": "engine"})
+    with pytest.raises(PromotionGateError, match="run_type must be one of"):
+        build_unconfigured_promotion_state(run_type="notebook")
+    with pytest.raises(PromotionGateError, match="state must be a PromotionState"):
+        serialize_promotion_state(payload)
+    configured_payload = build_promotion_state_from_evaluation(
+        evaluate_promotion_gates(
+            run_type="strategy",
+            config={
+                "gates": [
+                    {
+                        "gate_id": "min_sharpe",
+                        "source": "metrics",
+                        "metric_path": "sharpe_ratio",
+                        "comparator": "gte",
+                        "threshold": 1.0,
+                    }
+                ]
+            },
+            sources={"metrics": {"sharpe_ratio": 2.0}},
+        )
+    ).to_payload()
+    with pytest.raises(PromotionGateError, match="evaluation_status must be pass or fail"):
+        PromotionState({**configured_payload, "evaluation_status": "not_configured"})
+    with pytest.raises(PromotionGateError, match="promotion_status must be a non-empty string"):
+        PromotionState({**configured_payload, "promotion_status": ""})
+
+
+def test_configured_promotion_state_preserves_legacy_status_on_pass() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "status_on_pass": "approved",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "min_sharpe",
+                    "source": "metrics",
+                    "metric_path": "sharpe_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                }
+            ],
+        },
+        sources={"metrics": {"sharpe_ratio": 2.0}},
+    )
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+
+    assert payload["promotion_status"] == "approved"
+    assert payload["promotion_status"] != "eligible"
+    assert payload["status_on_pass"] == "approved"
+    assert payload["status_on_fail"] == "manual_review"
+    assert payload["evaluation_status"] == "pass"
+    assert payload["decision_authority"] == "engine"
+    assert payload["gate_count"] == 1
+    assert payload["gate_results"] == payload["results"]
+    assert not any(key.startswith("_") for key in payload)
+    with pytest.raises(PromotionGateError, match="promotion_status must be one of"):
+        PromotionState(payload)
+
+
+def test_configured_promotion_state_preserves_legacy_status_on_fail() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "status_on_pass": "approved",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "min_sharpe",
+                    "source": "metrics",
+                    "metric_path": "sharpe_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                }
+            ],
+        },
+        sources={"metrics": {"sharpe_ratio": 0.5}},
+    )
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+
+    assert payload["promotion_status"] == "manual_review"
+    assert payload["promotion_status"] != "needs_review"
+    assert payload["status_on_pass"] == "approved"
+    assert payload["status_on_fail"] == "manual_review"
+    assert payload["evaluation_status"] == "fail"
+    assert payload["decision_authority"] == "engine"
+    assert payload["decision_reason_codes"] == ["gate_failed_threshold"]
+    assert payload["failed_gate_count"] == 1
+    assert not any(key.startswith("_") for key in payload)
+    with pytest.raises(PromotionGateError, match="promotion_status must be one of"):
+        PromotionState(payload)
+
+
+@pytest.mark.parametrize("status", ["approved", "manual_review", "definitely_promote_everything"])
+def test_direct_configured_promotion_state_rejects_noncanonical_statuses(status: str) -> None:
+    payload = build_promotion_state_from_evaluation(
+        evaluate_promotion_gates(
+            run_type="strategy",
+            config={
+                "gates": [
+                    {
+                        "gate_id": "min_sharpe",
+                        "source": "metrics",
+                        "metric_path": "sharpe_ratio",
+                        "comparator": "gte",
+                        "threshold": 1.0,
+                    }
+                ]
+            },
+            sources={"metrics": {"sharpe_ratio": 2.0}},
+        )
+    ).to_payload()
+    with pytest.raises(PromotionGateError, match="promotion_status must be one of"):
+        PromotionState({**payload, "promotion_status": status})
+
+
+def test_direct_promotion_state_cannot_enable_legacy_status_mode() -> None:
+    payload = build_promotion_state_from_evaluation(
+        evaluate_promotion_gates(
+            run_type="strategy",
+            config={
+                "gates": [
+                    {
+                        "gate_id": "min_sharpe",
+                        "source": "metrics",
+                        "metric_path": "sharpe_ratio",
+                        "comparator": "gte",
+                        "threshold": 1.0,
+                    }
+                ]
+            },
+            sources={"metrics": {"sharpe_ratio": 2.0}},
+        )
+    ).to_payload()
+    altered_payload = {**payload, "promotion_status": "definitely_promote_everything"}
+
+    with pytest.raises(TypeError, match="_allow_legacy_promotion_status"):
+        PromotionState(altered_payload, _allow_legacy_promotion_status=True)
+    with pytest.raises(PromotionGateError, match="promotion_status must be one of"):
+        PromotionState(altered_payload)
+
+
+def test_removed_evaluation_payload_bypass_is_not_callable() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "status_on_pass": "approved",
+            "gates": [
+                {
+                    "gate_id": "min_sharpe",
+                    "source": "metrics",
+                    "metric_path": "sharpe_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                }
+            ],
+        },
+        sources={"metrics": {"sharpe_ratio": 2.0}},
+    )
+    arbitrary_payload = build_promotion_state_from_evaluation(evaluation).to_payload()
+    arbitrary_payload["promotion_status"] = "definitely_promote_everything"
+
+    with pytest.raises(AttributeError):
+        PromotionState._from_evaluation_payload(evaluation, arbitrary_payload)
+
+
+def test_promotion_state_writer_filename_override_updates_metadata_without_mutation(tmp_path: Path) -> None:
+    state = build_unconfigured_promotion_state(run_type="review")
+    original_payload = state.to_payload()
+
+    first_path = write_promotion_state_artifact(tmp_path, state, artifact_filename="custom_state.json")
+    second_path = write_promotion_state_artifact(tmp_path, state, artifact_filename="custom_state.json")
+    parsed = json.loads(first_path.read_text(encoding="utf-8"))
+
+    assert first_path == second_path == tmp_path / "custom_state.json"
+    assert parsed["artifact_metadata"]["artifact_filename"] == "custom_state.json"
+    assert state.to_payload() == original_payload
+    assert original_payload["artifact_metadata"]["artifact_filename"] == "promotion_gates.json"
+    assert first_path.read_text(encoding="utf-8") == second_path.read_text(encoding="utf-8")
+
+
+def test_legacy_evaluation_state_filename_override_updates_metadata(tmp_path: Path) -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="strategy",
+        config={
+            "status_on_pass": "approved",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "min_sharpe",
+                    "source": "metrics",
+                    "metric_path": "sharpe_ratio",
+                    "comparator": "gte",
+                    "threshold": 1.0,
+                }
+            ],
+        },
+        sources={"metrics": {"sharpe_ratio": 2.0}},
+    )
+    state = build_promotion_state_from_evaluation(evaluation)
+    original_payload = state.to_payload()
+
+    path = write_promotion_state_artifact(tmp_path, state, artifact_filename="legacy_state.json")
+    parsed = json.loads(path.read_text(encoding="utf-8"))
+
+    assert path == tmp_path / "legacy_state.json"
+    assert parsed["promotion_status"] == "approved"
+    assert parsed["artifact_metadata"]["artifact_filename"] == "legacy_state.json"
+    assert state.to_payload() == original_payload
+    assert not any(key.startswith("_") for key in parsed)
+
+
+def test_promotion_state_payload_copies_and_write_resist_mutation(tmp_path: Path) -> None:
+    provenance = {
+        "object_id": "review_a",
+        "object_type": "review",
+        "source_artifacts": {"manifest": "manifest.json"},
+    }
+    state = build_unconfigured_promotion_state(run_type="review", provenance=provenance)
+    expected_payload = state.to_payload()
+
+    returned_payload = state.to_payload()
+    returned_payload["promotion_status"] = "eligible"
+    returned_payload["provenance"]["object_id"] = "mutated"
+    provenance["object_id"] = "mutated_after_construction"
+    state.payload["promotion_status"] = "eligible"
+
+    assert state.to_payload() == expected_payload
+
+    state._payload["promotion_status"] = "eligible"
+    _assert_state_mutation_blocks_serialization_and_write(
+        tmp_path,
+        state,
+        match="promotion_status='not_reviewed'",
+    )
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (lambda payload: payload.pop("provenance"), "provenance must be a mapping"),
+        (
+            lambda payload: payload["provenance"].__setitem__("run_type", "strategy"),
+            "provenance.run_type must match run_type",
+        ),
+        (lambda payload: payload.pop("artifact_metadata"), "artifact_metadata must be a mapping"),
+        (
+            lambda payload: payload["artifact_metadata"].__setitem__("artifact_filename", " "),
+            "artifact_metadata.artifact_filename",
+        ),
+        (
+            lambda payload: payload["artifact_metadata"].__setitem__("writer", "notebook"),
+            "artifact_metadata.writer must be 'engine'",
+        ),
+        (
+            lambda payload: payload["artifact_metadata"].__setitem__("generated_by", "notebook"),
+            "artifact_metadata.generated_by must be 'src.research.promotion'",
+        ),
+        (
+            lambda payload: payload["artifact_metadata"].__setitem__("deterministic", "true"),
+            "artifact_metadata.deterministic must be True",
+        ),
+    ],
+)
+def test_promotion_state_rejects_tampered_provenance_and_metadata(
+    tmp_path: Path,
+    mutator: Any,
+    match: str,
+) -> None:
+    state = build_unconfigured_promotion_state(run_type="review")
+    mutator(state._payload)
+
+    _assert_state_mutation_blocks_serialization_and_write(tmp_path, state, match=match)
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda payload: payload["gate_counts"].pop("total"),
+            "gate_counts missing required keys: total",
+        ),
+        (
+            lambda payload: payload.__setitem__("gate_counts", {}),
+            "gate_counts missing required keys",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("extra", 0),
+            "gate_counts has unexpected keys: extra",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", "0"),
+            "gate_counts.total must be a nonnegative integer",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", 0.0),
+            "gate_counts.total must be a nonnegative integer",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", True),
+            "gate_counts.total must be a nonnegative integer",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", -1),
+            "gate_counts.total must be a nonnegative integer",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("passed", 1),
+            "requires zero gate counts",
+        ),
+    ],
+)
+def test_unconfigured_promotion_state_rejects_malformed_gate_counts(
+    tmp_path: Path,
+    mutator: Any,
+    match: str,
+) -> None:
+    state = build_unconfigured_promotion_state(run_type="review")
+    mutator(state._payload)
+
+    _assert_state_mutation_blocks_serialization_and_write(tmp_path, state, match=match)
+
+
+@pytest.mark.parametrize(
+    ("mutator", "match"),
+    [
+        (
+            lambda payload: payload["gate_counts"].__setitem__("total", 2),
+            "gate_counts.total must equal gate_results length",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("passed", 0),
+            "pass/fail/missing gate counts must sum to total",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("warning", 1),
+            "severity counts cannot exceed non-passing results",
+        ),
+        (
+            lambda payload: payload["gate_counts"].__setitem__("skipped", 2),
+            "skipped gate count cannot exceed passed count",
+        ),
+    ],
+)
+def test_configured_promotion_state_rejects_inconsistent_gate_counts(
+    tmp_path: Path,
+    mutator: Any,
+    match: str,
+) -> None:
+    state = build_promotion_state_from_evaluation(
+        evaluate_promotion_gates(
+            run_type="strategy",
+            config={
+                "gates": [
+                    {
+                        "gate_id": "min_sharpe",
+                        "source": "metrics",
+                        "metric_path": "sharpe_ratio",
+                        "comparator": "gte",
+                        "threshold": 1.0,
+                    }
+                ]
+            },
+            sources={"metrics": {"sharpe_ratio": 2.0}},
+        )
+    )
+    mutator(state._payload)
+
+    _assert_state_mutation_blocks_serialization_and_write(tmp_path, state, match=match)
+
+
 def test_write_alpha_evaluation_artifacts_persists_promotion_gate_artifact(tmp_path: Path) -> None:
     frame = pd.DataFrame(
         {
@@ -652,3 +1227,535 @@ def test_write_portfolio_artifacts_persists_promotion_gate_artifact(tmp_path: Pa
 
     assert "promotion_gates.json" in manifest["artifact_files"]
     assert manifest["promotion_gate_summary"]["promotion_status"] == "eligible"
+
+
+@pytest.mark.parametrize(
+    "unsafe_filename",
+    [
+        "../escaped.json",
+        "../../outside.json",
+        "nested/state.json",
+        "nested\\state.json",
+        "/absolute/state.json",
+        "C:\\absolute\\state.json",
+        "C:/absolute/state.json",
+        ".",
+        "..",
+        "",
+        "   ",
+    ],
+)
+def test_write_promotion_state_artifact_rejects_unsafe_filename(tmp_path: Path, unsafe_filename: str) -> None:
+    state = build_unconfigured_promotion_state(
+        run_type="review",
+        provenance={"object_type": "review", "object_id": "r1", "review_id": "r1", "run_type": "review"},
+    )
+    output_dir = tmp_path / "artifacts"
+    output_dir.mkdir()
+    with pytest.raises(PromotionGateError):
+        write_promotion_state_artifact(output_dir, state, artifact_filename=unsafe_filename)
+    assert not any(output_dir.rglob("*.*"))
+    assert not any((tmp_path.parent).rglob("escaped.json"))
+
+
+def test_write_promotion_state_artifact_accepts_valid_basename(tmp_path: Path) -> None:
+    state = build_unconfigured_promotion_state(
+        run_type="review",
+        provenance={"object_type": "review", "object_id": "r1", "review_id": "r1", "run_type": "review"},
+    )
+    output_dir = tmp_path / "artifacts"
+    output_dir.mkdir()
+    result = write_promotion_state_artifact(output_dir, state, artifact_filename="custom_state.json")
+    assert result == output_dir / "custom_state.json"
+    assert result.exists()
+    payload = json.loads(result.read_text(encoding="utf-8"))
+    assert payload["artifact_metadata"]["artifact_filename"] == "custom_state.json"
+
+
+def test_write_promotion_state_artifact_default_filename_unchanged(tmp_path: Path) -> None:
+    state = build_unconfigured_promotion_state(
+        run_type="review",
+        provenance={"object_type": "review", "object_id": "r1", "review_id": "r1", "run_type": "review"},
+    )
+    result = write_promotion_state_artifact(tmp_path, state)
+    assert result.name == "promotion_gates.json"
+    assert result.exists()
+
+
+def test_forged_evaluation_with_arbitrary_matching_status_rejected_at_serialization(tmp_path: Path) -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    forged = PromotionGateEvaluation(
+        configured=evaluation.configured,
+        run_type=evaluation.run_type,
+        evaluation_status=evaluation.evaluation_status,
+        promotion_status="definitely_promote_everything",
+        status_on_pass="definitely_promote_everything",
+        status_on_fail=evaluation.status_on_fail,
+        gate_count=evaluation.gate_count,
+        passed_gate_count=evaluation.passed_gate_count,
+        failed_gate_count=evaluation.failed_gate_count,
+        missing_gate_count=evaluation.missing_gate_count,
+        highest_severity=evaluation.highest_severity,
+        severity_counts=evaluation.severity_counts,
+        warning_gate_count=evaluation.warning_gate_count,
+        review_gate_count=evaluation.review_gate_count,
+        rejected_gate_count=evaluation.rejected_gate_count,
+        blocked_gate_count=evaluation.blocked_gate_count,
+        decision_reason_codes=evaluation.decision_reason_codes,
+        artifact_filename=evaluation.artifact_filename,
+        definitions=evaluation.definitions,
+        results=evaluation.results,
+    )
+    with pytest.raises(PromotionGateError):
+        build_promotion_state_from_evaluation(forged)
+
+
+def test_forged_evaluation_with_status_on_fail_forgery_rejected(tmp_path: Path) -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    forged = PromotionGateEvaluation(
+        configured=evaluation.configured,
+        run_type=evaluation.run_type,
+        evaluation_status=evaluation.evaluation_status,
+        promotion_status="forged_status",
+        status_on_pass=evaluation.status_on_pass,
+        status_on_fail="forged_status",
+        gate_count=evaluation.gate_count,
+        passed_gate_count=evaluation.passed_gate_count,
+        failed_gate_count=evaluation.failed_gate_count,
+        missing_gate_count=evaluation.missing_gate_count,
+        highest_severity=evaluation.highest_severity,
+        severity_counts=evaluation.severity_counts,
+        warning_gate_count=evaluation.warning_gate_count,
+        review_gate_count=evaluation.review_gate_count,
+        rejected_gate_count=evaluation.rejected_gate_count,
+        blocked_gate_count=evaluation.blocked_gate_count,
+        decision_reason_codes=evaluation.decision_reason_codes,
+        artifact_filename=evaluation.artifact_filename,
+        definitions=evaluation.definitions,
+        results=evaluation.results,
+    )
+    with pytest.raises(PromotionGateError):
+        build_promotion_state_from_evaluation(forged)
+
+
+def test_unsupported_arbitrary_pass_status_rejected() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "pass"
+    forged = PromotionGateEvaluation(
+        configured=evaluation.configured,
+        run_type=evaluation.run_type,
+        evaluation_status=evaluation.evaluation_status,
+        promotion_status="custom_unsupported_value",
+        status_on_pass="custom_unsupported_value",
+        status_on_fail=evaluation.status_on_fail,
+        gate_count=evaluation.gate_count,
+        passed_gate_count=evaluation.passed_gate_count,
+        failed_gate_count=evaluation.failed_gate_count,
+        missing_gate_count=evaluation.missing_gate_count,
+        highest_severity=evaluation.highest_severity,
+        severity_counts=evaluation.severity_counts,
+        warning_gate_count=evaluation.warning_gate_count,
+        review_gate_count=evaluation.review_gate_count,
+        rejected_gate_count=evaluation.rejected_gate_count,
+        blocked_gate_count=evaluation.blocked_gate_count,
+        decision_reason_codes=evaluation.decision_reason_codes,
+        artifact_filename=evaluation.artifact_filename,
+        definitions=evaluation.definitions,
+        results=evaluation.results,
+    )
+    with pytest.raises(PromotionGateError, match="not a supported canonical or compatibility value"):
+        build_promotion_state_from_evaluation(forged)
+
+
+def test_unsupported_arbitrary_fail_status_rejected() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    forged = PromotionGateEvaluation(
+        configured=evaluation.configured,
+        run_type=evaluation.run_type,
+        evaluation_status=evaluation.evaluation_status,
+        promotion_status="definitely_ignore_everything",
+        status_on_pass=evaluation.status_on_pass,
+        status_on_fail="definitely_ignore_everything",
+        gate_count=evaluation.gate_count,
+        passed_gate_count=evaluation.passed_gate_count,
+        failed_gate_count=evaluation.failed_gate_count,
+        missing_gate_count=evaluation.missing_gate_count,
+        highest_severity=evaluation.highest_severity,
+        severity_counts=evaluation.severity_counts,
+        warning_gate_count=evaluation.warning_gate_count,
+        review_gate_count=evaluation.review_gate_count,
+        rejected_gate_count=evaluation.rejected_gate_count,
+        blocked_gate_count=evaluation.blocked_gate_count,
+        decision_reason_codes=evaluation.decision_reason_codes,
+        artifact_filename=evaluation.artifact_filename,
+        definitions=evaluation.definitions,
+        results=evaluation.results,
+    )
+    with pytest.raises(PromotionGateError, match="not a supported canonical or compatibility value"):
+        build_promotion_state_from_evaluation(forged)
+
+
+def test_genuine_custom_pass_status_remains_valid() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "review_ready",
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    assert evaluation.promotion_status == "review_ready"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "review_ready"
+
+
+def test_genuine_custom_fail_status_remains_valid() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    assert evaluation.promotion_status == "manual_review"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "manual_review"
+
+
+def test_severity_driven_fail_with_custom_status_on_fail_uses_severity() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                    "severity": "reject",
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    assert evaluation.promotion_status == "rejected"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "rejected"
+
+
+def test_approved_custom_pass_status_valid() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "approved",
+            "status_on_fail": "blocked",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    assert evaluation.promotion_status == "approved"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "approved"
+
+
+def test_needs_work_custom_fail_status_valid() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "needs_work",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    assert evaluation.promotion_status == "needs_work"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "needs_work"
+
+
+@pytest.mark.parametrize(
+    "unsafe_filename",
+    [
+        "../escaped.json",
+        "nested/state.json",
+        "nested\\state.json",
+        "/absolute/state.json",
+        "C:\\absolute\\state.json",
+        ".",
+        "..",
+    ],
+)
+def test_build_unconfigured_promotion_state_rejects_unsafe_filename(unsafe_filename: str) -> None:
+    with pytest.raises(PromotionGateError):
+        build_unconfigured_promotion_state(
+            run_type="review",
+            provenance={"run_type": "review"},
+            artifact_filename=unsafe_filename,
+        )
+
+
+@pytest.mark.parametrize(
+    "unsafe_filename",
+    [
+        "../escaped.json",
+        "nested/state.json",
+        "nested\\state.json",
+        "/absolute/state.json",
+        "C:\\absolute\\state.json",
+        ".",
+        "..",
+    ],
+)
+def test_build_promotion_state_from_evaluation_rejects_unsafe_filename(unsafe_filename: str) -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    with pytest.raises(PromotionGateError):
+        build_promotion_state_from_evaluation(evaluation, artifact_filename=unsafe_filename)
+
+
+def test_build_promotion_state_from_evaluation_rejects_empty_filename() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    with pytest.raises(PromotionGateError):
+        build_promotion_state_from_evaluation(evaluation, artifact_filename="")
+
+
+def test_build_promotion_state_from_evaluation_rejects_whitespace_filename() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    with pytest.raises(PromotionGateError):
+        build_promotion_state_from_evaluation(evaluation, artifact_filename="   ")
+
+
+def test_build_promotion_state_from_evaluation_none_inherits_evaluation_filename() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    state = build_promotion_state_from_evaluation(evaluation, artifact_filename=None)
+    payload = state.to_payload()
+    assert payload["artifact_metadata"]["artifact_filename"] == "promotion_gates.json"
+
+
+def test_build_promotion_state_from_evaluation_accepts_valid_custom_basename() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                }
+            ],
+        },
+        sources={"metrics": {"score": 1.0}},
+    )
+    assert evaluation is not None
+    state = build_promotion_state_from_evaluation(evaluation, artifact_filename="custom_state.json")
+    payload = state.to_payload()
+    assert payload["artifact_metadata"]["artifact_filename"] == "custom_state.json"
+
+
+def test_severity_driven_failure_cannot_be_overridden_by_custom_fail_status() -> None:
+    evaluation = evaluate_promotion_gates(
+        run_type="review",
+        config={
+            "status_on_pass": "eligible",
+            "status_on_fail": "needs_work",
+            "gates": [
+                {
+                    "gate_id": "gate_a",
+                    "source": "metrics",
+                    "metric_path": "score",
+                    "comparator": "gte",
+                    "threshold": 0.5,
+                    "severity": "block",
+                }
+            ],
+        },
+        sources={"metrics": {"score": 0.1}},
+    )
+    assert evaluation is not None
+    assert evaluation.evaluation_status == "fail"
+    assert evaluation.promotion_status == "blocked"
+    state = build_promotion_state_from_evaluation(evaluation)
+    payload = state.to_payload()
+    assert payload["promotion_status"] == "blocked"

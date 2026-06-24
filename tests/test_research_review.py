@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from src.cli.compare_research import parse_args, run_cli
 from src.config.review import load_review_config
+from src.research import review as review_module
 from src.research.review import (
     ResearchReviewError,
     ResearchReviewResult,
@@ -270,7 +271,38 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
     assert result.csv_path == tmp_path / "leaderboard.csv"
     assert result.json_path == tmp_path / "review_summary.json"
     assert result.manifest_path == tmp_path / "manifest.json"
-    assert result.promotion_gate_path is None
+    assert result.promotion_gate_path == tmp_path / "promotion_gates.json"
+    promotion_state = json.loads(result.promotion_gate_path.read_text(encoding="utf-8"))
+    assert promotion_state["schema_version"] == 2
+    assert promotion_state["artifact_type"] == "promotion_state"
+    assert promotion_state["run_type"] == "review"
+    assert promotion_state["configured"] is False
+    assert promotion_state["configuration_state"] == "not_configured"
+    assert promotion_state["evaluation_status"] == "not_configured"
+    assert promotion_state["promotion_status"] == "not_reviewed"
+    assert promotion_state["decision_authority"] == "none"
+    assert promotion_state["human_decision"] is None
+    assert promotion_state["decision_reason_codes"] == ["promotion_policy_not_configured"]
+    assert promotion_state["gate_counts"] == {
+        "blocked": 0,
+        "failed": 0,
+        "missing": 0,
+        "passed": 0,
+        "rejected": 0,
+        "review": 0,
+        "skipped": 0,
+        "total": 0,
+        "warning": 0,
+    }
+    assert promotion_state["gate_definitions"] == []
+    assert promotion_state["gate_results"] == []
+    assert promotion_state["provenance"]["object_type"] == "review"
+    assert promotion_state["provenance"]["object_id"] == result.review_id
+    assert promotion_state["provenance"]["review_id"] == result.review_id
+    assert promotion_state["provenance"]["source_artifacts"] == {
+        "manifest": "manifest.json",
+        "review_summary": "review_summary.json",
+    }
     assert result.plot_paths == {
         "alpha_evaluation_metric_comparison": tmp_path / "plots" / "alpha_evaluation" / "metric_comparison_ic_ir.png",
         "portfolio_metric_comparison": tmp_path / "plots" / "portfolio" / "metric_comparison_sharpe_ratio.png",
@@ -352,6 +384,7 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
         "plots/alpha_evaluation/metric_comparison_ic_ir.png",
         "plots/portfolio/metric_comparison_sharpe_ratio.png",
         "plots/strategy/metric_comparison_sharpe_ratio.png",
+        "promotion_gates.json",
         "review_summary.json",
     ]
     assert manifest["artifact_groups"]["plots"] == [
@@ -362,8 +395,12 @@ def test_compare_research_runs_builds_unified_registry_review(tmp_path: Path) ->
     assert manifest["artifact_groups"]["review"] == [
         "leaderboard.csv",
         "manifest.json",
+        "promotion_gates.json",
         "review_summary.json",
     ]
+    assert manifest["artifact_groups"]["qa"] == ["promotion_gates.json"]
+    assert manifest["promotion_gate_summary"]["promotion_status"] == "not_reviewed"
+    assert manifest["promotion_gate_summary"]["decision_authority"] == "none"
     assert manifest["leaderboard_path"] == "leaderboard.csv"
     assert manifest["review_summary_path"] == "review_summary.json"
     assert manifest["artifacts"]["leaderboard.csv"]["rows"] == 6
@@ -596,6 +633,7 @@ def test_compare_research_runs_applies_filters_and_top_k_per_type(tmp_path: Path
     assert manifest["artifact_files"] == [
         "filtered.csv",
         "manifest.json",
+        "promotion_gates.json",
         "review_summary.json",
     ]
     assert manifest["leaderboard_path"] == "filtered.csv"
@@ -666,6 +704,7 @@ def test_compare_research_runs_writes_stable_artifacts_and_review_id(tmp_path: P
     assert first.csv_path.read_bytes() == second.csv_path.read_bytes()
     assert first.json_path.read_bytes() == second.json_path.read_bytes()
     assert first.manifest_path.read_bytes() == second.manifest_path.read_bytes()
+    assert first.promotion_gate_path.read_bytes() == second.promotion_gate_path.read_bytes()
     assert first.review_id == build_research_review_id(
         filters=first.filters,
         entries=first.entries,
@@ -760,8 +799,16 @@ def test_compare_research_runs_writes_review_level_promotion_artifact_when_confi
 
     assert result.promotion_gate_path == tmp_path / "promotion_gates.json"
     promotion_payload = json.loads(result.promotion_gate_path.read_text(encoding="utf-8"))
+    assert promotion_payload["schema_version"] == 2
+    assert promotion_payload["artifact_type"] == "promotion_state"
+    assert promotion_payload["configured"] is True
+    assert promotion_payload["configuration_state"] == "configured"
+    assert promotion_payload["decision_authority"] == "engine"
     assert promotion_payload["promotion_status"] == "review_ready"
+    assert promotion_payload["gate_counts"]["total"] == 1
+    assert promotion_payload["gate_counts"]["passed"] == 1
     assert promotion_payload["gate_count"] == 1
+    assert promotion_payload["gate_results"] == promotion_payload["results"]
     assert promotion_payload["results"][0]["actual_value"] == pytest.approx(2.0)
 
     manifest = json.loads(result.manifest_path.read_text(encoding="utf-8"))
@@ -772,28 +819,152 @@ def test_compare_research_runs_writes_review_level_promotion_artifact_when_confi
         "promotion_gates.json",
         "review_summary.json",
     ]
-    assert manifest["promotion_gate_summary"] == {
-        "artifact_filename": "promotion_gates.json",
-        "blocked_gate_count": 0,
-        "configured": True,
-        "decision_reason_codes": [],
-        "evaluation_status": "pass",
-        "failed_gate_count": 0,
-        "gate_count": 1,
-        "highest_severity": None,
-        "missing_gate_count": 0,
-        "passed_gate_count": 1,
-        "promotion_status": "review_ready",
-        "rejected_gate_count": 0,
-        "review_gate_count": 0,
-        "severity_counts": {"block": 0, "reject": 0, "review": 0, "warn": 0},
-        "status_on_fail": "needs_work",
-        "status_on_pass": "review_ready",
-        "warning_gate_count": 0,
-    }
+    assert manifest["promotion_gate_summary"]["schema_version"] == 2
+    assert manifest["promotion_gate_summary"]["artifact_type"] == "promotion_state"
+    assert manifest["promotion_gate_summary"]["configured"] is True
+    assert manifest["promotion_gate_summary"]["configuration_state"] == "configured"
+    assert manifest["promotion_gate_summary"]["decision_authority"] == "engine"
+    assert manifest["promotion_gate_summary"]["promotion_status"] == "review_ready"
+    assert manifest["promotion_gate_summary"]["gate_count"] == 1
+    assert manifest["promotion_gate_summary"]["passed_gate_count"] == 1
+    assert manifest["promotion_gate_summary"]["status_on_pass"] == "review_ready"
+    assert manifest["promotion_gate_summary"]["status_on_fail"] == "needs_work"
     assert manifest["plot_paths"] == {
         "strategy_metric_comparison": "plots/strategy/metric_comparison_sharpe_ratio.png",
     }
+
+
+def test_compare_research_runs_writes_review_severity_failure_state(tmp_path: Path) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    _write_registry(
+        strategy_root / "registry.jsonl",
+        [
+            _strategy_entry(
+                run_id="strategy-one",
+                strategy_name="momentum_v1",
+                timestamp="2026-03-19T00:00:00Z",
+                sharpe_ratio=1.2,
+                total_return=0.20,
+            )
+        ],
+    )
+
+    result = compare_research_runs(
+        run_types=["strategy"],
+        strategy_artifacts_root=strategy_root,
+        portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+        alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+        output_path=tmp_path,
+        promotion_gate_config={
+            "gates": [
+                {
+                    "gate_id": "minimum_review_rows",
+                    "source": "metrics",
+                    "metric_path": "entry_count",
+                    "comparator": "gte",
+                    "threshold": 2,
+                    "severity": "review",
+                }
+            ],
+        },
+    )
+
+    promotion_payload = json.loads(result.promotion_gate_path.read_text(encoding="utf-8"))
+    assert promotion_payload["configured"] is True
+    assert promotion_payload["evaluation_status"] == "fail"
+    assert promotion_payload["promotion_status"] == "needs_review"
+    assert promotion_payload["decision_reason_codes"] == ["gate_failed_threshold", "severity_review"]
+    assert promotion_payload["gate_counts"]["failed"] == 1
+    assert promotion_payload["gate_counts"]["review"] == 1
+    assert promotion_payload["gate_results"][0]["reason_codes"] == ["gate_failed_threshold", "severity_review"]
+
+
+@pytest.mark.parametrize(
+    ("metric_value", "expected_status", "unexpected_status"),
+    [(2.0, "approved", "eligible"), (1.0, "manual_review", "needs_review")],
+)
+def test_compare_research_runs_preserves_legacy_configured_review_statuses(
+    tmp_path: Path,
+    metric_value: float,
+    expected_status: str,
+    unexpected_status: str,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    _write_registry(
+        strategy_root / "registry.jsonl",
+        [
+            _strategy_entry(
+                run_id="strategy-one",
+                strategy_name="momentum_v1",
+                timestamp="2026-03-19T00:00:00Z",
+                sharpe_ratio=metric_value,
+                total_return=0.20,
+            )
+        ],
+    )
+
+    result = compare_research_runs(
+        run_types=["strategy"],
+        strategy_artifacts_root=strategy_root,
+        portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+        alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+        output_path=tmp_path,
+        promotion_gate_config={
+            "status_on_pass": "approved",
+            "status_on_fail": "manual_review",
+            "gates": [
+                {
+                    "gate_id": "minimum_sharpe",
+                    "source": "aggregate_metrics",
+                    "metric_path": "strategy.best_selected_metric_value",
+                    "comparator": "gte",
+                    "threshold": 1.5,
+                }
+            ],
+        },
+    )
+
+    promotion_payload = json.loads(result.promotion_gate_path.read_text(encoding="utf-8"))
+    assert promotion_payload["promotion_status"] == expected_status
+    assert promotion_payload["promotion_status"] != unexpected_status
+    assert promotion_payload["decision_authority"] == "engine"
+    assert promotion_payload["status_on_pass"] == "approved"
+    assert promotion_payload["status_on_fail"] == "manual_review"
+    assert not any(key.startswith("_") for key in promotion_payload)
+
+
+def test_review_promotion_state_write_failure_is_not_silently_converted(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    _write_registry(
+        strategy_root / "registry.jsonl",
+        [
+            _strategy_entry(
+                run_id="strategy-one",
+                strategy_name="momentum_v1",
+                timestamp="2026-03-19T00:00:00Z",
+                sharpe_ratio=1.2,
+                total_return=0.20,
+            )
+        ],
+    )
+
+    def _fail_write(*_args: object, **_kwargs: object) -> Path:
+        raise OSError("promotion state write failed")
+
+    monkeypatch.setattr(review_module, "write_promotion_state_artifact", _fail_write)
+
+    with pytest.raises(OSError, match="promotion state write failed"):
+        compare_research_runs(
+            run_types=["strategy"],
+            strategy_artifacts_root=strategy_root,
+            portfolio_artifacts_root=tmp_path / "artifacts" / "portfolios",
+            alpha_artifacts_root=tmp_path / "artifacts" / "alpha",
+            output_path=tmp_path,
+        )
+    assert not (tmp_path / "promotion_gates.json").exists()
 
 
 def test_compare_research_runs_applies_review_config_precedence_and_persists_effective_config(tmp_path: Path) -> None:

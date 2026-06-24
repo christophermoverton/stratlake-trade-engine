@@ -50,6 +50,12 @@ from src.research.campaign_checkpoint import (
 )
 from src.research.candidate_selection.registry import candidate_selection_registry_path
 from src.research.experiment_tracker import ARTIFACTS_ROOT as STRATEGY_ARTIFACTS_ROOT
+from src.research.promotion import (
+    DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+    build_unconfigured_promotion_state,
+    serialize_promotion_state,
+    write_promotion_state_artifact,
+)
 from src.research.reporting import (
     MILESTONE_MARKDOWN_REPORT_FILENAME,
     generate_campaign_milestone_report,
@@ -299,6 +305,7 @@ class ResearchCampaignRunResult:
     portfolio_result: Any | None
     candidate_review_result: Any | None
     review_result: Any | None
+    campaign_promotion_state_path: Path | None = None
 
 
 @dataclass(frozen=True)
@@ -1078,25 +1085,40 @@ def _run_single_research_campaign(
             )
         raise
 
-    checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload = _write_campaign_artifacts(
-        config=config,
-        campaign_run_id=campaign_run_id,
-        campaign_artifact_dir=campaign_artifact_dir,
-        scenario_context=scenario_context,
-        preflight_result=preflight_result,
-        stage_records=records,
-        alpha_results=alpha_results,
-        strategy_results=strategy_results,
-        alpha_comparison_result=alpha_comparison_result,
-        strategy_comparison_result=strategy_comparison_result,
-        candidate_selection_result=candidate_selection_result,
-        candidate_selection_reference=candidate_selection_reference,
-        portfolio_result=portfolio_result,
-        portfolio_reference=portfolio_reference,
-        candidate_review_result=candidate_review_result,
-        review_result=review_result,
-        status="completed",
-    )
+    try:
+        checkpoint_path, manifest_path, summary_path, checkpoint_payload, manifest_payload, summary_payload = _write_campaign_artifacts(
+            config=config,
+            campaign_run_id=campaign_run_id,
+            campaign_artifact_dir=campaign_artifact_dir,
+            scenario_context=scenario_context,
+            preflight_result=preflight_result,
+            stage_records=records,
+            alpha_results=alpha_results,
+            strategy_results=strategy_results,
+            alpha_comparison_result=alpha_comparison_result,
+            strategy_comparison_result=strategy_comparison_result,
+            candidate_selection_result=candidate_selection_result,
+            candidate_selection_reference=candidate_selection_reference,
+            portfolio_result=portfolio_result,
+            portfolio_reference=portfolio_reference,
+            candidate_review_result=candidate_review_result,
+            review_result=review_result,
+            status="completed",
+        )
+    except Exception:
+        try:
+            mark_run_failed(
+                campaign_artifact_dir,
+                {
+                    "run_type": "research_campaign",
+                    "run_id": campaign_run_id,
+                    "status": "failed",
+                    "failure_stage": "campaign_finalization",
+                },
+            )
+        except Exception:
+            pass
+        raise
     mark_run_completed(
         campaign_artifact_dir,
         {"run_type": "research_campaign", "run_id": campaign_run_id, "status": "completed"},
@@ -1135,6 +1157,9 @@ def _run_single_research_campaign(
         portfolio_result=portfolio_result,
         candidate_review_result=candidate_review_result,
         review_result=review_result,
+        campaign_promotion_state_path=_optional_path(
+            summary_payload.get("output_paths", {}).get("campaign_promotion_state")
+        ),
     )
 
 
@@ -3353,6 +3378,23 @@ def _write_campaign_artifacts(
         review_result=review_result,
         status=status,
     )
+    checkpoint_path = campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME
+    summary_path = campaign_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
+    manifest_path = campaign_artifact_dir / CAMPAIGN_MANIFEST_FILENAME
+    write_campaign_checkpoint(checkpoint_path, checkpoint_payload)
+
+    campaign_promotion_state = (
+        _write_campaign_promotion_state(
+            campaign_run_id=campaign_run_id,
+            campaign_artifact_dir=campaign_artifact_dir,
+            review_result=review_result,
+            candidate_selection_result=candidate_selection_result,
+            portfolio_result=portfolio_result,
+            strategy_results=strategy_results,
+        )
+        if status == "completed"
+        else None
+    )
     summary_payload = _build_campaign_summary(
         config=config,
         campaign_run_id=campaign_run_id,
@@ -3371,6 +3413,7 @@ def _write_campaign_artifacts(
         review_result=review_result,
         status=status,
         milestone_outputs=None,
+        campaign_promotion_state=campaign_promotion_state,
     )
     manifest_payload = _build_campaign_manifest(
         config=config,
@@ -3380,11 +3423,8 @@ def _write_campaign_artifacts(
         checkpoint_payload=checkpoint_payload,
         summary_payload=summary_payload,
         milestone_outputs=None,
+        campaign_promotion_state=campaign_promotion_state,
     )
-    checkpoint_path = campaign_artifact_dir / CAMPAIGN_CHECKPOINT_FILENAME
-    summary_path = campaign_artifact_dir / CAMPAIGN_SUMMARY_FILENAME
-    manifest_path = campaign_artifact_dir / CAMPAIGN_MANIFEST_FILENAME
-    write_campaign_checkpoint(checkpoint_path, checkpoint_payload)
     atomic_write_json(summary_path, summary_payload)
     atomic_write_json(manifest_path, manifest_payload)
     milestone_outputs = (
@@ -3413,6 +3453,7 @@ def _write_campaign_artifacts(
         review_result=review_result,
         status=status,
         milestone_outputs=milestone_outputs,
+        campaign_promotion_state=campaign_promotion_state,
     )
     manifest_payload = _build_campaign_manifest(
         config=config,
@@ -3422,6 +3463,7 @@ def _write_campaign_artifacts(
         checkpoint_payload=checkpoint_payload,
         summary_payload=summary_payload,
         milestone_outputs=milestone_outputs,
+        campaign_promotion_state=campaign_promotion_state,
     )
     atomic_write_json(summary_path, summary_payload)
     atomic_write_json(manifest_path, manifest_payload)
@@ -3469,6 +3511,124 @@ def _generate_campaign_milestone_outputs(
             "decision_counts_by_status": canonicalize_value(
                 dict(summary_payload.get("decision_counts_by_status") or {})
             ),
+        }
+    )
+
+
+def _write_campaign_promotion_state(
+    *,
+    campaign_run_id: str,
+    campaign_artifact_dir: Path,
+    review_result: Any | None,
+    candidate_selection_result: Any | None,
+    portfolio_result: Any | None,
+    strategy_results: Sequence[Any],
+) -> dict[str, Any]:
+    provenance = _campaign_promotion_state_provenance(
+        campaign_run_id=campaign_run_id,
+        review_result=review_result,
+        candidate_selection_result=candidate_selection_result,
+        portfolio_result=portfolio_result,
+        strategy_results=strategy_results,
+    )
+    promotion_state = build_unconfigured_promotion_state(
+        run_type="research_campaign",
+        provenance=provenance,
+    )
+    promotion_state_path = write_promotion_state_artifact(
+        campaign_artifact_dir,
+        promotion_state,
+    )
+    payload = serialize_promotion_state(promotion_state)
+    return canonicalize_value(
+        {
+            "path": promotion_state_path.as_posix(),
+            "relative_path": DEFAULT_PROMOTION_ARTIFACT_FILENAME,
+            "summary": _campaign_promotion_state_summary(payload),
+        }
+    )
+
+
+def _campaign_promotion_state_provenance(
+    *,
+    campaign_run_id: str,
+    review_result: Any | None,
+    candidate_selection_result: Any | None,
+    portfolio_result: Any | None,
+    strategy_results: Sequence[Any],
+) -> dict[str, Any]:
+    provenance: dict[str, Any] = {
+        "object_type": "research_campaign",
+        "object_id": campaign_run_id,
+        "campaign_run_id": campaign_run_id,
+        "run_type": "research_campaign",
+        "source_artifacts": {
+            "campaign_config": CAMPAIGN_CONFIG_FILENAME,
+            "checkpoint": CAMPAIGN_CHECKPOINT_FILENAME,
+            "manifest": CAMPAIGN_MANIFEST_FILENAME,
+            "summary": CAMPAIGN_SUMMARY_FILENAME,
+            "preflight_summary": PREFLIGHT_SUMMARY_FILENAME,
+        },
+    }
+    upstream_evidence: dict[str, Any] = {}
+    review_evidence = _campaign_review_upstream_evidence(review_result)
+    if review_evidence:
+        upstream_evidence["review"] = review_evidence
+    selected_strategy_run_ids = sorted(str(result.run_id) for result in strategy_results)
+    if selected_strategy_run_ids:
+        upstream_evidence["selected_strategy_run_ids"] = selected_strategy_run_ids
+    candidate_selection_run_id = _string_or_none(candidate_selection_result, "run_id")
+    if candidate_selection_run_id is not None:
+        upstream_evidence["candidate_selection_run_id"] = candidate_selection_run_id
+    candidate_selection_artifact_dir = _path_or_none(candidate_selection_result, "artifact_dir")
+    if candidate_selection_artifact_dir is not None:
+        upstream_evidence["candidate_selection_artifact_dir"] = candidate_selection_artifact_dir
+    portfolio_run_id = _string_or_none(portfolio_result, "run_id")
+    if portfolio_run_id is not None:
+        upstream_evidence["portfolio_run_id"] = portfolio_run_id
+    portfolio_artifact_dir = _path_or_none(portfolio_result, "experiment_dir")
+    if portfolio_artifact_dir is not None:
+        upstream_evidence["portfolio_artifact_dir"] = portfolio_artifact_dir
+    if upstream_evidence:
+        provenance["upstream_evidence"] = upstream_evidence
+    return canonicalize_value(provenance)
+
+
+def _campaign_review_upstream_evidence(review_result: Any | None) -> dict[str, Any] | None:
+    if review_result is None:
+        return None
+    review_evidence: dict[str, Any] = {}
+    review_id = _string_or_none(review_result, "review_id")
+    if review_id is not None:
+        review_evidence["review_id"] = review_id
+    review_summary = _path_or_none(review_result, "json_path")
+    if review_summary is not None:
+        review_evidence["review_summary"] = review_summary
+    review_manifest = _path_or_none(review_result, "manifest_path")
+    if review_manifest is not None:
+        review_evidence["review_manifest"] = review_manifest
+    review_promotion_state = _path_or_none(review_result, "promotion_gate_path")
+    if review_promotion_state is not None:
+        review_evidence["review_promotion_state"] = review_promotion_state
+        review_evidence["review_artifact_dir"] = Path(review_promotion_state).parent.as_posix()
+    return canonicalize_value(review_evidence) if review_evidence else None
+
+
+def _campaign_promotion_state_summary(payload: Mapping[str, Any]) -> dict[str, Any]:
+    return canonicalize_value(
+        {
+            "schema_version": payload.get("schema_version"),
+            "artifact_type": payload.get("artifact_type"),
+            "run_type": payload.get("run_type"),
+            "configured": payload.get("configured"),
+            "configuration_state": payload.get("configuration_state"),
+            "evaluation_status": payload.get("evaluation_status"),
+            "promotion_status": payload.get("promotion_status"),
+            "decision_authority": payload.get("decision_authority"),
+            "human_decision": payload.get("human_decision"),
+            "decision_reason_codes": list(payload.get("decision_reason_codes") or []),
+            "gate_counts": dict(payload.get("gate_counts") or {}),
+            "artifact_filename": DEFAULT_PROMOTION_ARTIFACT_FILENAME,
         }
     )
 
@@ -3547,6 +3707,7 @@ def _build_campaign_summary(
     review_result: Any | None,
     status: str,
     milestone_outputs: Mapping[str, Any] | None,
+    campaign_promotion_state: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     selected_run_ids = {
         "alpha_run_ids": sorted(str(result.run_id) for result in alpha_results),
@@ -3579,6 +3740,7 @@ def _build_campaign_summary(
         "review_summary": _path_or_none(review_result, "json_path"),
         "review_manifest": _path_or_none(review_result, "manifest_path"),
         "review_promotion_gates": _path_or_none(review_result, "promotion_gate_path"),
+        "campaign_promotion_state": _mapping_value(campaign_promotion_state, "path"),
     }
     if scenario_context is not None:
         scenario_payload = scenario_context.to_dict()
@@ -3689,8 +3851,18 @@ def _build_campaign_summary(
     ]
 
     review_promotion_summary = _campaign_review_promotion_summary(review_result)
+    campaign_promotion_summary = _mapping_value(campaign_promotion_state, "summary")
     final_outcomes = {
         "preflight_status": preflight_result.status,
+        "campaign_promotion_status": _mapping_value(campaign_promotion_summary, "promotion_status"),
+        "campaign_promotion_gate_status": _mapping_value(campaign_promotion_summary, "evaluation_status"),
+        "campaign_promotion_decision_authority": _mapping_value(campaign_promotion_summary, "decision_authority"),
+        "campaign_promotion_decision_reason_codes": _mapping_value(
+            campaign_promotion_summary,
+            "decision_reason_codes",
+        ),
+        "campaign_promotion_gate_counts": _mapping_value(campaign_promotion_summary, "gate_counts"),
+        "campaign_promotion_gate_summary": campaign_promotion_summary,
         "review_promotion_status": _mapping_value(review_promotion_summary, "promotion_status"),
         "review_promotion_gate_status": _mapping_value(review_promotion_summary, "evaluation_status"),
         "review_promotion_highest_severity": _mapping_value(review_promotion_summary, "highest_severity"),
@@ -3764,6 +3936,7 @@ def _build_campaign_manifest(
     checkpoint_payload: dict[str, Any],
     summary_payload: dict[str, Any],
     milestone_outputs: Mapping[str, Any] | None,
+    campaign_promotion_state: Mapping[str, Any] | None,
 ) -> dict[str, Any]:
     stage_execution = _stage_execution_by_name(
         checkpoint_payload,
@@ -3778,6 +3951,13 @@ def _build_campaign_manifest(
             CAMPAIGN_SUMMARY_FILENAME,
         ]
     )
+    campaign_promotion_artifact_file = (
+        DEFAULT_PROMOTION_ARTIFACT_FILENAME
+        if isinstance(campaign_promotion_state, Mapping)
+        else None
+    )
+    if campaign_promotion_artifact_file is not None:
+        artifact_files = sorted([*artifact_files, campaign_promotion_artifact_file])
     milestone_artifact_files: list[str] = []
     if isinstance(milestone_outputs, Mapping):
         milestone_artifact_files = [
@@ -3810,6 +3990,8 @@ def _build_campaign_manifest(
         "preflight": [PREFLIGHT_SUMMARY_FILENAME],
         "summary": [CAMPAIGN_SUMMARY_FILENAME],
     }
+    if campaign_promotion_artifact_file is not None:
+        artifact_groups["promotion_state"] = [campaign_promotion_artifact_file]
     if milestone_artifact_files:
         artifact_groups["milestone_report"] = milestone_artifact_files
     payload = {
@@ -3854,6 +4036,16 @@ def _build_campaign_manifest(
         ),
         "summary_path": CAMPAIGN_SUMMARY_FILENAME,
     }
+    if campaign_promotion_artifact_file is not None:
+        campaign_promotion_summary = _mapping_value(campaign_promotion_state, "summary")
+        payload["artifacts"][campaign_promotion_artifact_file] = {
+            "path": campaign_promotion_artifact_file,
+            "schema_version": _mapping_value(campaign_promotion_summary, "schema_version"),
+            "artifact_type": _mapping_value(campaign_promotion_summary, "artifact_type"),
+            "promotion_status": _mapping_value(campaign_promotion_summary, "promotion_status"),
+            "evaluation_status": _mapping_value(campaign_promotion_summary, "evaluation_status"),
+            "configured": _mapping_value(campaign_promotion_summary, "configured"),
+        }
     if isinstance(milestone_outputs, Mapping):
         milestone_summary_file = _campaign_relative_artifact_path(
             campaign_artifact_dir,

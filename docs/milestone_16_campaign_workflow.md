@@ -215,6 +215,25 @@ Core files:
 * `preflight_summary.json`
 * `manifest.json`
 * `summary.json`
+* `promotion_gates.json`
+
+The campaign `promotion_gates.json` is container-owned canonical state.
+`ResearchCampaignRunResult.campaign_promotion_state_path` and `summary.json`
+point to this campaign artifact. It is separate from any nested review
+artifact.
+
+The current campaign config has no dedicated campaign-level promotion policy,
+so a successfully completed campaign normally emits explicit no-policy state:
+`configured=false`, `promotion_status=not_reviewed`, and
+`decision_authority=none`. A configured nested review outcome does not become
+the campaign outcome, and `not_reviewed` is not campaign approval.
+
+Campaign completion is marked successful only after the campaign promotion
+state and final summary/manifest writes succeed. A finalization write failure
+does not produce `_SUCCESS.json`; where possible it records a campaign
+finalization failure for later inspection and recovery.
+
+See [m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).
 
 ### `checkpoint.json`
 

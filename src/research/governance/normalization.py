@@ -2,7 +2,9 @@ from __future__ import annotations
 
 from typing import Any
 
-CANONICAL_PROMOTION_STATUSES = frozenset({"eligible", "warn", "needs_review", "rejected", "blocked"})
+CANONICAL_PROMOTION_STATUSES = frozenset(
+    {"eligible", "warn", "needs_review", "rejected", "blocked", "not_reviewed"}
+)
 CANONICAL_REVIEW_STATUSES = frozenset({"candidate", "needs_review", "rejected"})
 PROMOTION_STATUS_ALIASES = {
     "review": "needs_review",
@@ -22,6 +24,7 @@ PROMOTION_TO_REVIEW_STATUS = {
     "needs_review": "needs_review",
     "rejected": "rejected",
     "blocked": "rejected",
+    "not_reviewed": "needs_review",
 }
 
 

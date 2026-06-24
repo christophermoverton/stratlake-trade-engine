@@ -75,6 +75,12 @@ schema.
 Review-level promotion gates reuse the existing promotion gate contract from
 `src/research/promotion.py`.
 
+The configuration remains optional, but the completed review artifact is not:
+successful standalone reviews always write canonical `promotion_gates.json`.
+Without configured gates, the state is explicit `not_reviewed` no-policy
+evidence. With configured gates, the artifact preserves the evaluator outcome.
+Neither form creates a human decision.
+
 ## Accepted Shapes
 
 You can provide either a top-level review payload or a nested `review` block.
@@ -153,3 +159,6 @@ here. Profiles remain non-authoritative context files; in the intended M39
 precedence model, completed review artifacts persist the effective resolved
 review config after defaults, profile context, environment-driven settings, and
 CLI overrides are applied.
+
+For canonical state ownership and governance interpretation, see
+[m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).

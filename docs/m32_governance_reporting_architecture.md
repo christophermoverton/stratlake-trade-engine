@@ -230,6 +230,29 @@ Campaign/scenario metadata may include:
 M32 reads campaign-propagated promotion summaries. It does not recompute a
 campaign or scenario outcome from raw metrics.
 
+## M45 Canonical-State Authority
+
+For completed standalone reviews and research campaign containers, M45
+`promotion_gates.json` v2 state is authoritative when structurally valid.
+Governance classifies the artifact before using it and validates schema, gate
+counts, writer metadata, filename, provenance run type, object type, and owner
+identity.
+
+The M45 boundary changes precedence for records that require canonical state:
+
+* valid canonical state is used as the promotion evidence
+* missing required state remains `missing_canonical_promotion_state`
+* malformed state does not fall back to manifest or registry summaries
+* raw `not_reviewed` remains visible and maps to review-required treatment
+* campaign summaries must agree with campaign-owned state
+* nested review evidence cannot substitute for campaign state
+
+Legacy strategy, portfolio, alpha, and other summary-only surfaces retain the
+bounded M32 compatibility behavior where M45 canonical state is not required.
+Governance remains read-only and does not create or repair evidence.
+
+See [m45_canonical_promotion_state.md](m45_canonical_promotion_state.md).
+
 ## Candidate-Selection Visibility
 
 Candidate-review records use `workflow_type=candidate_review`. They preserve:

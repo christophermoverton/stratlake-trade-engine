@@ -127,8 +127,11 @@ manifest summary.
 
 ## Release
 
-Release tag: `v0.45.0`
-Package/build version: `0.45.0`
+Latest patch release tag: `v0.45.1`
+Latest package/build version: `0.45.1`
+
+Original M45 release tag: `v0.45.0`
+Original M45 package/build version: `0.45.0`
 
 GitHub Release published at:
 https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.45.0
@@ -137,8 +140,13 @@ TestPyPI publication completed via workflow\_dispatch.
 
 Release notes: [docs/m45_release_notes.md](m45_release_notes.md)
 
+Patch release `v0.45.1` uses the tag-driven Release workflow. Pushing the
+`v0.45.1` tag runs `.github/workflows/release.yml`, which publishes the GitHub
+Release and uploads release-validation and package-build workflow artifacts.
+PyPI/TestPyPI publication remains outside that Release workflow.
+
 ## Merge Recommendation
 
-M45 is merged. Release `v0.45.0` confirms deterministic research-artifact and
-governance semantics only; it does not authorize live trading, deployment, or
-promotion.
+M45 is merged. Releases `v0.45.0` and patch `v0.45.1` confirm deterministic
+research-artifact, governance, and portfolio workflow documentation readiness
+only; they do not authorize live trading, deployment, or promotion.

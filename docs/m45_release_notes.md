@@ -12,10 +12,16 @@ Target branch:
 Issue range covered:
 `#493` through `#500`
 
-Release tag:
+Latest patch release tag:
+`v0.45.1`
+
+Original M45 release tag:
 `v0.45.0`
 
-Package/build version:
+Latest package/build version:
+`0.45.1`
+
+Original M45 package/build version:
 `0.45.0`
 
 ## Summary
@@ -121,6 +127,17 @@ records `failure_stage: campaign_finalization`.
   prevention, filename containment, bounded compatibility vocabulary)
 
 ## Release Validation
+
+Patch release `v0.45.1` prepares the portfolio workflow documentation patch
+for the tag-driven Release workflow:
+
+* Package/build version: `0.45.1`
+* Scope: portfolio CLI entrypoint fix and M11 portfolio workflow documentation
+  readiness
+* Release workflow trigger: push tag `v0.45.1`
+* Release workflow behavior: creates the GitHub Release, uploads release
+  validation artifacts, and uploads package build artifacts; package
+  publication to PyPI/TestPyPI remains out of scope for `.github/workflows/release.yml`
 
 Release `v0.45.0` workflow results:
 

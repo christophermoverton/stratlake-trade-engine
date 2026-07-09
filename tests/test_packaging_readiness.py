@@ -58,7 +58,11 @@ def test_release_version_metadata_is_consistent() -> None:
     assert declared_version == expected_version
     readme_text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert version_pattern.search(readme_text)
-    assert "v0.45.0" in readme_text
+    release_tag_pattern = re.compile(
+        r"Release tag:\s*\n`v0\.45\.1`",
+        re.MULTILINE,
+    )
+    assert release_tag_pattern.search(readme_text)
 
     m44_version_pattern = re.compile(
         r"Package/build version:\s*\n`0\.45\.0`",

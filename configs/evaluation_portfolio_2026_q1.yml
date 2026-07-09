@@ -1,6 +1,6 @@
 evaluation:
   mode: rolling
-  timeframe: "1d"
+  timeframe: "1D"
   start: "2026-01-01"
   end: "2026-04-03"
   train_window: 6W

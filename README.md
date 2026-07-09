@@ -55,7 +55,7 @@ status vocabulary, registry-backed review canonical evidence requirements,
 artifact filename security, and boundary-hardened governance validation.
 
 Package/build version:
-`0.45.0`
+`0.45.1`
 
 Release tag:
 `v0.45.0`

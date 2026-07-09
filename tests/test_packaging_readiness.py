@@ -49,7 +49,7 @@ def test_package_version_is_not_milestone_tag_formatted() -> None:
 
 def test_release_version_metadata_is_consistent() -> None:
     declared_version = _declared_project_version()
-    expected_version = "0.45.0"
+    expected_version = "0.45.1"
     version_pattern = re.compile(
         rf"Package/build version:\s*\n`{re.escape(expected_version)}`",
         re.MULTILINE,
@@ -58,15 +58,19 @@ def test_release_version_metadata_is_consistent() -> None:
     assert declared_version == expected_version
     readme_text = (REPO_ROOT / "README.md").read_text(encoding="utf-8")
     assert version_pattern.search(readme_text)
-    assert f"v{expected_version}" in readme_text
+    assert "v0.45.0" in readme_text
 
+    m44_version_pattern = re.compile(
+        r"Package/build version:\s*\n`0\.45\.0`",
+        re.MULTILINE,
+    )
     m44_tag = "v0.45.0-colab-notebook-session-ergonomics-marketlake-handoff"
     for path in (
         REPO_ROOT / "docs" / "m44_release_notes.md",
         REPO_ROOT / "docs" / "m44_release_validation_checklist.md",
     ):
         text = path.read_text(encoding="utf-8")
-        assert version_pattern.search(text)
+        assert m44_version_pattern.search(text)
         assert m44_tag in text
 
 

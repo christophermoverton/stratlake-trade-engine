@@ -140,10 +140,12 @@ TestPyPI publication completed via workflow\_dispatch.
 
 Release notes: [docs/m45_release_notes.md](m45_release_notes.md)
 
-Patch release `v0.45.1` uses the tag-driven Release workflow. Pushing the
-`v0.45.1` tag runs `.github/workflows/release.yml`, which publishes the GitHub
-Release and uploads release-validation and package-build workflow artifacts.
-PyPI/TestPyPI publication remains outside that Release workflow.
+Patch release `v0.45.1` used the tag-driven Release workflow successfully.
+The GitHub Release is published at:
+https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.45.1
+
+The Release workflow uploaded release-validation and package-build workflow
+artifacts. PyPI/TestPyPI publication remains outside that Release workflow.
 
 ## Merge Recommendation
 

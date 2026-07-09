@@ -128,16 +128,17 @@ records `failure_stage: campaign_finalization`.
 
 ## Release Validation
 
-Patch release `v0.45.1` prepares the portfolio workflow documentation patch
-for the tag-driven Release workflow:
+Patch release `v0.45.1` workflow results:
 
+* GitHub Release: [published successfully](https://github.com/christophermoverton/stratlake-trade-engine/releases/tag/v0.45.1)
+* Release workflow run: passed for tag `v0.45.1`
 * Package/build version: `0.45.1`
 * Scope: portfolio CLI entrypoint fix and M11 portfolio workflow documentation
   readiness
-* Release workflow trigger: push tag `v0.45.1`
-* Release workflow behavior: creates the GitHub Release, uploads release
-  validation artifacts, and uploads package build artifacts; package
-  publication to PyPI/TestPyPI remains out of scope for `.github/workflows/release.yml`
+* Release validation artifacts: uploaded by `.github/workflows/release.yml`
+* Package build artifacts: uploaded by `.github/workflows/release.yml`
+* Package publication: PyPI/TestPyPI remains out of scope for
+  `.github/workflows/release.yml`
 
 Release `v0.45.0` workflow results:
 

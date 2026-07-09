@@ -46,19 +46,19 @@ Start with:
 * [docs/examples/notebook_execution_api_examples.py](docs/examples/notebook_execution_api_examples.py)
 * [docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb](docs/examples/ml_cross_sectional_xgb_2026_q1_notebook.ipynb)
 
-### Release 0.45.0: Canonical Promotion-State Contracts
+### Release 0.45.1: Canonical Promotion-State Contracts
 
-Release 0.45.0 completes M45 canonical promotion-state contracts and governance
+Release 0.45.1 completes M45 canonical promotion-state contracts and governance
 validation. It establishes deterministic, engine-owned promotion-state evidence
 for standalone research reviews and campaign containers, bounded compatibility
 status vocabulary, registry-backed review canonical evidence requirements,
 artifact filename security, and boundary-hardened governance validation.
 
 Package/build version:
-`0.45.0`
+`0.45.1`
 
 Release tag:
-`v0.45.0`
+`v0.45.1`
 
 Start with:
 

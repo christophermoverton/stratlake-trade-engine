@@ -1,0 +1,6 @@
+simulation:
+  method: bootstrap
+  num_paths: 500
+  path_length: 252
+  seed: 7
+  drawdown_threshold: 0.20

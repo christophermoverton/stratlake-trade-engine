@@ -312,7 +312,7 @@ python -m src.cli.run_portfolio \
   --portfolio-name momentum_meanrev_equal \
   --from-registry \
   --timeframe 1D \
-  --simulation path/to/simulation.yml
+  --simulation configs/simulation_portfolio_example.yml
 ```
 
 Walk-forward portfolio:
@@ -322,7 +322,7 @@ python -m src.cli.run_portfolio \
   --portfolio-config configs/portfolios.yml \
   --portfolio-name strict_valid_builtin_pair \
   --from-registry \
-  --evaluation configs/evaluation.yml \
+  --evaluation configs/evaluation_portfolio_2026_q1.yml \
   --timeframe 1D
 ```
 

@@ -433,10 +433,8 @@ It is not available with:
 
 ### Portfolio CLI example
 
-The repository does not currently ship a `configs/simulation.yml`, so create
-your own config file and point the CLI at it.
-
-Example simulation config:
+The repository ships a reproducible example at
+[../configs/simulation_portfolio_example.yml](../configs/simulation_portfolio_example.yml):
 
 ```yaml
 simulation:
@@ -455,7 +453,7 @@ python -m src.cli.run_portfolio \
   --portfolio-name momentum_meanrev_equal \
   --from-registry \
   --timeframe 1D \
-  --simulation path/to/simulation.yml
+  --simulation configs/simulation_portfolio_example.yml
 ```
 
 ### How to interpret simulation outputs
@@ -535,9 +533,16 @@ python -m src.cli.run_portfolio \
   --portfolio-config configs/portfolios.yml \
   --portfolio-name strict_valid_builtin_pair \
   --from-registry \
-  --evaluation configs/evaluation.yml \
+  --evaluation configs/evaluation_portfolio_2026_q1.yml \
   --timeframe 1D
 ```
+
+The example config [../configs/evaluation_portfolio_2026_q1.yml](../configs/evaluation_portfolio_2026_q1.yml)
+uses a 2026 Q1 rolling window that overlaps the strategy artifacts produced by
+the prerequisite `momentum_v1` and `mean_reversion_v1` runs. The general
+strategy evaluation config, `configs/evaluation.yml`, starts at `2022-01-01`
+and is not suitable for this portfolio example unless your component strategy
+artifacts include returns for the initial train window.
 
 Current behavior:
 

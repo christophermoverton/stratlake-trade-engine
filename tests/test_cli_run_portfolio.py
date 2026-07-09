@@ -13,6 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from src.cli.run_portfolio import (
     PortfolioRunResult,
     PortfolioWalkForwardRunResult,
+    main,
     parse_args,
     parse_run_ids,
     run_cli,
@@ -127,6 +128,90 @@ def test_parse_run_ids_supports_mixed_cli_formats() -> None:
         "run-c",
         "run-d",
     ]
+
+
+def test_main_forwards_sys_argv_to_portfolio_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, list[str]] = {}
+
+    def fake_run_cli(argv):
+        captured["argv"] = list(argv)
+
+    monkeypatch.setattr("src.cli.run_portfolio.run_cli", fake_run_cli)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        [
+            "python -m src.cli.run_portfolio",
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-alpha",
+            "--timeframe",
+            "1D",
+        ],
+    )
+
+    main()
+
+    assert captured["argv"] == [
+        "--portfolio-name",
+        "core_portfolio",
+        "--run-ids",
+        "run-alpha",
+        "--timeframe",
+        "1D",
+    ]
+
+
+def test_run_cli_installed_script_equivalent_path_preserves_args(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_run_portfolio_resolved(**kwargs):
+        captured.update(kwargs)
+        return PortfolioRunResult(
+            portfolio_name=str(kwargs["portfolio_name"]),
+            run_id="core_portfolio_abc123",
+            allocator_name="equal_weight",
+            timeframe=str(kwargs["timeframe"]),
+            component_count=1,
+            metrics={
+                "total_return": 0.0,
+                "gross_total_return": 0.0,
+                "execution_drag_total_return": 0.0,
+                "total_execution_friction": 0.0,
+                "sharpe_ratio": 0.0,
+                "realized_volatility": 0.0,
+                "max_drawdown": 0.0,
+                "value_at_risk": 0.0,
+                "conditional_value_at_risk": 0.0,
+            },
+            experiment_dir=Path("artifacts/portfolios/core_portfolio_abc123"),
+            portfolio_output=pd.DataFrame(),
+            config={"allocator": "equal_weight"},
+            components=[{"strategy_name": "alpha_v1", "run_id": "run-alpha"}],
+        )
+
+    monkeypatch.setattr("src.execution.portfolio._run_portfolio_resolved", fake_run_portfolio_resolved)
+
+    result = run_cli(
+        [
+            "--portfolio-name",
+            "core_portfolio",
+            "--run-ids",
+            "run-alpha",
+            "--timeframe",
+            "1D",
+        ]
+    )
+
+    assert isinstance(result, PortfolioRunResult)
+    assert captured["portfolio_name"] == "core_portfolio"
+    assert captured["explicit_run_ids"] == ["run-alpha"]
+    assert captured["timeframe"] == "1D"
 
 
 def test_run_cli_builds_portfolio_from_explicit_run_ids(
@@ -1222,6 +1307,75 @@ def test_run_cli_strict_portfolio_config_from_registry_succeeds_and_persists_aud
         "enabled": True,
         "source": "cli",
     }
+
+
+def test_run_cli_documented_portfolio_walk_forward_config_overlaps_strategy_data(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    strategy_root = tmp_path / "artifacts" / "strategies"
+    portfolio_root = tmp_path / "artifacts" / "portfolios"
+    repo_root = Path(__file__).resolve().parents[1]
+    portfolio_config_path = repo_root / "configs" / "portfolios.yml"
+    evaluation_path = repo_root / "configs" / "evaluation_portfolio_2026_q1.yml"
+    rows = [
+        {
+            "ts_utc": timestamp.strftime("%Y-%m-%dT00:00:00Z"),
+            "strategy_return": 0.004 if index % 2 == 0 else -0.002,
+        }
+        for index, timestamp in enumerate(pd.date_range("2026-01-01", "2026-04-02", freq="D"))
+    ]
+    mean_reversion_rows = [
+        {
+            "ts_utc": row["ts_utc"],
+            "strategy_return": -0.001 if index % 2 == 0 else 0.003,
+        }
+        for index, row in enumerate(rows)
+    ]
+
+    _write_registered_strategy_run(
+        strategy_root,
+        run_id="run-momentum",
+        strategy_name="momentum_v1",
+        rows=rows,
+        timeframe="1D",
+        timestamp="2026-03-25T00:00:00Z",
+    )
+    _write_registered_strategy_run(
+        strategy_root,
+        run_id="run-meanrev",
+        strategy_name="mean_reversion_v1",
+        rows=mean_reversion_rows,
+        timeframe="1D",
+        timestamp="2026-03-25T00:05:00Z",
+    )
+
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr("src.cli.run_portfolio.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.portfolio.walk_forward.experiment_tracker.ARTIFACTS_ROOT", strategy_root)
+    monkeypatch.setattr("src.cli.run_portfolio.DEFAULT_PORTFOLIO_ARTIFACTS_ROOT", portfolio_root)
+
+    result = run_cli(
+        [
+            "--portfolio-config",
+            str(portfolio_config_path),
+            "--portfolio-name",
+            "strict_valid_builtin_pair",
+            "--from-registry",
+            "--evaluation",
+            str(evaluation_path),
+            "--timeframe",
+            "1D",
+        ]
+    )
+
+    assert isinstance(result, PortfolioWalkForwardRunResult)
+    assert result.split_count > 0
+    assert result.experiment_dir == portfolio_root / result.run_id
+    assert (result.experiment_dir / "aggregate_metrics.json").exists()
+    metrics_by_split = pd.read_csv(result.experiment_dir / "metrics_by_split.csv")
+    assert metrics_by_split["split_id"].tolist()[0] == "rolling_0000"
+    assert metrics_by_split["row_count"].min() > 0
 
 
 def test_run_cli_writes_portfolio_simulation_artifacts(

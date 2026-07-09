@@ -295,7 +295,7 @@ python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --port
 Strict walk-forward example:
 
 ```powershell
-python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name strict_valid_builtin_pair --from-registry --evaluation configs/evaluation.yml --timeframe 1D --strict
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name strict_valid_builtin_pair --from-registry --evaluation configs/evaluation_portfolio_2026_q1.yml --timeframe 1D --strict
 ```
 
 Portfolio artifacts are written under `artifacts/portfolios/<run_id>/`.

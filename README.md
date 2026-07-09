@@ -1935,7 +1935,7 @@ python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --port
 Walk-forward portfolio evaluation:
 
 ```powershell
-python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name strict_valid_builtin_pair --from-registry --evaluation configs/evaluation.yml --timeframe 1D --strict
+python -m src.cli.run_portfolio --portfolio-config configs/portfolios.yml --portfolio-name strict_valid_builtin_pair --from-registry --evaluation configs/evaluation_portfolio_2026_q1.yml --timeframe 1D --strict
 ```
 
 The end-to-end Milestone 11 guide, including config snippets and output

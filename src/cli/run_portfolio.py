@@ -620,7 +620,7 @@ def main() -> None:
     """CLI entrypoint used by direct module execution."""
 
     try:
-        run_cli()
+        run_cli(sys.argv[1:])
     except (ResearchStrictModeError, ValueError) as exc:
         print(_format_run_failure(exc), file=sys.stderr)
         raise SystemExit(1) from exc

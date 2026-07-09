@@ -412,7 +412,7 @@ python -m src.cli.run_portfolio \
   --portfolio-config configs/portfolios.yml \
   --portfolio-name strict_valid_builtin_pair \
   --from-registry \
-  --evaluation configs/evaluation.yml \
+  --evaluation configs/evaluation_portfolio_2026_q1.yml \
   --timeframe 1D
 ```
 
@@ -420,6 +420,9 @@ In walk-forward mode:
 
 * the portfolio config still defines components and allocator
 * the evaluation config defines the splits
+* the shipped portfolio example uses `configs/evaluation_portfolio_2026_q1.yml`
+  so the splits overlap the prerequisite `momentum_v1` and
+  `mean_reversion_v1` artifacts
 * the portfolio timeframe must match the evaluation timeframe
 * simulation cannot be combined with `--evaluation`
 
